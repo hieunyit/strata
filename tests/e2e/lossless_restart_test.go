@@ -158,12 +158,17 @@ type agentProcess struct {
 func buildAgentBinary(t *testing.T) string {
 	t.Helper()
 	binPath := filepath.Join(t.TempDir(), "strata-agent")
-	cmd := exec.Command("go", "build", "-o", binPath, "../../agent/cmd/strata-agent")
+	absBinPath, err := filepath.Abs(binPath)
+	if err != nil {
+		t.Fatalf("abs path: %v", err)
+	}
+	cmd := exec.Command("go", "build", "-o", absBinPath, "./cmd/strata-agent")
+	cmd.Dir = filepath.Join("..", "..", "agent")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("failed to build strata-agent: %v\nOutput: %s", err, string(out))
 	}
-	return binPath
+	return absBinPath
 }
 
 func startAgentProcess(t *testing.T, binPath string, args ...string) *agentProcess {
