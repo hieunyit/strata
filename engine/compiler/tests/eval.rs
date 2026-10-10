@@ -580,3 +580,86 @@ rules:
         assert_eq!(run("/q?a=1&b=x", &[("Host", "a")]), [800303]);
     }
 }
+
+// An rx pattern Hyperscan refuses (CRS 932230 is too large for it) is left
+// out of the database and runs with the regex crate.
+mod regex_fallback {
+    use super::*;
+
+    fn engine_932230() -> Arc<Engine> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../rules/crs/932-rce.yaml");
+        let mut doc = from_yaml(&std::fs::read_to_string(path).unwrap()).unwrap();
+        doc["rules"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|r| r["id"] == 932230);
+        let defs = rules_from_ir(&doc).unwrap();
+        assert_eq!(defs.len(), 1);
+        let pol = policies_from(
+            &from_yaml("policies: [{ name: example-api, mode: enforce }]").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Engine::map(
+            Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+            &public_key(&SEED),
+        )
+        .unwrap();
+        assert_eq!(e.regexes().len(), 1, "932230 runs with the regex crate");
+        Arc::new(e)
+    }
+
+    fn post(e: &Arc<Engine>, body: &str) -> Vec<u32> {
+        let mut t = Tx::new(Some(e.clone()), b"node", 0);
+        t.set_client_addr(b"192.0.2.1");
+        t.request_line(b"POST", b"/post", b"/post", b"", b"HTTP/1.1");
+        t.request_headers(&[
+            (b"Host", b"api.example.test"),
+            (b"Content-Type", b"application/x-www-form-urlencoded"),
+        ]);
+        t.request_body_chunk(body.as_bytes(), true);
+        rules(&t.verdict())
+    }
+
+    #[test]
+    fn too_large_for_hyperscan_still_matches() {
+        let e = engine_932230();
+        assert_eq!(
+            post(&e, "arg2=()+{+:;};+/bin/sh+-c+\"sleep+6+&&+echo+vulnerable"),
+            [932230]
+        );
+        assert_eq!(post(&e, "comment=see+you+at+six"), Vec::<u32>::new());
+    }
+
+    #[test]
+    fn regex_has_the_meaning_of_hyperscan() {
+        let re = libstrata::eval::fallback_regex(br"\x{bc}a(?i)B\s").unwrap();
+        assert!(re.is_match(b"\xbcab\t"));
+        assert!(
+            libstrata::eval::fallback_regex(br"[\x{bc}-\x{be}]")
+                .unwrap()
+                .is_match(b"\xbd")
+        );
+        let one = libstrata::eval::fallback_regex(br"^\x{bc}$").unwrap();
+        assert!(one.is_match(b"\xbc"));
+        assert!(
+            !one.is_match("\u{bc}".as_bytes()),
+            "a byte, not a code point"
+        );
+        assert!(
+            libstrata::eval::fallback_regex(br"(a)\1").is_err(),
+            "no backreferences"
+        );
+    }
+}

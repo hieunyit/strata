@@ -400,6 +400,7 @@ impl Tx {
             eval::evaluate(
                 &engine.tables(),
                 engine.hyperscan(),
+                engine.regexes(),
                 &req,
                 stage,
                 &mut |v| found.push(v),
@@ -443,6 +444,7 @@ impl Tx {
         eval::evaluate(
             &engine.tables(),
             engine.hyperscan(),
+            engine.regexes(),
             &req,
             stage,
             &mut |v| found.push(v),

@@ -278,8 +278,13 @@ fn escape(lit: &[u8]) -> Vec<u8> {
 }
 
 /// One Hyperscan pattern per pattern-condition (one per item for pm); the
-/// pattern id indexes the returned condition table.
-fn patterns(rules: &[RuleDef]) -> (Vec<strata_hs::Pattern>, Vec<u32>, Vec<u32>) {
+/// pattern id indexes the returned condition table. Conditions in `apart`
+/// (rx patterns Hyperscan refuses) are left out: the engine runs them with
+/// the `regex` crate.
+fn patterns(
+    rules: &[RuleDef],
+    apart: &BTreeSet<u32>,
+) -> (Vec<strata_hs::Pattern>, Vec<u32>, Vec<u32>) {
     use strata_hs::compile::{ALLOWEMPTY, CASELESS, SINGLEMATCH};
     let (mut pats, mut conds, mut rule_of) = (vec![], vec![], vec![]);
     let op = |name| rules::code(OPERATORS, name).unwrap_or(u8::MAX);
@@ -287,6 +292,9 @@ fn patterns(rules: &[RuleDef]) -> (Vec<strata_hs::Pattern>, Vec<u32>, Vec<u32>) 
     for r in rules {
         for c in &r.conditions {
             let mut push = |expr: Vec<u8>, flags: u32| {
+                if apart.contains(&ci) {
+                    return;
+                }
                 pats.push(strata_hs::Pattern {
                     expression: expr,
                     flags: flags | SINGLEMATCH | ALLOWEMPTY,
@@ -334,18 +342,43 @@ pub fn compile(
         }
     }
     let mut sections = rules::encode(rules, policies.block_page.as_ref());
-    let (pats, conds, rule_of) = patterns(rules);
-    if !pats.is_empty() {
-        let image = strata_hs::compile(&pats).map_err(|(i, msg)| {
-            format!(
-                "rule {}: pattern not supported by Hyperscan: {msg}",
-                rule_of.get(i).copied().unwrap_or(0)
-            )
-        })?;
+    let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
+    let rx_conds: Vec<Option<&[u8]>> = rules
+        .iter()
+        .flat_map(|r| &r.conditions)
+        .map(|c| match &c.value {
+            RValue::Str(v) if c.op == rx => Some(&v[..]),
+            _ => None,
+        })
+        .collect();
+    let mut apart = BTreeSet::new();
+    loop {
+        let (pats, conds, rule_of) = patterns(rules, &apart);
+        if pats.is_empty() {
+            break;
+        }
+        let image = match strata_hs::compile(&pats) {
+            Ok(image) => image,
+            Err((i, msg)) => {
+                // an rx pattern Hyperscan refuses (too large) runs with the
+                // regex crate if that takes it; anything else is an error
+                let ci = conds.get(i).copied().unwrap_or(u32::MAX);
+                let rx = rx_conds.get(ci as usize).copied().flatten();
+                if rx.is_some_and(|p| libstrata::eval::fallback_regex(p).is_ok()) {
+                    apart.insert(ci);
+                    continue;
+                }
+                return Err(format!(
+                    "rule {}: pattern not supported by Hyperscan: {msg}",
+                    rule_of.get(i).copied().unwrap_or(0)
+                ));
+            }
+        };
         sections.push((
             libstrata::bundle::kind::HYPERSCAN,
             rules::encode_hyperscan(strata_hs::version(), &conds, &image),
         ));
+        break;
     }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
     let names: Vec<PolicySpec> = policies

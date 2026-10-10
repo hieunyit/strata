@@ -22,6 +22,8 @@ pub struct Engine {
     /// some rule runs at stage request_body: transactions keep the request
     /// line, the headers and the body for it
     body_rules: bool,
+    /// rx patterns Hyperscan does not take, for the `regex` crate
+    regexes: crate::eval::Regexes,
 }
 
 impl std::fmt::Debug for Engine {
@@ -59,11 +61,25 @@ impl Engine {
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let body_rules =
             (0..tables.n_rules()).any(|i| tables.rule(i).is_some_and(|r| r.stage == body));
+        // the signature vouches for the compiler, which checked these
+        // patterns; a refusal here is a bundle this build cannot run
+        let regexes = crate::eval::Regexes::build(&tables).map_err(|_| {
+            (
+                E_BUNDLE,
+                "bundle has an rx pattern this build cannot compile",
+            )
+        })?;
         Ok(Engine {
             bytes: bundle,
             info,
             body_rules,
+            regexes,
         })
+    }
+
+    /// rx patterns evaluated without Hyperscan.
+    pub fn regexes(&self) -> &crate::eval::Regexes {
+        &self.regexes
     }
 
     /// Whether some rule runs at stage request_body.

@@ -14,7 +14,10 @@
 //!
 //! Each distinct (value, transformation chain) is scanned once with the
 //! bundle's Hyperscan database; the matches of every pattern-condition are
-//! collected from that one scan.
+//! collected from that one scan. An rx pattern Hyperscan does not take
+//! (CRS has a few too large for it) is left out of the database by the
+//! compiler and runs with the `regex` crate instead, also in linear time
+//! ([`Regexes`]).
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
@@ -28,6 +31,96 @@ use crate::rules::{
     CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS, ValueView, code,
 };
 use crate::transform;
+
+/// The rx patterns of a bundle that are not in its Hyperscan database,
+/// compiled with the `regex` crate when the bundle is mapped.
+#[derive(Default)]
+pub struct Regexes(Vec<(u32, regex::bytes::Regex)>);
+
+/// Compiles an rx pattern for the `regex` crate with Hyperscan's meaning
+/// (the database is built without HS_FLAG_UTF8): on bytes, classes and
+/// case folding are ASCII, and `\x{bc}` is the byte 0xbc (for the `regex`
+/// crate it is a code point, so it is written `\xbc`).
+pub fn fallback_regex(pattern: &[u8]) -> Result<regex::bytes::Regex, String> {
+    let s = std::str::from_utf8(pattern).map_err(|_| "pattern is not UTF-8".to_string())?;
+    regex::bytes::RegexBuilder::new(&byte_escapes(s))
+        .unicode(false)
+        .size_limit(64 << 20)
+        .dfa_size_limit(16 << 20)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// `\x{HH}` -> `\xHH` for values up to 0xff; other escapes as written.
+fn byte_escapes(p: &str) -> String {
+    let b = p.as_bytes();
+    let mut out = String::with_capacity(p.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'\\' || i + 1 >= b.len() {
+            let n = p[i..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&p[i..i + n]);
+            i += n;
+            continue;
+        }
+        if b[i + 1] == b'x'
+            && b.get(i + 2) == Some(&b'{')
+            && let Some(len) = b[i + 3..].iter().position(|&c| c == b'}')
+            && let Ok(v @ 0..=0xff) = u32::from_str_radix(&p[i + 3..i + 3 + len], 16)
+        {
+            out.push_str(&format!("\\x{v:02x}"));
+            i += 4 + len;
+            continue;
+        }
+        // any other escape: the backslash and the character it escapes
+        let n = p[i + 1..].chars().next().map_or(1, char::len_utf8);
+        out.push_str(&p[i..i + 1 + n]);
+        i += 1 + n;
+    }
+    out
+}
+
+impl Regexes {
+    /// The rx conditions of `tables` that no Hyperscan pattern stands for.
+    pub fn build(tables: &Tables<'_>) -> Result<Regexes, String> {
+        let rx = code(crate::rules::OPERATORS, "rx").unwrap_or(u8::MAX);
+        let mut in_db = std::collections::HashSet::new();
+        if let Some(hs) = tables.hyperscan() {
+            for id in 0..hs.n_patterns() as u32 {
+                in_db.extend(hs.condition(id));
+            }
+        }
+        let mut out = vec![];
+        for i in 0..tables.n_rules() {
+            let Some(r) = tables.rule(i) else { continue };
+            for ci in r.cond_first..r.cond_first + r.cond_count {
+                let Some(c) = tables.cond(ci) else { continue };
+                if let (true, ValueView::Str(p), false) = (c.op == rx, c.value, in_db.contains(&ci))
+                {
+                    let re = fallback_regex(p).map_err(|e| format!("rule {}: {e}", r.id))?;
+                    out.push((ci, re));
+                }
+            }
+        }
+        out.sort_by_key(|(ci, _)| *ci);
+        Ok(Regexes(out))
+    }
+
+    fn get(&self, ci: u32) -> Option<&regex::bytes::Regex> {
+        self.0
+            .binary_search_by_key(&ci, |(c, _)| *c)
+            .ok()
+            .map(|i| &self.0[i].1)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 /// Bounded work on hostile input.
 const MAX_ARGS: usize = 1024;
@@ -177,6 +270,7 @@ struct Data<'a> {
 
 struct Ctx<'t, 'b> {
     tables: &'t Tables<'b>,
+    regexes: &'t Regexes,
     hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
     /// (value address, length, chain) -> conditions matched by the scan
     scans: HashMap<(usize, usize, Vec<u8>), Vec<u32>>,
@@ -290,7 +384,9 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
     {
         return Outcome::Unsupported;
     }
-    if pattern && ctx.hs.is_none() {
+    let regexes = ctx.regexes;
+    let fallback = regexes.get(ci);
+    if pattern && fallback.is_none() && ctx.hs.is_none() {
         return Outcome::Unsupported;
     }
 
@@ -340,7 +436,13 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
             });
         } else {
             for v in vals {
-                if matched(ctx, v, c.transforms).contains(&ci) != neg {
+                let hit = match fallback {
+                    Some(re) => {
+                        transform::apply_chain(c.transforms, v).is_some_and(|tv| re.is_match(&tv))
+                    }
+                    None => matched(ctx, v, c.transforms).contains(&ci),
+                };
+                if hit != neg {
                     any = true;
                     break;
                 }
@@ -394,6 +496,7 @@ fn rule_matches(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, r: &RuleView<'_>) -> Option
 pub fn evaluate(
     tables: &Tables<'_>,
     db: Option<MappedDb<'_>>,
+    regexes: &Regexes,
     req: &Request<'_>,
     stage: u8,
     report: &mut impl FnMut(Violation),
@@ -422,6 +525,7 @@ pub fn evaluate(
     let hs = tables.hyperscan().zip(db);
     let mut ctx = Ctx {
         tables,
+        regexes,
         hs,
         scans: HashMap::new(),
     };
@@ -472,6 +576,14 @@ mod tests {
         for v in SUPPORTED_VARS {
             assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
         }
+    }
+
+    #[test]
+    fn byte_escapes_rewrites_only_byte_values() {
+        assert_eq!(byte_escapes(r"\x{bc}[^\x{BE}]"), r"\xbc[^\xbe]");
+        assert_eq!(byte_escapes(r"\\x{bc}"), r"\\x{bc}", "an escaped backslash");
+        assert_eq!(byte_escapes(r"\x{100}a\d{2}é"), r"\x{100}a\d{2}é");
+        assert_eq!(byte_escapes("\\"), "\\");
     }
 
     #[test]
