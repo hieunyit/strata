@@ -33,6 +33,50 @@ use crate::transform;
 const MAX_ARGS: usize = 1024;
 const MAX_COOKIES: usize = 256;
 
+/// Targets this evaluator reads; a rule on another target never matches.
+pub const SUPPORTED_VARS: &[&str] = &[
+    "method",
+    "uri_raw",
+    "uri",
+    "path",
+    "protocol",
+    "remote_addr",
+    "args",
+    "args_get",
+    "args_post",
+    "args_names",
+    "request_body",
+    "request_headers",
+    "request_headers_names",
+    "request_cookies",
+    "request_cookies_names",
+];
+
+/// Operators and transformations this evaluator runs; a rule using
+/// another one is skipped (never matches). Tools use this list to tell a
+/// rule the engine cannot run yet from a rule that fails its tests.
+pub fn supported() -> (Vec<&'static str>, Vec<&'static str>) {
+    let ops = crate::rules::OPERATORS
+        .iter()
+        .enumerate()
+        .filter(|(i, name)| {
+            HS_OPERATORS.contains(&(*i as u8))
+                || matches!(
+                    **name,
+                    "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "detect_sqli" | "detect_xss"
+                )
+        })
+        .map(|(_, n)| *n)
+        .collect();
+    let transforms = crate::rules::TRANSFORMS
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| transform::is_implemented(*i as u8))
+        .map(|(_, n)| *n)
+        .collect();
+    (ops, transforms)
+}
+
 /// What the connector passed for the request line and headers.
 pub struct Request<'a> {
     pub method: &'a [u8],
@@ -403,6 +447,19 @@ mod tests {
         let c = parse_cookies(&h);
         assert_eq!(c.len(), 3);
         assert_eq!((&*c[1].0, &*c[1].1), (&b"theme"[..], &b"dark"[..]));
+    }
+
+    #[test]
+    fn supported_lists_match_the_evaluator() {
+        let (ops, transforms) = supported();
+        for op in ["rx", "pm", "eq", "detect_sqli", "detect_xss"] {
+            assert!(ops.contains(&op), "{op}");
+        }
+        assert!(!ops.contains(&"ip_match"));
+        assert!(transforms.contains(&"url_decode_uni") && !transforms.contains(&"cmd_line"));
+        for v in SUPPORTED_VARS {
+            assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
+        }
     }
 
     #[test]

@@ -1,0 +1,13 @@
+[package]
+name = "strata-eval"
+version = "0.1.0"
+description = "Test tool: runs requests (JSON lines) through libstrata with a signed bundle"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+libstrata = { path = "../.." }
+strata-hs = { path = "../../ffi/hyperscan" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.149"

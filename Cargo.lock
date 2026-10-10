@@ -833,6 +833,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "strata-eval"
+version = "0.1.0"
+dependencies = [
+ "libstrata",
+ "serde",
+ "serde_json",
+ "strata-hs",
+]
+
+[[package]]
 name = "strata-hs"
 version = "0.1.0"
 
