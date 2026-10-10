@@ -11,10 +11,12 @@
 use std::sync::Arc;
 
 use crate::block_id::{self, Kind};
+use crate::bundle::Response;
+use crate::detectors::response::{self, cccd, db_errors, jwt};
 use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
 use crate::eval;
-use crate::guard::{self, Guard};
+use crate::guard::{self, Feed, Guard};
 use crate::verdict::*;
 
 pub(crate) const NEEDLE: &[u8] = b"STRATA-TEST-BLOCK";
@@ -68,7 +70,9 @@ pub struct Tx {
     json: bool,
     /// the policy blocks request bodies larger than what is inspected
     oversize_block: bool,
-    /// response data guard, when there is something to mask
+    /// response layer switches of the policy
+    response: Response,
+    /// response body scanner (data guard, detectors), when one is on
     guard: Option<Guard>,
     stage: Stage,
     error: Rc,
@@ -113,6 +117,7 @@ impl Tx {
             shadow: flags & TXF_FORCE_SHADOW != 0,
             json: false,
             oversize_block: false,
+            response: Response::default(),
             guard: None,
             stage: Stage::New,
             error: OK,
@@ -134,11 +139,12 @@ impl Tx {
         tx
     }
 
-    /// Applies the policy's settings (oversize handling). An unknown
-    /// policy keeps the defaults.
+    /// Applies the policy's settings (oversize handling, response layer).
+    /// An unknown policy keeps the defaults.
     pub fn set_policy(&mut self, name: &[u8]) {
         if let Some(p) = self.engine.as_ref().and_then(|e| e.policy(name)) {
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
+            self.response = p.response;
         }
     }
 
@@ -228,6 +234,21 @@ impl Tx {
         self.score = self.score.saturating_add(v.score);
         if v.block_alone || self.score >= BLOCK_THRESHOLD {
             self.hit();
+        }
+    }
+
+    /// Records a response-layer finding: listed with the rules, but the
+    /// decision was taken with the request; an Event ID identifies it.
+    fn record(&mut self, rule: u32) {
+        if self.rules[..self.n_rules].contains(&rule) {
+            return;
+        }
+        if self.n_rules < MAX_RULES {
+            self.rules[self.n_rules] = rule;
+            self.n_rules += 1;
+        }
+        if self.id.is_none() {
+            self.id = Some(block_id::generate(Kind::Event, self.node));
         }
     }
 
@@ -411,23 +432,41 @@ impl Tx {
         OK
     }
 
-    /// Detectors that rewrite the response body. None in this build yet
-    /// (they come with W06-R-01) except the test-hooks literal.
-    fn response_matchers() -> Vec<Box<dyn guard::Matcher>> {
+    /// Response body scanners of the policy (and the test-hooks literal).
+    fn response_matchers(&self) -> Vec<Box<dyn guard::Matcher>> {
+        let mut m: Vec<Box<dyn guard::Matcher>> = Vec::new();
         #[cfg(feature = "test-hooks")]
-        return vec![Box::new(guard::Literal(MASK_NEEDLE))];
-        #[cfg(not(feature = "test-hooks"))]
-        return Vec::new();
+        m.push(Box::new(guard::Literal(MASK_NEEDLE)));
+        if self.response.has(Response::GUARD_CCCD) {
+            m.push(Box::new(cccd::Cccd));
+        }
+        if self.response.has(Response::GUARD_JWT) {
+            m.push(Box::new(jwt::Jwt::new()));
+        }
+        if self.response.has(Response::DB_ERRORS) {
+            m.push(Box::new(db_errors::DbErrors));
+        }
+        m
     }
 
-    pub fn response_headers(&mut self, _status: u16) -> Rc {
+    /// Whether the response body is worth passing (`need_response`).
+    fn wants_body(&self) -> bool {
+        cfg!(feature = "test-hooks") || self.response.0 & !Response::STATUS != 0
+    }
+
+    pub fn response_headers(&mut self, status: u16) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::Response) {
             return rc;
         }
         self.stage = Stage::Response;
-        let matchers = Self::response_matchers();
+        if self.response.has(Response::STATUS) && !response::status_allowed(status) {
+            self.record(response::STATUS_NOT_ALLOWED);
+        }
+        let matchers = self.response_matchers();
         if !matchers.is_empty() {
-            self.guard = Some(Guard::new(matchers));
+            // the data guard masks in enforce only: shadow never changes
+            // the traffic
+            self.guard = Some(Guard::new(matchers, !self.shadow));
         }
         OK
     }
@@ -436,25 +475,31 @@ impl Tx {
     /// chunk (masked, and with the held tail moved: same total length);
     /// `None`: send the chunk unchanged.
     pub fn response_body_chunk(&mut self, data: &[u8], last: bool) -> (Rc, Option<Vec<u8>>) {
-        if self.error != OK {
-            return (self.error, None);
-        }
-        if self.stage != Stage::Response {
-            return (E_STATE, None);
-        }
-        (OK, self.guard.as_mut().map(|g| g.chunk(data, last)))
+        self.response_feed(data, if last { Feed::Last } else { Feed::More })
     }
 
     /// The connector flushes the response: `Some(bytes)` held back by the
     /// data guard, to send now; `None`: nothing to send.
     pub fn response_body_flush(&mut self) -> (Rc, Option<Vec<u8>>) {
+        self.response_feed(&[], Feed::Flush)
+    }
+
+    fn response_feed(&mut self, data: &[u8], feed: Feed) -> (Rc, Option<Vec<u8>>) {
         if self.error != OK {
             return (self.error, None);
         }
         if self.stage != Stage::Response {
             return (E_STATE, None);
         }
-        (OK, self.guard.as_mut().map(Guard::flush))
+        let Some(g) = self.guard.as_mut() else {
+            return (OK, None);
+        };
+        let out = g.chunk(data, feed);
+        let found: Vec<u32> = g.found().to_vec();
+        for rule in found {
+            self.record(rule);
+        }
+        (OK, out)
     }
 
     pub fn verdict(&self) -> Verdict {
@@ -476,7 +521,7 @@ impl Tx {
         }
         // the connector inspects the response only when something can be
         // found or rewritten in it
-        v.need_response = self.error == OK && !Self::response_matchers().is_empty();
+        v.need_response = self.error == OK && self.wants_body();
         v.id = self.id;
         v
     }
