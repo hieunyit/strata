@@ -1,12 +1,10 @@
 //! Database error messages in a response body: the application leaks its
 //! SQL errors, typical of an injection being probed. Rules 600101-600107,
-//! one per database family, recorded only. Case-insensitive literals in one
-//! Aho-Corasick automaton (linear time), built once.
+//! one per database family, recorded only. Case-insensitive literals,
+//! tried only where the byte matches the first byte of a signature: no
+//! allocation and no global state (the module can be unloaded; a static
+//! automaton showed up as leaked under Valgrind after dlclose).
 #![forbid(unsafe_code)]
-
-use std::sync::OnceLock;
-
-use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 
 use super::digit;
 use crate::guard::{Ctx, Hit, Matcher};
@@ -58,14 +56,14 @@ const SIGNATURES: &[(&str, u32)] = &[
     ("Syntax error in string in query expression", GENERIC),
 ];
 
-fn automaton() -> &'static AhoCorasick {
-    static AC: OnceLock<AhoCorasick> = OnceLock::new();
-    AC.get_or_init(|| {
-        AhoCorasickBuilder::new()
-            .ascii_case_insensitive(true)
-            .match_kind(MatchKind::LeftmostFirst)
-            .build(SIGNATURES.iter().map(|(s, _)| s))
-            .expect("static signatures")
+/// The first signature (list order) matching at `hay[i..]`.
+fn signature_at(hay: &[u8], i: usize) -> Option<usize> {
+    let c = hay[i].to_ascii_lowercase();
+    SIGNATURES.iter().position(|(sig, _)| {
+        let sig = sig.as_bytes();
+        sig[0].to_ascii_lowercase() == c
+            && hay.len() - i >= sig.len()
+            && hay[i..i + sig.len()].eq_ignore_ascii_case(sig)
     })
 }
 
@@ -82,31 +80,35 @@ impl Matcher for DbErrors {
     }
 
     fn find(&mut self, hay: &[u8], ctx: Ctx, out: &mut Vec<Hit>) {
-        for m in automaton().find_iter(hay) {
-            let (sig, rule) = SIGNATURES[m.pattern().as_usize()];
-            let mut end = m.end();
+        let mut i = 0;
+        while i < hay.len() {
+            let Some(k) = signature_at(hay, i) else {
+                i += 1;
+                continue;
+            };
+            let (sig, rule) = SIGNATURES[k];
+            let start = i;
+            let mut end = i + sig.len();
             if sig == ORA {
                 // upper case, a word of its own, 5 digits (all in the
                 // window: the tail held back covers them)
-                let before = match m.start() {
+                let before = match start {
                     0 => ctx.before,
-                    i => Some(hay[i - 1]),
+                    j => Some(hay[j - 1]),
                 };
                 let digits = &hay[end..hay.len().min(end + ORA_DIGITS)];
-                if &hay[m.start()..end] != ORA.as_bytes()
+                if &hay[start..end] != ORA.as_bytes()
                     || before.is_some_and(|c| c.is_ascii_alphanumeric())
                     || digits.len() < ORA_DIGITS
                     || !digits.iter().all(|&c| digit(c))
                 {
+                    i += 1;
                     continue;
                 }
                 end += ORA_DIGITS;
             }
-            out.push(Hit {
-                start: m.start(),
-                end,
-                rule,
-            });
+            out.push(Hit { start, end, rule });
+            i = end;
         }
     }
 }
