@@ -21,7 +21,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss \
+	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e
 
 all: lib nginx
@@ -137,6 +137,10 @@ test-agent:
 
 e2e:
 	cd tests/e2e && go test -v -timeout 5m ./...
+
+# Rust port of libinjection vs the original C library (W06-R-01)
+libinjection-diff:
+	engine/tools/libinjection/diff.sh $(CURDIR)/build
 
 poc:
 	$(MAKE) -C engine/poc/hs_mmap run

@@ -1,6 +1,7 @@
 //! Detection layers, cheapest first (strata-overview.md › Pipeline detection).
 #![forbid(unsafe_code)]
 
+pub mod injection;
 pub mod protocol;
 pub mod response;
 
