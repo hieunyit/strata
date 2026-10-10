@@ -1,0 +1,212 @@
+/*
+ * C-side ABI test for libstrata: layout, version, NULL/idempotency rules,
+ * stub behaviour and Block ID format, exercised through strata.h exactly as
+ * a connector would.
+ */
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "strata.h"
+
+/* Layout is part of the ABI: these must never change within a major. */
+_Static_assert(sizeof(strata_str_t) == 2 * sizeof(void *), "strata_str_t");
+_Static_assert(offsetof(strata_str_t, len) == sizeof(void *), "strata_str_t.len");
+_Static_assert(sizeof(strata_str_pair_t) == 2 * sizeof(strata_str_t), "pair");
+_Static_assert(sizeof(strata_header_t) == sizeof(strata_str_pair_t), "header");
+_Static_assert(offsetof(strata_verdict_t, action) == 0, "verdict.action");
+_Static_assert(offsetof(strata_verdict_t, status) == 4, "verdict.status");
+_Static_assert(offsetof(strata_verdict_t, flags) == 6, "verdict.flags");
+_Static_assert(offsetof(strata_verdict_t, error) == 8, "verdict.error");
+_Static_assert(offsetof(strata_verdict_t, score) == 12, "verdict.score");
+_Static_assert(offsetof(strata_verdict_t, n_rules) == 16, "verdict.n_rules");
+_Static_assert(offsetof(strata_verdict_t, rules) == 20, "verdict.rules");
+_Static_assert(offsetof(strata_verdict_t, block_id) == 20 + 4 * STRATA_MAX_RULES,
+               "verdict.block_id");
+_Static_assert(sizeof(strata_verdict_t) == 108, "verdict size");
+_Static_assert(STRATA_BLOCK_ID_SIZE == 24, "block id size");
+_Static_assert(STRATA_MAX_RULES == 16, "max rules");
+_Static_assert(sizeof(strata_rc_t) == 4, "rc");
+_Static_assert(STRATA_ABI_VERSION_MAJOR == 1, "abi major");
+
+static int failures;
+
+#define CHECK(c)                                                          \
+    do {                                                                  \
+        if (!(c)) {                                                       \
+            fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__,        \
+                    __LINE__, #c);                                        \
+            failures++;                                                   \
+        }                                                                 \
+    } while (0)
+
+#define S(lit) ((strata_str_t) { (const uint8_t *) (lit), sizeof(lit) - 1 })
+
+static const uint8_t pubkey[STRATA_PUBKEY_LEN];
+static const uint8_t bundle[] = "SBN0 stub bundle for example-api";
+
+static int
+id_ok(const char *id, const char *prefix)
+{
+    static const char alphabet[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    size_t i;
+
+    if (strlen(id) != 23 || strncmp(id, prefix, 4) != 0) {
+        return 0;
+    }
+    for (i = 4; i < 23; i++) {
+        if (i == 8 || i == 13 || i == 18) {
+            if (id[i] != '-') {
+                return 0;
+            }
+        } else if (id[i] == '\0' || strchr(alphabet, id[i]) == NULL) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static strata_tx_t *
+start(strata_engine_t *e, uint32_t flags, strata_str_t uri)
+{
+    strata_conn_t     conn;
+    strata_tx_t      *tx;
+    strata_header_t   h[2];
+
+    memset(&conn, 0, sizeof(conn));
+    conn.client_addr = S("192.0.2.10");
+    conn.node_id = S("web-01");
+    conn.flags = flags;
+
+    tx = strata_tx_new(e, S("example-api"), &conn, 2000);
+    CHECK(tx != NULL);
+
+    CHECK(strata_tx_request_line(tx, S("POST"), uri, uri, S(""), S("HTTP/1.1"))
+          == (e ? STRATA_OK : STRATA_E_BUNDLE));
+
+    h[0].key = S("Host");
+    h[0].val = S("api.example.test");
+    h[1].key = S("Accept");
+    h[1].val = S("application/json");
+    strata_tx_request_headers(tx, h, 2);
+    return tx;
+}
+
+int
+main(void)
+{
+    strata_err_t      err;
+    strata_engine_t  *e;
+    strata_tx_t      *tx;
+    strata_verdict_t  v;
+    strata_buf_t      buf;
+
+    CHECK(strata_abi_version() == STRATA_ABI_VERSION);
+    CHECK(strata_abi_version() >> 16 == STRATA_ABI_VERSION_MAJOR);
+
+    /* engine_map errors */
+    memset(&err, 0, sizeof(err));
+    CHECK(strata_engine_map((const uint8_t *) "XXXX", 4, pubkey, &err) == NULL);
+    CHECK(err.code == STRATA_E_BUNDLE && err.msg[0] != '\0');
+    CHECK(strata_engine_map(NULL, 10, pubkey, &err) == NULL);
+    CHECK(err.code == STRATA_E_INVALID);
+    CHECK(strata_engine_map(bundle, sizeof(bundle), NULL, NULL) == NULL);
+
+    e = strata_engine_map(bundle, sizeof(bundle), pubkey, &err);
+    CHECK(e != NULL && err.code == STRATA_OK);
+    strata_engine_retain(e);
+    strata_engine_release(e);
+
+    /* NULL handles are rejected, never crash */
+    CHECK(strata_tx_request_line(NULL, S(""), S(""), S(""), S(""), S(""))
+          == STRATA_E_INVALID);
+    CHECK(strata_tx_request_headers(NULL, NULL, 0) == STRATA_E_INVALID);
+    CHECK(strata_tx_request_body_chunk(NULL, NULL, 0, 1) == STRATA_E_INVALID);
+    strata_tx_verdict(NULL, &v);
+    CHECK(v.error == STRATA_E_INVALID);
+    strata_tx_verdict(NULL, NULL);
+    strata_tx_free(NULL);
+    strata_buf_free(NULL);
+    CHECK(strata_tx_event(NULL, NULL, 0) == 0);
+
+    /* ptr may be NULL when len == 0; NULL with len > 0 is invalid */
+    tx = start(e, 0, S("/index.html"));
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 0) == STRATA_OK);
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 5, 0) == STRATA_E_INVALID);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.action == STRATA_ACTION_ALLOW && v.error == STRATA_OK);
+    CHECK(v.flags & STRATA_VF_NEED_BODY);
+    CHECK(v.flags & STRATA_VF_JSON);
+    CHECK(strata_tx_request_body_chunk(tx, (const uint8_t *) "a=1", 3, 1) == STRATA_OK);
+    strata_tx_verdict(tx, &v);
+    CHECK(!(v.flags & STRATA_VF_NEED_BODY) && v.block_id[0] == '\0');
+
+    /* response side; rewritten buffer is empty and free is idempotent */
+    CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
+    memset(&buf, 0xff, sizeof(buf));
+    CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "ok", 2, 1, &buf)
+          == STRATA_OK);
+    CHECK(buf.ptr == NULL && buf.len == 0);
+    strata_buf_free(&buf);
+    strata_buf_free(&buf);
+
+    strata_tx_free(tx);
+    tx = NULL;
+    strata_tx_free(tx);              /* idempotent with the NULL convention */
+
+    /* block on URI */
+    tx = start(e, 0, S("/search?q=STRATA-TEST-BLOCK"));
+    strata_tx_verdict(tx, &v);
+    CHECK(v.action == STRATA_ACTION_BLOCK && v.status == 403);
+    CHECK(v.n_rules == 1 && v.score > 0);
+    CHECK(id_ok(v.block_id, "STR-"));
+    printf("block id: %s\n", v.block_id);
+    strata_tx_free(tx);
+
+    /* block on body split across chunks */
+    tx = start(e, 0, S("/upload"));
+    CHECK(strata_tx_request_body_chunk(tx, (const uint8_t *) "xxSTRATA-TE", 11, 0) == STRATA_OK);
+    CHECK(strata_tx_request_body_chunk(tx, (const uint8_t *) "ST-BLOCKyy", 10, 1) == STRATA_OK);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.action == STRATA_ACTION_BLOCK && id_ok(v.block_id, "STR-"));
+    strata_tx_free(tx);
+
+    /* shadow: log with Event ID */
+    tx = start(e, STRATA_TXF_FORCE_SHADOW, S("/STRATA-TEST-BLOCK"));
+    strata_tx_verdict(tx, &v);
+    CHECK(v.action == STRATA_ACTION_LOG && id_ok(v.block_id, "EVT-"));
+    strata_tx_free(tx);
+
+    /* no engine: bundle error with Event ID */
+    tx = start(NULL, 0, S("/"));
+    strata_tx_verdict(tx, &v);
+    CHECK(v.error == STRATA_E_BUNDLE && id_ok(v.block_id, "EVT-"));
+    strata_tx_free(tx);
+
+#ifdef STRATA_TEST_HOOKS
+    /* a panic is caught, reported, and makes the transaction sticky-broken */
+    tx = start(e, 0, S("/"));
+    CHECK(strata_tx_request_body_chunk(tx, (const uint8_t *) "STRATA-TEST-PANIC", 17, 1)
+          == STRATA_E_INTERNAL);
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_E_INTERNAL);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.error == STRATA_E_INTERNAL && id_ok(v.block_id, "EVT-"));
+    strata_tx_free(tx);
+#endif
+
+    /* transactions keep the engine alive after the module drops its ref */
+    tx = start(e, 0, S("/"));
+    strata_engine_release(e);
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_OK);
+    strata_tx_free(tx);
+
+    if (failures) {
+        fprintf(stderr, "abi_test: %d failure(s)\n", failures);
+        return 1;
+    }
+    printf("abi_test: ok\n");
+    return 0;
+}

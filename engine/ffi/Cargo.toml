@@ -1,0 +1,17 @@
+[package]
+name = "libstrata"
+version = "0.1.0"
+description = "Strata WAF engine with a stable C ABI (stub implementation)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+# Produces libstrata.a (linked statically into connectors) and an rlib for tests.
+name = "strata"
+crate-type = ["staticlib", "rlib"]
+
+[features]
+# Test-only triggers (e.g. a deliberate panic) used by the ABI and NGINX
+# integration suites. Never enabled in release packages.
+test-hooks = []
