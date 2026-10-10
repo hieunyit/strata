@@ -677,6 +677,41 @@ rules:
       source: crs
       upstream_id: "941300"
       upstream_version: 4.25.2
+  - id: 941310
+    name: US-ASCII Malformed Encoding XSS Filter - Attack Detected
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: \x{bc}[^>\x{be}]*[>\x{be}]|<[^\x{be}]*\x{be}
+          targets:
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: args_names
+            - var: args
+            - var: path
+          transforms:
+            - lowercase
+            - url_decode_uni
+            - html_entity_decode
+            - js_decode
+        - operator:
+            type: rx
+            value: \x{bc}[\s\x0b]*/[\s\x0b]*[^>\x{be}]*[>\x{be}]|<[\s\x0b]*/[\s\x0b]*[^\x{be}]*\x{be}
+          targets:
+            - var: matched_vars
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: xss
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "941310"
+      upstream_version: 4.25.2
   - id: 941350
     name: UTF-7 Encoding IE XSS - Attack Detected
     layer: managed

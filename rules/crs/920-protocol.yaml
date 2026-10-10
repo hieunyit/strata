@@ -4,6 +4,28 @@ ruleset:
   name: crs-920-protocol
   version: 4.25.2
 rules:
+  - id: 920100
+    name: Invalid HTTP Request Line
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            negate: true
+            type: rx
+            value: (?i)^(?:connect (?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}\.?(?::[0-9]+)?|[\--9A-Z_a-z]+:[0-9]+)|options \*|[a-z]{3,10}[\s\x0b]+(?:[0-9A-Z_a-z]{3,7}?://[\--9A-Z_a-z]*(?::[0-9]+)?)?/[^#\?]*(?:\?[^\s\x0b#]*)?(?:#[^\s\x0b]*)?)[\s\x0b]+[\.-9A-Z_a-z]+$
+          targets:
+            - var: request_line
+    score: 60
+    severity: warning
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920100"
+      upstream_version: 4.25.2
   - id: 920120
     name: Attempted multipart/form-data bypass
     layer: protocol

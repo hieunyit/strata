@@ -5,7 +5,9 @@
 //! `application/x-www-form-urlencoded` body, its fields), args_get (query),
 //! args_post (body fields), args_names, request_body (the raw body as
 //! inspected), request_headers[_names], request_cookies[_names],
-//! remote_addr, protocol. At stage request_headers the body is empty.
+//! remote_addr, protocol, request_line, query_string (raw), and
+//! matched_vars: the values (transformed) for which the previous condition
+//! of an `all` rule held. At stage request_headers the body is empty.
 //! Other body formats (JSON, multipart, XML) and files come later. Operators: the Hyperscan ones (rx, pm, contains,
 //! begins_with, ends_with, streq) and the numeric ones (eq ... le, on a
 //! value or on the count of values), and detect_sqli / detect_xss (the
@@ -143,6 +145,9 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "request_headers_names",
     "request_cookies",
     "request_cookies_names",
+    "matched_vars",
+    "request_line",
+    "query_string",
 ];
 
 /// Operators and transformations this evaluator runs; a rule using
@@ -262,6 +267,8 @@ fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
 struct Data<'a> {
     req: &'a Request<'a>,
     full_uri: Cow<'a, [u8]>,
+    /// method, raw URI and protocol, as on the wire
+    request_line: Vec<u8>,
     /// query fields, then body fields: args_get is args[..n_get]
     args: Vec<Pair<'a>>,
     n_get: usize,
@@ -299,6 +306,14 @@ fn values<'d>(
         vec![r.uri]
     } else if v == var("protocol") {
         vec![r.proto]
+    } else if v == var("request_line") {
+        vec![&d.request_line]
+    } else if v == var("query_string") {
+        if r.args.is_empty() {
+            vec![]
+        } else {
+            vec![r.args]
+        }
     } else if v == var("remote_addr") {
         vec![r.client_addr]
     } else if v == var("args") || v == var("args_get") || v == var("args_post") {
@@ -371,7 +386,21 @@ fn compare(op: &str, x: i64, y: i64) -> bool {
     }
 }
 
-fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> Outcome {
+/// Values for which a condition held, after its transformations: the
+/// `matched_vars` of the next condition (ModSecurity's MATCHED_VARS).
+type Matched = Vec<Vec<u8>>;
+
+/// Evaluates condition `ci`. `prev` holds the values the previous
+/// condition of the rule matched; with `collect`, every value this one
+/// matches is kept there (else evaluation stops at the first).
+fn condition(
+    ctx: &mut Ctx<'_, '_>,
+    d: &Data<'_>,
+    ci: u32,
+    c: &CondView<'_>,
+    prev: &Matched,
+    mut collect: Option<&mut Matched>,
+) -> Outcome {
     let op = crate::rules::OPERATORS
         .get(c.op as usize)
         .copied()
@@ -389,7 +418,16 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
     if pattern && fallback.is_none() && ctx.hs.is_none() {
         return Outcome::Unsupported;
     }
+    let y = match (numeric, c.value) {
+        (false, _) => 0,
+        (true, ValueView::Int(y)) => y,
+        (true, _) => return Outcome::Unsupported,
+    };
 
+    // As in ModSecurity: the operator, negated or not, is applied to each
+    // value, and the condition holds when it holds for one of them; a
+    // target without values never matches, negated or not.
+    let neg = c.negate;
     let mut any = false;
     for ti in c.target_first..c.target_first + c.target_count {
         let Some(t) = ctx.tables.target(ti) else {
@@ -400,55 +438,58 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
                 .filter_map(|i| ctx.tables.list(i))
                 .any(|e| e.eq_ignore_ascii_case(name))
         };
-        let vals = values(d, &t, &excluded);
-
-        // As in ModSecurity: the operator, negated or not, is applied to
-        // each value, and the condition holds when it holds for one of
-        // them; a target without values never matches, negated or not.
-        let neg = c.negate;
-        if numeric {
-            let ValueView::Int(y) = c.value else {
-                return Outcome::Unsupported;
-            };
-            if t.count {
-                // a count always has a value
-                any |= compare(op, vals.len() as i64, y) != neg;
-            } else {
-                any |= vals.iter().any(|v| {
-                    // a value that is not a number counts as 0, as atoi does
-                    let x = std::str::from_utf8(trim(v))
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                        .unwrap_or(0);
-                    compare(op, x, y) != neg
-                });
+        // values of matched_vars are owned by the previous condition: their
+        // addresses are not stable keys for the scan cache
+        let from_prev = t.var == var("matched_vars");
+        let vals: Vec<&[u8]> = if from_prev {
+            prev.iter().map(|v| &v[..]).collect()
+        } else {
+            values(d, &t, &excluded)
+        };
+        if numeric && t.count {
+            // a count always has a value
+            if compare(op, vals.len() as i64, y) != neg {
+                any = true;
             }
-        } else if detect {
-            any |= vals.iter().any(|v| {
-                transform::apply_chain(c.transforms, v).is_some_and(|tv| {
-                    let hit = if op == "detect_sqli" {
+            continue;
+        }
+        for v in vals {
+            let tv = || transform::apply_chain(c.transforms, v);
+            let hit = if numeric {
+                // a value that is not a number counts as 0, as atoi does
+                let x = std::str::from_utf8(trim(v))
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0);
+                compare(op, x, y)
+            } else if detect {
+                tv().is_some_and(|tv| {
+                    if op == "detect_sqli" {
                         detect_sqli(&tv).is_some()
                     } else {
                         detect_xss(&tv)
-                    };
-                    hit != neg
-                })
-            });
-        } else {
-            for v in vals {
-                let hit = match fallback {
-                    Some(re) => {
-                        transform::apply_chain(c.transforms, v).is_some_and(|tv| re.is_match(&tv))
                     }
-                    None => matched(ctx, v, c.transforms).contains(&ci),
-                };
-                if hit != neg {
-                    any = true;
-                    break;
+                })
+            } else if let Some(re) = fallback {
+                tv().is_some_and(|tv| re.is_match(&tv))
+            } else if from_prev {
+                scan(ctx, &tv()).contains(&ci)
+            } else {
+                matched(ctx, v, c.transforms).contains(&ci)
+            };
+            if hit != neg {
+                any = true;
+                match collect.as_deref_mut() {
+                    Some(m) => {
+                        if let Some(tv) = tv() {
+                            m.push(tv.into_owned());
+                        }
+                    }
+                    None => break,
                 }
             }
         }
-        if any {
+        if any && collect.is_none() {
             break;
         }
     }
@@ -460,30 +501,54 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
 fn matched<'c>(ctx: &'c mut Ctx<'_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
     let key = (v.as_ptr() as usize, v.len(), chain.to_vec());
     if !ctx.scans.contains_key(&key) {
-        let mut hits = vec![];
-        if let (Some((map, db)), Some(tv)) = (&ctx.hs, transform::apply_chain(chain, v)) {
-            let _ = db.scan(&tv, &mut |id| {
-                if let Some(c) = map.condition(id) {
-                    hits.push(c);
-                }
-                true
-            });
-        }
-        hits.sort_unstable();
-        hits.dedup();
+        let hits = match transform::apply_chain(chain, v) {
+            Some(tv) => scan(ctx, &Some(tv)),
+            None => vec![],
+        };
         ctx.scans.insert(key.clone(), hits);
     }
     &ctx.scans[&key]
 }
 
+/// Conditions matched by a transformed value, without the cache.
+fn scan(ctx: &Ctx<'_, '_>, tv: &Option<Cow<'_, [u8]>>) -> Vec<u32> {
+    let mut hits = vec![];
+    if let (Some((map, db)), Some(tv)) = (&ctx.hs, tv) {
+        let _ = db.scan(tv, &mut |id| {
+            if let Some(c) = map.condition(id) {
+                hits.push(c);
+            }
+            true
+        });
+    }
+    hits.sort_unstable();
+    hits.dedup();
+    hits
+}
+
 fn rule_matches(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, r: &RuleView<'_>) -> Option<bool> {
     let mut results = Vec::with_capacity(r.cond_count as usize);
-    for ci in r.cond_first..r.cond_first + r.cond_count {
+    let mut prev = Matched::new();
+    let end = r.cond_first + r.cond_count;
+    for ci in r.cond_first..end {
         let c = ctx.tables.cond(ci)?;
-        match condition(ctx, d, ci, &c) {
+        // keep what this condition matches when the next one reads it
+        let next_reads = !r.any
+            && ci + 1 < end
+            && ctx.tables.cond(ci + 1).is_some_and(|n| {
+                (n.target_first..n.target_first + n.target_count).any(|t| {
+                    ctx.tables
+                        .target(t)
+                        .is_some_and(|t| t.var == var("matched_vars"))
+                })
+            });
+        let mut kept = Matched::new();
+        let collect = if next_reads { Some(&mut kept) } else { None };
+        match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m) => results.push(m),
         }
+        prev = kept;
     }
     Some(if r.any {
         results.iter().any(|&m| m)
@@ -518,6 +583,7 @@ pub fn evaluate(
     let d = Data {
         req,
         full_uri,
+        request_line: [req.method, b" ", req.raw_uri, b" ", req.proto].concat(),
         args,
         n_get,
         cookies: parse_cookies(req.headers),

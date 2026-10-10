@@ -663,3 +663,94 @@ mod regex_fallback {
         );
     }
 }
+
+// matched_vars (MATCHED_VARS of chained CRS rules): the next condition sees
+// the values, transformed, that the previous one matched.
+mod matched_vars {
+    use super::*;
+
+    const RULES: &str = r#"
+ir_version: 1
+ruleset: { name: matched-vars-test, version: "1" }
+rules:
+  - { id: 800311, name: java class then a dangerous one, layer: managed, stage: request_headers, score: 100, severity: critical,
+      match: { all: [
+        { targets: [ { var: args }, { var: request_headers } ], transforms: [lowercase], operator: { type: pm, value: [java.lang] } },
+        { targets: [ { var: matched_vars } ], operator: { type: rx, value: '(?:runtime|processbuilder)' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800312, name: request line, layer: protocol, stage: request_headers, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: request_line } ], operator: { type: rx, value: '^GET /line\?q=%41 HTTP/1\.1$' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800313, name: raw query, layer: protocol, stage: request_headers, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: query_string } ], operator: { type: contains, value: '%41' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn run(uri: &str, headers: &[(&str, &str)]) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: []").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        rules(&super::run(&e, "GET", uri, headers, "192.0.2.1"))
+            .into_iter()
+            .filter(|id| *id >= 800000)
+            .collect()
+    }
+
+    #[test]
+    fn the_same_value_must_match_both_conditions() {
+        // one value matches both, after the first condition's lowercase
+        assert_eq!(run("/a?x=Java.Lang.RunTime", &[("Host", "a")]), [800311]);
+        // each condition matched by a different value: no match
+        assert_eq!(
+            run("/a?x=java.lang.String&y=runtime", &[("Host", "a")]),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            run(
+                "/a",
+                &[("Host", "a"), ("X-Class", "java.lang.ProcessBuilder")]
+            ),
+            [800311]
+        );
+    }
+
+    #[test]
+    fn request_line_and_raw_query() {
+        assert_eq!(run("/line?q=%41", &[("Host", "a")]), [800312, 800313]);
+    }
+
+    #[test]
+    fn matched_vars_needs_a_previous_condition() {
+        for m in [
+            "all: [ { targets: [ { var: matched_vars } ], operator: { type: rx, value: a } } ]",
+            "any: [ { targets: [ { var: args } ], operator: { type: rx, value: a } }, { targets: [ { var: matched_vars } ], operator: { type: rx, value: a } } ]",
+        ] {
+            let doc = format!(
+                "ir_version: 1\nruleset: {{ name: t, version: '1' }}\nrules:\n  - {{ id: 800314, name: t, layer: managed, stage: request_headers, score: 5, severity: notice, match: {{ {m} }}, metadata: {{ source: organization, license: Apache-2.0 }} }}\n"
+            );
+            let err = rules_from_ir(&from_yaml(&doc).unwrap()).unwrap_err();
+            assert!(err.contains("matched_vars"), "{err}");
+        }
+    }
+}

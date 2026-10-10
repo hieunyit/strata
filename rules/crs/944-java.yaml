@@ -34,6 +34,76 @@ rules:
       source: crs
       upstream_id: "944100"
       upstream_version: 4.25.2
+  - id: 944110
+    name: 'Remote Command Execution: Java process spawn (CVE-2017-9805)'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?:runtime|processbuilder)
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+          transforms:
+            - lowercase
+        - operator:
+            type: rx
+            value: (?i)(?:unmarshaller|base64data|java\.)
+          targets:
+            - var: matched_vars
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944110"
+      upstream_version: 4.25.2
+  - id: 944120
+    name: 'Remote Command Execution: Java serialization (CVE-2015-4852)'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?:clonetransform|xmldecod)er|f(?:orclosure|ilewriter)|in(?:stantiate(?:factory|transformer)|vokertransformer)|(?:prototype(?:clone|serialization)factor|getpropert)y|whileclosure
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+          transforms:
+            - lowercase
+        - operator:
+            type: rx
+            value: (?:runtime|processbuilder)
+          targets:
+            - var: matched_vars
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944120"
+      upstream_version: 4.25.2
   - id: 944130
     name: Suspicious Java class detected
     layer: managed
@@ -162,4 +232,36 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "944140"
+      upstream_version: 4.25.2
+  - id: 944150
+    name: 'Potential Remote Command Execution: Log4j / Log4shell'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?i)(?:\$|&dollar;?)(?:\{|&l(?:brace|cub);?)(?:[^\}]{0,15}(?:\$|&dollar;?)(?:\{|&l(?:brace|cub);?)|jndi|ctx)
+          targets:
+            - var: request_line
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - exclude:
+                - Cookie
+              var: request_headers
+          transforms:
+            - url_decode_uni
+            - js_decode
+            - html_entity_decode
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944150"
       upstream_version: 4.25.2

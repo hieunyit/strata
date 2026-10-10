@@ -104,11 +104,13 @@
       "required": ["var"],
       "properties": {
         "var": {
+          "description": "request_line: method, raw URI and protocol as sent. query_string: the query, not decoded. files: names of uploaded files (multipart/form-data); files_names: their field names. matched_vars: the values, after its transformations, for which the previous condition of an all match held (ModSecurity's MATCHED_VARS, for chained rules); only in an all match, not in its first condition.",
           "enum": [
             "method", "uri_raw", "uri", "path", "args", "args_names", "args_get", "args_post",
             "request_headers", "request_headers_names", "request_cookies", "request_cookies_names",
             "request_body", "files", "files_names", "remote_addr", "protocol",
-            "response_status", "response_headers", "response_body"
+            "response_status", "response_headers", "response_body",
+            "matched_vars", "request_line", "query_string"
           ]
         },
         "key": { "description": "Only this name (header, argument, cookie), case-insensitive for headers.", "type": "string", "minLength": 1 },

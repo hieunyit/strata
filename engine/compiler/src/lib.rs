@@ -170,6 +170,17 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 (_, Value::Array(c)) => (true, c),
                 _ => return Err(format!("rule {id}: no conditions")),
             };
+            // matched_vars reads the previous condition of an all match
+            for (i, c) in conds.iter().enumerate() {
+                let reads = c["targets"]
+                    .as_array()
+                    .is_some_and(|ts| ts.iter().any(|t| t["var"] == "matched_vars"));
+                if reads && (any || i == 0) {
+                    return Err(format!(
+                        "rule {id}: matched_vars only follows a condition of an all match"
+                    ));
+                }
+            }
             Ok(RuleDef {
                 id,
                 name: s(r, "name").to_string(),

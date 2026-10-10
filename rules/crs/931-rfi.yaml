@@ -27,6 +27,30 @@ rules:
       source: crs
       upstream_id: "931100"
       upstream_version: 4.25.2
+  - id: 931110
+    name: 'Possible Remote File Inclusion (RFI) Attack: Common RFI Vulnerable Parameter Name used w/URL Payload'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?i)(?:\binclude[\s\x0b]*\([^\)]*|mosConfig_absolute_path|(?:_(?:CONF\[path|SERVER\[DOCUMENT_ROOT)|path\[docroot|config\[root_dir)\]|GALLERY_BASEDIR|appserv_root)=(?:f(?:ile|tps?)|https?)://
+          targets:
+            - var: query_string
+            - var: request_body
+          transforms:
+            - url_decode_uni
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: file-inclusion
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "931110"
+      upstream_version: 4.25.2
   - id: 931120
     name: 'Possible Remote File Inclusion (RFI) Attack: URL Payload Used w/Trailing Question Mark Character (?)'
     layer: managed

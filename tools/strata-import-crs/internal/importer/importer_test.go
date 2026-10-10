@@ -27,6 +27,8 @@ SecRule ARGS "@rx %{tx.x}" "id:942105,phase:2,block,severity:'CRITICAL'"
 SecRule ARGS "@rx a" "id:942106,phase:2,block,t:sqlHexDecode,severity:'CRITICAL'"
 SecRule ARGS:/^id/ "@rx a" "id:942107,phase:2,block,severity:'CRITICAL'"
 SecRule &REQUEST_HEADERS:Host "@eq 0" "id:920280,phase:1,block,severity:'WARNING'"
+SecRule ARGS "@pm java.lang" "id:944120,phase:2,block,t:none,t:lowercase,severity:'CRITICAL',tag:'paranoia-level/1',chain"
+    SecRule MATCHED_VARS "@rx (?:runtime|processbuilder)" "t:none"
 `
 
 func importConf(t *testing.T) *Result {
@@ -117,6 +119,13 @@ func TestDataFilesExclusionsAndTransforms(t *testing.T) {
 	}
 }
 
+func TestChainOnMatchedVars(t *testing.T) {
+	c := conds(rule(t, importConf(t), 944120))
+	if len(c) != 2 || !reflect.DeepEqual(c[1].(map[string]any)["targets"], []map[string]any{{"var": "matched_vars"}}) {
+		t.Errorf("944120: %+v", c)
+	}
+}
+
 func TestRulesLeftOutHaveAReason(t *testing.T) {
 	res := importConf(t)
 	want := map[int]string{
@@ -137,7 +146,7 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 			t.Errorf("%d: reason %q, want %q", id, got[id], w)
 		}
 	}
-	if len(got) != len(want) || res.Groups[0].Read != len(want)+4 || len(res.Groups[0].Rules) != 4 {
+	if len(got) != len(want) || res.Groups[0].Read != len(want)+5 || len(res.Groups[0].Rules) != 5 {
 		t.Errorf("read %d, imported %d, skipped %v", res.Groups[0].Read, len(res.Groups[0].Rules), got)
 	}
 }

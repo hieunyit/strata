@@ -40,6 +40,7 @@ var vars = map[string]string{
 	"REQUEST_URI": "uri", "REQUEST_URI_RAW": "uri_raw", "REQUEST_FILENAME": "path",
 	"REQUEST_METHOD": "method", "REQUEST_PROTOCOL": "protocol", "REMOTE_ADDR": "remote_addr",
 	"REQUEST_BODY": "request_body", "FILES": "files", "FILES_NAMES": "files_names",
+	"REQUEST_LINE": "request_line", "QUERY_STRING": "query_string", "MATCHED_VARS": "matched_vars",
 }
 
 // Targets dropped from a rule rather than refusing the rule: the engine

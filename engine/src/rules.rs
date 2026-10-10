@@ -71,6 +71,9 @@ pub const VARS: &[&str] = &[
     "response_status",
     "response_headers",
     "response_body",
+    "matched_vars",
+    "request_line",
+    "query_string",
 ];
 pub const TRANSFORMS: &[&str] = &[
     "url_decode_uni",
