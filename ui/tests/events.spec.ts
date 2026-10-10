@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { signedIn } from './session';
 
 const mockEventsResponse = {
   events: [
@@ -102,8 +103,7 @@ const mockEventsResponse = {
   total_matched: 3,
 };
 
-test.describe('Strata WAF - Security Events Management', () => {
-  test.beforeEach(async ({ page }) => {
+async function mockApi(page: Page): Promise<void> {
     // Intercept API search requests
     await page.route('**/v1/events:search', async (route) => {
       const requestData = route.request().postDataJSON() || {};
@@ -144,6 +144,12 @@ test.describe('Strata WAF - Security Events Management', () => {
       }
     });
 
+}
+
+test.describe('Strata WAF - Security Events Management', () => {
+  test.beforeEach(async ({ page }) => {
+    await signedIn(page, ['operator']);
+    await mockApi(page);
     await page.goto('/');
   });
 
@@ -184,41 +190,33 @@ test.describe('Strata WAF - Security Events Management', () => {
     await expect(modal).not.toBeVisible();
   });
 
-  test('enforces RBAC masking for viewer role', async ({ page }) => {
-    // Switch role to Viewer
-    const roleSelect = page.getByTestId('role-select');
-    await roleSelect.selectOption('viewer');
-
-    // Table IP should be masked
-    const ips = page.getByTestId('table-client-ip');
-    await expect(ips.first()).toContainText('198.51.***.***');
-
-    // Open detail modal
+  test('masks IPs and snippets for a viewer, not for an operator', async ({ page, browser }) => {
+    // This page is signed in as operator: full values.
     await page.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
-    const modal = page.getByTestId('decision-trace-modal');
-    await expect(modal).toBeVisible();
+    await expect(page.getByTestId('modal-client-ip')).toHaveText('198.51.100.42');
+    await expect(page.getByTestId('violation-snippet').first()).toHaveText("' OR 1=1 --");
+    await expect(page.getByTestId('viewer-notice')).not.toBeVisible();
 
-    // IP in modal masked
-    const modalIp = page.getByTestId('modal-client-ip');
-    await expect(modalIp).toHaveText('198.51.***.***');
+    // A second session signed in as viewer.
+    const viewer = await browser.newPage();
+    await signedIn(viewer, ['viewer'], 'lab-viewer');
+    await mockApi(viewer);
+    await viewer.goto('/');
+    await expect(viewer.getByTestId('current-user')).toContainText('lab-viewer');
+    await expect(viewer.getByTestId('table-client-ip').first()).toContainText('198.51.***.***');
+    await viewer.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
+    await expect(viewer.getByTestId('modal-client-ip')).toHaveText('198.51.***.***');
+    await expect(viewer.getByTestId('violation-snippet').first()).toHaveText('[REDACTED FOR VIEWER ROLE]');
+    await expect(viewer.getByTestId('viewer-notice')).toBeVisible();
+    await viewer.close();
+  });
 
-    // Snippet in modal redacted
-    const snippets = page.getByTestId('violation-snippet');
-    await expect(snippets.first()).toHaveText('[REDACTED FOR VIEWER ROLE]');
-
-    // Viewer notice visible
-    await expect(page.getByTestId('viewer-notice')).toBeVisible();
-
-    // Action buttons must NOT exist
-    await expect(page.getByTestId('action-mark-fp')).not.toBeVisible();
-    await expect(page.getByTestId('action-create-exception')).not.toBeVisible();
-    await expect(page.getByTestId('action-block-ip')).not.toBeVisible();
-
-    // Switch back to Operator
-    await roleSelect.selectOption('operator');
-    await expect(modalIp).toHaveText('198.51.100.42');
-    await expect(snippets.first()).toHaveText("' OR 1=1 --");
-    await expect(page.getByTestId('action-mark-fp')).toBeVisible();
+  test('shows the login page without a session', async ({ browser }) => {
+    const anon = await browser.newPage();
+    await anon.goto('/');
+    await expect(anon.getByTestId('login-btn')).toBeVisible();
+    await expect(anon.getByTestId('block-id-search-input')).not.toBeVisible();
+    await anon.close();
   });
 
   test('filters events by action', async ({ page }) => {

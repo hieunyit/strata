@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
-import { AuthProvider, useAuth, UserRole } from '../context/AuthContext';
+import { StaticAuthProvider } from '../context/AuthContext';
 import { EventsTable } from '../components/events/EventsTable';
 import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
 import { Header } from '../components/layout/Header';
@@ -39,15 +38,6 @@ const mockEvent: Event = {
   received_at: new Date().toISOString(),
 };
 
-// Helper component to switch roles inside tests
-const RoleSwitcherHelper = ({ role }: { role: UserRole }) => {
-  const { setRole } = useAuth();
-  React.useEffect(() => {
-    setRole(role);
-  }, [role, setRole]);
-  return null;
-};
-
 describe('Strata Events UI Components', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,14 +46,14 @@ describe('Strata Events UI Components', () => {
   it('renders events in the table and shows block ID and action', () => {
     const handleSelect = vi.fn();
     render(
-      <AuthProvider>
+      <StaticAuthProvider roles={['operator']}>
         <EventsTable
           events={[mockEvent]}
           isLoading={false}
           totalMatched={1}
           onSelectEvent={handleSelect}
         />
-      </AuthProvider>
+      </StaticAuthProvider>
     );
 
     expect(screen.getByText('STR-8F3K-Q2VD-7XNM-A1PC')).toBeInTheDocument();
@@ -75,14 +65,13 @@ describe('Strata Events UI Components', () => {
   it('masks client IP and payload snippet when role is viewer', () => {
     const handleClose = vi.fn();
     render(
-      <AuthProvider>
-        <RoleSwitcherHelper role="viewer" />
+      <StaticAuthProvider roles={['viewer']}>
         <DecisionTraceModal
           event={mockEvent}
           isOpen={true}
           onClose={handleClose}
         />
-      </AuthProvider>
+      </StaticAuthProvider>
     );
 
     // IP should be masked
@@ -96,24 +85,18 @@ describe('Strata Events UI Components', () => {
 
     // Viewer notice banner must be visible
     expect(screen.getByTestId('viewer-notice')).toBeInTheDocument();
-
-    // Quick action buttons should NOT be present for viewer
-    expect(screen.queryByTestId('action-mark-fp')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('action-create-exception')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('action-block-ip')).not.toBeInTheDocument();
   });
 
-  it('shows full IP, raw snippet, and quick actions when role is operator', () => {
+  it('shows full IP and raw snippet when role is operator', () => {
     const handleClose = vi.fn();
     render(
-      <AuthProvider>
-        <RoleSwitcherHelper role="operator" />
+      <StaticAuthProvider roles={['operator']}>
         <DecisionTraceModal
           event={mockEvent}
           isOpen={true}
           onClose={handleClose}
         />
-      </AuthProvider>
+      </StaticAuthProvider>
     );
 
     // Full IP visible
@@ -124,18 +107,17 @@ describe('Strata Events UI Components', () => {
     const snippetElement = screen.getByTestId('violation-snippet');
     expect(snippetElement.textContent).toBe("' OR 1=1 --");
 
-    // Action buttons visible
-    expect(screen.getByTestId('action-mark-fp')).toBeInTheDocument();
-    expect(screen.getByTestId('action-create-exception')).toBeInTheDocument();
-    expect(screen.getByTestId('action-block-ip')).toBeInTheDocument();
+    // No viewer banner, and no action buttons until their APIs exist
+    expect(screen.queryByTestId('viewer-notice')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-mark-fp')).not.toBeInTheDocument();
   });
 
   it('triggers global Block ID search from Header', () => {
     const handleSearch = vi.fn();
     render(
-      <AuthProvider>
+      <StaticAuthProvider roles={['operator']}>
         <Header onSearchBlockId={handleSearch} />
-      </AuthProvider>
+      </StaticAuthProvider>
     );
 
     const input = screen.getByTestId('block-id-search-input');

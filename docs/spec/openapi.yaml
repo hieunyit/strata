@@ -2,7 +2,8 @@ openapi: 3.0.3
 info:
   title: Strata Control Plane API
   version: 1.0.0
-  description: Control plane management and security event inspection API for Strata WAF.
+  description: 'Control plane admin and security event API for Strata WAF. Every route needs an OIDC access token
+    (audience strata-api) in Authorization: Bearer; roles come from realm_access.roles.'
 paths:
   /v1/events/{block_id}:
     get:
@@ -10,13 +11,13 @@ paths:
       description: Retrieve the detailed decision trace and violations for a specific Block ID.
       operationId: getEvent
       parameters:
-        - name: block_id
-          in: path
-          required: true
-          description: Unique Block ID (e.g. STR-8F3K-Q2VD-7XNM-A1PC or EVT-xxxx)
-          schema:
-            type: string
-            pattern: '^(STR|EVT)-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$'
+      - name: block_id
+        in: path
+        required: true
+        description: Unique Block ID (e.g. STR-8F3K-Q2VD-7XNM-A1PC or EVT-xxxx)
+        schema:
+          type: string
+          pattern: ^(STR|EVT)-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$
       responses:
         '200':
           description: Event found and returned successfully.
@@ -42,7 +43,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /v1/events:search:
     post:
       summary: Search Security Events
@@ -73,16 +77,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/version:
+    get:
+      summary: Control plane version
+      operationId: getVersion
+      description: Served by strata.admin.v1.VersionService (gRPC and this REST route). Every role may call it.
+      responses:
+        '200':
+          description: Version of the running control plane.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetVersionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
   schemas:
     Violation:
       type: object
       required:
-        - rule_id
-        - layer
-        - field
-        - snippet
+      - rule_id
+      - layer
+      - field
+      - snippet
       properties:
         rule_id:
           type: integer
@@ -101,22 +124,21 @@ components:
           type: string
           description: Matched raw or normalized snippet (redacted for viewer role).
           example: STRATA-TEST-BLOCK
-
     Event:
       type: object
       required:
-        - block_id
-        - timestamp
-        - node_id
-        - connector_type
-        - policy_id
-        - policy_version
-        - client_ip
-        - http_method
-        - http_host
-        - http_path
-        - status_code
-        - action
+      - block_id
+      - timestamp
+      - node_id
+      - connector_type
+      - policy_id
+      - policy_version
+      - client_ip
+      - http_method
+      - http_host
+      - http_path
+      - status_code
+      - action
       properties:
         block_id:
           type: string
@@ -160,7 +182,10 @@ components:
           example: 403
         action:
           type: string
-          enum: [block, shadow, allow]
+          enum:
+          - block
+          - shadow
+          - allow
           example: block
         score_protocol:
           type: integer
@@ -178,7 +203,8 @@ components:
           type: array
           items:
             type: integer
-          example: [100001]
+          example:
+          - 100001
         violations:
           type: array
           items:
@@ -186,15 +212,13 @@ components:
         received_at:
           type: string
           format: date-time
-
     GetEventResponse:
       type: object
       required:
-        - event
+      - event
       properties:
         event:
           $ref: '#/components/schemas/Event'
-
     SearchEventsRequest:
       type: object
       properties:
@@ -208,7 +232,10 @@ components:
           type: string
         action:
           type: string
-          enum: [block, shadow, allow]
+          enum:
+          - block
+          - shadow
+          - allow
         client_ip:
           type: string
         rule_id:
@@ -222,12 +249,11 @@ components:
           default: 50
         page_token:
           type: string
-
     SearchEventsResponse:
       type: object
       required:
-        - events
-        - total_matched
+      - events
+      - total_matched
       properties:
         events:
           type: array
@@ -238,11 +264,10 @@ components:
         total_matched:
           type: integer
           format: int64
-
     ErrorResponse:
       type: object
       required:
-        - error
+      - error
       properties:
         error:
           type: string
@@ -250,3 +275,38 @@ components:
           type: string
         code:
           type: integer
+    GetVersionResponse:
+      type: object
+      required:
+      - version
+      - commit
+      - api_version
+      properties:
+        version:
+          type: string
+          example: 0.1.0
+        commit:
+          type: string
+        api_version:
+          type: string
+          example: v1
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: No valid access token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: The caller's roles lack the permission.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+security:
+- bearerAuth: []

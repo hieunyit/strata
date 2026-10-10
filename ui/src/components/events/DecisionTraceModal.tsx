@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   X,
   ShieldAlert,
   ShieldCheck,
   Eye,
-  CheckCircle,
   Lock,
 } from 'lucide-react';
 import { Event } from '../../api/client';
@@ -26,14 +25,9 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { isViewer, maskIp, maskSnippet } = useAuth();
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleAction = (msg: string) => {
-    setActionNotice(msg);
-    setTimeout(() => setActionNotice(null), 3000);
-  };
 
   const getActionBadge = (action: string) => {
     switch (action.toLowerCase()) {
@@ -121,13 +115,6 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
                 </div>
               )}
 
-              {/* Action Toast Notice */}
-              {actionNotice && (
-                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>{actionNotice}</span>
-                </div>
-              )}
 
               {/* Detection Scores Breakdown */}
               <div>
@@ -289,36 +276,6 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Quick Action buttons (hidden for viewer) */}
-            {!isViewer && event && (
-              <>
-                <button
-                  type="button"
-                  data-testid="action-mark-fp"
-                  onClick={() => handleAction('Đã gửi yêu cầu Đánh dấu False Positive tới hàng chờ duyệt.')}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors shadow-sm"
-                >
-                  {t('detail.actions.markFp')}
-                </button>
-                <button
-                  type="button"
-                  data-testid="action-create-exception"
-                  onClick={() => handleAction('Chuyển tới giao diện tạo Exception cho Block ID này.')}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors shadow-sm"
-                >
-                  {t('detail.actions.createException')}
-                </button>
-                <button
-                  type="button"
-                  data-testid="action-block-ip"
-                  onClick={() => handleAction(`Đã tạo bản nháp rule chặn IP ${event.client_ip}.`)}
-                  className="px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded-lg transition-colors shadow-sm"
-                >
-                  {t('detail.actions.blockIp')}
-                </button>
-              </>
-            )}
-
             <button
               type="button"
               data-testid="modal-close-btn"

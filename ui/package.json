@@ -11,13 +11,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "generate:api": "openapi-typescript ../docs/spec/openapi.yaml -o src/api/generated/schema.ts"
+    "generate:api": "openapi-typescript ../docs/spec/openapi.yaml -o src/api/generated/schema.ts",
+    "test:lab": "playwright test -c playwright.lab.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.28.4",
     "clsx": "^2.1.0",
     "i18next": "^23.10.1",
     "lucide-react": "^0.359.0",
+    "oidc-client-ts": "^3.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^14.1.0",

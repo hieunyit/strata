@@ -13,14 +13,19 @@
   "header": {
     "searchPlaceholder": "Tìm nhanh Block ID (STR-... hoặc EVT-...)",
     "searchBtn": "Tra cứu",
-    "role": "Vai trò",
     "roles": {
       "viewer": "Viewer (Chỉ xem)",
       "operator": "Operator (Vận hành)",
-      "admin": "Admin (Quản trị)"
+      "approver": "Approver (Duyệt)",
+      "admin": "Admin (Quản trị)",
+      "none": "Chưa có vai trò"
     },
     "lang": "Ngôn ngữ",
-    "theme": "Giao diện"
+    "theme": "Giao diện",
+    "logout": "Đăng xuất",
+    "signedInAs": "Đang đăng nhập: {{name}}",
+    "version": "Control plane {{version}}",
+    "blockIdPrefix": "Block ID phải bắt đầu bằng STR- hoặc EVT-"
   },
   "events": {
     "title": "Nhật ký Sự kiện Bảo mật",
@@ -108,5 +113,13 @@
       "close": "Đóng"
     },
     "viewerNotice": "Bạn đang đăng nhập với vai trò Viewer. Dữ liệu nhạy cảm (IP, input snippet) đã được che và các nút tác vụ bị vô hiệu hóa."
+  },
+  "login": {
+    "title": "Đăng nhập Strata",
+    "subtitle": "Dùng tài khoản SSO của tổ chức (OIDC).",
+    "button": "Đăng nhập",
+    "loading": "Đang kiểm tra phiên đăng nhập…",
+    "error": "Không kết nối được máy chủ đăng nhập: {{error}}",
+    "retry": "Thử lại"
   }
 }

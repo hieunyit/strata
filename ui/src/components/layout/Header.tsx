@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Shield, Search, Globe, UserCheck, Moon, Sun, AlertCircle } from 'lucide-react';
-import { useAuth, UserRole } from '../../context/AuthContext';
+import { Shield, Search, Globe, UserCheck, Moon, Sun, AlertCircle, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { apiClient } from '../../api/client';
 
 interface HeaderProps {
   onSearchBlockId: (blockId: string) => void;
@@ -10,10 +11,22 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBlockId = false }) => {
   const { t, i18n } = useTranslation();
-  const { role, setRole } = useAuth();
+  const { role, username, logout } = useAuth();
+  const [version, setVersion] = useState<string>('');
   const [searchInput, setSearchInput] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchError, setSearchError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .getVersion()
+      .then((v) => alive && setVersion(v.version))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const toggleLanguage = () => {
     const nextLang = i18n.language.startsWith('vi') ? 'en' : 'vi';
@@ -38,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
 
     // Check basic format
     if (!trimmed.startsWith('STR-') && !trimmed.startsWith('EVT-')) {
-      setSearchError('Block ID phải bắt đầu bằng STR- hoặc EVT-');
+      setSearchError(t('header.blockIdPrefix'));
       return;
     }
 
@@ -102,20 +115,24 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
 
         {/* Right Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Role Switcher */}
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+          {/* Signed-in user; the role comes from the access token */}
+          <div
+            data-testid="current-user"
+            title={t('header.signedInAs', { name: username ?? '' })}
+            className="hidden md:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200"
+          >
             <UserCheck className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <select
-              value={role}
-              data-testid="role-select"
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="viewer">{t('header.roles.viewer')}</option>
-              <option value="operator">{t('header.roles.operator')}</option>
-              <option value="admin">{t('header.roles.admin')}</option>
-            </select>
+            <span className="font-medium">{username}</span>
+            <span data-testid="current-role" className="text-slate-500 dark:text-slate-400">
+              {t(`header.roles.${role ?? 'none'}`)}
+            </span>
           </div>
+
+          {version && (
+            <span data-testid="cp-version" className="hidden lg:inline text-[11px] text-slate-400">
+              {t('header.version', { version })}
+            </span>
+          )}
 
           {/* Language Switch */}
           <button
@@ -136,6 +153,15 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
             className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
           >
             {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
+          <button
+            onClick={logout}
+            data-testid="logout-btn"
+            title={t('header.logout')}
+            className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>

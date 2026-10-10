@@ -13,14 +13,19 @@
   "header": {
     "searchPlaceholder": "Search Block ID (STR-... or EVT-...)",
     "searchBtn": "Lookup",
-    "role": "Role",
     "roles": {
-      "viewer": "Viewer (Read-only)",
+      "viewer": "Viewer (read only)",
       "operator": "Operator",
-      "admin": "Admin"
+      "approver": "Approver",
+      "admin": "Admin",
+      "none": "No role"
     },
     "lang": "Language",
-    "theme": "Theme"
+    "theme": "Theme",
+    "logout": "Sign out",
+    "signedInAs": "Signed in as {{name}}",
+    "version": "Control plane {{version}}",
+    "blockIdPrefix": "A Block ID starts with STR- or EVT-"
   },
   "events": {
     "title": "Security Events Log",
@@ -108,5 +113,13 @@
       "close": "Close"
     },
     "viewerNotice": "You are logged in as Viewer. Sensitive request info (IP, payload snippet) is redacted and write actions are disabled."
+  },
+  "login": {
+    "title": "Sign in to Strata",
+    "subtitle": "Use your organization’s SSO account (OIDC).",
+    "button": "Sign in",
+    "loading": "Checking your session…",
+    "error": "Cannot reach the sign-in server: {{error}}",
+    "retry": "Retry"
   }
 }
