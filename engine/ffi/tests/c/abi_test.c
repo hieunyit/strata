@@ -300,6 +300,43 @@ main(int argc, char **argv)
     strata_tx_free(tx);
 #endif
 
+    /* body over the connector's limit: example-api blocks oversize */
+    tx = start(e, 0, S("/upload"));
+    strata_tx_free(tx);
+    {
+        strata_conn_t conn;
+
+        memset(&conn, 0, sizeof(conn));
+        conn.node_id = S("web-01");
+        tx = strata_tx_new(e, S("example-api"), &conn, 2000);
+        CHECK(strata_tx_request_line(tx, S("POST"), S("/u"), S("/u"), S(""), S("HTTP/1.1")) == STRATA_OK);
+        CHECK(strata_tx_request_headers(tx, NULL, 0) == STRATA_OK);
+        CHECK(strata_tx_request_body_skipped(tx, 100) == STRATA_OK);
+        CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_OK);
+        strata_tx_verdict(tx, &v);
+        CHECK(v.action == STRATA_ACTION_BLOCK && v.n_rules == 1 && v.rules[0] == 100020);
+        strata_tx_free(tx);
+
+        tx = strata_tx_new(e, S("example-web"), &conn, 2000);
+        strata_tx_request_line(tx, S("POST"), S("/u"), S("/u"), S(""), S("HTTP/1.1"));
+        strata_tx_request_headers(tx, NULL, 0);
+        CHECK(strata_tx_request_body_skipped(tx, 100) == STRATA_OK);
+        strata_tx_request_body_chunk(tx, NULL, 0, 1);
+        strata_tx_verdict(tx, &v);
+        CHECK(v.action == STRATA_ACTION_ALLOW && v.rules[0] == 100020 && v.error == STRATA_OK);
+        strata_tx_free(tx);
+    }
+
+    /* the connector reports input it could not pass */
+    tx = start(e, 0, S("/"));
+    CHECK(strata_tx_fail(tx, STRATA_E_INCOMPLETE) == STRATA_E_INCOMPLETE);
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_E_INCOMPLETE);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.error == STRATA_E_INCOMPLETE && id_ok(v.block_id, "EVT-"));
+    CHECK(strata_tx_fail(tx, STRATA_OK) == STRATA_E_INVALID);
+    CHECK(strata_tx_fail(NULL, STRATA_E_INCOMPLETE) == STRATA_E_INVALID);
+    strata_tx_free(tx);
+
     /* transactions keep the engine alive after the module drops its ref */
     tx = start(e, 0, S("/"));
     strata_engine_release(e);

@@ -311,6 +311,12 @@ typedef struct {
  */
 #define STRATA_E_NOT_FOUND 6
 
+/**
+ * The connector could not pass all the input to libstrata (for example a
+ * request body it cannot read without I/O); reported with `strata_tx_fail`.
+ */
+#define STRATA_E_INCOMPLETE 7
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -440,6 +446,29 @@ strata_rc_t strata_tx_request_body_chunk(strata_tx_t *tx,
                                          const uint8_t *p,
                                          size_t len,
                                          int32_t last);
+
+/**
+ * The connector inspected only part of the request body (its inspection
+ * limit): `bytes` were not passed. Call before the final body chunk. The
+ * policy's `oversize` decides: block (rule 100020 blocks alone) or pass
+ * (rule 100020 is recorded).
+ *
+ * # Safety
+ * `tx` must be NULL or live.
+ */
+strata_rc_t strata_tx_request_body_skipped(strata_tx_t *tx, uint64_t bytes);
+
+/**
+ * The connector reports that it could not pass all the input (for
+ * example `STRATA_E_INCOMPLETE`: request body it cannot read without
+ * I/O). The transaction is marked broken with `reason`: the verdict carries
+ * it with an Event ID, and the connector applies its fail mode. Returns
+ * `reason`, or `STRATA_E_INVALID` for a NULL tx or `STRATA_OK`.
+ *
+ * # Safety
+ * `tx` must be NULL or live.
+ */
+strata_rc_t strata_tx_fail(strata_tx_t *tx, strata_rc_t reason);
 
 /**
  * Response status and headers.

@@ -5,7 +5,7 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use libstrata::bundle::{Mode, Spec, build, public_key};
+use libstrata::bundle::{Mode, Oversize, Spec, build, public_key};
 use libstrata::rules::{BlockPage, encode};
 use strata::abi::{STRATA_OK, strata_err_t, strata_str_t};
 use strata::ffi::{strata_engine_map, strata_engine_policy, strata_engine_release};
@@ -48,7 +48,7 @@ fn mapping_a_16_mb_bundle_copies_nothing() {
         version: 1,
         created_at_ms: 0,
         flags: 0,
-        policies: &[("example-api", Mode::Enforce)],
+        policies: &[("example-api", Mode::Enforce, Oversize::Pass)],
         sections: &refs,
     };
     let bundle = build(&spec, &SEED).unwrap();

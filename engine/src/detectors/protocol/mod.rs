@@ -10,6 +10,7 @@
 //! | 100012 | `;` inside a path segment (matrix parameters)                | +20         |
 //! | 100013 | null byte, raw or `%00`, in the URI or a header              | +100        |
 //! | 100014 | control character (0x01-0x1f except tab, 0x7f) raw in the URI or a header | +50 |
+//! | 100020 | request body larger than the connector inspects | policy `oversize`: block alone, or recorded (0) |
 //!
 //! Inputs are the raw URI exactly as sent (`r->unparsed_uri`) and the raw
 //! headers; nothing is allocated or copied. Scores and the block threshold
@@ -26,6 +27,7 @@ pub const ENCODED_DOT_SEGMENT: u32 = 100_011;
 pub const MATRIX_PARAMETER: u32 = 100_012;
 pub const NULL_BYTE: u32 = 100_013;
 pub const CONTROL_CHAR: u32 = 100_014;
+pub const BODY_OVER_LIMIT: u32 = 100_020;
 
 const fn alone(rule: u32) -> Violation {
     Violation {

@@ -16,6 +16,7 @@ const _: () = {
     assert!(v::E_BUDGET == STRATA_E_BUDGET);
     assert!(v::E_BUNDLE == STRATA_E_BUNDLE);
     assert!(v::E_NOT_FOUND == STRATA_E_NOT_FOUND);
+    assert!(v::E_INCOMPLETE == STRATA_E_INCOMPLETE);
     assert!(libstrata::bundle::Mode::Shadow as u32 == STRATA_POLICY_SHADOW);
     assert!(libstrata::bundle::Mode::Enforce as u32 == STRATA_POLICY_ENFORCE);
     assert!(v::ACTION_ALLOW == STRATA_ACTION_ALLOW);

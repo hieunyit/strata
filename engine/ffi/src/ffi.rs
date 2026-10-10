@@ -228,12 +228,12 @@ pub unsafe extern "C" fn strata_engine_policy(
             return STRATA_E_INVALID;
         };
         match engine.policy(name) {
-            Some((index, mode)) => {
+            Some(p) => {
                 // SAFETY: out is non-NULL and writable.
                 unsafe {
                     *out = strata_policy_info_t {
-                        mode: mode as u32,
-                        index,
+                        mode: p.mode as u32,
+                        index: p.index,
                     }
                 };
                 STRATA_OK
@@ -328,8 +328,8 @@ pub unsafe extern "C" fn strata_tx_new(
     conn: *const strata_conn_t,
     cpu_budget_us: u64,
 ) -> *mut TxHandle {
-    // The stub has no policies and no budget accounting yet.
-    let _ = (policy, cpu_budget_us);
+    // no budget accounting yet
+    let _ = cpu_budget_us;
     guard(ptr::null_mut(), || {
         let engine = if engine.is_null() {
             None
@@ -353,6 +353,8 @@ pub unsafe extern "C" fn strata_tx_new(
         };
         let mut tx = Tx::new(engine, node, flags);
         tx.set_client_addr(client);
+        // SAFETY: policy is valid for the call.
+        tx.set_policy(unsafe { bytes(policy) }.unwrap_or(&[]));
         Box::into_raw(Box::new(tx)).cast::<TxHandle>()
     })
 }
@@ -429,6 +431,37 @@ pub unsafe extern "C" fn strata_tx_request_body_chunk(
             Ok(t.request_body_chunk(bytes(strata_str_t { ptr: p, len })?, last != 0))
         })
     }
+}
+
+/// The connector inspected only part of the request body (its inspection
+/// limit): `bytes` were not passed. Call before the final body chunk. The
+/// policy's `oversize` decides: block (rule 100020 blocks alone) or pass
+/// (rule 100020 is recorded).
+///
+/// # Safety
+/// `tx` must be NULL or live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_request_body_skipped(
+    tx: *mut TxHandle,
+    bytes: u64,
+) -> strata_rc_t {
+    unsafe { with_tx(tx, |t| Ok(t.request_body_skipped(bytes))) }
+}
+
+/// The connector reports that it could not pass all the input (for
+/// example `STRATA_E_INCOMPLETE`: request body it cannot read without
+/// I/O). The transaction is marked broken with `reason`: the verdict carries
+/// it with an Event ID, and the connector applies its fail mode. Returns
+/// `reason`, or `STRATA_E_INVALID` for a NULL tx or `STRATA_OK`.
+///
+/// # Safety
+/// `tx` must be NULL or live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_fail(tx: *mut TxHandle, reason: strata_rc_t) -> strata_rc_t {
+    if reason == STRATA_OK {
+        return STRATA_E_INVALID;
+    }
+    unsafe { with_tx(tx, |_| Ok(reason)) }
 }
 
 /// Response status and headers.

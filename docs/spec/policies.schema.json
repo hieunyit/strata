@@ -16,7 +16,11 @@
         "required": ["name", "mode"],
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z0-9._-]{1,55}$" },
-          "mode": { "enum": ["shadow", "enforce"] }
+          "mode": { "enum": ["shadow", "enforce"] },
+          "oversize": {
+            "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
+            "enum": ["pass", "block"]
+          }
         }
       }
     },

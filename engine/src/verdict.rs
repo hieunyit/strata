@@ -16,6 +16,8 @@ pub const E_INTERNAL: Rc = 3;
 pub const E_BUDGET: Rc = 4;
 pub const E_BUNDLE: Rc = 5;
 pub const E_NOT_FOUND: Rc = 6;
+/// The connector could not pass all the input (see `Tx::fail`).
+pub const E_INCOMPLETE: Rc = 7;
 
 pub const ACTION_ALLOW: u32 = 0;
 pub const ACTION_LOG: u32 = 1;

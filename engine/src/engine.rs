@@ -7,7 +7,7 @@
 //! the test rule in `tx`.
 #![forbid(unsafe_code)]
 
-use crate::bundle::{self, Info, Mode};
+use crate::bundle::{self, Info, Policy};
 use crate::rules::{RuleView, Tables};
 use crate::verdict::{E_BUNDLE, E_INVALID, PUBKEY_LEN, Rc};
 use strata_hs::MappedDb;
@@ -88,7 +88,7 @@ impl Engine {
     }
 
     /// Index and signed mode of a policy, read from the mapping.
-    pub fn policy(&self, name: &[u8]) -> Option<(u32, Mode)> {
+    pub fn policy(&self, name: &[u8]) -> Option<Policy<'_>> {
         bundle::find_policy((*self.bytes).as_ref(), &self.info, name)
     }
 }
@@ -96,7 +96,7 @@ impl Engine {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::bundle::{Spec, build, public_key};
+    use crate::bundle::{Mode, Oversize, Spec, build, public_key};
 
     pub(crate) const SEED: [u8; 32] = [3; 32];
 
@@ -106,8 +106,8 @@ pub(crate) mod tests {
             created_at_ms: 1,
             flags: 0,
             policies: &[
-                ("example-api", Mode::Enforce),
-                ("example-web", Mode::Shadow),
+                ("example-api", Mode::Enforce, Oversize::Block),
+                ("example-web", Mode::Shadow, Oversize::Pass),
             ],
             sections: &[],
         };
@@ -128,8 +128,9 @@ pub(crate) mod tests {
     #[test]
     fn looks_policies_up_in_place() {
         let e = test_engine();
-        assert_eq!(e.policy(b"example-api"), Some((0, Mode::Enforce)));
-        assert_eq!(e.policy(b"example-web"), Some((1, Mode::Shadow)));
+        let p = |n: &[u8]| e.policy(n).map(|p| (p.index, p.mode, p.oversize));
+        assert_eq!(p(b"example-api"), Some((0, Mode::Enforce, Oversize::Block)));
+        assert_eq!(p(b"example-web"), Some((1, Mode::Shadow, Oversize::Pass)));
         assert_eq!(e.policy(b"example"), None);
         assert_eq!(e.policy(b""), None);
     }

@@ -62,6 +62,8 @@ pub struct Tx {
     node: u16,
     shadow: bool,
     json: bool,
+    /// the policy blocks request bodies larger than what is inspected
+    oversize_block: bool,
     stage: Stage,
     error: Rc,
     /// blocked (or would be, in shadow)
@@ -104,6 +106,7 @@ impl Tx {
             node: block_id::node_hash(node_id),
             shadow: flags & TXF_FORCE_SHADOW != 0,
             json: false,
+            oversize_block: false,
             stage: Stage::New,
             error: OK,
             matched: false,
@@ -122,6 +125,31 @@ impl Tx {
             tx.fail(E_BUNDLE);
         }
         tx
+    }
+
+    /// Applies the policy's settings (oversize handling). An unknown
+    /// policy keeps the defaults.
+    pub fn set_policy(&mut self, name: &[u8]) {
+        if let Some(p) = self.engine.as_ref().and_then(|e| e.policy(name)) {
+            self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
+        }
+    }
+
+    /// The connector inspected only part of the body: `bytes` were not
+    /// passed. Rule 100020, blocking or recorded per the policy's
+    /// `oversize`.
+    pub fn request_body_skipped(&mut self, bytes: u64) -> Rc {
+        if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
+            return rc;
+        }
+        if bytes > 0 {
+            self.add(Violation {
+                rule: protocol::BODY_OVER_LIMIT,
+                score: 0,
+                block_alone: self.oversize_block,
+            });
+        }
+        OK
     }
 
     /// Client address for rules on `remote_addr` (copied only when the
@@ -656,5 +684,69 @@ mod tests {
         let v = t.verdict();
         assert_eq!(rules(&v), [protocol::MATRIX_PARAMETER, STUB_RULE_ID]);
         assert_eq!(v.score, 120);
+    }
+
+    fn with_policy(policy: &[u8], flags: u32) -> Tx {
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", flags);
+        t.set_policy(policy);
+        line(&mut t, b"/upload");
+        t
+    }
+
+    #[test]
+    fn oversize_blocks_when_the_policy_says_so() {
+        let mut t = with_policy(b"example-api", 0); // oversize: block
+        assert_eq!(t.request_body_chunk(b"inspected part", false), OK);
+        assert_eq!(t.request_body_skipped(4096), OK);
+        assert_eq!(t.request_body_chunk(b"", true), OK);
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(v.rules[..v.n_rules as usize], [protocol::BODY_OVER_LIMIT]);
+        assert!(id_str(&v).starts_with("STR-"));
+    }
+
+    #[test]
+    fn oversize_is_recorded_when_the_policy_passes() {
+        for policy in [&b"example-web"[..], b"unknown-policy", b""] {
+            let mut t = with_policy(policy, 0);
+            assert_eq!(t.request_body_skipped(1), OK);
+            assert_eq!(t.request_body_chunk(b"", true), OK);
+            let v = t.verdict();
+            assert_eq!(v.action, ACTION_ALLOW, "{policy:?}");
+            assert_eq!(
+                (v.rules[0], v.n_rules, v.score),
+                (protocol::BODY_OVER_LIMIT, 1, 0)
+            );
+        }
+    }
+
+    #[test]
+    fn oversize_in_shadow_logs() {
+        let mut t = with_policy(b"example-api", TXF_FORCE_SHADOW);
+        t.request_body_skipped(10);
+        t.request_body_chunk(b"", true);
+        assert_eq!(t.verdict().action, ACTION_LOG);
+    }
+
+    #[test]
+    fn oversize_after_the_last_chunk_is_out_of_order() {
+        let mut t = with_policy(b"example-api", 0);
+        t.request_body_chunk(b"", true);
+        assert_eq!(t.request_body_skipped(1), E_STATE);
+        let mut t = with_policy(b"example-api", 0);
+        assert_eq!(t.request_body_skipped(0), OK);
+        t.request_body_chunk(b"", true);
+        assert_eq!(t.verdict().n_rules, 0);
+    }
+
+    #[test]
+    fn connector_reported_failure_is_sticky_with_event_id() {
+        let mut t = tx();
+        line(&mut t, b"/");
+        t.fail(E_INCOMPLETE);
+        let v = t.verdict();
+        assert_eq!(v.error, E_INCOMPLETE);
+        assert!(id_str(&v).starts_with("EVT-"));
+        assert_eq!(t.request_body_chunk(b"", true), E_INCOMPLETE);
     }
 }

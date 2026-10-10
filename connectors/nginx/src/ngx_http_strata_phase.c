@@ -117,6 +117,7 @@ static void
 ngx_http_strata_body_read(ngx_http_request_t *r)
 {
     ngx_uint_t              waiting;
+    ngx_chain_t            *cl;
     ngx_http_strata_ctx_t  *ctx;
 
     ctx = ngx_http_strata_get_ctx(r);
@@ -133,14 +134,28 @@ ngx_http_strata_body_read(ngx_http_request_t *r)
     }
 
     /*
+     * A body read before this location's PREACCESS (e.g. by proxy_pass in a
+     * location without strata, then an internal redirect here) never went
+     * through the filter: inspect what NGINX kept of it. Parts already in
+     * a temporary file are not read here (no I/O in the event loop): the
+     * transaction fails and strata_fail_mode applies.
+     */
+
+    if (!ctx->body_seen && r->request_body) {
+        for (cl = r->request_body->bufs; cl; cl = cl->next) {
+            ngx_http_strata_body_buf(r, ctx, cl->buf);
+        }
+
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "strata: body read before, inspected from its buffers");
+    }
+
+    /*
      * The body filter may never have seen a last buffer, e.g. without
      * Content-Length or with HTTP/2 END_STREAM on HEADERS.
      */
 
-    if (!ctx->body_last) {
-        ctx->body_last = 1;
-        (void) strata_tx_request_body_chunk(ctx->tx, NULL, 0, 1);
-    }
+    ngx_http_strata_body_end(r, ctx);
 
     ctx->body_state = NGX_HTTP_STRATA_BODY_DONE;
 

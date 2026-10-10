@@ -33,7 +33,7 @@ Không bao giờ thay control file bằng `rename`: worker đang map inode cũ v
 | Offset | Nội dung |
 | --- | --- |
 | 0 | header 64 byte: magic `STRBNDL\0`, `u16` format = 1, `u16` flags (bit 0: ROLLBACK), `u32` số policy, `u64` version, `u64` created_at (ms), `u64` offset section, `u64` độ dài section, 16 byte dự phòng = 0 |
-| 64 | bảng policy: mỗi policy 64 byte = tên 56 byte (`[a-z0-9._-]`, 1..55 ký tự, đệm NUL) + `u8` mode (0 = shadow, 1 = enforce) + 7 byte dự phòng = 0 |
+| 64 | bảng policy: mỗi policy 64 byte = tên 56 byte (`[a-z0-9._-]`, 1..55 ký tự, đệm NUL) + `u8` mode (0 = shadow, 1 = enforce) + `u8` oversize (0 = pass, 1 = block: body request lớn hơn phần connector inspect, Rule 100020) + 6 byte dự phòng = 0 |
 | bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 

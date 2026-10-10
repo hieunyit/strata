@@ -34,6 +34,9 @@ pub const STRATA_E_BUDGET: strata_rc_t = 4;
 pub const STRATA_E_BUNDLE: strata_rc_t = 5;
 /// The requested item (e.g. a policy) is not in the bundle.
 pub const STRATA_E_NOT_FOUND: strata_rc_t = 6;
+/// The connector could not pass all the input to libstrata (for example a
+/// request body it cannot read without I/O); reported with `strata_tx_fail`.
+pub const STRATA_E_INCOMPLETE: strata_rc_t = 7;
 
 /// `strata_policy_info_t.mode`: policy mode signed into the bundle.
 pub const STRATA_POLICY_SHADOW: u32 = 0;

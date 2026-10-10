@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use libstrata::bundle::{self, Mode, Spec};
+use libstrata::bundle::{self, Mode, Oversize, Spec};
 use libstrata::rules::{
     self, BlockPage, CondDef, LAYERS, OPERATORS, RuleDef, SEVERITIES, STAGES, TRANSFORMS,
     TargetDef, VARS, Value as RValue,
@@ -191,7 +191,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 #[derive(Debug)]
 pub struct Policies {
-    pub policies: Vec<(String, Mode)>,
+    pub policies: Vec<(String, Mode, Oversize)>,
     pub block_page: Option<BlockPage>,
 }
 
@@ -210,7 +210,12 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         } else {
             Mode::Shadow
         };
-        policies.push((name, mode));
+        let oversize = if s(p, "oversize") == "block" {
+            Oversize::Block
+        } else {
+            Oversize::Pass
+        };
+        policies.push((name, mode, oversize));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -328,10 +333,10 @@ pub fn compile(
         ));
     }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
-    let names: Vec<(&str, Mode)> = policies
+    let names: Vec<(&str, Mode, Oversize)> = policies
         .policies
         .iter()
-        .map(|(n, m)| (n.as_str(), *m))
+        .map(|(n, m, o)| (n.as_str(), *m, *o))
         .collect();
     let spec = Spec {
         version: build.version,

@@ -60,8 +60,9 @@ fn ten_sample_rules_load() {
     assert_eq!(html, std::fs::read(examples().join("block.html")).unwrap());
     assert_eq!(contact, b"Support: support@example.test");
 
-    assert_eq!(e.policy(b"example-api"), Some((0, Mode::Enforce)));
-    assert_eq!(e.policy(b"example-web"), Some((2, Mode::Shadow)));
+    let p = |n: &[u8]| e.policy(n).map(|p| (p.index, p.mode));
+    assert_eq!(p(b"example-api"), Some((0, Mode::Enforce)));
+    assert_eq!(p(b"example-web"), Some((2, Mode::Shadow)));
 }
 
 #[test]

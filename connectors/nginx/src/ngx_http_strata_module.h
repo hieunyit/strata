@@ -134,6 +134,7 @@ typedef struct {
     ngx_str_t                   policy;
     size_t                      body_limit;
     size_t                      body_inspected;
+    uint64_t                    body_skipped;   /* over body_limit */
     strata_verdict_t            verdict;
 
     unsigned                    body_state:2;
@@ -143,6 +144,9 @@ typedef struct {
     unsigned                    fail_closed:1;
     unsigned                    stream:1;       /* body inspected after
                                                    the verdict (shadow) */
+    unsigned                    body_seen:1;    /* the filter got the body */
+    unsigned                    body_unread:1;  /* a part could not be
+                                                   passed (not in memory) */
 } ngx_http_strata_ctx_t;
 
 
@@ -155,6 +159,10 @@ ngx_http_strata_ctx_t *ngx_http_strata_get_ctx(ngx_http_request_t *r);
 
 /* ngx_http_strata_filter.c */
 ngx_int_t ngx_http_strata_filter_init(ngx_conf_t *cf);
+void ngx_http_strata_body_buf(ngx_http_request_t *r,
+    ngx_http_strata_ctx_t *ctx, ngx_buf_t *b);
+void ngx_http_strata_body_end(ngx_http_request_t *r,
+    ngx_http_strata_ctx_t *ctx);
 
 /* ngx_http_strata_block.c */
 ngx_int_t ngx_http_strata_send_block(ngx_http_request_t *r,
