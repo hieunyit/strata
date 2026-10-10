@@ -1,8 +1,6 @@
 /*
  * $strata_* variables. Values come from the main request's context, which
  * survives internal redirects, so they also work in access_log.
- *
- * TODO: $strata_time_us needs engine timing that the ABI does not expose.
  */
 
 #include "ngx_http_strata_module.h"
@@ -18,6 +16,7 @@ static ngx_int_t ngx_http_strata_variable(ngx_http_request_t *r,
 #define NGX_HTTP_STRATA_VAR_RULES     3
 #define NGX_HTTP_STRATA_VAR_POLICY    4
 #define NGX_HTTP_STRATA_VAR_BUNDLE    5
+#define NGX_HTTP_STRATA_VAR_TIME_US   6
 
 
 static ngx_http_variable_t  ngx_http_strata_variables[] = {
@@ -39,6 +38,9 @@ static ngx_http_variable_t  ngx_http_strata_variables[] = {
 
     { ngx_string("strata_bundle_version"), NULL, ngx_http_strata_variable,
       NGX_HTTP_STRATA_VAR_BUNDLE, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
+    { ngx_string("strata_time_us"), NULL, ngx_http_strata_variable,
+      NGX_HTTP_STRATA_VAR_TIME_US, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
       ngx_http_null_variable
 };
@@ -168,6 +170,17 @@ ngx_http_strata_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         v->data = p;
         v->len = ngx_slprintf(p, p + NGX_INT64_LEN, "%uL",
                               ctx->bundle_version) - p;
+        break;
+
+    case NGX_HTTP_STRATA_VAR_TIME_US:
+        p = ngx_pnalloc(r->pool, NGX_INT64_LEN);
+        if (p == NULL) {
+            return NGX_ERROR;
+        }
+
+        v->data = p;
+        v->len = ngx_slprintf(p, p + NGX_INT64_LEN, "%uL",
+                              (uint64_t) strata_tx_time_us(ctx->tx)) - p;
         break;
 
     default: /* NGX_HTTP_STRATA_VAR_POLICY */

@@ -69,6 +69,10 @@ typedef struct {
     u_char                     *base;
     size_t                      len;
     uint64_t                    version;
+    ngx_http_strata_page_t     *page;           /* default block page from
+                                                   the bundle, or NULL */
+    ngx_str_t                   contact;        /* {{support_contact}} */
+    ngx_pool_t                 *pool;           /* worker-loaded: page parts */
     ngx_uint_t                  refs;
     unsigned                    heap:1;      /* worker-loaded, ngx_alloc'd */
     unsigned                    unmapped:1;

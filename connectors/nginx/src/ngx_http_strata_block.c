@@ -9,7 +9,7 @@
 
 
 static ngx_buf_t *ngx_http_strata_render(ngx_http_request_t *r,
-    ngx_http_strata_page_t *page, ngx_str_t *id);
+    ngx_http_strata_page_t *page, ngx_str_t *id, ngx_str_t *contact);
 static ngx_int_t ngx_http_strata_add_header(ngx_http_request_t *r,
     ngx_str_t *key, ngx_str_t *value);
 
@@ -28,7 +28,7 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 {
     size_t                        len;
     ngx_int_t                     rc;
-    ngx_str_t                     id, key, value;
+    ngx_str_t                     id, key, value, contact;
     ngx_buf_t                    *b;
     ngx_chain_t                   out;
     ngx_table_elt_t              *server;
@@ -64,9 +64,23 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
         slcf = ngx_http_get_module_loc_conf(r, ngx_http_strata_module);
         smcf = ngx_http_get_module_main_conf(r, ngx_http_strata_module);
 
-        page = slcf->block_page ? slcf->block_page : smcf->default_page;
+        /* local override, then the bundle's default, then the built-in */
 
-        b = ngx_http_strata_render(r, page, &id);
+        page = slcf->block_page;
+        if (page == NULL && ctx->bundle) {
+            page = ctx->bundle->page;
+        }
+        if (page == NULL) {
+            page = smcf->default_page;
+        }
+
+        if (ctx->bundle) {
+            contact = ctx->bundle->contact;
+        } else {
+            ngx_str_null(&contact);
+        }
+
+        b = ngx_http_strata_render(r, page, &id, &contact);
         if (b == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -130,7 +144,7 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 
 static ngx_buf_t *
 ngx_http_strata_render(ngx_http_request_t *r, ngx_http_strata_page_t *page,
-    ngx_str_t *id)
+    ngx_str_t *id, ngx_str_t *contact)
 {
     size_t                        len;
     ngx_str_t                     time, *s;
@@ -140,9 +154,10 @@ ngx_http_strata_render(ngx_http_request_t *r, ngx_http_strata_page_t *page,
 
     time = ngx_cached_http_log_iso8601;
 
-    /* each placeholder expands to at most max(id, time) bytes */
+    /* each placeholder expands to at most the longest substitution */
 
-    len = page->text_len + page->nvars * ngx_max(id->len, time.len);
+    len = page->text_len
+          + page->nvars * ngx_max(ngx_max(id->len, time.len), contact->len);
 
     b = ngx_create_temp_buf(r->pool, len);
     if (b == NULL) {
@@ -164,8 +179,8 @@ ngx_http_strata_render(ngx_http_request_t *r, ngx_http_strata_page_t *page,
             break;
 
         case NGX_HTTP_STRATA_PAGE_CONTACT:
-            /* TODO(bundle): support contact comes from the bundle */
-            continue;
+            s = contact;
+            break;
 
         default: /* NGX_HTTP_STRATA_PAGE_TEXT */
             s = &part[i].text;

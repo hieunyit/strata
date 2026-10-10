@@ -47,7 +47,9 @@ sub bundle {
     my $mode = $o{mode} // "shadow";
     my $pol = "$root/policies-$mode.yaml";
     open my $fh, ">", $pol or die $!;
-    print $fh "policies: [{ name: example-api, mode: $mode }]\n";
+    print $fh "policies: [{ name: example-api, mode: $mode }]\n",
+              "block_page: { html: '<p>page v$version {{block_id}} {{support_contact}}</p>',",
+              " support_contact: 'contact v$version' }\n";
     close $fh;
     run("$compiler --policies $pol --key $fixtures/" . ($o{key} // "test.key")
         . " --version $version" . ($o{rollback} ? " --rollback" : "")
@@ -213,6 +215,8 @@ is(get("/t?STRATA-TEST-BLOCK")->{status}, 403, "test rule blocks with bundle 1")
 publish(bundle(2));
 wait_log(qr/bundle version 2 active/, $workers, "every worker activates v2");
 is(versions_seen(), "2", "requests use v2");
+like(get("/t?STRATA-TEST-BLOCK")->{content}, qr/^<p>page v2 STR-\S+ contact v2<\/p>$/,
+     "block page and support contact come from the new bundle");
 wait_log(qr/bundle version 1 released, unmapping/, $workers,
          "every worker unmaps v1");
 

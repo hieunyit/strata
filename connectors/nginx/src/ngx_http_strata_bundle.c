@@ -63,6 +63,8 @@ static void ngx_http_strata_post(void (*handler)(void *data, ngx_log_t *log),
 static void ngx_http_strata_tick(ngx_event_t *ev);
 static void ngx_http_strata_schedule(void);
 static void ngx_http_strata_bundle_cleanup(void *data);
+static ngx_int_t ngx_http_strata_bundle_page(ngx_http_strata_bundle_t *bundle,
+    ngx_pool_t *pool);
 
 
 /* per worker */
@@ -194,6 +196,10 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
 
     smcf->bundle = bundle;
     smcf->generation = gen;
+
+    if (ngx_http_strata_bundle_page(bundle, cf->pool) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     if (ngx_http_strata_check_stream(cf->log, NGX_LOG_EMERG, smcf,
                                      bundle->engine))
@@ -735,6 +741,18 @@ ngx_http_strata_load_done(void *data)
     bundle->refs = 1;
     bundle->heap = 1;
 
+    /* the template's parts point into the mapping: they live as long */
+
+    bundle->pool = ngx_create_pool(1024, log);
+    if (bundle->pool == NULL
+        || ngx_http_strata_bundle_page(bundle, bundle->pool) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "strata: no memory for the block page of bundle "
+                      "version %uL, using the built-in page", bundle->version);
+        bundle->page = NULL;
+    }
+
     old = ngx_http_strata_current;
     ngx_http_strata_current = bundle;
 
@@ -806,8 +824,41 @@ ngx_http_strata_unmap_done(void *data)
     ngx_http_strata_bundle_t  *bundle = data;
 
     if (bundle->heap) {
+        if (bundle->pool) {
+            ngx_destroy_pool(bundle->pool);
+        }
+
         ngx_free(bundle);
     }
+}
+
+
+/* the bundle's default block page, split into parts once per load */
+
+static ngx_int_t
+ngx_http_strata_bundle_page(ngx_http_strata_bundle_t *bundle, ngx_pool_t *pool)
+{
+    ngx_str_t     text;
+    strata_str_t  html, contact;
+
+    if (strata_engine_block_page(bundle->engine, &html, &contact)
+        != STRATA_OK)
+    {
+        return NGX_OK;
+    }
+
+    text.data = (u_char *) html.ptr;
+    text.len = html.len;
+
+    bundle->page = ngx_http_strata_page_compile(pool, &text);
+    if (bundle->page == NULL) {
+        return NGX_ERROR;
+    }
+
+    bundle->contact.data = (u_char *) contact.ptr;
+    bundle->contact.len = contact.len;
+
+    return NGX_OK;
 }
 
 

@@ -216,7 +216,7 @@ strata: tx created
 GET /t?STRATA-TEST-BLOCK
 --- error_code: 403
 --- response_body_like eval
-qr{^<html><body>Blocked: STR-$::ID at \d{4}-\d\d-\d\dT[\d:+-]+ \{\{unknown\}\} </body></html>$}
+qr{^<html><body>Blocked: STR-$::ID at \d{4}-\d\d-\d\dT[\d:+-]+ \{\{unknown\}\} Support: support\@example.test</body></html>$}
 
 
 
