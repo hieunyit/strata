@@ -96,7 +96,7 @@ impl Engine {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::bundle::{Mode, Oversize, Spec, build, public_key};
+    use crate::bundle::{Mode, Oversize, PolicySpec, Response, Spec, build, public_key};
 
     pub(crate) const SEED: [u8; 32] = [3; 32];
 
@@ -106,8 +106,12 @@ pub(crate) mod tests {
             created_at_ms: 1,
             flags: 0,
             policies: &[
-                ("example-api", Mode::Enforce, Oversize::Block),
-                ("example-web", Mode::Shadow, Oversize::Pass),
+                PolicySpec::new("example-api", Mode::Enforce, Oversize::Block),
+                PolicySpec::new("example-web", Mode::Shadow, Oversize::Pass),
+                PolicySpec {
+                    response: Response(Response::ALL),
+                    ..PolicySpec::new("example-guard", Mode::Enforce, Oversize::Pass)
+                },
             ],
             sections: &[],
         };
@@ -122,7 +126,7 @@ pub(crate) mod tests {
     fn maps_signed_bundle() {
         let e = test_engine();
         assert_eq!(e.info().version, 1);
-        assert_eq!(e.info().n_policies, 2);
+        assert_eq!(e.info().n_policies, 3);
     }
 
     #[test]
@@ -131,6 +135,11 @@ pub(crate) mod tests {
         let p = |n: &[u8]| e.policy(n).map(|p| (p.index, p.mode, p.oversize));
         assert_eq!(p(b"example-api"), Some((0, Mode::Enforce, Oversize::Block)));
         assert_eq!(p(b"example-web"), Some((1, Mode::Shadow, Oversize::Pass)));
+        assert_eq!(e.policy(b"example-api").unwrap().response, Response(0));
+        assert_eq!(
+            e.policy(b"example-guard").unwrap().response,
+            Response(Response::ALL)
+        );
         assert_eq!(e.policy(b"example"), None);
         assert_eq!(e.policy(b""), None);
     }

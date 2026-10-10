@@ -20,6 +20,21 @@
           "oversize": {
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]
+          },
+          "response": {
+            "description": "Response layer, all off by default. Findings are recorded (rules 600000-699999), never block: the response headers are already on their way. Data guard masks only in enforce mode; in shadow it only records.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allowed_codes_check": { "description": "Status outside the allowed codes: rule 600001.", "type": "boolean" },
+              "db_errors": { "description": "Database error messages in the body: rules 600101-600107.", "type": "boolean" },
+              "data_guard": {
+                "description": "Values masked with '*' (same length) in the body: cccd (Vietnamese citizen ID, rule 600201), jwt (JSON Web Token, rule 600202). Do not enable jwt on routes that issue tokens.",
+                "type": "array",
+                "items": { "enum": ["cccd", "jwt"] },
+                "uniqueItems": true
+              }
+            }
           }
         }
       }

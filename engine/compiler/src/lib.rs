@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use libstrata::bundle::{self, Mode, Oversize, Spec};
+use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Spec};
 use libstrata::rules::{
     self, BlockPage, CondDef, LAYERS, OPERATORS, RuleDef, SEVERITIES, STAGES, TRANSFORMS,
     TargetDef, VARS, Value as RValue,
@@ -191,7 +191,8 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 #[derive(Debug)]
 pub struct Policies {
-    pub policies: Vec<(String, Mode, Oversize)>,
+    /// (name, mode, oversize, response flags)
+    pub policies: Vec<(String, Mode, Oversize, Response)>,
     pub block_page: Option<BlockPage>,
 }
 
@@ -215,7 +216,21 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         } else {
             Oversize::Pass
         };
-        policies.push((name, mode, oversize));
+        let r = &p["response"];
+        let mut response = 0;
+        if r["allowed_codes_check"].as_bool() == Some(true) {
+            response |= Response::STATUS;
+        }
+        if r["db_errors"].as_bool() == Some(true) {
+            response |= Response::DB_ERRORS;
+        }
+        for d in r["data_guard"].as_array().into_iter().flatten() {
+            response |= match d.as_str() {
+                Some("cccd") => Response::GUARD_CCCD,
+                _ => Response::GUARD_JWT,
+            };
+        }
+        policies.push((name, mode, oversize, Response(response)));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -333,10 +348,13 @@ pub fn compile(
         ));
     }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
-    let names: Vec<(&str, Mode, Oversize)> = policies
+    let names: Vec<PolicySpec> = policies
         .policies
         .iter()
-        .map(|(n, m, o)| (n.as_str(), *m, *o))
+        .map(|(n, m, o, r)| PolicySpec {
+            response: *r,
+            ..PolicySpec::new(n, *m, *o)
+        })
         .collect();
     let spec = Spec {
         version: build.version,

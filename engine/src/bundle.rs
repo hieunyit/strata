@@ -8,7 +8,8 @@
 //! 64     policy table: n_policies x 64 bytes:
 //!          name [u8; 56] (1..55 chars [a-z0-9._-], NUL-padded) | mode u8
 //!          (0 shadow, 1 enforce) | oversize u8 (0 pass, 1 block: request
-//!          bodies larger than the connector inspects) | reserved [u8; 6]
+//!          bodies larger than the connector inspects) | response u8 (flags,
+//!          `Response`) | reserved [u8; 5]
 //! ...    zero padding up to sections_off (multiple of 4096)
 //! off    section directory: count u32 | reserved u32 |
 //!          count x { kind u32 | reserved u32 | offset u64 | len u64 }
@@ -60,6 +61,27 @@ pub enum Oversize {
     Block = 1,
 }
 
+/// Response layer of a policy: one flag per check (0 = all off, which is
+/// what bundles written before the flags carry).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Response(pub u8);
+
+impl Response {
+    /// Response status against the allowed codes (rule 600001).
+    pub const STATUS: u8 = 1 << 0;
+    /// Database error signatures in the body (rules 600101-600107).
+    pub const DB_ERRORS: u8 = 1 << 1;
+    /// Data guard: Vietnamese citizen ID numbers (rule 600201).
+    pub const GUARD_CCCD: u8 = 1 << 2;
+    /// Data guard: JSON Web Tokens (rule 600202).
+    pub const GUARD_JWT: u8 = 1 << 3;
+    pub const ALL: u8 = 0x0f;
+
+    pub fn has(self, flag: u8) -> bool {
+        self.0 & flag != 0
+    }
+}
+
 /// A policy of the bundle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Policy<'a> {
@@ -67,6 +89,28 @@ pub struct Policy<'a> {
     pub name: &'a [u8],
     pub mode: Mode,
     pub oversize: Oversize,
+    pub response: Response,
+}
+
+/// A policy to write (`build`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PolicySpec<'a> {
+    pub name: &'a str,
+    pub mode: Mode,
+    pub oversize: Oversize,
+    pub response: Response,
+}
+
+impl<'a> PolicySpec<'a> {
+    /// A policy with the response layer off.
+    pub fn new(name: &'a str, mode: Mode, oversize: Oversize) -> PolicySpec<'a> {
+        PolicySpec {
+            name,
+            mode,
+            oversize,
+            response: Response::default(),
+        }
+    }
 }
 
 /// Policy mode signed into the bundle.
@@ -146,7 +190,8 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
     valid_policy_name(&entry[..POLICY_NAME_LEN])
         && entry[POLICY_NAME_LEN] <= Mode::Enforce as u8
         && entry[POLICY_NAME_LEN + 1] <= Oversize::Block as u8
-        && entry[POLICY_NAME_LEN + 2..].iter().all(|&c| c == 0)
+        && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
+        && entry[POLICY_NAME_LEN + 3..].iter().all(|&c| c == 0)
 }
 
 fn entry_name(e: &[u8]) -> &[u8] {
@@ -288,6 +333,7 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             name: entry_name(e),
             mode: entry_mode(e),
             oversize: entry_oversize(e),
+            response: Response(e[POLICY_NAME_LEN + 2]),
         })
 }
 
@@ -301,7 +347,7 @@ pub struct Spec<'a> {
     pub version: u64,
     pub created_at_ms: u64,
     pub flags: u16,
-    pub policies: &'a [(&'a str, Mode, Oversize)],
+    pub policies: &'a [PolicySpec<'a>],
     /// (kind, bytes), written in this order, each 4 KB-aligned.
     pub sections: &'a [(u32, &'a [u8])],
 }
@@ -309,7 +355,7 @@ pub struct Spec<'a> {
 /// Builds and signs a bundle with an Ed25519 seed (32 bytes).
 pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     if spec.policies.len() > MAX_POLICIES as usize
-        || !spec.policies.iter().all(|(p, _, _)| {
+        || !spec.policies.iter().all(|PolicySpec { name: p, .. }| {
             let mut e = [0u8; POLICY_NAME_LEN];
             let n = p.len().min(POLICY_NAME_LEN);
             e[..n].copy_from_slice(&p.as_bytes()[..n]);
@@ -329,11 +375,15 @@ pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     out[12..16].copy_from_slice(&(spec.policies.len() as u32).to_le_bytes());
     out[16..24].copy_from_slice(&spec.version.to_le_bytes());
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
-    for (i, (p, mode, oversize)) in spec.policies.iter().enumerate() {
+    for (i, p) in spec.policies.iter().enumerate() {
+        if p.response.0 & !Response::ALL != 0 {
+            return Err(Error::BadLayout("bad policy entry"));
+        }
         let at = HEADER_LEN + i * POLICY_ENTRY_LEN;
-        out[at..at + p.len()].copy_from_slice(p.as_bytes());
-        out[at + POLICY_NAME_LEN] = *mode as u8;
-        out[at + POLICY_NAME_LEN + 1] = *oversize as u8;
+        out[at..at + p.name.len()].copy_from_slice(p.name.as_bytes());
+        out[at + POLICY_NAME_LEN] = p.mode as u8;
+        out[at + POLICY_NAME_LEN + 1] = p.oversize as u8;
+        out[at + POLICY_NAME_LEN + 2] = p.response.0;
     }
 
     if spec.sections.len() > MAX_SECTIONS {
@@ -380,7 +430,7 @@ mod tests {
 
     const SEED: [u8; 32] = [7; 32];
 
-    fn spec<'a>(policies: &'a [(&'a str, Mode, Oversize)]) -> Spec<'a> {
+    fn spec<'a>(policies: &'a [PolicySpec<'a>]) -> Spec<'a> {
         Spec {
             version: 42,
             created_at_ms: 1_700_000_000_000,
@@ -397,8 +447,8 @@ mod tests {
     fn round_trip() {
         let b = build(
             &spec(&[
-                ("example-api", Mode::Enforce, Oversize::Block),
-                ("example-web", Mode::Shadow, Oversize::Pass),
+                PolicySpec::new("example-api", Mode::Enforce, Oversize::Block),
+                PolicySpec::new("example-web", Mode::Shadow, Oversize::Pass),
             ]),
             &SEED,
         )
@@ -438,7 +488,7 @@ mod tests {
     #[test]
     fn any_modified_byte_breaks_the_signature() {
         let b = build(
-            &spec(&[("example-api", Mode::Shadow, Oversize::Pass)]),
+            &spec(&[PolicySpec::new("example-api", Mode::Shadow, Oversize::Pass)]),
             &SEED,
         )
         .unwrap();
@@ -468,7 +518,7 @@ mod tests {
     fn signed_but_malformed_layout_is_rejected() {
         // a signer bug must not turn into out-of-bounds reads
         let mut b = build(
-            &spec(&[("example-api", Mode::Shadow, Oversize::Pass)]),
+            &spec(&[PolicySpec::new("example-api", Mode::Shadow, Oversize::Pass)]),
             &SEED,
         )
         .unwrap();
@@ -486,13 +536,21 @@ mod tests {
     fn invalid_policy_names() {
         for bad in ["", "Upper", "a/b", "x".repeat(56).as_str()] {
             assert!(
-                build(&spec(&[(bad, Mode::Shadow, Oversize::Pass)]), &SEED).is_err(),
+                build(
+                    &spec(&[PolicySpec::new(bad, Mode::Shadow, Oversize::Pass)]),
+                    &SEED
+                )
+                .is_err(),
                 "{bad:?}"
             );
         }
         assert!(
             build(
-                &spec(&[("x".repeat(55).as_str(), Mode::Shadow, Oversize::Pass)]),
+                &spec(&[PolicySpec::new(
+                    "x".repeat(55).as_str(),
+                    Mode::Shadow,
+                    Oversize::Pass
+                )]),
                 &SEED
             )
             .is_ok()
@@ -500,9 +558,38 @@ mod tests {
     }
 
     #[test]
+    fn response_flags_round_trip_and_unknown_flags_are_rejected() {
+        let p = PolicySpec {
+            response: Response(Response::STATUS | Response::GUARD_JWT),
+            ..PolicySpec::new("example-api", Mode::Enforce, Oversize::Pass)
+        };
+        let b = build(&spec(&[p]), &SEED).unwrap();
+        let info = verify(&b, &public_key(&SEED)).unwrap();
+        let got = find_policy(&b, &info, b"example-api").unwrap().response;
+        assert!(got.has(Response::STATUS) && got.has(Response::GUARD_JWT));
+        assert!(!got.has(Response::DB_ERRORS) && !got.has(Response::GUARD_CCCD));
+
+        let bad = PolicySpec {
+            response: Response(0x10),
+            ..p
+        };
+        assert!(build(&spec(&[bad]), &SEED).is_err());
+
+        let mut b = b;
+        b.truncate(b.len() - SIG_LEN);
+        b[HEADER_LEN + POLICY_NAME_LEN + 2] = 0x80;
+        let sig = SigningKey::from_bytes(&SEED).sign(&b);
+        b.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&b, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
+    }
+
+    #[test]
     fn signed_bad_policy_mode_is_rejected() {
         let mut b = build(
-            &spec(&[("example-api", Mode::Shadow, Oversize::Pass)]),
+            &spec(&[PolicySpec::new("example-api", Mode::Shadow, Oversize::Pass)]),
             &SEED,
         )
         .unwrap();

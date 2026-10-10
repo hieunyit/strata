@@ -147,3 +147,39 @@ fn policies_are_checked() {
     let both = from_yaml("policies: []\nblock_page: { html: x, html_file: y }").unwrap();
     assert!(policies_from(&both, Path::new(".")).is_err());
 }
+
+#[test]
+fn response_layer_flags() {
+    use libstrata::bundle::Response;
+    let doc = from_yaml(
+        "policies:\n\
+         - { name: a, mode: enforce, response: { allowed_codes_check: true, data_guard: [cccd, jwt] } }\n\
+         - { name: b, mode: shadow, response: { db_errors: true } }\n\
+         - { name: c, mode: shadow }",
+    )
+    .unwrap();
+    let got: Vec<u8> = policies_from(&doc, Path::new("."))
+        .unwrap()
+        .policies
+        .iter()
+        .map(|p| p.3.0)
+        .collect();
+    assert_eq!(
+        got,
+        [
+            Response::STATUS | Response::GUARD_CCCD | Response::GUARD_JWT,
+            Response::DB_ERRORS,
+            0
+        ]
+    );
+    for bad in [
+        "policies: [{ name: a, mode: shadow, response: { data_guard: [ssn] } }]",
+        "policies: [{ name: a, mode: shadow, response: { data_guard: [jwt, jwt] } }]",
+        "policies: [{ name: a, mode: shadow, response: { block: true } }]",
+    ] {
+        assert!(
+            policies_from(&from_yaml(bad).unwrap(), Path::new(".")).is_err(),
+            "{bad}"
+        );
+    }
+}
