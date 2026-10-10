@@ -22,7 +22,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | --- | --- | --- | --- | --- |
 | W06-N-01 | Response path (header/body filter, data guard, trước gzip) | Claude Code | — | ✅ Done |
 | W06-R-01 | Lớp response + port tokenizer SQLi/XSS | Claude Code | — | ⏳ Chưa bắt đầu |
-| W06-G1-01 | Sự kiện từ worker tới control plane (PushEvents, spool, metrics) | Claude Code | — | ⏳ Chưa bắt đầu |
+| W06-G1-01 | Sự kiện từ worker tới control plane (PushEvents, spool, metrics) | Claude Code | — | ✅ Done |
 | W06-S-01 | Nhập nhóm injection của CRS | Antigravity | W06-R-01 | ⏳ Chưa bắt đầu |
 | W06-G2-01 | Event ingest → ClickHouse + API sự kiện | Antigravity | — | ✅ Done |
 | W06-F-01 | Trang Sự kiện nối API thật | Antigravity | W06-G2-01 | ✅ Done |
