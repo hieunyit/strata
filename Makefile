@@ -76,6 +76,7 @@ test-nginx-asan:
 # prints reports, so any "Memcheck:" entry not in valgrind.suppress fails here.
 # Valgrind makes nginx start slowly: wait longer, and never hang (timeout).
 test-nginx-valgrind:
+	rm -f connectors/nginx/vgcore.*
 	PATH="$(CURDIR)/$(NGX_OBJS):$$PATH" \
 	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
 	TEST_NGINX_USE_VALGRIND=1 TEST_NGINX_SLEEP=1 TEST_NGINX_TIMEOUT=10 \
@@ -84,6 +85,9 @@ test-nginx-valgrind:
 	@if grep -q "Memcheck:" $(BUILD)/valgrind.log; then \
 		grep -B3 -A30 "Memcheck:" $(BUILD)/valgrind.log | head -120; \
 		echo "valgrind reported errors (see $(BUILD)/valgrind.log)"; exit 1; fi
+	@if ls connectors/nginx/vgcore.* >/dev/null 2>&1; then \
+		ls -l connectors/nginx/vgcore.*; \
+		echo "nginx died on a signal under valgrind (vgcore written)"; exit 1; fi
 	@echo "no valgrind reports"
 
 poc:
