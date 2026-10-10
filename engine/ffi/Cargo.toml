@@ -11,6 +11,9 @@ publish.workspace = true
 name = "strata"
 crate-type = ["staticlib", "rlib"]
 
+[dependencies]
+ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "fast"] }
+
 [features]
 # Test-only triggers (e.g. a deliberate panic) used by the ABI and NGINX
 # integration suites. Never enabled in release packages.

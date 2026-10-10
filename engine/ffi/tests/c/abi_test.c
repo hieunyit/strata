@@ -31,6 +31,8 @@ _Static_assert(STRATA_BLOCK_ID_SIZE == 24, "block id size");
 _Static_assert(STRATA_MAX_RULES == 16, "max rules");
 _Static_assert(sizeof(strata_rc_t) == 4, "rc");
 _Static_assert(STRATA_ABI_VERSION_MAJOR == 1, "abi major");
+_Static_assert(sizeof(strata_engine_info_t) == 24, "engine info size");
+_Static_assert(offsetof(strata_engine_info_t, flags) == 16, "engine info.flags");
 
 static int failures;
 
@@ -45,8 +47,32 @@ static int failures;
 
 #define S(lit) ((strata_str_t) { (const uint8_t *) (lit), sizeof(lit) - 1 })
 
-static const uint8_t pubkey[STRATA_PUBKEY_LEN];
-static const uint8_t bundle[] = "SBN0 stub bundle for example-api";
+static uint8_t   pubkey[STRATA_PUBKEY_LEN];
+static uint8_t  *bundle;
+static size_t    bundle_len;
+
+static uint8_t *
+slurp(const char *path, size_t *len)
+{
+    FILE     *f;
+    long      n;
+    uint8_t  *p;
+
+    f = fopen(path, "rb");
+    if (f == NULL || fseek(f, 0, SEEK_END) != 0 || (n = ftell(f)) <= 0
+        || fseek(f, 0, SEEK_SET) != 0)
+    {
+        fprintf(stderr, "cannot read %s\n", path);
+        exit(2);
+    }
+    p = malloc((size_t) n);
+    if (p == NULL || fread(p, 1, (size_t) n, f) != (size_t) n) {
+        exit(2);
+    }
+    fclose(f);
+    *len = (size_t) n;
+    return p;
+}
 
 static int
 id_ok(const char *id, const char *prefix)
@@ -96,13 +122,29 @@ start(strata_engine_t *e, uint32_t flags, strata_str_t uri)
 }
 
 int
-main(void)
+main(int argc, char **argv)
 {
-    strata_err_t      err;
-    strata_engine_t  *e;
+    size_t                 klen;
+    uint8_t               *key, *bad;
+    strata_err_t           err;
+    strata_engine_t       *e;
+    strata_engine_info_t   info;
     strata_tx_t      *tx;
     strata_verdict_t  v;
     strata_buf_t      buf;
+
+    /* argv: a signed bundle (version 1, 3 policies) and its public key */
+    if (argc != 3) {
+        fprintf(stderr, "usage: abi_test <bundle.sbn> <bundle.pub>\n");
+        return 2;
+    }
+    bundle = slurp(argv[1], &bundle_len);
+    key = slurp(argv[2], &klen);
+    if (klen != STRATA_PUBKEY_LEN) {
+        return 2;
+    }
+    memcpy(pubkey, key, klen);
+    free(key);
 
     CHECK(strata_abi_version() == STRATA_ABI_VERSION);
     CHECK(strata_abi_version() >> 16 == STRATA_ABI_VERSION_MAJOR);
@@ -113,10 +155,28 @@ main(void)
     CHECK(err.code == STRATA_E_BUNDLE && err.msg[0] != '\0');
     CHECK(strata_engine_map(NULL, 10, pubkey, &err) == NULL);
     CHECK(err.code == STRATA_E_INVALID);
-    CHECK(strata_engine_map(bundle, sizeof(bundle), NULL, NULL) == NULL);
+    CHECK(strata_engine_map(bundle, bundle_len, NULL, NULL) == NULL);
 
-    e = strata_engine_map(bundle, sizeof(bundle), pubkey, &err);
+    /* one flipped byte breaks the signature */
+    bad = malloc(bundle_len);
+    if (bad == NULL) {
+        return 2;
+    }
+    memcpy(bad, bundle, bundle_len);
+    bad[100] ^= 1;
+    CHECK(strata_engine_map(bad, bundle_len, pubkey, &err) == NULL);
+    CHECK(err.code == STRATA_E_BUNDLE && strstr(err.msg, "signature") != NULL);
+    free(bad);
+
+    e = strata_engine_map(bundle, bundle_len, pubkey, &err);
     CHECK(e != NULL && err.code == STRATA_OK);
+
+    strata_engine_info(e, &info);
+    CHECK(info.version == 1 && info.n_policies == 3 && info.flags == 0);
+    CHECK(info.created_at_ms == 1760000000000ULL);
+    strata_engine_info(NULL, &info);
+    CHECK(info.version == 0);
+    strata_engine_info(e, NULL);
     strata_engine_retain(e);
     strata_engine_release(e);
 
@@ -217,6 +277,8 @@ main(void)
     strata_engine_release(e);
     CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_OK);
     strata_tx_free(tx);
+
+    free(bundle);
 
     if (failures) {
         fprintf(stderr, "abi_test: %d failure(s)\n", failures);

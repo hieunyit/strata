@@ -99,6 +99,29 @@
  */
 #define STRATA_PUBKEY_LEN 32
 
+/**
+ * `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
+ * and may replace a newer version.
+ */
+#define STRATA_BUNDLE_ROLLBACK (1 << 0)
+
+#define FORMAT 1
+
+#define HEADER_LEN 64
+
+#define POLICY_ENTRY_LEN 64
+
+#define SIG_LEN 64
+
+#define SECTION_ALIGN 4096
+
+#define MAX_POLICIES 4096
+
+/**
+ * Header flag: this bundle may replace a newer one (signed rollback).
+ */
+#define FLAG_ROLLBACK (1 << 0)
+
 typedef struct strata_engine_t strata_engine_t;
 
 typedef struct strata_tx_t strata_tx_t;
@@ -121,6 +144,28 @@ typedef struct {
    */
   char msg[STRATA_ERR_MSG_SIZE];
 } strata_err_t;
+
+/**
+ * Metadata of the bundle an engine was built from (signed header fields).
+ */
+typedef struct {
+  /**
+   * Bundle version, increasing with every deploy.
+   */
+  uint64_t version;
+  /**
+   * Bundle creation time, Unix milliseconds.
+   */
+  uint64_t created_at_ms;
+  /**
+   * `STRATA_BUNDLE_*`.
+   */
+  uint32_t flags;
+  /**
+   * Number of policies in the bundle.
+   */
+  uint32_t n_policies;
+} strata_engine_info_t;
 
 /**
  * Borrowed byte string. Not NUL-terminated, not necessarily UTF-8;
@@ -260,8 +305,8 @@ extern "C" {
 uint32_t strata_abi_version(void);
 
 /**
- * Builds an engine directly over a read-only mapped bundle. libstrata does
- * not copy the bundle: the mapping must stay valid until the last
+ * Builds an engine directly over a read-only mapped bundle after verifying
+ * its Ed25519 signature with `pubkey`. libstrata does not copy the bundle: the mapping must stay valid until the last
  * `strata_engine_release`. `pubkey` points to `STRATA_PUBKEY_LEN` bytes.
  * Returns NULL on failure and fills `err` when it is not NULL.
  *
@@ -272,6 +317,15 @@ strata_engine_t *strata_engine_map(const uint8_t *base,
                                    size_t len,
                                    const uint8_t *pubkey,
                                    strata_err_t *err);
+
+/**
+ * Fills `out` with the signed header fields of the engine's bundle (version,
+ * creation time, rollback flag). With a NULL engine, `out` is zeroed.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle; `out` NULL or writable.
+ */
+void strata_engine_info(const strata_engine_t *e, strata_engine_info_t *out);
 
 /**
  * Adds a reference to the engine.

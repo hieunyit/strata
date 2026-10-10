@@ -1,0 +1,282 @@
+//! Bundle file format, version 1 (minimal; see docs/design/bundle-format.md).
+//!
+//! ```text
+//! 0      header (64 bytes, little-endian)
+//!          magic "STRBNDL\0" | format u16 | flags u16 | n_policies u32
+//!          version u64 | created_at_ms u64 | sections_off u64 | sections_len u64
+//!          reserved [u8; 16] (zero)
+//! 64     policy table: n_policies x 64 bytes, NUL-padded names
+//! ...    zero padding up to sections_off (multiple of 4096)
+//! off    sections (opaque here; rule sections are still a stub)
+//! ...    zero padding
+//! len-64 Ed25519 signature over bytes [0, len - 64)
+//! ```
+//!
+//! Everything is read in place from the mapping; nothing is copied.
+#![forbid(unsafe_code)]
+
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+
+pub const MAGIC: &[u8; 8] = b"STRBNDL\0";
+pub const FORMAT: u16 = 1;
+pub const HEADER_LEN: usize = 64;
+pub const POLICY_ENTRY_LEN: usize = 64;
+pub const SIG_LEN: usize = 64;
+pub const SECTION_ALIGN: usize = 4096;
+pub const MAX_POLICIES: u32 = 4096;
+/// Header flag: this bundle may replace a newer one (signed rollback).
+pub const FLAG_ROLLBACK: u16 = 1 << 0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Info {
+    pub version: u64,
+    pub created_at_ms: u64,
+    pub flags: u16,
+    pub n_policies: u32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    BadKey,
+    TooShort,
+    BadMagic,
+    BadFormat,
+    BadSignature,
+    BadLayout(&'static str),
+}
+
+impl Error {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Error::BadKey => "invalid public key",
+            Error::TooShort => "bundle too short",
+            Error::BadMagic => "bad bundle magic",
+            Error::BadFormat => "unsupported bundle format version",
+            Error::BadSignature => "bad bundle signature",
+            Error::BadLayout(m) => m,
+        }
+    }
+}
+
+fn u16_at(b: &[u8], off: usize) -> u16 {
+    u16::from_le_bytes([b[off], b[off + 1]])
+}
+
+fn u32_at(b: &[u8], off: usize) -> u32 {
+    let mut a = [0u8; 4];
+    a.copy_from_slice(&b[off..off + 4]);
+    u32::from_le_bytes(a)
+}
+
+fn u64_at(b: &[u8], off: usize) -> u64 {
+    let mut a = [0u8; 8];
+    a.copy_from_slice(&b[off..off + 8]);
+    u64::from_le_bytes(a)
+}
+
+fn valid_policy_name(entry: &[u8]) -> bool {
+    let len = entry.iter().position(|&c| c == 0).unwrap_or(entry.len());
+    len > 0
+        && len < POLICY_ENTRY_LEN
+        && entry[len..].iter().all(|&c| c == 0)
+        && entry[..len]
+            .iter()
+            .all(|&c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(&c))
+}
+
+/// Verifies the signature first, then the layout; returns the header info.
+pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
+    let key: [u8; 32] = pubkey.try_into().map_err(|_| Error::BadKey)?;
+    let key = VerifyingKey::from_bytes(&key).map_err(|_| Error::BadKey)?;
+
+    if bundle.len() < HEADER_LEN + SIG_LEN {
+        return Err(Error::TooShort);
+    }
+    if &bundle[..8] != MAGIC {
+        return Err(Error::BadMagic);
+    }
+
+    let (signed, sig) = bundle.split_at(bundle.len() - SIG_LEN);
+    let sig: [u8; SIG_LEN] = sig.try_into().map_err(|_| Error::TooShort)?;
+    key.verify_strict(signed, &Signature::from_bytes(&sig))
+        .map_err(|_| Error::BadSignature)?;
+
+    if u16_at(bundle, 8) != FORMAT {
+        return Err(Error::BadFormat);
+    }
+    let info = Info {
+        flags: u16_at(bundle, 10),
+        n_policies: u32_at(bundle, 12),
+        version: u64_at(bundle, 16),
+        created_at_ms: u64_at(bundle, 24),
+    };
+    let sections_off = u64_at(bundle, 32);
+    let sections_len = u64_at(bundle, 40);
+
+    if bundle[48..64].iter().any(|&c| c != 0) {
+        return Err(Error::BadLayout("reserved header bytes are not zero"));
+    }
+    if info.n_policies > MAX_POLICIES {
+        return Err(Error::BadLayout("too many policies"));
+    }
+    let table_end = HEADER_LEN + info.n_policies as usize * POLICY_ENTRY_LEN;
+    let body_end = (signed.len()) as u64;
+    if !sections_off.is_multiple_of(SECTION_ALIGN as u64)
+        || sections_off < table_end as u64
+        || sections_off
+            .checked_add(sections_len)
+            .is_none_or(|end| end > body_end)
+    {
+        return Err(Error::BadLayout("bad section bounds"));
+    }
+    if !bundle[HEADER_LEN..table_end]
+        .chunks(POLICY_ENTRY_LEN)
+        .all(valid_policy_name)
+    {
+        return Err(Error::BadLayout("bad policy name"));
+    }
+    Ok(info)
+}
+
+/// Iterates the policy names of a bundle that passed `verify`.
+pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = &'a [u8]> + use<'a> {
+    let end = HEADER_LEN + info.n_policies as usize * POLICY_ENTRY_LEN;
+    bundle[HEADER_LEN..end].chunks(POLICY_ENTRY_LEN).map(|e| {
+        let len = e.iter().position(|&c| c == 0).unwrap_or(e.len());
+        &e[..len]
+    })
+}
+
+/// Parameters for `build` (bundle compiler, tools and tests).
+pub struct Spec<'a> {
+    pub version: u64,
+    pub created_at_ms: u64,
+    pub flags: u16,
+    pub policies: &'a [&'a str],
+    pub sections: &'a [u8],
+}
+
+/// Builds and signs a bundle with an Ed25519 seed (32 bytes).
+pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
+    if spec.policies.len() > MAX_POLICIES as usize
+        || !spec.policies.iter().all(|p| {
+            let mut e = [0u8; POLICY_ENTRY_LEN];
+            let n = p.len().min(POLICY_ENTRY_LEN);
+            e[..n].copy_from_slice(&p.as_bytes()[..n]);
+            p.len() < POLICY_ENTRY_LEN && valid_policy_name(&e)
+        })
+    {
+        return Err(Error::BadLayout("bad policy name"));
+    }
+
+    let table_end = HEADER_LEN + spec.policies.len() * POLICY_ENTRY_LEN;
+    let sections_off = table_end.div_ceil(SECTION_ALIGN) * SECTION_ALIGN;
+    let mut out = vec![0u8; sections_off];
+
+    out[..8].copy_from_slice(MAGIC);
+    out[8..10].copy_from_slice(&FORMAT.to_le_bytes());
+    out[10..12].copy_from_slice(&spec.flags.to_le_bytes());
+    out[12..16].copy_from_slice(&(spec.policies.len() as u32).to_le_bytes());
+    out[16..24].copy_from_slice(&spec.version.to_le_bytes());
+    out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
+    out[32..40].copy_from_slice(&(sections_off as u64).to_le_bytes());
+    out[40..48].copy_from_slice(&(spec.sections.len() as u64).to_le_bytes());
+    for (i, p) in spec.policies.iter().enumerate() {
+        let at = HEADER_LEN + i * POLICY_ENTRY_LEN;
+        out[at..at + p.len()].copy_from_slice(p.as_bytes());
+    }
+    out.extend_from_slice(spec.sections);
+
+    let sig = SigningKey::from_bytes(seed).sign(&out);
+    out.extend_from_slice(&sig.to_bytes());
+    Ok(out)
+}
+
+/// Public key for an Ed25519 seed.
+pub fn public_key(seed: &[u8; 32]) -> [u8; 32] {
+    SigningKey::from_bytes(seed).verifying_key().to_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SEED: [u8; 32] = [7; 32];
+
+    fn spec<'a>(policies: &'a [&'a str]) -> Spec<'a> {
+        Spec {
+            version: 42,
+            created_at_ms: 1_700_000_000_000,
+            flags: 0,
+            policies,
+            sections: b"stub rule section",
+        }
+    }
+
+    #[test]
+    fn round_trip() {
+        let b = build(&spec(&["example-api", "example-web"]), &SEED).unwrap();
+        let info = verify(&b, &public_key(&SEED)).unwrap();
+        assert_eq!(info.version, 42);
+        assert_eq!(info.n_policies, 2);
+        assert_eq!(info.flags, 0);
+        let names: Vec<_> = policies(&b, &info).collect();
+        assert_eq!(names, [&b"example-api"[..], b"example-web"]);
+        // sections start on a 4 KB boundary
+        assert_eq!(u64_at(&b, 32) % 4096, 0);
+    }
+
+    #[test]
+    fn rollback_flag() {
+        let mut s = spec(&[]);
+        s.flags = FLAG_ROLLBACK;
+        let b = build(&s, &SEED).unwrap();
+        assert_eq!(verify(&b, &public_key(&SEED)).unwrap().flags, FLAG_ROLLBACK);
+    }
+
+    #[test]
+    fn any_modified_byte_breaks_the_signature() {
+        let b = build(&spec(&["example-api"]), &SEED).unwrap();
+        let key = public_key(&SEED);
+        for i in (8..b.len()).step_by(97) {
+            let mut t = b.clone();
+            t[i] ^= 1;
+            assert!(verify(&t, &key).is_err(), "byte {i}");
+        }
+    }
+
+    #[test]
+    fn wrong_key_is_rejected() {
+        let b = build(&spec(&[]), &SEED).unwrap();
+        assert_eq!(verify(&b, &public_key(&[8; 32])), Err(Error::BadSignature));
+        assert_eq!(verify(&b, &[0; 31]), Err(Error::BadKey));
+    }
+
+    #[test]
+    fn short_and_foreign_input() {
+        let key = public_key(&SEED);
+        assert_eq!(verify(b"", &key), Err(Error::TooShort));
+        assert_eq!(verify(&[0u8; 200], &key), Err(Error::BadMagic));
+    }
+
+    #[test]
+    fn signed_but_malformed_layout_is_rejected() {
+        // a signer bug must not turn into out-of-bounds reads
+        let mut b = build(&spec(&["example-api"]), &SEED).unwrap();
+        b.truncate(b.len() - SIG_LEN);
+        b[12..16].copy_from_slice(&5000u32.to_le_bytes());
+        let sig = SigningKey::from_bytes(&SEED).sign(&b);
+        b.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&b, &public_key(&SEED)),
+            Err(Error::BadLayout("too many policies"))
+        );
+    }
+
+    #[test]
+    fn invalid_policy_names() {
+        for bad in ["", "Upper", "a/b", "x".repeat(64).as_str()] {
+            assert!(build(&spec(&[bad]), &SEED).is_err(), "{bad:?}");
+        }
+    }
+}

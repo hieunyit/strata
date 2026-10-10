@@ -1,0 +1,11 @@
+[package]
+name = "mkbundle"
+version = "0.1.0"
+description = "Dev/test tool: Ed25519 keys, signed Strata bundles, control files"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+libstrata = { path = "../../ffi" }
+sha2 = "0.10.9"

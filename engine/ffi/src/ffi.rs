@@ -65,8 +65,8 @@ pub extern "C" fn strata_abi_version() -> u32 {
     STRATA_ABI_VERSION
 }
 
-/// Builds an engine directly over a read-only mapped bundle. libstrata does
-/// not copy the bundle: the mapping must stay valid until the last
+/// Builds an engine directly over a read-only mapped bundle after verifying
+/// its Ed25519 signature with `pubkey`. libstrata does not copy the bundle: the mapping must stay valid until the last
 /// `strata_engine_release`. `pubkey` points to `STRATA_PUBKEY_LEN` bytes.
 /// Returns NULL on failure and fills `err` when it is not NULL.
 ///
@@ -108,6 +108,36 @@ pub unsafe extern "C" fn strata_engine_map(
         write_c_str(&mut err.msg, msg);
     }
     handle
+}
+
+/// Fills `out` with the signed header fields of the engine's bundle (version,
+/// creation time, rollback flag). With a NULL engine, `out` is zeroed.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle; `out` NULL or writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_info(e: *const Engine, out: *mut strata_engine_info_t) {
+    if out.is_null() {
+        return;
+    }
+    let info = if e.is_null() {
+        strata_engine_info_t::default()
+    } else {
+        // SAFETY: live handle per contract.
+        let i = unsafe { &*e }.info();
+        strata_engine_info_t {
+            version: i.version,
+            created_at_ms: i.created_at_ms,
+            flags: if i.flags & crate::bundle::FLAG_ROLLBACK != 0 {
+                STRATA_BUNDLE_ROLLBACK
+            } else {
+                0
+            },
+            n_policies: i.n_policies,
+        }
+    };
+    // SAFETY: out is non-NULL and writable.
+    unsafe { *out = info };
 }
 
 /// Adds a reference to the engine.

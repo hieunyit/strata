@@ -26,7 +26,7 @@ header = """
 after_includes = ""
 
 [export]
-include = ["strata_header_t", "strata_conn_t", "strata_verdict_t", "strata_err_t", "strata_buf_t"]
+include = ["strata_engine_info_t", "strata_header_t", "strata_conn_t", "strata_verdict_t", "strata_err_t", "strata_buf_t"]
 
 [enum]
 rename_variants = "None"

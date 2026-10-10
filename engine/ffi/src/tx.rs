@@ -242,13 +242,10 @@ impl Tx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::tests::test_engine;
 
     fn tx() -> Tx {
-        Tx::new(
-            Some(Arc::new(Engine::map(b"SBN0", &[0; 32]).unwrap())),
-            b"node-a",
-            0,
-        )
+        Tx::new(Some(Arc::new(test_engine())), b"node-a", 0)
     }
 
     fn id_str(v: &strata_verdict_t) -> String {
@@ -332,7 +329,7 @@ mod tests {
 
     #[test]
     fn shadow_logs_with_event_id() {
-        let e = Arc::new(Engine::map(b"SBN0", &[0; 32]).unwrap());
+        let e = Arc::new(test_engine());
         let mut t = Tx::new(Some(e), b"n", STRATA_TXF_FORCE_SHADOW);
         line(&mut t, b"/STRATA-TEST-BLOCK");
         let v = t.verdict();

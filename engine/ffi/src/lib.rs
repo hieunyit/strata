@@ -5,6 +5,7 @@
 
 pub mod abi;
 pub mod block_id;
+pub mod bundle;
 pub mod engine;
 pub mod ffi;
 pub mod tx;

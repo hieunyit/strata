@@ -64,6 +64,10 @@ pub const STRATA_ERR_MSG_SIZE: usize = 256;
 /// Length in bytes of the Ed25519 public key passed to `strata_engine_map`.
 pub const STRATA_PUBKEY_LEN: usize = 32;
 
+/// `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
+/// and may replace a newer version.
+pub const STRATA_BUNDLE_ROLLBACK: u32 = 1 << 0;
+
 /// Borrowed byte string. Not NUL-terminated, not necessarily UTF-8;
 /// `ptr` may be NULL when `len == 0`.
 #[repr(C)]
@@ -124,6 +128,20 @@ pub struct strata_verdict_t {
     /// NUL-terminated: `STR-…` when blocked, `EVT-…` in shadow or on error,
     /// empty when allowed.
     pub block_id: [c_char; STRATA_BLOCK_ID_SIZE],
+}
+
+/// Metadata of the bundle an engine was built from (signed header fields).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct strata_engine_info_t {
+    /// Bundle version, increasing with every deploy.
+    pub version: u64,
+    /// Bundle creation time, Unix milliseconds.
+    pub created_at_ms: u64,
+    /// `STRATA_BUNDLE_*`.
+    pub flags: u32,
+    /// Number of policies in the bundle.
+    pub n_policies: u32,
 }
 
 /// Error details from `strata_engine_map`.
