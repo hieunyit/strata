@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package strata.event.v1;
+
+// One security event. The worker sends one Event per datagram on
+// strata_event_socket (at most 8 KB); strata-agent batches the same
+// message into strata.fleet.v1.EventBatch. See nginx-module.md ›
+// "Trang chặn, Block ID & sự kiện".
+message Event {
+  // STR-XXXX-XXXX-XXXX-XXXX, or EVT-... for shadow and error events.
+  string block_id = 1;
+  // Time the decision was made, Unix milliseconds.
+  uint64 time_unix_ms = 2;
+  // strata_node_id of the worker; the agent overwrites it with the
+  // enrolled node id before sending upstream.
+  string node_id = 3;
+  // $request_id when NGINX has it.
+  string request_id = 4;
+  string policy_id = 5;
+  uint64 bundle_version = 6;
+  string client_ip = 7;
+  string identity = 8;
+  string method = 9;
+  string host = 10;
+  string path = 11;
+  uint32 status = 12;
+  Action action = 13;
+  // Score per layer, keyed by layer name (protocol, sqli, xss, anomaly...).
+  map<string, int32> layer_scores = 14;
+  repeated uint32 rule_ids = 15;
+  repeated Match matches = 16;
+}
+
+// Mirrors STRATA_ACTION_* in strata.h, shifted by one so that 0 stays
+// "unspecified".
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  ACTION_ALLOW = 1;
+  ACTION_LOG = 2;
+  ACTION_CHALLENGE = 3;
+  ACTION_BLOCK = 4;
+}
+
+message Match {
+  uint32 rule_id = 1;
+  string layer = 2;
+  // Where the input came from, e.g. ARGS:id or REQUEST_BODY.
+  string field = 3;
+  // Normalized input with sensitive data masked, at most 1 KB.
+  bytes snippet = 4;
+}

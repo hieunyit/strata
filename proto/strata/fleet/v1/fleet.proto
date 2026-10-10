@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package strata.fleet.v1;
+
+import "strata/event/v1/event.proto";
+
+// Only PushEvents for now; the other RPCs of nginx-module.md ›
+// "Giao thức gRPC agent ↔ control plane" are added by later tasks.
+service FleetService {
+  // Gửi sự kiện theo lô, control plane xác nhận theo seq
+  rpc PushEvents(stream EventBatch) returns (stream EventAck);
+}
+
+message EventBatch {
+  uint64 seq = 1; // tăng dần theo node, dùng chống trùng
+  repeated strata.event.v1.Event events = 2;
+}
+
+message EventAck {
+  uint64 acked_seq = 1;
+}

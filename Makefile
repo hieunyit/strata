@@ -21,7 +21,8 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss
+	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss \
+	proto check-proto test-agent
 
 all: lib nginx
 
@@ -122,6 +123,17 @@ check-strace: $(MKBUNDLE) $(COMPILE)
 # W05-R-01 measurement (see docs/reports/w05-pss-32-workers.md)
 bench-pss: $(MKBUNDLE) $(COMPILE)
 	connectors/nginx/scripts/measure-pss.sh $(NGINX_VERSION) 32 6000
+
+# proto/ -> agent/gen (buf, protoc-gen-go, protoc-gen-go-grpc on PATH)
+proto:
+	buf lint
+	buf generate
+
+check-proto: proto
+	git diff --exit-code -- agent/gen
+
+test-agent:
+	cd agent && go vet ./... && go test -race ./... && golangci-lint run ./...
 
 poc:
 	$(MAKE) -C engine/poc/hs_mmap run
