@@ -1,0 +1,90 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: strata-dev:ci
+
+jobs:
+  rust:
+    name: libstrata (fmt, clippy, test, ABI)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+          cache-to: type=gha,scope=dev-image,mode=max
+
+      - name: fmt, clippy -D warnings, cargo test
+        run: deploy/dev/run.sh make rust-check
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: strata.h is up to date with the Rust sources
+        run: deploy/dev/run.sh make check-header
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: C-side ABI test
+        run: deploy/dev/run.sh make abi-test
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+  nginx:
+    name: nginx ${{ matrix.nginx }} (${{ matrix.branch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nginx: 1.30.5
+            branch: stable
+          - nginx: 1.31.6
+            branch: mainline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+
+      - name: Build NGINX + ngx_http_strata_module
+        run: deploy/dev/run.sh make nginx NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: Test::Nginx
+        run: deploy/dev/run.sh make test-nginx NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-${{ matrix.nginx }}-servroot
+          path: connectors/nginx/t/servroot/logs/
