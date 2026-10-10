@@ -155,6 +155,7 @@ typedef struct {
     unsigned                    resp_active:1;  /* body goes to libstrata */
     unsigned                    resp_done:1;    /* limit or end reached */
     unsigned                    own_response:1; /* our block page */
+    unsigned                    resp_seen:1;    /* response headers passed */
 } ngx_http_strata_ctx_t;
 
 

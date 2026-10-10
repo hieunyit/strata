@@ -97,6 +97,7 @@ ngx_http_strata_header_filter(ngx_http_request_t *r)
                                       (uint16_t) r->headers_out.status,
                                       hdrs, n);
 
+    ctx->resp_seen = 1;
     strata_tx_verdict(ctx->tx, &v);
 
     if (!(v.flags & STRATA_VF_NEED_RESPONSE) || !ctx->resp_inspect

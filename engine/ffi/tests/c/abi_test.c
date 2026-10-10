@@ -180,7 +180,7 @@ main(int argc, char **argv)
     CHECK(e != NULL && err.code == STRATA_OK);
 
     strata_engine_info(e, &info);
-    CHECK(info.version == 1 && info.n_policies == 3 && info.flags == 0);
+    CHECK(info.version == 1 && info.n_policies == 4 && info.flags == 0);
     CHECK(info.created_at_ms == 1760000000000ULL);
     strata_engine_info(NULL, &info);
     CHECK(info.version == 0);
@@ -391,6 +391,23 @@ main(int argc, char **argv)
         strata_tx_request_body_chunk(tx, NULL, 0, 1);
         strata_tx_verdict(tx, &v);
         CHECK(v.action == STRATA_ACTION_ALLOW && v.rules[0] == 100020 && v.error == STRATA_OK);
+        strata_tx_free(tx);
+
+        /* response layer of the policy: status recorded, CCCD masked */
+        tx = strata_tx_new(e, S("example-guard"), &conn, 2000);
+        strata_tx_request_line(tx, S("GET"), S("/u"), S("/u"), S(""), S("HTTP/1.1"));
+        strata_tx_request_headers(tx, NULL, 0);
+        strata_tx_request_body_chunk(tx, NULL, 0, 1);
+        strata_tx_verdict(tx, &v);
+        CHECK(v.flags & STRATA_VF_NEED_RESPONSE);
+        CHECK(strata_tx_response_headers(tx, 500, NULL, 0) == STRATA_OK);
+        CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "{\"id\":\"001203012345\"}",
+                                            21, 1, &buf) == STRATA_OK);
+        CHECK(buf.len == 21 && memcmp(buf.ptr, "{\"id\":\"************\"}", 21) == 0);
+        strata_buf_free(&buf);
+        strata_tx_verdict(tx, &v);
+        CHECK(v.action == STRATA_ACTION_ALLOW && v.n_rules == 2);
+        CHECK(v.rules[0] == 600001 && v.rules[1] == 600201 && id_ok(v.block_id, "EVT-"));
         strata_tx_free(tx);
     }
 

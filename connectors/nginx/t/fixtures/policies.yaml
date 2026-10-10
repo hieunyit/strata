@@ -3,6 +3,9 @@ policies:
   - { name: example-api, mode: enforce, oversize: block }
   - { name: example-api-upload, mode: shadow }
   - { name: example-web, mode: shadow, oversize: pass }
+  - name: example-guard
+    mode: enforce
+    response: { allowed_codes_check: true, db_errors: true, data_guard: [cccd, jwt] }
 block_page:
   html_file: block-bundle.html
   support_contact: "Support: support@example.test"

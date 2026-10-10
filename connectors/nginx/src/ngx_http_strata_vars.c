@@ -89,14 +89,18 @@ ngx_http_strata_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         return NGX_OK;
     }
 
-    if (ctx->stream && ctx->tx) {
+    if ((ctx->stream || ctx->resp_seen) && ctx->tx) {
         /*
-         * "stream" decides before the body (shadow only, never blocks):
-         * pick up what the body filter found since, e.g. for access_log.
+         * "stream" decides before the body (shadow only, never blocks), and
+         * the response layer records after the decision: pick up what was
+         * found since, e.g. for access_log. Only "stream" can still fail.
          */
         strata_tx_verdict(ctx->tx, &ctx->verdict);
         ctx->verdict.block_id[STRATA_BLOCK_ID_SIZE - 1] = '\0';
-        ctx->failed = (ctx->verdict.error != STRATA_OK);
+
+        if (ctx->stream) {
+            ctx->failed = (ctx->verdict.error != STRATA_OK);
+        }
     }
 
     v->valid = 1;
