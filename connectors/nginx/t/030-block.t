@@ -113,3 +113,29 @@ GET /t/x;y
 --- wait: 0.1
 --- error_log eval
 qr/strata-access blk= act=allow score=20 rules=100012 policy=example-api bundle=1 t=\d+/
+
+
+
+=== TEST 8: a policy in shadow in the bundle logs instead of blocking
+The request that example-api blocks passes under example-web, whose signed
+mode is shadow, and gets an Event ID instead of a Block ID.
+--- config
+    location /t {
+        strata on;
+        strata_policy example-web;
+        access_log logs/error.log strata;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+    location /backend/ {
+        return 200 "backend\n";
+    }
+--- request
+GET /t?STRATA-TEST-BLOCK
+--- error_code: 200
+--- response_body
+backend
+--- response_headers
+X-Strata-Block-Id:
+--- wait: 0.1
+--- error_log eval
+qr/strata-access blk=EVT-[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){3} act=log score=100 rules=899001 policy=example-web bundle=1 t=\d+/

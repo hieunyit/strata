@@ -139,10 +139,13 @@ impl Tx {
         tx
     }
 
-    /// Applies the policy's settings (oversize handling, response layer).
-    /// An unknown policy keeps the defaults.
+    /// Applies the policy's settings: its signed mode (a shadow policy
+    /// never blocks, whatever the connector asks), oversize handling and
+    /// response layer. An unknown policy keeps the defaults.
     pub fn set_policy(&mut self, name: &[u8]) {
         if let Some(p) = self.engine.as_ref().and_then(|e| e.policy(name)) {
+            // Only towards shadow: nothing lifts TXF_FORCE_SHADOW.
+            self.shadow |= p.mode == crate::bundle::Mode::Shadow;
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
         }
@@ -815,6 +818,41 @@ mod tests {
                 (protocol::BODY_OVER_LIMIT, 1, 0)
             );
         }
+    }
+
+    // A policy in shadow in the bundle logs instead of blocking, with an
+    // Event ID; the enforcing policy blocks the same request.
+    #[test]
+    fn shadow_policy_logs_and_enforce_policy_blocks() {
+        for (policy, action, prefix) in [
+            (&b"example-web"[..], ACTION_LOG, "EVT-"),
+            (&b"example-api"[..], ACTION_BLOCK, "STR-"),
+        ] {
+            let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", 0);
+            t.set_policy(policy);
+            line(&mut t, b"/STRATA-TEST-BLOCK");
+            let v = t.verdict();
+            assert_eq!(v.action, action, "{}", String::from_utf8_lossy(policy));
+            assert!(id_str(&v).starts_with(prefix));
+        }
+        // Protocol violations follow the policy too.
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", 0);
+        t.set_policy(b"example-web");
+        t.request_line(b"POST", b"/", b"/", b"", b"HTTP/1.1");
+        headers(
+            &mut t,
+            &[(b"Content-Length", b"1"), (b"Content-Length", b"2")],
+        );
+        assert_eq!(t.verdict().action, ACTION_LOG);
+    }
+
+    // strata_mode shadow on an enforcing policy stays shadow.
+    #[test]
+    fn forced_shadow_is_not_lifted_by_an_enforcing_policy() {
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_FORCE_SHADOW);
+        t.set_policy(b"example-api");
+        line(&mut t, b"/STRATA-TEST-BLOCK");
+        assert_eq!(t.verdict().action, ACTION_LOG);
     }
 
     #[test]
