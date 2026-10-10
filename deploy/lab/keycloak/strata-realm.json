@@ -28,12 +28,21 @@
   "clientScopes": [
     {
       "name": "strata-api",
-      "description": "Access tokens for the Strata admin API: aud strata-api, realm roles, username",
+      "description": "Access tokens for the Strata admin API: sub, aud strata-api, realm roles, username",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true"
       },
       "protocolMappers": [
+        {
+          "name": "subject",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
         {
           "name": "audience strata-api",
           "protocol": "openid-connect",
