@@ -5,6 +5,7 @@
 use FindBin;
 use lib "$FindBin::Bin/lib";
 use Test::Strata 'no_plan';
+use Test::Strata::H2;
 
 our $ID = qr/STR-[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){3}/;
 
@@ -294,3 +295,50 @@ strata: request body inspected:8 last:1
 --- error_code: 403
 --- error_log
 a client request body is buffered to a temporary file
+
+
+
+=== TEST 16: HTTP/2 RST_STREAM while the body is awaited: tx freed exactly once
+--- config
+    http2 on;
+    location /t {
+        strata on;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- raw_request eval
+[Test::Strata::H2::h2_post("/t", "100"), Test::Strata::H2::h2_data("only part"),
+ Test::Strata::H2::h2_rst_stream()]
+--- raw_request_middle_delay: 0.05
+--- timeout: 0.5
+--- abort
+--- wait: 0.2
+--- ignore_response
+--- grep_error_log eval: qr/strata: (?:tx created|tx freed|body read)/
+--- grep_error_log_out
+strata: tx created
+strata: tx freed
+--- no_error_log
+[alert]
+[crit]
+
+
+
+=== TEST 17: HTTP/2 body in DATA frames sent separately, test string split across frames
+--- config
+    http2 on;
+    location /t {
+        strata on;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- raw_request eval
+[Test::Strata::H2::h2_post("/t", "21"), Test::Strata::H2::h2_data("xxSTRATA-TE"),
+ Test::Strata::H2::h2_data("ST-BLOCKyy", 0x1)]
+--- raw_request_middle_delay: 0.05
+--- timeout: 0.5
+--- abort
+--- ignore_response
+--- error_log
+strata: body read, async
+strata: verdict action:3
+--- no_error_log
+[alert]

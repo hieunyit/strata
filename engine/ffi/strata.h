@@ -104,7 +104,10 @@ typedef struct strata_engine_t strata_engine_t;
 typedef struct strata_tx_t strata_tx_t;
 
 /**
- * Return code of fallible calls.
+ * Return code of fallible calls. Any non-OK code returned by a transaction
+ * call marks that transaction broken: later calls return the first error
+ * and the verdict reports it in `error` (sticky), so a connector that only
+ * checks the verdict still applies its fail mode.
  */
 typedef int32_t strata_rc_t;
 

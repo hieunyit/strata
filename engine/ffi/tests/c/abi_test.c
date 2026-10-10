@@ -132,10 +132,25 @@ main(void)
     strata_buf_free(NULL);
     CHECK(strata_tx_event(NULL, NULL, 0) == 0);
 
-    /* ptr may be NULL when len == 0; NULL with len > 0 is invalid */
+    /* NULL with len > 0 is invalid, and any error is sticky */
+    tx = start(e, 0, S("/index.html"));
+    CHECK(strata_tx_request_body_chunk(tx, NULL, 5, 0) == STRATA_E_INVALID);
+    CHECK(strata_tx_request_body_chunk(tx, (const uint8_t *) "ok", 2, 1)
+          == STRATA_E_INVALID);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.error == STRATA_E_INVALID && id_ok(v.block_id, "EVT-"));
+    strata_tx_free(tx);
+
+    /* calls out of order break the transaction too */
+    tx = start(e, 0, S("/index.html"));
+    CHECK(strata_tx_response_body_chunk(tx, NULL, 0, 1, NULL) == STRATA_E_STATE);
+    strata_tx_verdict(tx, &v);
+    CHECK(v.error == STRATA_E_STATE);
+    strata_tx_free(tx);
+
+    /* ptr may be NULL when len == 0 */
     tx = start(e, 0, S("/index.html"));
     CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 0) == STRATA_OK);
-    CHECK(strata_tx_request_body_chunk(tx, NULL, 5, 0) == STRATA_E_INVALID);
     strata_tx_verdict(tx, &v);
     CHECK(v.action == STRATA_ACTION_ALLOW && v.error == STRATA_OK);
     CHECK(v.flags & STRATA_VF_NEED_BODY);

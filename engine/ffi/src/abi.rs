@@ -15,7 +15,10 @@ pub const STRATA_ABI_VERSION_MINOR: u32 = 0;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 
-/// Return code of fallible calls.
+/// Return code of fallible calls. Any non-OK code returned by a transaction
+/// call marks that transaction broken: later calls return the first error
+/// and the verdict reports it in `error` (sticky), so a connector that only
+/// checks the verdict still applies its fail mode.
 pub type strata_rc_t = i32;
 /// Success.
 pub const STRATA_OK: strata_rc_t = 0;

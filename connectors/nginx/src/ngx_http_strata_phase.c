@@ -9,7 +9,7 @@
 
 static ngx_http_strata_ctx_t *ngx_http_strata_create_ctx(ngx_http_request_t *r,
     ngx_http_strata_loc_conf_t *slcf);
-static void ngx_http_strata_start_tx(ngx_http_request_t *r,
+static ngx_int_t ngx_http_strata_start_tx(ngx_http_request_t *r,
     ngx_http_strata_ctx_t *ctx, ngx_http_strata_loc_conf_t *slcf);
 static ngx_int_t ngx_http_strata_send_headers(ngx_http_request_t *r,
     strata_tx_t *tx);
@@ -48,7 +48,9 @@ ngx_http_strata_preaccess_handler(ngx_http_request_t *r)
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        ngx_http_strata_start_tx(r, ctx, slcf);
+        if (ngx_http_strata_start_tx(r, ctx, slcf) != NGX_OK) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
     if (ctx->decided) {
@@ -254,6 +256,7 @@ ngx_http_strata_create_ctx(ngx_http_request_t *r,
     ctx->policy = slcf->policy;
     ctx->body_limit = slcf->body_limit;
     ctx->fail_closed = (slcf->fail_mode == NGX_HTTP_STRATA_FAIL_CLOSED);
+    ctx->stream = (slcf->body_mode == NGX_HTTP_STRATA_BODY_STREAM);
 
     ngx_http_set_ctx(r, ctx, ngx_http_strata_module);
 
@@ -261,7 +264,7 @@ ngx_http_strata_create_ctx(ngx_http_request_t *r,
 }
 
 
-static void
+static ngx_int_t
 ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
     ngx_http_strata_loc_conf_t *slcf)
 {
@@ -322,7 +325,7 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 
     if (ctx->tx == NULL) {
         /* strata_tx_verdict() reports STRATA_E_INVALID for a NULL tx */
-        return;
+        return NGX_OK;
     }
 
     /* errors are sticky in the transaction and surface in the verdict */
@@ -334,7 +337,7 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
                                   ngx_http_strata_str(&r->args),
                                   ngx_http_strata_str(&r->http_protocol));
 
-    (void) ngx_http_strata_send_headers(r, ctx->tx);
+    return ngx_http_strata_send_headers(r, ctx->tx);
 }
 
 
@@ -373,8 +376,11 @@ ngx_http_strata_send_headers(ngx_http_request_t *r, strata_tx_t *tx)
         }
     }
 
-    return strata_tx_request_headers(tx, hdrs, n) == STRATA_OK
-           ? NGX_OK : NGX_ERROR;
+    /* an engine error is sticky in the tx and handled with the verdict */
+
+    (void) strata_tx_request_headers(tx, hdrs, n);
+
+    return NGX_OK;
 }
 
 

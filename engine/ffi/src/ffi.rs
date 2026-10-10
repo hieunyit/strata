@@ -1,8 +1,8 @@
 //! `extern "C"` entry points. The only module allowed to use `unsafe`.
 //!
 //! Every entry point runs inside `guard`, which catches panics so none crosses
-//! the boundary; a panic inside a transaction call marks it broken
-//! (`STRATA_E_INTERNAL`).
+//! the boundary. Any error from a transaction call, including a caught panic
+//! (`STRATA_E_INTERNAL`), marks the transaction broken.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
@@ -48,15 +48,15 @@ unsafe fn with_tx(
     }
     // SAFETY: non-NULL and live per the contract above.
     let tx = unsafe { &mut *tx };
-    let rc = catch_unwind(AssertUnwindSafe(|| f(tx).unwrap_or_else(|rc| rc)));
-    match rc {
-        Ok(STRATA_E_INVALID) => STRATA_E_INVALID,
-        Ok(rc) => rc,
-        Err(_) => {
-            tx.fail(STRATA_E_INTERNAL);
-            STRATA_E_INTERNAL
-        }
+    let rc = catch_unwind(AssertUnwindSafe(|| f(tx).unwrap_or_else(|rc| rc)))
+        .unwrap_or(STRATA_E_INTERNAL);
+    // Any failed call leaves the inspection incomplete: mark the transaction
+    // broken so the verdict carries the error and the connector applies its
+    // fail mode, even if it ignored this return code.
+    if rc != STRATA_OK {
+        tx.fail(rc);
     }
+    rc
 }
 
 /// Returns `(major << 16) | minor`; connectors refuse a different major.

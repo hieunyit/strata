@@ -109,6 +109,8 @@ typedef struct {
     unsigned                    decided:1;      /* verdict applied */
     unsigned                    failed:1;       /* engine error */
     unsigned                    fail_closed:1;
+    unsigned                    stream:1;       /* body inspected after
+                                                   the verdict (shadow) */
 } ngx_http_strata_ctx_t;
 
 

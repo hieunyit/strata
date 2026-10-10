@@ -335,3 +335,46 @@ strata: engine error 3
 [403, 200]
 --- response_body_like eval
 [qr/Request blocked/, qr/^backend uri=\/backend\/\?ok len=$/]
+
+
+
+=== TEST 18: stream body mode is shadow only; body findings reach the variables
+--- config
+    location /t {
+        strata on;
+        strata_request_body_mode stream;
+        add_header X-Action $strata_action always;
+        add_header X-Block-Id $strata_block_id always;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- request
+POST /t
+name=STRATA-TEST-BLOCK
+--- response_headers_like eval
+[
+    "X-Action: log",
+    "X-Block-Id: $::EVENT_ID",
+    "X-Strata-Block-Id: ",
+]
+--- response_body
+backend uri=/backend/ len=22
+--- no_error_log
+strata: body read
+
+
+
+=== TEST 19: stream body mode, clean body
+--- config
+    location /t {
+        strata on;
+        strata_request_body_mode stream;
+        add_header X-Action $strata_action always;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- request
+POST /t
+name=example
+--- response_headers
+X-Action: allow
+--- response_body
+backend uri=/backend/ len=12
