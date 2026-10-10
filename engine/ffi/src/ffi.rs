@@ -510,20 +510,57 @@ pub unsafe extern "C" fn strata_tx_response_body_chunk(
     last: i32,
     rewritten: *mut strata_buf_t,
 ) -> strata_rc_t {
-    if !rewritten.is_null() {
+    unsafe {
+        response_out(tx, rewritten, |t| {
+            Ok(t.response_body_chunk(bytes(strata_str_t { ptr: p, len })?, last != 0))
+        })
+    }
+}
+
+/// The connector flushes the response (a `flush` buffer, e.g. Server-Sent
+/// Events with `proxy_buffering off`): the bytes the data guard holds back
+/// are emitted now instead of with the next chunk (ABI 1.1).
+///
+/// On return, `out->ptr == NULL` means nothing to send. Otherwise send
+/// `out->len` bytes (possibly 0) from `out->ptr` right after the bytes of
+/// the previous chunk, then release them with `strata_buf_free`. A value
+/// split exactly across the flush is not masked. `out` must not be NULL
+/// when the verdict has `STRATA_VF_NEED_RESPONSE`, as for
+/// `strata_tx_response_body_chunk`.
+///
+/// # Safety
+/// `tx` must be NULL or live; `out` NULL or writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_response_body_flush(
+    tx: *mut TxHandle,
+    out: *mut strata_buf_t,
+) -> strata_rc_t {
+    unsafe { response_out(tx, out, |t| Ok(t.response_body_flush())) }
+}
+
+/// Response calls that may hand bytes back through `out`.
+///
+/// # Safety
+/// `tx` must be NULL or live; `out` NULL or writable.
+unsafe fn response_out(
+    tx: *mut TxHandle,
+    out: *mut strata_buf_t,
+    f: impl FnOnce(&mut Tx) -> Result<(strata_rc_t, Option<Vec<u8>>), strata_rc_t>,
+) -> strata_rc_t {
+    if !out.is_null() {
         // SAFETY: non-NULL and writable per contract.
-        unsafe { *rewritten = strata_buf_t::empty() };
+        unsafe { *out = strata_buf_t::empty() };
     }
     unsafe {
         with_tx(tx, |t| {
-            let (rc, out) = t.response_body_chunk(bytes(strata_str_t { ptr: p, len })?, last != 0);
-            if let Some(v) = out {
-                if rewritten.is_null() {
+            let (rc, bytes) = f(t)?;
+            if let Some(v) = bytes {
+                if out.is_null() {
                     return Err(STRATA_E_INVALID);
                 }
                 // handed to the caller; strata_buf_free rebuilds the Vec
                 let mut v = std::mem::ManuallyDrop::new(v);
-                *rewritten = strata_buf_t {
+                *out = strata_buf_t {
                     ptr: v.as_mut_ptr(),
                     len: v.len(),
                     cap: v.capacity(),

@@ -233,6 +233,10 @@ main(int argc, char **argv)
     strata_tx_verdict(tx, &v);
     CHECK(v.error == STRATA_E_STATE);
     strata_tx_free(tx);
+    tx = start(e, 0, S("/index.html"));
+    CHECK(strata_tx_response_body_flush(tx, &buf) == STRATA_E_STATE);
+    CHECK(buf.ptr == NULL);
+    strata_tx_free(tx);
 
     /* ptr may be NULL when len == 0 */
     tx = start(e, 0, S("/index.html"));
@@ -258,6 +262,12 @@ main(int argc, char **argv)
 #endif
     strata_buf_free(&buf);
     CHECK(buf.ptr == NULL);
+    strata_buf_free(&buf);
+    memset(&buf, 0xff, sizeof(buf));
+    CHECK(strata_tx_response_body_flush(tx, &buf) == STRATA_OK);
+#ifndef STRATA_TEST_HOOKS
+    CHECK(buf.ptr == NULL && buf.len == 0);   /* no data guard, nothing held */
+#endif
     strata_buf_free(&buf);
 
     strata_tx_free(tx);
@@ -334,6 +344,26 @@ main(int argc, char **argv)
     CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
     CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "x", 1, 1, NULL)
           == STRATA_E_INVALID);
+    strata_tx_free(tx);
+
+    /* flush (ABI 1.1): a short message is held back by the chunk call and
+       sent by the flush; nothing is left for the last call */
+    tx = start(e, 0, S("/events"));
+    CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
+    CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "data: 1\n\n", 9, 0, &buf)
+          == STRATA_OK);
+    CHECK(buf.ptr != NULL && buf.len == 0);
+    strata_buf_free(&buf);
+    CHECK(strata_tx_response_body_flush(tx, &buf) == STRATA_OK);
+    CHECK(buf.ptr != NULL && buf.len == 9 && memcmp(buf.ptr, "data: 1\n\n", 9) == 0);
+    strata_buf_free(&buf);
+    CHECK(strata_tx_response_body_flush(tx, &buf) == STRATA_OK);
+    CHECK(buf.ptr != NULL && buf.len == 0);
+    strata_buf_free(&buf);
+    CHECK(strata_tx_response_body_chunk(tx, NULL, 0, 1, &buf) == STRATA_OK);
+    CHECK(buf.ptr != NULL && buf.len == 0);
+    strata_buf_free(&buf);
+    CHECK(strata_tx_response_body_flush(tx, NULL) == STRATA_E_INVALID);
     strata_tx_free(tx);
 #endif
 

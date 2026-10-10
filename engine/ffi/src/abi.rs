@@ -1,7 +1,8 @@
 //! C ABI types shared by every connector (`strata.h`).
 //!
-//! Frozen at the end of week 2: any change after that bumps
-//! `STRATA_ABI_VERSION_MAJOR` and ships a compatibility layer.
+//! Frozen at the end of week 2: any incompatible change after that bumps
+//! `STRATA_ABI_VERSION_MAJOR` and ships a compatibility layer; additions
+//! bump the minor (1.1: `strata_tx_response_body_flush`).
 #![forbid(unsafe_code)]
 #![allow(non_camel_case_types)]
 
@@ -11,7 +12,7 @@ use std::os::raw::c_char;
 /// version differs from the one it was compiled against.
 pub const STRATA_ABI_VERSION_MAJOR: u32 = 1;
 /// Minor ABI version: additive, backward-compatible changes only.
-pub const STRATA_ABI_VERSION_MINOR: u32 = 0;
+pub const STRATA_ABI_VERSION_MINOR: u32 = 1;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 

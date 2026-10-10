@@ -4,7 +4,9 @@
 //! Each call masks what it can see in (held tail + new chunk) and keeps the
 //! last `longest - 1` bytes, which could be the start of a value completed
 //! by the next chunk; they are emitted with the next call, the last call
-//! flushes everything. Masking replaces bytes with '*', so the total length
+//! flushes everything. A flush (streaming responses, e.g. Server-Sent
+//! Events) emits the held bytes early: a value split exactly across it is
+//! not masked, the price of not delaying the stream. Masking replaces bytes with '*', so the total length
 //! (Content-Length) never changes, only how bytes are split across chunks.
 //!
 //! Detectors (e.g. Vietnamese citizen ID numbers) come with the response
@@ -109,6 +111,11 @@ impl Guard {
         }
         buf
     }
+
+    /// Everything held back, now: the connector flushes the response.
+    pub fn flush(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.held)
+    }
 }
 
 #[cfg(test)]
@@ -152,6 +159,17 @@ mod tests {
         assert_eq!(first, b"01234"); // 5 = len("SECRET") - 1 held
         let second = g.chunk(b"", true);
         assert_eq!(second, b"56789");
+    }
+
+    #[test]
+    fn guard_flush_emits_the_held_tail_and_keeps_going() {
+        let mut g = guard();
+        assert_eq!(g.chunk(b"data: 0123456789", false), b"data: 01234");
+        assert_eq!(g.flush(), b"56789");
+        assert_eq!(g.flush(), b"");
+        let mut out = g.chunk(b"data: SECRET x", false);
+        out.extend(g.chunk(b"", true));
+        assert_eq!(out, b"data: ****** x");
     }
 
     #[test]

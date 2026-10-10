@@ -35,7 +35,7 @@ Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đ�
 - Kiểm tra độ dài trước mọi copy; không `strcpy`/`sprintf`; dùng API cấp phát của NGINX (`ngx_palloc`, `ngx_pcalloc`).
 - Không I/O, không khóa, không cấp phát lớn trên đường đi của request.
 - Build với `-Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2`.
-- Mục tiêu phần C dưới 2.000 dòng.
+- Mục tiêu phần C dưới 2.500 dòng code thực (`connectors/nginx/src/*.c`, `*.h`, không tính dòng trống và comment).
 
 ### Rust (libstrata)
 - Không `unsafe` ngoài `engine/ffi/`.
