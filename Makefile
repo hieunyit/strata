@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss \
-	proto check-proto test-agent
+	proto check-proto test-agent e2e
 
 all: lib nginx
 
@@ -134,6 +134,9 @@ check-proto: proto
 
 test-agent:
 	cd agent && go vet ./... && go test -race ./... && golangci-lint run ./...
+
+e2e:
+	cd tests/e2e && go test -v -timeout 5m ./...
 
 poc:
 	$(MAKE) -C engine/poc/hs_mmap run
