@@ -335,7 +335,7 @@ func (s *Spool) totalBytes() int64 {
 func (s *Spool) dropOldest() error {
 	g := s.segs[0]
 	if g.last > s.acked {
-		var lostRecs, lostEvents uint64 = g.records, g.events
+		lostRecs, lostEvents := g.records, g.events
 		if s.acked >= g.first {
 			// Part of the segment was acked; count only what was not.
 			lostRecs, lostEvents = s.countAfter(g, s.acked)

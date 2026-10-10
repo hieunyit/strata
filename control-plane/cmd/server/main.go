@@ -4,13 +4,17 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/strata/strata/control-plane/api"
+	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/ingest"
 )
 
@@ -18,7 +22,12 @@ func main() {
 	addr := flag.String("addr", ":8080", "Server listen address")
 	inMemory := flag.Bool("in-memory", true, "Use in-memory store instead of ClickHouse")
 	chAddr := flag.String("clickhouse-addr", "127.0.0.1:9000", "ClickHouse native protocol address")
+	chUser := flag.String("clickhouse-user", "default", "ClickHouse user; the password is read from STRATA_CLICKHOUSE_PASSWORD")
 	seed := flag.Bool("seed", true, "Seed sample events into memory store")
+	grpcAddr := flag.String("grpc-addr", "", "FleetService (PushEvents) listen address; empty disables it")
+	tlsCA := flag.String("tls-ca", "", "CA that signs node certificates (FleetService mTLS)")
+	tlsCert := flag.String("tls-cert", "", "FleetService server certificate")
+	tlsKey := flag.String("tls-key", "", "FleetService server key")
 	flag.Parse()
 
 	var store ingest.EventStore
@@ -35,6 +44,8 @@ func main() {
 		chStore, err := ingest.NewClickHouseStore(context.Background(), ingest.ClickHouseConfig{
 			Addr:     *chAddr,
 			Database: "default",
+			Username: *chUser,
+			Password: os.Getenv("STRATA_CLICKHOUSE_PASSWORD"),
 			Table:    "events",
 		})
 		if err != nil {
@@ -90,6 +101,28 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	var ingestSvc *ingest.IngestService
+	var gs *grpc.Server
+	if *grpcAddr != "" {
+		tlsCfg, err := fleet.ServerTLS(*tlsCA, *tlsCert, *tlsKey)
+		if err != nil {
+			log.Fatalf("[FATAL] FleetService TLS: %v", err)
+		}
+		ln, err := net.Listen("tcp", *grpcAddr)
+		if err != nil {
+			log.Fatalf("[FATAL] FleetService listen: %v", err)
+		}
+		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
+		gs = fleet.NewGRPCServer(tlsCfg, ingestSvc)
+		go func() {
+			log.Printf("[INFO] FleetService (mTLS) listening on %s\n", *grpcAddr)
+			if err := gs.Serve(ln); err != nil {
+				log.Fatalf("[FATAL] FleetService error: %v", err)
+			}
+		}()
+	}
+
 	<-stop
 
 	log.Println("[INFO] Shutting down server gracefully...")
@@ -98,6 +131,16 @@ func main() {
 
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("[ERROR] Server forced to shutdown: %v\n", err)
+	}
+	if gs != nil {
+		// Agent streams never end on their own; cut them. Unacked batches
+		// are resent by the agents.
+		gs.Stop()
+	}
+	if ingestSvc != nil {
+		if err := ingestSvc.Close(ctx); err != nil {
+			log.Printf("[ERROR] Flushing ingest queue: %v\n", err)
+		}
 	}
 	log.Println("[INFO] Server stopped")
 }
