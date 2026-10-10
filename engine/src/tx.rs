@@ -82,6 +82,11 @@ pub struct Tx {
     n_rules: usize,
     score: i32,
     headers: protocol::Headers,
+    /// Request headers kept for the request_body rules (only when the
+    /// bundle has some).
+    kept_headers: Vec<(Vec<u8>, Vec<u8>)>,
+    /// Body bytes for the request_body rules, at most MAX_BODY_KEEP.
+    body: Vec<u8>,
     /// test-hooks only: what the connector passed, for integration tests
     #[cfg(feature = "test-hooks")]
     echo: Option<(String, bool)>,
@@ -91,6 +96,10 @@ pub struct Tx {
     tail: [u8; TAIL],
     tail_len: usize,
 }
+
+/// Body bytes the request_body rules see at most; the connector's
+/// strata_request_body_limit (1 MB by default) is normally lower.
+const MAX_BODY_KEEP: usize = 8 << 20;
 
 fn contains(hay: &[u8], needle: &[u8]) -> bool {
     hay.len() >= needle.len() && hay.windows(needle.len()).any(|w| w == needle)
@@ -126,6 +135,8 @@ impl Tx {
             n_rules: 0,
             score: 0,
             headers: protocol::Headers::default(),
+            kept_headers: Vec::new(),
+            body: Vec::new(),
             #[cfg(feature = "test-hooks")]
             echo: None,
             id: None,
@@ -382,6 +393,7 @@ impl Tx {
                 proto: line.part(4),
                 client_addr: line.part(5),
                 headers,
+                body: b"",
             };
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
@@ -395,8 +407,52 @@ impl Tx {
             for v in found {
                 self.add(v);
             }
+            if engine.has_body_rules() {
+                self.kept_headers = headers
+                    .iter()
+                    .map(|(k, v)| (k.to_vec(), v.to_vec()))
+                    .collect();
+                self.line = Some(line);
+            }
         }
         OK
+    }
+
+    /// Runs the request_body rules over the line, the headers and the body.
+    fn evaluate_body(&mut self) {
+        let (Some(engine), Some(line)) = (self.engine.clone(), self.line.take()) else {
+            return;
+        };
+        let headers: Vec<(&[u8], &[u8])> = self
+            .kept_headers
+            .iter()
+            .map(|(k, v)| (&k[..], &v[..]))
+            .collect();
+        let req = eval::Request {
+            method: line.part(0),
+            raw_uri: line.part(1),
+            uri: line.part(2),
+            args: line.part(3),
+            proto: line.part(4),
+            client_addr: line.part(5),
+            headers: &headers,
+            body: &self.body,
+        };
+        let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
+        let mut found = vec![];
+        eval::evaluate(
+            &engine.tables(),
+            engine.hyperscan(),
+            &req,
+            stage,
+            &mut |v| found.push(v),
+        );
+        drop(headers);
+        for v in found {
+            self.add(v);
+        }
+        self.body = Vec::new();
+        self.kept_headers = Vec::new();
     }
 
     pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
@@ -429,8 +485,16 @@ impl Tx {
                 self.tail_len = keep_old + data.len();
             }
         }
+        let body_rules = self.engine.as_ref().is_some_and(|e| e.has_body_rules());
+        if body_rules && !self.matched && self.body.len() < MAX_BODY_KEEP {
+            let room = MAX_BODY_KEEP - self.body.len();
+            self.body.extend_from_slice(&data[..data.len().min(room)]);
+        }
         if last {
             self.stage = Stage::BodyDone;
+            if body_rules && !self.matched {
+                self.evaluate_body();
+            }
         }
         OK
     }

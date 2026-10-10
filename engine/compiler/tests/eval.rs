@@ -274,3 +274,232 @@ fn libinjection_operators_after_transformations() {
     assert_eq!(probe("%3Cscript%3Ealert(1)%3C/script%3E"), [800112]);
     assert_eq!(probe("O%27Reilly%20%26%20Sons"), Vec::<u32>::new());
 }
+
+// Stage request_body: run once the body is complete, over the query, the
+// form fields of the body and the raw body. A GET has an empty body and
+// its query is checked then too.
+mod body_stage {
+    use super::*;
+
+    const BODY_RULES: &str = r#"
+ir_version: 1
+ruleset: { name: body-test, version: "1" }
+rules:
+  - { id: 800201, name: sqli in args, layer: managed, stage: request_body, score: 5, severity: critical,
+      match: { all: [ { targets: [ { var: args } ], transforms: [url_decode_uni], operator: { type: detect_sqli } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800202, name: marker in a body field, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args_post } ], operator: { type: streq, value: body-only } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800203, name: marker in the query, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args_get } ], operator: { type: streq, value: body-only } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800204, name: raw body, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: request_body } ], operator: { type: contains, value: '"role":"admin"' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800205, name: user agent at the body stage, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: request_headers, key: User-Agent } ], operator: { type: contains, value: probe } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn engine() -> Arc<Engine> {
+        let rules = rules_from_ir(&from_yaml(BODY_RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: []").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &rules,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// Request line and headers, then the body in `chunks` (none: an empty
+    /// final chunk, as the connector sends for a GET).
+    fn send(method: &str, uri: &str, headers: &[(&str, &str)], chunks: &[&str]) -> Verdict {
+        let (path, args) = uri.split_once('?').unwrap_or((uri, ""));
+        let mut t = Tx::new(Some(engine()), b"node", 0);
+        t.request_line(
+            method.as_bytes(),
+            uri.as_bytes(),
+            path.as_bytes(),
+            args.as_bytes(),
+            b"HTTP/1.1",
+        );
+        let h: Vec<(&[u8], &[u8])> = headers
+            .iter()
+            .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
+            .collect();
+        t.request_headers(&h);
+        let v = t.verdict();
+        assert_eq!(
+            rules(&v),
+            Vec::<u32>::new(),
+            "body rules ran with the headers"
+        );
+        assert!(v.need_body);
+        if chunks.is_empty() {
+            t.request_body_chunk(b"", true);
+        }
+        for (i, c) in chunks.iter().enumerate() {
+            t.request_body_chunk(c.as_bytes(), i + 1 == chunks.len());
+        }
+        t.verdict()
+    }
+
+    const FORM: (&str, &str) = (
+        "Content-Type",
+        "application/x-www-form-urlencoded; charset=utf-8",
+    );
+
+    #[test]
+    fn query_of_a_get_is_checked_at_the_body_stage() {
+        let v = send("GET", "/users?id=1%27%20OR%201%3D1--", &[], &[]);
+        assert_eq!(rules(&v), [800201]);
+    }
+
+    #[test]
+    fn form_fields_split_across_chunks() {
+        let v = send(
+            "POST",
+            "/login",
+            &[FORM],
+            &["user=x&pass=1' OR '1", "'='1&note=body-only"],
+        );
+        assert_eq!(rules(&v), [800201, 800202]);
+    }
+
+    #[test]
+    fn args_get_and_args_post_are_kept_apart() {
+        let v = send("POST", "/q?m=body-only", &[FORM], &["a=1"]);
+        assert_eq!(rules(&v), [800203]);
+        let v = send("POST", "/q?a=1", &[FORM], &["m=body-only"]);
+        assert_eq!(rules(&v), [800202]);
+    }
+
+    #[test]
+    fn a_json_body_has_no_form_fields_but_a_raw_body() {
+        let v = send(
+            "POST",
+            "/v1/users",
+            &[("Content-Type", "application/json")],
+            &[r#"{"name":"x","role":"admin"}"#],
+        );
+        assert_eq!(rules(&v), [800204]);
+        let v = send(
+            "POST",
+            "/v1/users",
+            &[("Content-Type", "application/json")],
+            &["note=body-only"],
+        );
+        assert_eq!(
+            rules(&v),
+            Vec::<u32>::new(),
+            "a non-form body was parsed as form fields"
+        );
+    }
+
+    #[test]
+    fn headers_are_kept_for_the_body_stage() {
+        let v = send("POST", "/", &[("User-Agent", "probe/1")], &["x"]);
+        assert_eq!(rules(&v), [800205]);
+    }
+
+    /// Random requests driven like a connector (seeded, so failures
+    /// reproduce): no panic, only known rules, and the verdict is final
+    /// after the last chunk.
+    #[test]
+    fn random_requests_never_panic() {
+        let e = engine();
+        let mut x: u64 = 0x5eed_2026_1011;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let alphabet: &[u8] = b"aA0=&%'\"<>/?;:+ -_.~%2e%27%00\r\n\x80\xff";
+        let bytes = |n: usize, next: &mut dyn FnMut() -> u64| -> Vec<u8> {
+            (0..n)
+                .map(|_| alphabet[(next() % alphabet.len() as u64) as usize])
+                .collect()
+        };
+        for _ in 0..20_000 {
+            let uri_len = (next() % 200) as usize;
+            let raw = [b"/".to_vec(), bytes(uri_len, &mut next)].concat();
+            let split = raw.iter().position(|&c| c == b'?');
+            let (path, args) = match split {
+                Some(q) => (&raw[..q], &raw[q + 1..]),
+                None => (&raw[..], &b""[..]),
+            };
+            let mut t = Tx::new(Some(e.clone()), b"node", 0);
+            t.request_line(b"POST", &raw, path, args, b"HTTP/1.1");
+            let ua = bytes((next() % 64) as usize, &mut next);
+            let ct: &[u8] = if next() % 2 == 0 {
+                b"application/x-www-form-urlencoded"
+            } else {
+                b"application/json"
+            };
+            t.request_headers(&[(b"User-Agent", &ua), (b"Content-Type", ct)]);
+            let body = bytes((next() % 4096) as usize, &mut next);
+            let mut rest = &body[..];
+            while !rest.is_empty() {
+                let n = 1 + (next() % 512) as usize;
+                let n = n.min(rest.len());
+                t.request_body_chunk(&rest[..n], false);
+                rest = &rest[n..];
+            }
+            t.request_body_chunk(b"", true);
+            let v = t.verdict();
+            assert!(!v.need_body);
+            for r in &v.rules[..v.n_rules as usize] {
+                assert!(
+                    (800201..=800205).contains(r) || (100000..200000).contains(r),
+                    "unexpected rule {r}"
+                );
+            }
+        }
+    }
+
+    /// Bodies are inspected up to 8 MiB; past that the engine keeps
+    /// nothing more (the connector's strata_request_body_limit is lower).
+    #[test]
+    fn body_kept_up_to_its_limit() {
+        let chunk = "x".repeat(1 << 20);
+        let mut chunks: Vec<&str> = std::iter::repeat_n(chunk.as_str(), 8).collect();
+        chunks.push(r#"{"role":"admin"}"#);
+        let v = send(
+            "POST",
+            "/big",
+            &[("Content-Type", "application/json")],
+            &chunks,
+        );
+        assert_eq!(
+            rules(&v),
+            Vec::<u32>::new(),
+            "matched past the inspection limit"
+        );
+        let v = send(
+            "POST",
+            "/big",
+            &[("Content-Type", "application/json")],
+            &[&chunk, r#"{"role":"admin"}"#],
+        );
+        assert_eq!(rules(&v), [800204]);
+    }
+}

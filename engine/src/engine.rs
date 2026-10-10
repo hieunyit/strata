@@ -19,6 +19,9 @@ impl<T: AsRef<[u8]> + Send + Sync> Mapping for T {}
 pub struct Engine {
     bytes: Box<dyn Mapping>,
     info: Info,
+    /// some rule runs at stage request_body: transactions keep the request
+    /// line, the headers and the body for it
+    body_rules: bool,
 }
 
 impl std::fmt::Debug for Engine {
@@ -53,10 +56,19 @@ impl Engine {
             }
             MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
         }
+        let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
+        let body_rules =
+            (0..tables.n_rules()).any(|i| tables.rule(i).is_some_and(|r| r.stage == body));
         Ok(Engine {
             bytes: bundle,
             info,
+            body_rules,
         })
+    }
+
+    /// Whether some rule runs at stage request_body.
+    pub fn has_body_rules(&self) -> bool {
+        self.body_rules
     }
 
     pub fn info(&self) -> &Info {

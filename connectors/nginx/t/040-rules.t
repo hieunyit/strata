@@ -82,3 +82,38 @@ User-Agent: curl/8.5
 X-Rules:
 X-Score: 0
 X-Action: allow
+
+
+
+=== TEST 6: request_body rules run on the query of a GET (942100, detect_sqli)
+The body of a GET is empty; the rule still sees the query once the
+connector reports the end of the body.
+--- request
+GET /t/users?id=1'%20OR%201=1--
+--- response_headers
+X-Rules: 942100
+X-Score: 5
+X-Action: allow
+
+
+
+=== TEST 7: and on the fields of a form body
+--- request
+POST /t/login
+user=alice&pass=1'%20OR%20'1'='1
+--- more_headers
+Content-Type: application/x-www-form-urlencoded
+--- response_headers
+X-Rules: 942100
+X-Score: 5
+
+
+
+=== TEST 8: a body that is not a form has no fields
+--- request
+POST /t/login
+user=alice&pass=1'%20OR%20'1'='1
+--- more_headers
+Content-Type: text/plain
+--- response_headers
+X-Rules:

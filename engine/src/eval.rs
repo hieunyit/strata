@@ -1,8 +1,12 @@
-//! Rule evaluation v0 (W05-R-01): stage `request_headers`.
+//! Rule evaluation v0 (W05-R-01): stages `request_headers` and
+//! `request_body`.
 //!
-//! Targets: method, uri_raw, uri, path, args / args_get / args_names (query
-//! string, form-decoded), request_headers[_names], request_cookies[_names],
-//! remote_addr, protocol. Operators: the Hyperscan ones (rx, pm, contains,
+//! Targets: method, uri_raw, uri, path, args (query string and, for an
+//! `application/x-www-form-urlencoded` body, its fields), args_get (query),
+//! args_post (body fields), args_names, request_body (the raw body as
+//! inspected), request_headers[_names], request_cookies[_names],
+//! remote_addr, protocol. At stage request_headers the body is empty.
+//! Other body formats (JSON, multipart, XML) and files come later. Operators: the Hyperscan ones (rx, pm, contains,
 //! begins_with, ends_with, streq) and the numeric ones (eq ... le, on a
 //! value or on the count of values), and detect_sqli / detect_xss (the
 //! libinjection port, on each transformed value). A rule using an operator or a
@@ -38,6 +42,18 @@ pub struct Request<'a> {
     pub proto: &'a [u8],
     pub client_addr: &'a [u8],
     pub headers: &'a [(&'a [u8], &'a [u8])],
+    /// The request body as inspected (empty at stage request_headers).
+    pub body: &'a [u8],
+}
+
+/// Whether the body is `application/x-www-form-urlencoded`.
+fn form_body(headers: &[(&[u8], &[u8])]) -> bool {
+    const FORM: &[u8] = b"application/x-www-form-urlencoded";
+    headers.iter().any(|(k, v)| {
+        k.eq_ignore_ascii_case(b"content-type")
+            && trim(v).len() >= FORM.len()
+            && trim(v)[..FORM.len()].eq_ignore_ascii_case(FORM)
+    })
 }
 
 /// `application/x-www-form-urlencoded` decoding: %XX and '+'.
@@ -109,7 +125,9 @@ fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
 struct Data<'a> {
     req: &'a Request<'a>,
     full_uri: Cow<'a, [u8]>,
+    /// query fields, then body fields: args_get is args[..n_get]
     args: Vec<Pair<'a>>,
+    n_get: usize,
     cookies: Vec<Pair<'a>>,
 }
 
@@ -145,12 +163,25 @@ fn values<'d>(
         vec![r.proto]
     } else if v == var("remote_addr") {
         vec![r.client_addr]
-    } else if v == var("args") || v == var("args_get") {
-        d.args
+    } else if v == var("args") || v == var("args_get") || v == var("args_post") {
+        let fields = if v == var("args_get") {
+            &d.args[..d.n_get]
+        } else if v == var("args_post") {
+            &d.args[d.n_get..]
+        } else {
+            &d.args[..]
+        };
+        fields
             .iter()
             .filter(|(n, _)| keyed(n))
             .map(|(_, v)| &**v)
             .collect()
+    } else if v == var("request_body") {
+        if r.body.is_empty() {
+            vec![]
+        } else {
+            vec![r.body]
+        }
     } else if v == var("args_names") {
         d.args
             .iter()
@@ -182,7 +213,7 @@ fn values<'d>(
             .map(|(n, _)| &**n)
             .collect()
     } else {
-        vec![] // body and response variables: later stages
+        vec![] // files, other body formats, response variables: later
     }
 }
 
@@ -323,10 +354,17 @@ pub fn evaluate(
     } else {
         Cow::Owned([req.uri, b"?", req.args].concat())
     };
+    let mut args = parse_query(req.args);
+    let n_get = args.len();
+    if !req.body.is_empty() && form_body(req.headers) {
+        let room = MAX_ARGS.saturating_sub(n_get);
+        args.extend(parse_query(req.body).into_iter().take(room));
+    }
     let d = Data {
         req,
         full_uri,
-        args: parse_query(req.args),
+        args,
+        n_get,
         cookies: parse_cookies(req.headers),
     };
     let hs = tables.hyperscan().zip(db);
