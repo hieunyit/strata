@@ -11,6 +11,7 @@ pub mod bundle;
 pub mod detectors;
 pub mod engine;
 pub mod eval;
+pub mod guard;
 pub mod rules;
 pub mod transform;
 pub mod tx;

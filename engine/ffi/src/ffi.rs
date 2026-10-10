@@ -485,10 +485,19 @@ pub unsafe extern "C" fn strata_tx_response_headers(
     }
 }
 
-/// One chunk of response body. When the engine rewrites (masks) the chunk,
-/// `rewritten` receives a libstrata-owned buffer of the same length that the
-/// connector copies and frees with `strata_buf_free`; otherwise it is set
-/// empty (`ptr == NULL`). `rewritten` may be NULL if the caller never masks.
+/// One chunk of response body (`last` != 0 on the final call, which may
+/// have `len == 0`).
+///
+/// On return, `rewritten->ptr == NULL` means "send the chunk unchanged".
+/// Otherwise send exactly `rewritten->len` bytes from `rewritten->ptr`
+/// *instead of* the chunk, then release them with `strata_buf_free`. The
+/// data guard masks values with '*' and may hold the tail of a chunk back
+/// (a value could continue in the next one) and emit it with the next call,
+/// so `rewritten->len` can differ from `len` (and be 0); over the whole
+/// body the lengths add up to the same total, so Content-Length stays
+/// valid. The final call flushes everything held. `rewritten` must not be
+/// NULL when the verdict has `STRATA_VF_NEED_RESPONSE`; a call that would
+/// rewrite with a NULL `rewritten` fails with `STRATA_E_INVALID`.
 ///
 /// # Safety
 /// `tx` must be NULL or live; `p` must point to `len` bytes; `rewritten`
@@ -507,7 +516,20 @@ pub unsafe extern "C" fn strata_tx_response_body_chunk(
     }
     unsafe {
         with_tx(tx, |t| {
-            Ok(t.response_body_chunk(bytes(strata_str_t { ptr: p, len })?, last != 0))
+            let (rc, out) = t.response_body_chunk(bytes(strata_str_t { ptr: p, len })?, last != 0);
+            if let Some(v) = out {
+                if rewritten.is_null() {
+                    return Err(STRATA_E_INVALID);
+                }
+                // handed to the caller; strata_buf_free rebuilds the Vec
+                let mut v = std::mem::ManuallyDrop::new(v);
+                *rewritten = strata_buf_t {
+                    ptr: v.as_mut_ptr(),
+                    len: v.len(),
+                    cap: v.capacity(),
+                };
+            }
+            Ok(rc)
         })
     }
 }

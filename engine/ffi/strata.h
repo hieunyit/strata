@@ -482,10 +482,19 @@ strata_rc_t strata_tx_response_headers(strata_tx_t *tx,
                                        size_t n);
 
 /**
- * One chunk of response body. When the engine rewrites (masks) the chunk,
- * `rewritten` receives a libstrata-owned buffer of the same length that the
- * connector copies and frees with `strata_buf_free`; otherwise it is set
- * empty (`ptr == NULL`). `rewritten` may be NULL if the caller never masks.
+ * One chunk of response body (`last` != 0 on the final call, which may
+ * have `len == 0`).
+ *
+ * On return, `rewritten->ptr == NULL` means "send the chunk unchanged".
+ * Otherwise send exactly `rewritten->len` bytes from `rewritten->ptr`
+ * *instead of* the chunk, then release them with `strata_buf_free`. The
+ * data guard masks values with '*' and may hold the tail of a chunk back
+ * (a value could continue in the next one) and emit it with the next call,
+ * so `rewritten->len` can differ from `len` (and be 0); over the whole
+ * body the lengths add up to the same total, so Content-Length stays
+ * valid. The final call flushes everything held. `rewritten` must not be
+ * NULL when the verdict has `STRATA_VF_NEED_RESPONSE`; a call that would
+ * rewrite with a NULL `rewritten` fails with `STRATA_E_INVALID`.
  *
  * # Safety
  * `tx` must be NULL or live; `p` must point to `len` bytes; `rewritten`

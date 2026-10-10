@@ -14,6 +14,7 @@ use crate::block_id::{self, Kind};
 use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
 use crate::eval;
+use crate::guard::{self, Guard};
 use crate::verdict::*;
 
 pub(crate) const NEEDLE: &[u8] = b"STRATA-TEST-BLOCK";
@@ -27,6 +28,9 @@ const TAIL: usize = NEEDLE.len() - 1;
 
 #[cfg(feature = "test-hooks")]
 pub(crate) const PANIC_NEEDLE: &[u8] = b"STRATA-TEST-PANIC";
+/// test-hooks: masked in responses, like a data guard detector would
+#[cfg(feature = "test-hooks")]
+pub(crate) const MASK_NEEDLE: &[u8] = b"STRATA-TEST-MASK";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Stage {
@@ -64,6 +68,8 @@ pub struct Tx {
     json: bool,
     /// the policy blocks request bodies larger than what is inspected
     oversize_block: bool,
+    /// response data guard, when there is something to mask
+    guard: Option<Guard>,
     stage: Stage,
     error: Rc,
     /// blocked (or would be, in shadow)
@@ -107,6 +113,7 @@ impl Tx {
             shadow: flags & TXF_FORCE_SHADOW != 0,
             json: false,
             oversize_block: false,
+            guard: None,
             stage: Stage::New,
             error: OK,
             matched: false,
@@ -404,22 +411,38 @@ impl Tx {
         OK
     }
 
+    /// Detectors that rewrite the response body. None in this build yet
+    /// (they come with W06-R-01) except the test-hooks literal.
+    fn response_matchers() -> Vec<Box<dyn guard::Matcher>> {
+        #[cfg(feature = "test-hooks")]
+        return vec![Box::new(guard::Literal(MASK_NEEDLE))];
+        #[cfg(not(feature = "test-hooks"))]
+        return Vec::new();
+    }
+
     pub fn response_headers(&mut self, _status: u16) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::Response) {
             return rc;
         }
         self.stage = Stage::Response;
+        let matchers = Self::response_matchers();
+        if !matchers.is_empty() {
+            self.guard = Some(Guard::new(matchers));
+        }
         OK
     }
 
-    pub fn response_body_chunk(&mut self, _data: &[u8], _last: bool) -> Rc {
+    /// One response body chunk. `Some(bytes)`: send these instead of the
+    /// chunk (masked, and with the held tail moved: same total length);
+    /// `None`: send the chunk unchanged.
+    pub fn response_body_chunk(&mut self, data: &[u8], last: bool) -> (Rc, Option<Vec<u8>>) {
         if self.error != OK {
-            return self.error;
+            return (self.error, None);
         }
         if self.stage != Stage::Response {
-            return E_STATE;
+            return (E_STATE, None);
         }
-        OK
+        (OK, self.guard.as_mut().map(|g| g.chunk(data, last)))
     }
 
     pub fn verdict(&self) -> Verdict {
@@ -439,6 +462,9 @@ impl Tx {
         } else if self.error == OK && self.stage < Stage::BodyDone {
             v.need_body = true;
         }
+        // the connector inspects the response only when something can be
+        // found or rewritten in it
+        v.need_response = self.error == OK && !Self::response_matchers().is_empty();
         v.id = self.id;
         v
     }

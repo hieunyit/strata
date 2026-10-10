@@ -245,13 +245,19 @@ main(int argc, char **argv)
     strata_tx_verdict(tx, &v);
     CHECK(!(v.flags & STRATA_VF_NEED_BODY) && v.block_id[0] == '\0');
 
-    /* response side; rewritten buffer is empty and free is idempotent */
+    /* response side; free is idempotent */
     CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
     memset(&buf, 0xff, sizeof(buf));
     CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "ok", 2, 1, &buf)
           == STRATA_OK);
+#ifdef STRATA_TEST_HOOKS
+    /* the test data guard rewrites every chunk */
+    CHECK(buf.ptr != NULL && buf.len == 2 && memcmp(buf.ptr, "ok", 2) == 0);
+#else
     CHECK(buf.ptr == NULL && buf.len == 0);
+#endif
     strata_buf_free(&buf);
+    CHECK(buf.ptr == NULL);
     strata_buf_free(&buf);
 
     strata_tx_free(tx);
@@ -297,6 +303,37 @@ main(int argc, char **argv)
     CHECK(strata_tx_request_body_chunk(tx, NULL, 0, 1) == STRATA_E_INTERNAL);
     strata_tx_verdict(tx, &v);
     CHECK(v.error == STRATA_E_INTERNAL && id_ok(v.block_id, "EVT-"));
+    strata_tx_free(tx);
+
+    /* data guard: a needle split across chunks is masked, the tail of each
+       chunk is held back, the totals add up and the last call flushes */
+    tx = start(e, 0, S("/"));
+    strata_tx_verdict(tx, &v);
+    CHECK(v.flags & STRATA_VF_NEED_RESPONSE);
+    CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
+    {
+        static const char  *parts[] = { "a STRATA-TE", "ST-MA", "SK b", "" };
+        char                 out[64];
+        size_t               i, total = 0;
+
+        for (i = 0; i < 4; i++) {
+            size_t  len = strlen(parts[i]);
+
+            CHECK(strata_tx_response_body_chunk(tx, len ? (const uint8_t *) parts[i] : NULL,
+                                                len, i == 3, &buf) == STRATA_OK);
+            CHECK(buf.ptr != NULL && total + buf.len <= sizeof(out));
+            memcpy(out + total, buf.ptr, buf.len);
+            total += buf.len;
+            strata_buf_free(&buf);
+        }
+        CHECK(total == 20 && memcmp(out, "a **************** b", 20) == 0);
+    }
+    /* rewritten == NULL while the guard needs to rewrite is invalid */
+    strata_tx_free(tx);
+    tx = start(e, 0, S("/"));
+    CHECK(strata_tx_response_headers(tx, 200, NULL, 0) == STRATA_OK);
+    CHECK(strata_tx_response_body_chunk(tx, (const uint8_t *) "x", 1, 1, NULL)
+          == STRATA_E_INVALID);
     strata_tx_free(tx);
 #endif
 
