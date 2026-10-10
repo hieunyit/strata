@@ -26,6 +26,8 @@ func main() {
 	flag.StringVar(&cfg.CertFile, "tls-cert", "", "client certificate")
 	flag.StringVar(&cfg.KeyFile, "tls-key", "", "client certificate key")
 	flag.StringVar(&cfg.NodeID, "node-id", "", "node id stamped on every event")
+	flag.StringVar(&cfg.MetricsFile, "metrics-file", "/dev/shm/strata/metrics", "counters written by the NGINX workers")
+	flag.StringVar(&cfg.MetricsAddr, "metrics-addr", "127.0.0.1:9469", "address of the Prometheus endpoint /metrics")
 	flag.Parse()
 	cfg.EventSocket = strings.TrimPrefix(cfg.EventSocket, "unix:")
 
