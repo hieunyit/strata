@@ -10,25 +10,23 @@ Strata là WAF mã nguồn mở: lõi detection viết bằng Rust (`libstrata`,
 
 Khi tài liệu và code mâu thuẫn, tài liệu NGINX module thắng; nếu thấy tài liệu sai hoặc thiếu, dừng lại và hỏi, không tự đổi thiết kế. Sơ đồ trong tài liệu không có trong bản Markdown; phần chữ đủ để code.
 
-## Phạm vi hiện tại: tuần 1–2 (giai đoạn A)
+## Phạm vi hiện tại: khối A1 (tuần 3–5), luồng N và R
 
-Chỉ làm những việc sau, theo thứ tự:
+Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này với Claude Code" và các dòng "Đọc" của nhiệm vụ trước khi code). Phiên này chỉ làm luồng **N** (module NGINX, C) và **R** (libstrata, Rust); luồng Go/UI làm ở phiên khác.
 
-1. **Monorepo skeleton** đúng cấu trúc trong mục "Tech stack & cấu trúc repo" (`engine/`, `connectors/nginx/`, `control-plane/`, `cli/`, `deploy/`, `docs/`). Các thư mục chưa dùng chỉ cần `README.md` một dòng.
-2. **Chốt ABI** `engine/ffi/strata.h` (sinh bằng cbindgen) theo mục "Ranh giới FFI": `strata_str_t`, `strata_str_pair_t`, `strata_engine_map`, `strata_tx_*`, `strata_verdict_t`, `strata_abi_version`. Tuân thủ đúng quy tắc lifetime và `strata_tx_free` idempotent.
-3. **libstrata stub**: cài đặt đủ ABI nhưng logic đơn giản (ví dụ chặn khi URI hoặc body chứa chuỗi `STRATA-TEST-BLOCK`), sinh Block ID đúng định dạng `STR-XXXX-XXXX-XXXX-XXXX`. Mọi hàm `extern "C"` bọc `catch_unwind`; build `panic = "unwind"`, xuất `.a` tĩnh.
-4. **Khung `ngx_http_strata_module`** trong `connectors/nginx/`:
-   - File `config`, directive trong bảng "Directive & biến" (chưa cần `strata_breaker*`), merge cấu hình.
-   - Context request, pool cleanup, tìm lại context sau internal redirect, bỏ qua subrequest (`r != r->main`).
-   - PREACCESS handler + đọc body theo đúng mẫu đồng bộ/bất đồng bộ trong mục "Vòng đời request" (cân bằng `r->main->count`).
-   - Response chặn HTML/JSON với header `X-Strata-Block-Id`, biến `$strata_block_id`, `$strata_action`.
-5. **Test** `connectors/nginx/t/` bằng Test::Nginx, tối thiểu 7 case bắt buộc trong mục "Vòng đời request" + case chặn/cho qua cơ bản.
-6. **CI**: build module cho 2 phiên bản NGINX OSS (stable + mainline), chạy test; build Rust với clippy và test.
-7. **PoC mmap + Hyperscan** trong `engine/poc/`: xác nhận database Hyperscan dùng được từ vùng `mmap(PROT_READ, MAP_SHARED)` ở địa chỉ khác nhau giữa các process. Ghi kết quả vào `docs/poc/hyperscan-mmap.md`.
+**Đã xong** (tuần 1–2 và làm trước plan): skeleton monorepo; ABI `strata.h` 1.0 + test ABI hai phía; libstrata stub; khung module (directive, context, redirect, subrequest, đọc body đồng bộ/bất đồng bộ, trang chặn, biến); 7 test đọc body trên 1.30.5 và 1.31.6; CI; PoC Hyperscan + mmap; bundle v1 có chữ ký Ed25519 và hot reload qua control file (phần lớn W05-N-01, một phần W04-R-01, W04-N-02).
 
-8. **Hot reload bundle** (sau khi xong 1–7): định dạng bundle tối thiểu (header + bảng policy + section căn lề 4 KB + chữ ký Ed25519) và `strata_engine_info` trong libstrata; control file seqlock (`docs/design/control-file.md`); master nạp bundle theo control file; worker theo dõi generation bằng timer, nạp bundle trong thread pool, đổi engine có đếm tham chiếu, `munmap` khi request cuối xong; từ chối bản cũ hơn trừ khi có cờ rollback đã ký. Section rule vẫn là stub.
+**Đang làm**, theo thứ tự, mỗi nhiệm vụ một nhánh tên theo mã:
 
-**Chưa làm** ở giai đoạn này: control plane, agent, UI, response body filter, gRPC, circuit breaker, các connector khác.
+1. Tách `engine/` thành crate `libstrata` (code an toàn) và `engine/ffi/` thành crate `libstrata-ffi` (C ABI, xuất `libstrata.a`); ABI không đổi.
+2. **W03-R-02** Block ID bản cuối + JSON Schema IR (`docs/spec/ir.schema.json`, cần luồng S duyệt).
+3. **W03-R-01** Lớp protocol v1 (`engine/src/detectors/protocol/`, Rule ID dải 100000).
+4. **W03-N-01** Test PREACCESS `t/010-preaccess.t`.
+5. **W03-N-02** Ép đọc body ở enforce, `t/020-body-enforce.t`; kiểm tra `stream` + policy enforce khi `nginx -t`.
+
+Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đổi interface chung (`strata.h`, định dạng bundle, định dạng rule/IR) chỉ khi nhiệm vụ ghi rõ hoặc đã được duyệt; ngoài ra dừng lại và đề xuất.
+
+**Chưa làm** trong khối này: control plane, agent, UI (luồng khác); response filter (W06); event sink, CPU budget, metrics (W07); circuit breaker (W11); việc của tuần sau.
 
 ## Quy tắc code
 
@@ -53,23 +51,22 @@ Chỉ làm những việc sau, theo thứ tự:
 ## Lệnh thường dùng
 
 ```bash
-# Rust
-cargo build --release -p libstrata
-cargo test -p libstrata
-cargo clippy -- -D warnings
+# Rust (trong image dev: deploy/dev/run.sh <lệnh>)
+cargo build --release -p libstrata-ffi   # -> target/release/libstrata.a
+cargo test -p libstrata                  # logic engine
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # NGINX module (trong thư mục mã nguồn NGINX tương ứng)
 ./configure --with-compat --with-threads --with-http_v2_module \
   --add-dynamic-module=/path/to/strata/connectors/nginx
 make modules
 
-# Test tích hợp
-prove -r connectors/nginx/t/
+# Test tích hợp (build nginx + module rồi chạy Test::Nginx)
+make nginx test-nginx NGINX_VERSION=1.30.5
+make test        # toàn bộ: Rust, header, fixture, ABI, nginx
 ```
 
-## Hoàn thành tuần 1–2 khi
+## Hoàn thành khối A1 khi
 
-- `strata.h` đã chốt, có test ABI ở cả hai phía.
-- NGINX nạp module, chặn được request chứa chuỗi test, trả Block ID đúng định dạng.
-- 7 test bắt buộc về đọc body pass trên cả 2 phiên bản NGINX.
-- Có kết quả PoC Hyperscan + mmap (được hay không, và số liệu RAM đo được).
+- Mọi nhiệm vụ N/R của tuần 3–5 trong plan đạt dòng "Xong khi", trên cả 2 bản NGINX, CI xanh (kể cả ASan).
+- Tài liệu thiết kế được cập nhật ở chỗ code thật khác thiết kế.
