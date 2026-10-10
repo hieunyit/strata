@@ -21,7 +21,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind
+	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss
 
 all: lib nginx
 
@@ -111,6 +111,17 @@ test-nginx-valgrind: $(MKBUNDLE) $(COMPILE)
 		ls -l connectors/nginx/vgcore.*; \
 		echo "nginx died on a signal under valgrind (vgcore written)"; exit 1; fi
 	@echo "no valgrind reports"
+
+# W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
+bench-reload: $(MKBUNDLE) $(COMPILE)
+	connectors/nginx/scripts/reload-under-load.sh $(NGINX_VERSION) 8 100
+
+check-strace: $(MKBUNDLE) $(COMPILE)
+	connectors/nginx/scripts/strace-idle.sh $(NGINX_VERSION) 5
+
+# W05-R-01 measurement (see docs/reports/w05-pss-32-workers.md)
+bench-pss: $(MKBUNDLE) $(COMPILE)
+	connectors/nginx/scripts/measure-pss.sh $(NGINX_VERSION) 32 6000
 
 poc:
 	$(MAKE) -C engine/poc/hs_mmap run

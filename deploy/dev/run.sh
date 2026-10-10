@@ -9,5 +9,7 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
 fi
 tty=()
 [ -t 0 ] && tty=(-it)
-exec docker run --rm "${tty[@]}" -u "$(id -u):$(id -g)" \
+# extra docker options, e.g. STRATA_DEV_DOCKER_ARGS="--cap-add SYS_PTRACE"
+read -r -a extra <<< "${STRATA_DEV_DOCKER_ARGS:-}"
+exec docker run --rm "${tty[@]}" "${extra[@]}" -u "$(id -u):$(id -g)" \
     -v "$root:/src" -w /src "$image" "$@"

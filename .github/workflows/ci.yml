@@ -132,6 +132,15 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
+      - name: Hot reload under load and event-loop syscalls (nightly)
+        if: github.event_name == 'schedule'
+        timeout-minutes: 15
+        run: |
+          deploy/dev/run.sh make check-strace NGINX_VERSION=${{ matrix.nginx }}
+          deploy/dev/run.sh make bench-reload NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

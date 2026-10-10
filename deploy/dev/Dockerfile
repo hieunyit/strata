@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential ca-certificates curl git pkg-config \
         libpcre2-dev zlib1g-dev libssl-dev \
-        libhyperscan-dev valgrind \
+        libhyperscan-dev valgrind wrk strace procps \
         perl cpanminus libwww-perl libtext-diff-perl libtest-longstring-perl \
         liblist-moreutils-perl libipc-run-perl libtest-base-perl \
     && rm -rf /var/lib/apt/lists/*
