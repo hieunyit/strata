@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 )
 
@@ -49,11 +50,10 @@ func maskIP(ip string) string {
 	return "[REDACTED]"
 }
 
-// sanitizeEventForRole masks sensitive fields (full IP and violation snippets)
-// for viewer role and unauthenticated callers per AGENTS.md section 6.
-func sanitizeEventForRole(e ingest.Event, role string) ingest.Event {
-	// Privileged roles allowed full access to raw IPs and violation snippets
-	if role == "admin" || role == "operator" || role == "approver" {
+// sanitizeEvent masks the full client IP and the input snippets unless the
+// caller may read them (nginx-module.md › Giao diện quản trị: not for viewer).
+func sanitizeEvent(e ingest.Event, p *auth.Principal) ingest.Event {
+	if p.Can(auth.PermEventsReadSensitive) {
 		return e
 	}
 
@@ -65,13 +65,6 @@ func sanitizeEventForRole(e ingest.Event, role string) ingest.Event {
 	}
 	e.Violations = maskedViolations
 	return e
-}
-
-// callerRole returns the role of an authenticated caller. There is no
-// authentication yet (W03-G2-01), so every caller is a viewer. Never read the
-// role from a request header: the client chooses its value.
-func callerRole(_ *http.Request) string {
-	return "viewer"
 }
 
 // HandleGetEvent handles GET /v1/events/{block_id}.
@@ -106,7 +99,7 @@ func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sanitized := sanitizeEventForRole(*event, callerRole(r))
+	sanitized := sanitizeEvent(*event, auth.FromContext(r.Context()))
 
 	writeJSON(w, http.StatusOK, GetEventResponse{
 		Event: sanitized,
@@ -173,10 +166,10 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		nextToken = EncodePageToken(offset + len(res.Events))
 	}
 
-	role := callerRole(r)
+	caller := auth.FromContext(r.Context())
 	events := make([]ingest.Event, len(res.Events))
 	for i, e := range res.Events {
-		events[i] = sanitizeEventForRole(e, role)
+		events[i] = sanitizeEvent(e, caller)
 	}
 
 	writeJSON(w, http.StatusOK, SearchEventsResponse{

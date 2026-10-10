@@ -83,6 +83,7 @@ func setupTestServer(t *testing.T) (*Server, *ingest.MockEventStore) {
 	server := NewServer(ServerConfig{
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
+		Auth:         tokenRoles{},
 	}, store)
 
 	return server, store
@@ -95,7 +96,7 @@ func TestGetEventEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/events/STR-8F3K-Q2VD-7XNM-A1PC", nil)
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -118,7 +119,7 @@ func TestGetEventEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/events/STR-9999-9999-9999-9999", nil)
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("expected status 404, got %d: %s", rec.Code, rec.Body.String())
@@ -135,7 +136,7 @@ func TestGetEventEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/events/INVALID-ID", nil)
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("expected status 400, got %d: %s", rec.Code, rec.Body.String())
@@ -146,7 +147,7 @@ func TestGetEventEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/events/STR-8F3K-Q2VD-7XNM-A1PC", nil)
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("expected status 405, got %d", rec.Code)
@@ -166,7 +167,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data))
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -194,7 +195,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data))
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -217,7 +218,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data))
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -242,7 +243,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		data1, _ := json.Marshal(body1)
 		req1 := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data1))
 		rec1 := httptest.NewRecorder()
-		server.Handler().ServeHTTP(rec1, req1)
+		serve(server, rec1, req1)
 
 		var resp1 SearchEventsResponse
 		_ = json.Unmarshal(rec1.Body.Bytes(), &resp1)
@@ -262,7 +263,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		data2, _ := json.Marshal(body2)
 		req2 := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data2))
 		rec2 := httptest.NewRecorder()
-		server.Handler().ServeHTTP(rec2, req2)
+		serve(server, rec2, req2)
 
 		var resp2 SearchEventsResponse
 		_ = json.Unmarshal(rec2.Body.Bytes(), &resp2)
@@ -286,7 +287,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/events:search", bytes.NewReader(data))
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("expected status 400 for inverted time range, got %d", rec.Code)
@@ -297,7 +298,7 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/events:search", nil)
 		rec := httptest.NewRecorder()
 
-		server.Handler().ServeHTTP(rec, req)
+		serve(server, rec, req)
 
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("expected status 405, got %d", rec.Code)

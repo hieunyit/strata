@@ -125,18 +125,28 @@ services:
       - -tls-ca=/state/pki/ca.pem
       - -tls-cert=/state/pki/cp.pem
       - -tls-key=/state/pki/cp-key.pem
+      # Tokens name the issuer the browser sees; the control plane reads the
+      # metadata inside the compose network.
+      - -oidc-issuer=http://127.0.0.1:18180/realms/strata
+      - -oidc-discovery-url=http://keycloak:8080/realms/strata
+      - -oidc-audience=strata-api
+      - -admin-grpc-addr=:9090
+      - -admin-grpc-plaintext
     environment:
       STRATA_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
-    ports: ["127.0.0.1:18090:8080"]
+      STRATA_POSTGRES_DSN: postgres://strata:${POSTGRES_PASSWORD}@postgres:5432/strata?sslmode=disable
+    ports: ["127.0.0.1:18090:8080", "127.0.0.1:18091:9090"]
     volumes:
       - state:/state:ro
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{}", "http://127.0.0.1:8080/v1/events:search", "-o", "/dev/null"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 5s
       retries: 30
     depends_on:
       lab-init: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
 
   clickhouse:
@@ -184,6 +194,16 @@ services:
       KC_HTTP_PORT: "8080"
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?run deploy/lab/init-env.sh}
+      # One issuer for browser and scripts (127.0.0.1:18180); backchannel
+      # calls from containers (JWKS, token) use the name they came in on.
+      KC_HOSTNAME: http://127.0.0.1:18180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Substituted into strata-realm.json on import.
+      LAB_CLI_SECRET: ${LAB_CLI_SECRET:?run make lab-clean, then make lab-up}
+      LAB_VIEWER_PASSWORD: ${LAB_VIEWER_PASSWORD}
+      LAB_OPERATOR_PASSWORD: ${LAB_OPERATOR_PASSWORD}
+      LAB_APPROVER_PASSWORD: ${LAB_APPROVER_PASSWORD}
+      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD}
     ports: ["127.0.0.1:18180:8080"]
     volumes:
       - ./keycloak/strata-realm.json:/opt/keycloak/data/import/strata-realm.json:ro

@@ -1,0 +1,49 @@
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+)
+
+// Authenticator turns a raw bearer token into a caller.
+type Authenticator interface {
+	Authenticate(ctx context.Context, raw string) (*Principal, error)
+}
+
+// Middleware authenticates every request: without a valid bearer token it
+// answers 401. Authorization is left to the routes (RequireHTTP) and to
+// the gRPC interceptors behind the gateway.
+func Middleware(a Authenticator, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, err := a.Authenticate(r.Context(), BearerToken(r.Header.Get("Authorization")))
+		if err != nil {
+			if !errors.Is(err, ErrUnauthenticated) {
+				log.Printf("[ERROR] auth: %v", err)
+			}
+			w.Header().Set("WWW-Authenticate", `Bearer realm="strata"`)
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
+	})
+}
+
+// RequireHTTP answers 403 unless the caller has perm.
+func RequireHTTP(perm Permission, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !FromContext(r.Context()).Can(perm) {
+			writeError(w, http.StatusForbidden, "permission denied: "+string(perm))
+			return
+		}
+		next(w, r)
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{"error": msg, "code": status})
+}

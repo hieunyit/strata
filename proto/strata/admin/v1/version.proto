@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package strata.admin.v1;
+
+// VersionService reports what the control plane runs. Like every admin
+// service it is served over gRPC and, through grpc-gateway, as REST/JSON
+// (routes in admin_http.yaml); both need a valid OIDC token.
+service VersionService {
+  // REST: GET /v1/version
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+}
+
+message GetVersionRequest {}
+
+message GetVersionResponse {
+  // Control plane build version, e.g. 0.1.0 or a git describe string.
+  string version = 1;
+  // Git commit the build came from; empty for local builds.
+  string commit = 2;
+  // Admin API version in the path, "v1".
+  string api_version = 3;
+}

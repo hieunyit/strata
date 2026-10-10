@@ -4,13 +4,75 @@
   "displayName": "Strata lab",
   "sslRequired": "external",
   "registrationAllowed": false,
+  "accessTokenLifespan": 300,
   "roles": {
     "realm": [
-      { "name": "admin", "description": "Strata administrator" },
-      { "name": "operator", "description": "Deploys policies and manages exceptions" },
-      { "name": "viewer", "description": "Read only; no full IPs or input snippets" }
+      {
+        "name": "viewer",
+        "description": "Read only; no full IPs or input snippets"
+      },
+      {
+        "name": "operator",
+        "description": "Drafts and deploys policies, manages exceptions"
+      },
+      {
+        "name": "approver",
+        "description": "Approves policy versions drafted by someone else"
+      },
+      {
+        "name": "admin",
+        "description": "Strata administrator"
+      }
     ]
   },
+  "clientScopes": [
+    {
+      "name": "strata-api",
+      "description": "Access tokens for the Strata admin API: aud strata-api, realm roles, username",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience strata-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "strata-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
   "clients": [
     {
       "clientId": "strata-ui",
@@ -19,9 +81,119 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://127.0.0.1:18088/*", "http://localhost:18088/*"],
-      "webOrigins": ["http://127.0.0.1:18088", "http://localhost:18088"],
-      "attributes": { "pkce.code.challenge.method": "S256" }
+      "redirectUris": [
+        "http://127.0.0.1:18088/*",
+        "http://localhost:18088/*",
+        "http://127.0.0.1:5173/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:18088",
+        "http://localhost:18088",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "basic",
+        "strata-api"
+      ]
+    },
+    {
+      "clientId": "strata-lab-cli",
+      "name": "Lab scripts (smoke test, curl)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${LAB_CLI_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "basic",
+        "strata-api"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "lab-viewer",
+      "enabled": true,
+      "email": "lab-viewer@example.test",
+      "emailVerified": true,
+      "firstName": "Lab",
+      "lastName": "Viewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_VIEWER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ]
+    },
+    {
+      "username": "lab-operator",
+      "enabled": true,
+      "email": "lab-operator@example.test",
+      "emailVerified": true,
+      "firstName": "Lab",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_OPERATOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "operator"
+      ]
+    },
+    {
+      "username": "lab-approver",
+      "enabled": true,
+      "email": "lab-approver@example.test",
+      "emailVerified": true,
+      "firstName": "Lab",
+      "lastName": "Approver",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_APPROVER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "approver"
+      ]
+    },
+    {
+      "username": "lab-admin",
+      "enabled": true,
+      "email": "lab-admin@example.test",
+      "emailVerified": true,
+      "firstName": "Lab",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ]
     }
   ]
 }

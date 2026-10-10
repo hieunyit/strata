@@ -1,0 +1,24 @@
+# Admin API (strata.admin.v1) -> control-plane/gen: gRPC and the
+# grpc-gateway REST handlers, routes from admin_http.yaml.
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/strata/strata/control-plane/gen
+inputs:
+  - directory: proto
+    paths:
+      - proto/strata/admin
+plugins:
+  - local: protoc-gen-go
+    out: control-plane/gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: control-plane/gen
+    opt: paths=source_relative
+  - local: protoc-gen-grpc-gateway
+    out: control-plane/gen
+    opt:
+      - paths=source_relative
+      - grpc_api_configuration=proto/strata/admin/v1/admin_http.yaml

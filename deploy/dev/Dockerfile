@@ -36,6 +36,7 @@ ARG GO_SHA256=a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712
 ARG BUF_VERSION=1.34.0
 ARG PROTOC_GEN_GO_VERSION=1.34.2
 ARG PROTOC_GEN_GO_GRPC_VERSION=1.5.1
+ARG GRPC_GATEWAY_VERSION=2.22.0
 ARG GOLANGCI_LINT_VERSION=2.5.0
 ENV PATH=/usr/local/go/bin:/usr/local/gotools/bin:$PATH
 RUN curl -fsSL -o /tmp/go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
@@ -45,6 +46,7 @@ RUN curl -fsSL -o /tmp/go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.
         go install github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION} \
         && go install google.golang.org/protobuf/cmd/protoc-gen-go@v${PROTOC_GEN_GO_VERSION} \
         && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v${PROTOC_GEN_GO_GRPC_VERSION} \
+        && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
         && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}' \
     && rm -rf /tmp/gopath /tmp/gocache
 ENV GOTOOLCHAIN=local

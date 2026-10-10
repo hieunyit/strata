@@ -20,14 +20,40 @@ retry() { # seconds command...
     until "$@"; do [ $SECONDS -lt $end ] || return 1; sleep 2; done
 }
 
+# token <user>: an access token for a lab user (strata-lab-cli, password grant).
+token() {
+    local pwvar="LAB_${1#lab-}_PASSWORD"; pwvar=${pwvar^^}
+    curl -fsS http://127.0.0.1:18180/realms/strata/protocol/openid-connect/token \
+        -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+        -d "username=$1" --data-urlencode "password=${!pwvar}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
+}
+status() { # url [curl args...]: prints the HTTP status
+    local url=$1; shift
+    curl -s -o /dev/null -w '%{http_code}' "$@" "$url"
+}
+
 echo "components"
 check "postgres"   "${compose[@]}" exec -T postgres pg_isready -U strata -d strata
 check "clickhouse" curl -fsS -u "strata:$CLICKHOUSE_PASSWORD" "http://127.0.0.1:18123/?query=EXISTS+TABLE+default.events"
 check "minio"      curl -fsS http://127.0.0.1:19000/minio/health/live
 check "minio bucket strata-bundles" "${compose[@]}" run --rm -T minio-init ls lab/strata-bundles
 check "keycloak realm strata" curl -fsS http://127.0.0.1:18180/realms/strata/.well-known/openid-configuration
-check "control plane API" curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:18090/v1/events:search
+check "control plane healthz" curl -fsS http://127.0.0.1:18090/healthz
 check "ui"         curl -fsS http://127.0.0.1:18088/
+
+echo "admin API: OIDC (Keycloak) and RBAC"
+declare -A tok
+for u in viewer operator approver admin; do
+    tok[$u]=$(token "lab-$u" || true)
+    if [ -n "${tok[$u]}" ]; then ok "token for lab-$u"; else bad "token for lab-$u"; fi
+done
+auth() { echo "Authorization: Bearer ${tok[$1]}"; }
+[ "$(status http://127.0.0.1:18090/v1/version)" = 401 ] && ok "GET /v1/version without a token: 401" || bad "GET /v1/version without a token: 401"
+[ "$(status http://127.0.0.1:18090/v1/version -H 'Authorization: Bearer x.y.z')" = 401 ] && ok "GET /v1/version with a forged token: 401" || bad "GET /v1/version with a forged token: 401"
+for u in viewer operator approver admin; do
+    check "GET /v1/version as $u" sh -c "curl -fsS -H '$(auth $u)' http://127.0.0.1:18090/v1/version | grep -q '\"api_version\":\"v1\"'"
+done
+check "control plane API (search as viewer)" curl -fsS -X POST -H 'Content-Type: application/json' -H "$(auth viewer)" -d '{}' http://127.0.0.1:18090/v1/events:search
 
 echo "nginx + ngx_http_strata_module"
 for port in 18080 18081; do
@@ -43,9 +69,11 @@ done
 
 echo "event path (strata-emit stands in for the worker until W07-N-01)"
 id=$("${compose[@]}" exec -T agent-1 strata-emit -event-socket unix:/run/strata/events.sock | tr -d '\r')
-found() { curl -fsS "http://127.0.0.1:18090/v1/events/$id" 2>/dev/null | grep -q "$id"; }
+found() { curl -fsS -H "$(auth operator)" "http://127.0.0.1:18090/v1/events/$id" 2>/dev/null | grep -q "$id"; }
 if retry 30 found; then ok "event $id stored and found by Block ID"; else bad "event $id stored and found by Block ID"; fi
-check "event found through the UI proxy" curl -fsS "http://127.0.0.1:18088/v1/events/$id"
+check "event found through the UI proxy" curl -fsS -H "$(auth operator)" "http://127.0.0.1:18088/v1/events/$id"
+check "viewer gets the client IP masked" sh -c "curl -fsS -H '$(auth viewer)' http://127.0.0.1:18090/v1/events/$id | grep -q '\"client_ip\":\"192.0.2.0/24\"'"
+check "operator gets the full client IP" sh -c "curl -fsS -H '$(auth operator)' http://127.0.0.1:18090/v1/events/$id | grep -q '\"client_ip\":\"192.0.2.10\"'"
 
 echo "metrics"
 series() { curl -fsS 'http://127.0.0.1:18428/api/v1/query?query=strata_agent_events_received_total' | grep -o '"instance":"agent-[12]:9469"' | sort -u | wc -l | grep -q 2; }

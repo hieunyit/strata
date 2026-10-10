@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 )
 
@@ -14,6 +15,11 @@ type ServerConfig struct {
 	Addr         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	// Auth verifies bearer tokens; every route but /healthz requires one.
+	Auth auth.Authenticator
+	// Admin serves the other /v1/ routes (the grpc-gateway of
+	// strata.admin.v1), which authorize in their gRPC interceptors.
+	Admin http.Handler
 }
 
 // Server provides the REST API server for Strata control plane.
@@ -26,6 +32,9 @@ type Server struct {
 
 // NewServer initializes the HTTP router and server with middleware.
 func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
+	if cfg.Auth == nil {
+		panic("api: ServerConfig.Auth is required")
+	}
 	if cfg.Addr == "" {
 		cfg.Addr = ":8080"
 	}
@@ -63,16 +72,26 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) registerRoutes() {
-	s.mux.HandleFunc("/v1/events:search", s.handler.HandleSearchEvents)
-
+	v1 := http.NewServeMux()
+	search := auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleSearchEvents)
+	v1.HandleFunc("/v1/events:search", search)
 	// Handles /v1/events/{block_id}
-	s.mux.HandleFunc("/v1/events/", func(w http.ResponseWriter, r *http.Request) {
+	v1.HandleFunc("/v1/events/", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ":search") {
-			s.handler.HandleSearchEvents(w, r)
+			search(w, r)
 			return
 		}
 		s.handler.HandleGetEvent(w, r)
+	}))
+	if s.cfg.Admin != nil {
+		v1.Handle("/v1/", s.cfg.Admin)
+	}
+
+	// Liveness for the container healthcheck; it reveals nothing.
+	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
 	})
+	s.mux.Handle("/v1/", auth.Middleware(s.cfg.Auth, v1))
 }
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {

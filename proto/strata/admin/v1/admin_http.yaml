@@ -1,0 +1,8 @@
+# REST routes of strata.admin.v1 for grpc-gateway, kept outside the .proto
+# files so that no googleapis dependency is needed.
+type: google.api.Service
+config_version: 3
+http:
+  rules:
+    - selector: strata.admin.v1.VersionService.GetVersion
+      get: /v1/version

@@ -128,9 +128,11 @@ bench-pss: $(MKBUNDLE) $(COMPILE)
 proto:
 	buf lint
 	buf generate
+	buf generate --template buf.gen.admin.yaml
 
 check-proto: proto
-	git diff --exit-code -- agent/gen
+	git diff --exit-code -- agent/gen control-plane/gen
+	test -z "$$(git status --porcelain -- agent/gen control-plane/gen)"
 
 test-agent:
 	cd agent && go vet ./... && go test -race ./... && golangci-lint run ./...

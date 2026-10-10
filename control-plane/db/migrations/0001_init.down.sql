@@ -1,0 +1,9 @@
+DROP TABLE audit_log;
+DROP TABLE service_accounts;
+DROP TABLE role_bindings;
+DROP TABLE bundles;
+DROP TABLE policy_versions;
+DROP TABLE policies;
+DROP TABLE enrollment_tokens;
+DROP TABLE nodes;
+DROP TABLE connector_groups;
