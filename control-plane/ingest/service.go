@@ -38,6 +38,11 @@ type IngestService struct {
 
 	nodeMu              sync.RWMutex
 	invalidEventsByNode map[string]uint64
+
+	// nodeLocks serializes batches of one node (node id -> *sync.Mutex), so
+	// an old and a new stream after a reconnect cannot both pass the seq
+	// check before either commits.
+	nodeLocks sync.Map
 }
 
 // NewIngestService creates a fully configured IngestService with persistent deduplication.
@@ -58,6 +63,10 @@ func NewIngestService(store EventStore, batcherCfg BatcherConfig, nodeTTL time.D
 func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*EventAck, error) {
 	s.batchesReceived.Add(1)
 	s.eventsReceived.Add(uint64(len(batch.Events)))
+
+	mu, _ := s.nodeLocks.LoadOrStore(batch.NodeID, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
 
 	// 1. Deduplication check by sequence number (cached in RAM, backed by store)
 	isDup, lastSeq := s.dedup.CheckBatch(ctx, batch.NodeID, batch.Seq)

@@ -89,7 +89,7 @@ func ValidateHTTPMethod(method string) error {
 	// Allow non-standard methods if ASCII alphanumeric
 	for i := 0; i < len(m); i++ {
 		b := m[i]
-		if !(b >= 'A' && b <= 'Z') && !(b >= '0' && b <= '9') && b != '_' && b != '-' {
+		if (b < 'A' || b > 'Z') && (b < '0' || b > '9') && b != '_' && b != '-' {
 			return fmt.Errorf("%w: invalid character in custom method %q", ErrInvalidHTTPMethod, m)
 		}
 	}

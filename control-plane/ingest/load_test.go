@@ -23,10 +23,10 @@ func TestIngestThroughput_10k_eps(t *testing.T) {
 	defer svc.Close(ctx)
 
 	const (
-		targetRateEPS   = 10000 // 10,000 events/second
-		batchSize       = 100   // 100 events per batch
-		totalBatches    = 300   // 300 batches = 30,000 events total (3 seconds worth)
-		numWorkerNodes  = 10    // 10 concurrent nodes sending events
+		targetRateEPS  = 10000 // 10,000 events/second
+		batchSize      = 100   // 100 events per batch
+		totalBatches   = 300   // 300 batches = 30,000 events total (3 seconds worth)
+		numWorkerNodes = 10    // 10 concurrent nodes sending events
 	)
 
 	totalEventsTarget := totalBatches * batchSize

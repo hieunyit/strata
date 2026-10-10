@@ -185,4 +185,3 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		TotalMatched:  res.Total,
 	})
 }
-

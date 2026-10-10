@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -228,5 +229,42 @@ func TestIngestService_StoreErrorNoAck(t *testing.T) {
 	}
 	if mockStore.Count() != 1 {
 		t.Errorf("expected 1 event stored in ClickHouse, got %d", mockStore.Count())
+	}
+}
+
+// Two streams of one node sending the same seq at once (an agent that
+// reconnected while its old stream was still in flight) store it once.
+func TestIngestService_ConcurrentSameSeqStoredOnce(t *testing.T) {
+	store := NewMockEventStore()
+	svc := NewIngestService(store, BatcherConfig{MaxBatchSize: 1000, FlushInterval: 20 * time.Millisecond, BufferSize: 100}, time.Hour)
+	defer svc.Close(context.Background())
+
+	now := time.Now().UTC()
+	batch := func() EventBatch {
+		ev := sampleEvent(1)
+		ev.NodeID = "node-a"
+		ev.Timestamp = now
+		return EventBatch{NodeID: "node-a", Seq: 7, Events: []Event{ev}}
+	}
+
+	const streams = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, streams)
+	for i := 0; i < streams; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := svc.ProcessBatch(context.Background(), batch()); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("ProcessBatch: %v", err)
+	}
+	if n := store.Count(); n != 1 {
+		t.Fatalf("stored %d copies of seq 7, want 1", n)
 	}
 }

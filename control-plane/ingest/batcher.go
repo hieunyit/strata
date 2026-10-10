@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrBufferFull = errors.New("event buffer is full")
+	ErrBufferFull    = errors.New("event buffer is full")
 	ErrBatcherClosed = errors.New("batcher is closed")
 )
 
@@ -36,14 +36,14 @@ type batchSubmission struct {
 
 // Batcher aggregates events into batches and flushes them to an EventStore.
 type Batcher struct {
-	cfg        BatcherConfig
-	store      EventStore
-	subChan    chan batchSubmission
-	flushReq   chan chan error
-	stopChan   chan struct{}
-	exited     chan struct{} // closed when runLoop returns
-	wg         sync.WaitGroup
-	isClosed   atomic.Bool
+	cfg      BatcherConfig
+	store    EventStore
+	subChan  chan batchSubmission
+	flushReq chan chan error
+	stopChan chan struct{}
+	exited   chan struct{} // closed when runLoop returns
+	wg       sync.WaitGroup
+	isClosed atomic.Bool
 
 	// Metrics
 	eventsReceived atomic.Uint64
