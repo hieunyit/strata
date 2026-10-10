@@ -1,0 +1,8 @@
+# Lab policies (strata-compile input). example-api enforces, example-web
+# stays in shadow.
+policies:
+  - { name: example-api, mode: enforce, oversize: block }
+  - { name: example-web, mode: shadow, oversize: pass }
+block_page:
+  html_file: block.html
+  support_contact: "Support: support@example.test"

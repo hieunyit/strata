@@ -1,0 +1,5 @@
+scrape_configs:
+  - job_name: strata-agent
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["agent-1:9469", "agent-2:9469"]

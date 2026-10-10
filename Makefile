@@ -135,6 +135,40 @@ check-proto: proto
 test-agent:
 	cd agent && go vet ./... && go test -race ./... && golangci-lint run ./...
 
+# Go modules other than agent/. tests/e2e is only vetted, linted and
+# compiled here: its tests start ClickHouse with docker, so they run on the
+# host with `make e2e`.
+test-go: test-agent
+	cd control-plane && go vet ./... && go test -race ./... && golangci-lint run ./...
+	cd tests/e2e && go vet ./... && golangci-lint run ./... && go test -count=1 -run '^$$' ./...
+
+# Lab (deploy/lab, W03-Q-01). Run on the host: these targets use docker and
+# run the build inside the dev image themselves.
+LAB         := deploy/lab
+LAB_COMPOSE := docker compose -f $(LAB)/compose.yaml --env-file $(LAB)/.state/env
+
+lab-build:
+	docker build -q -t strata-dev:latest deploy/dev
+	deploy/dev/run.sh $(LAB)/build.sh
+
+lab-up: lab-build
+	$(LAB)/init-env.sh
+	$(LAB_COMPOSE) build
+	$(LAB_COMPOSE) up -d --wait --wait-timeout 900
+
+lab-down:
+	$(LAB_COMPOSE) down
+
+lab-clean:
+	-$(LAB_COMPOSE) down -v
+	rm -rf $(LAB)/.state
+
+lab-status:
+	$(LAB_COMPOSE) ps
+
+lab-smoke:
+	$(LAB)/smoke.sh
+
 e2e:
 	cd tests/e2e && go test -v -timeout 5m ./...
 

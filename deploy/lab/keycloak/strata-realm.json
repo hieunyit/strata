@@ -1,0 +1,27 @@
+{
+  "realm": "strata",
+  "enabled": true,
+  "displayName": "Strata lab",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Strata administrator" },
+      { "name": "operator", "description": "Deploys policies and manages exceptions" },
+      { "name": "viewer", "description": "Read only; no full IPs or input snippets" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "strata-ui",
+      "name": "Strata Web UI",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://127.0.0.1:18088/*", "http://localhost:18088/*"],
+      "webOrigins": ["http://127.0.0.1:18088", "http://localhost:18088"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ]
+}

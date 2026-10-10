@@ -11,5 +11,7 @@ tty=()
 [ -t 0 ] && tty=(-it)
 # extra docker options, e.g. STRATA_DEV_DOCKER_ARGS="--cap-add SYS_PTRACE"
 read -r -a extra <<< "${STRATA_DEV_DOCKER_ARGS:-}"
+# Go module and build caches survive runs under build/go.
 exec docker run --rm "${tty[@]}" "${extra[@]}" -u "$(id -u):$(id -g)" \
+    -e GOMODCACHE=/src/build/go/mod -e GOCACHE=/src/build/go/cache \
     -v "$root:/src" -w /src "$image" "$@"

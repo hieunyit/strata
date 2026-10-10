@@ -28,4 +28,25 @@ RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \
     && rm -rf ${CARGO_HOME}/registry ${CARGO_HOME}/git \
     && chmod -R a+rwX ${CARGO_HOME} ${RUSTUP_HOME}
 
+# Go for strata-agent, control-plane and tests/e2e, plus the proto and lint
+# tools. GOPATH and the build cache live under /tmp (HOME), so they are
+# writable for any uid; deploy/dev/run.sh points them at build/go.
+ARG GO_VERSION=1.25.14
+ARG GO_SHA256=a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712
+ARG BUF_VERSION=1.34.0
+ARG PROTOC_GEN_GO_VERSION=1.34.2
+ARG PROTOC_GEN_GO_GRPC_VERSION=1.5.1
+ARG GOLANGCI_LINT_VERSION=2.5.0
+ENV PATH=/usr/local/go/bin:/usr/local/gotools/bin:$PATH
+RUN curl -fsSL -o /tmp/go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
+    && echo "${GO_SHA256}  /tmp/go.tgz" | sha256sum -c - \
+    && tar -C /usr/local -xzf /tmp/go.tgz && rm /tmp/go.tgz \
+    && GOBIN=/usr/local/gotools/bin GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOTOOLCHAIN=local sh -c '\
+        go install github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION} \
+        && go install google.golang.org/protobuf/cmd/protoc-gen-go@v${PROTOC_GEN_GO_VERSION} \
+        && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v${PROTOC_GEN_GO_GRPC_VERSION} \
+        && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}' \
+    && rm -rf /tmp/gopath /tmp/gocache
+ENV GOTOOLCHAIN=local
+
 WORKDIR /src

@@ -5,3 +5,6 @@
 connectors/nginx/t/servroot*/
 engine/poc/**/out/
 connectors/nginx/vgcore.*
+
+# lab passwords and state
+deploy/lab/.state/
