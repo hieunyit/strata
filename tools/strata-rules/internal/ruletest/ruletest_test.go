@@ -43,27 +43,26 @@ tests:
 
 const unsupported = `rule:
   id: 800011
-  name: Needs cmd_line
+  name: Needs ip_match
   layer: managed
-  stage: request_body
+  stage: request_headers
   match:
     all:
-      - targets: [{ var: args }]
-        transforms: [cmd_line]
-        operator: { type: contains, value: /etc/passwd }
+      - targets: [{ var: remote_addr }]
+        operator: { type: ip_match, value: [192.0.2.0/24] }
   score: 10
   severity: warning
   metadata: { source: organization, license: Apache-2.0, author: example-secops }
 tests:
-  match: [{ uri: "/run?c=cat%20/etc/passwd" }]
-  no_match: [{ uri: /run }]
+  match: [{ uri: /run, remote_addr: 192.0.2.1 }]
+  no_match: [{ uri: /run, remote_addr: 198.51.100.1 }]
 `
 
 func TestRunReportsPassFailSkip(t *testing.T) {
 	tl := tools(t)
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "800010-example.yaml"), []byte(rule), 0o644)
-	_ = os.WriteFile(filepath.Join(dir, "800011-cmd.yaml"), []byte(unsupported), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "800011-ip.yaml"), []byte(unsupported), 0o644)
 	files, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +78,7 @@ func TestRunReportsPassFailSkip(t *testing.T) {
 	if res[0].Status != Fail || len(res[0].Failures) != 1 || !strings.Contains(res[0].Failures[0], "a prefix that also matches") {
 		t.Errorf("800010: %+v", res[0])
 	}
-	if res[1].Status != Skip || !strings.Contains(res[1].Reason, "transform cmd_line") {
+	if res[1].Status != Skip || !strings.Contains(res[1].Reason, "operator ip_match") {
 		t.Errorf("800011: %+v", res[1])
 	}
 }
