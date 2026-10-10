@@ -306,33 +306,41 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
         };
         let vals = values(d, &t, &excluded);
 
+        // As in ModSecurity: the operator, negated or not, is applied to
+        // each value, and the condition holds when it holds for one of
+        // them; a target without values never matches, negated or not.
+        let neg = c.negate;
         if numeric {
             let ValueView::Int(y) = c.value else {
                 return Outcome::Unsupported;
             };
             if t.count {
-                any |= compare(op, vals.len() as i64, y);
+                // a count always has a value
+                any |= compare(op, vals.len() as i64, y) != neg;
             } else {
                 any |= vals.iter().any(|v| {
-                    std::str::from_utf8(trim(v))
+                    // a value that is not a number counts as 0, as atoi does
+                    let x = std::str::from_utf8(trim(v))
                         .ok()
                         .and_then(|s| s.parse::<i64>().ok())
-                        .is_some_and(|x| compare(op, x, y))
+                        .unwrap_or(0);
+                    compare(op, x, y) != neg
                 });
             }
         } else if detect {
             any |= vals.iter().any(|v| {
                 transform::apply_chain(c.transforms, v).is_some_and(|tv| {
-                    if op == "detect_sqli" {
+                    let hit = if op == "detect_sqli" {
                         detect_sqli(&tv).is_some()
                     } else {
                         detect_xss(&tv)
-                    }
+                    };
+                    hit != neg
                 })
             });
         } else {
             for v in vals {
-                if matched(ctx, v, c.transforms).contains(&ci) {
+                if matched(ctx, v, c.transforms).contains(&ci) != neg {
                     any = true;
                     break;
                 }
@@ -342,7 +350,7 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
             break;
         }
     }
-    Outcome::Match(any != c.negate)
+    Outcome::Match(any)
 }
 
 /// Conditions matched by `v` after `chain`, scanning at most once per

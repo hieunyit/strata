@@ -134,7 +134,10 @@
           "description": "Pattern, literal, number, list (pm, ip_match) or byte ranges (validate_byte_range); absent for detect_* and validate_*_encoding.",
           "type": ["string", "integer", "array"]
         },
-        "negate": { "type": "boolean" }
+        "negate": {
+          "description": "The operator is negated for each value: the condition holds when, for one value of a target, the operator does not match. A target without values (an absent header, no arguments) never makes a condition hold, negated or not, as in ModSecurity; to test that something is absent, count it (count: true) with eq 0.",
+          "type": "boolean"
+        }
       },
       "allOf": [
         {

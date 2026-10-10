@@ -503,3 +503,80 @@ rules:
         assert_eq!(rules(&v), [800204]);
     }
 }
+
+// Negation is per value, as in ModSecurity: an absent target never matches,
+// a negated operator holds when one value fails it.
+mod negation {
+    use super::*;
+
+    const RULES: &str = r#"
+ir_version: 1
+ruleset: { name: negation-test, version: "1" }
+rules:
+  - { id: 800301, name: content-length not numeric, layer: protocol, stage: request_headers, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: request_headers, key: Content-Length } ], operator: { type: rx, value: '^\d+$', negate: true } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800302, name: no host header, layer: protocol, stage: request_headers, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: request_headers, key: Host, count: true } ], operator: { type: eq, value: 0 } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800303, name: an arg that is not a number, layer: managed, stage: request_headers, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args } ], operator: { type: rx, value: '^[0-9]+$', negate: true } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn run(uri: &str, headers: &[(&str, &str)]) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: []").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        // built-in protocol checks (100002 for a bad Content-Length) are not under test
+        rules(&super::run(&e, "GET", uri, headers, "192.0.2.1"))
+            .into_iter()
+            .filter(|id| *id >= 800000)
+            .collect()
+    }
+
+    #[test]
+    fn absent_target_never_matches() {
+        assert_eq!(run("/", &[("Host", "api.example.test")]), Vec::<u32>::new());
+        assert_eq!(
+            run("/", &[("Host", "a"), ("Content-Length", "12")]),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            run("/", &[("Host", "a"), ("Content-Length", "12a")]),
+            [800301]
+        );
+    }
+
+    #[test]
+    fn absence_is_tested_with_a_count() {
+        assert_eq!(run("/", &[]), [800302]);
+    }
+
+    #[test]
+    fn negated_operator_holds_for_one_value() {
+        assert_eq!(run("/q?a=1&b=2", &[("Host", "a")]), Vec::<u32>::new());
+        assert_eq!(run("/q?a=1&b=x", &[("Host", "a")]), [800303]);
+    }
+}
