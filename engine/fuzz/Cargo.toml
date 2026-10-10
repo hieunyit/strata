@@ -1,0 +1,41 @@
+# Fuzz targets (W06-R-01). Not part of the workspace: built with sancov
+# instrumentation by engine/fuzz/run.sh (stable rustc, libFuzzer from
+# libfuzzer-sys), never shipped.
+[package]
+name = "strata-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.10"
+libstrata = { path = "..", features = ["test-hooks"] }
+
+[workspace]
+
+[[bin]]
+name = "sqli"
+path = "fuzz_targets/sqli.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "xss"
+path = "fuzz_targets/xss.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "guard_chunks"
+path = "fuzz_targets/guard_chunks.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "response_tx"
+path = "fuzz_targets/response_tx.rs"
+test = false
+doc = false

@@ -881,7 +881,8 @@ impl<'a> State<'a> {
         cstrcasecmp(word, &t.val[..t.len], t.len) == 0
     }
 
-    /// Folds the tokens; returns how many are in the fingerprint (<= 5).
+    /// Folds the tokens; returns how many are in the fingerprint: at most
+    /// 5, or up to 7 when MySQL "{ ``" is flagged (as the C code does).
     pub fn fold(&mut self) -> usize {
         let mut last_comment = Token::default();
         let mut pos = 0usize; // where the next token goes
