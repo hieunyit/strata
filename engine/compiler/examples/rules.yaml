@@ -1,0 +1,143 @@
+# Ten sample rules for strata-compile (W04-R-01). Same data model as
+# docs/spec/ir.schema.json, written in YAML.
+ir_version: 1
+ruleset:
+  name: example-sample
+  version: "2026.w41"
+rules:
+  - id: 100011
+    name: Encoded dot-segment in the raw path
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - targets: [{ var: uri_raw }]
+          transforms: [lowercase]
+          operator: { type: rx, value: '%2e(%2e|\.)/|\.%2e/' }
+    score: 100
+    severity: critical
+    metadata: { source: strata, license: Apache-2.0, attack_type: path-traversal, accuracy: high, risk: high }
+
+  - id: 100013
+    name: Null byte in the URI
+    layer: protocol
+    stage: request_headers
+    match:
+      any:
+        - targets: [{ var: uri_raw }]
+          operator: { type: contains, value: '%00' }
+    score: 100
+    severity: critical
+    metadata: { source: strata, license: Apache-2.0, attack_type: protocol }
+
+  - id: 920170
+    name: GET or HEAD Request with Body Content
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - targets: [{ var: method }]
+          operator: { type: rx, value: '^(?:GET|HEAD)$' }
+        - targets: [{ var: request_headers, key: Content-Length }]
+          operator: { type: ne, value: 0 }
+    score: 5
+    severity: critical
+    paranoia_level: 1
+    metadata: { source: crs, upstream_id: "920170", upstream_version: 4.25.0, license: Apache-2.0, author: OWASP CRS project }
+
+  - id: 942100
+    name: SQL Injection Attack Detected via libinjection
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - targets: [{ var: args }, { var: args_names }, { var: request_cookies, exclude: [__utm] }]
+          transforms: [url_decode_uni, remove_nulls]
+          operator: { type: detect_sqli }
+    score: 5
+    severity: critical
+    paranoia_level: 1
+    labels: [attack-sqli]
+    metadata: { source: crs, upstream_id: "942100", upstream_version: 4.25.0, license: Apache-2.0, author: OWASP CRS project, attack_type: sql-injection }
+
+  - id: 941100
+    name: XSS Attack Detected via libinjection
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - targets: [{ var: args }, { var: request_headers, key: Referer }]
+          transforms: [url_decode_uni, html_entity_decode, js_decode, css_decode]
+          operator: { type: detect_xss }
+    score: 5
+    severity: critical
+    paranoia_level: 1
+    metadata: { source: crs, upstream_id: "941100", upstream_version: 4.25.0, license: Apache-2.0, author: OWASP CRS project, attack_type: xss }
+
+  - id: 932160
+    name: Unix shell commands in arguments
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - targets: [{ var: args }]
+          transforms: [cmd_line, normalize_path]
+          operator: { type: pm, value: [/bin/sh, /bin/bash, /etc/passwd, /usr/bin/id] }
+    score: 5
+    severity: critical
+    paranoia_level: 1
+    metadata: { source: crs, upstream_id: "932160", upstream_version: 4.25.0, license: Apache-2.0, author: OWASP CRS project, attack_type: command-injection }
+
+  - id: 400100
+    name: Web shell access attempt
+    layer: managed
+    stage: request_headers
+    match:
+      any:
+        - targets: [{ var: path }]
+          transforms: [lowercase]
+          operator: { type: ends_with, value: /cmd.php }
+        - targets: [{ var: args_names }]
+          operator: { type: streq, value: c99shell }
+    score: 50
+    severity: error
+    metadata: { source: sigma, upstream_id: 0f3b7c1e-example, upstream_version: r2026-09, license: DRL-1.1, author: Example Sigma Author, attack_type: rce }
+
+  - id: 500100
+    name: Known scanner user agent
+    layer: managed
+    stage: request_headers
+    match:
+      all:
+        - targets: [{ var: request_headers, key: User-Agent }]
+          transforms: [lowercase]
+          operator: { type: pm, value: [sqlmap, nikto, nuclei, masscan] }
+    score: 20
+    severity: warning
+    metadata: { source: crawler-user-agents, upstream_id: scanners, upstream_version: "2026-09-01", license: MIT, author: crawler-user-agents contributors, attack_type: scanner }
+
+  - id: 800001
+    name: Admin path outside the office network
+    layer: custom-post
+    stage: request_headers
+    match:
+      all:
+        - targets: [{ var: path }]
+          operator: { type: begins_with, value: /admin }
+        - targets: [{ var: remote_addr }]
+          operator: { type: ip_match, value: [10.0.0.0/8, 192.0.2.0/24], negate: true }
+    score: 100
+    severity: error
+    metadata: { source: organization, license: Apache-2.0, author: example-secops }
+
+  - id: 800002
+    name: Too many arguments
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - targets: [{ var: args, count: true }]
+          operator: { type: gt, value: 255 }
+    score: 10
+    severity: notice
+    metadata: { source: organization, license: Apache-2.0, author: example-secops }

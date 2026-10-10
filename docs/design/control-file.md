@@ -34,10 +34,12 @@ Không bao giờ thay control file bằng `rename`: worker đang map inode cũ v
 | --- | --- |
 | 0 | header 64 byte: magic `STRBNDL\0`, `u16` format = 1, `u16` flags (bit 0: ROLLBACK), `u32` số policy, `u64` version, `u64` created_at (ms), `u64` offset section, `u64` độ dài section, 16 byte dự phòng = 0 |
 | 64 | bảng policy: mỗi policy 64 byte = tên 56 byte (`[a-z0-9._-]`, 1..55 ký tự, đệm NUL) + `u8` mode (0 = shadow, 1 = enforce) + 7 byte dự phòng = 0 |
-| bội số 4.096 | section (rule; hiện vẫn là stub) |
+| bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 
-libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm biên mọi trường kể cả khi chữ ký đúng. Mode của policy là dữ liệu đã ký: `strata_engine_policy` đọc nó tại chỗ trong vùng mmap. Location đặt `strata_request_body_mode stream` mà policy là enforce thì `nginx -t` (và `nginx -s reload`) lỗi; nếu policy chuyển sang enforce qua hot reload, worker ghi cảnh báo và location vẫn chạy shadow. File bundle đã công bố không bao giờ được sửa tại chỗ (xem `docs/poc/hyperscan-mmap.md`): agent ghi file tạm → `fsync` → `rename` sang tên mới theo phiên bản, rồi mới cập nhật control file; xóa bundle cũ chỉ bằng `unlink`.
+Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+
+libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm biên mọi trường (mọi bản ghi rule, điều kiện, target, list) kể cả khi chữ ký đúng, một lần lúc nạp; sau đó đọc tại chỗ, không copy. Mode của policy là dữ liệu đã ký: `strata_engine_policy` đọc nó tại chỗ trong vùng mmap. Location đặt `strata_request_body_mode stream` mà policy là enforce thì `nginx -t` (và `nginx -s reload`) lỗi; nếu policy chuyển sang enforce qua hot reload, worker ghi cảnh báo và location vẫn chạy shadow. File bundle đã công bố không bao giờ được sửa tại chỗ (xem `docs/poc/hyperscan-mmap.md`): agent ghi file tạm → `fsync` → `rename` sang tên mới theo phiên bản, rồi mới cập nhật control file; xóa bundle cũ chỉ bằng `unlink`.
 
 ## Quy tắc nạp trong worker
 

@@ -1,0 +1,8 @@
+# Policies and default block page for strata-compile (W04-R-01).
+policies:
+  - { name: example-api, mode: enforce }
+  - { name: example-api-upload, mode: shadow }
+  - { name: example-web, mode: shadow }
+block_page:
+  html_file: block.html
+  support_contact: "Support: support@example.test"

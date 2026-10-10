@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://strata.example.test/spec/policies.schema.json",
+  "title": "Strata bundle policies, version 1",
+  "description": "Second input of the bundle compiler: policies with their signed mode, and the default block page shipped in the bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policies"],
+  "properties": {
+    "policies": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "mode"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9._-]{1,55}$" },
+          "mode": { "enum": ["shadow", "enforce"] }
+        }
+      }
+    },
+    "block_page": {
+      "description": "Default HTML block page: placeholders {{block_id}}, {{time}}, {{support_contact}}. html_file is relative to this file.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "html": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "html_file": { "type": "string", "minLength": 1 },
+        "support_contact": { "type": "string", "maxLength": 1024 }
+      },
+      "not": { "required": ["html", "html_file"] }
+    }
+  }
+}

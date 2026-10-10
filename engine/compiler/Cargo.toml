@@ -1,0 +1,17 @@
+[package]
+name = "strata-compiler"
+version = "0.1.0"
+description = "Bundle compiler v0: rule IR (JSON or YAML) + policies -> signed bundle"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "strata-compile"
+path = "src/bin/strata-compile.rs"
+
+[dependencies]
+libstrata = { path = ".." }
+jsonschema = { version = "=0.56.0", default-features = false }
+serde_json = "1.0.149"
+yaml-rust2 = "=0.12.0"

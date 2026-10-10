@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["engine", "engine/ffi", "engine/tools/mkbundle"]
+members = ["engine", "engine/ffi", "engine/compiler", "engine/tools/mkbundle"]
 
 [workspace.package]
 edition = "2024"

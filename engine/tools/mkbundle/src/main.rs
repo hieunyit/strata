@@ -1,11 +1,8 @@
-//! mkbundle — development and test tool for Strata bundles.
+//! mkbundle — development and test tool: Ed25519 keys and control files.
+//! Bundles are built by `strata-compile` (engine/compiler).
 //!
 //! ```text
 //! mkbundle keygen  --seed <64 hex> --key-out <file> --pub-out <file>
-//! mkbundle build   --key <seed file> --version <n> --out <file>
-//!                  [--rollback] [--created-at <ms>]
-//!                  [--policy <name>[:shadow|:enforce]]...
-//!                  [--sections-size <bytes>]
 //! mkbundle control --out <file> --generation <n> --version <n> --name <file>
 //!                  [--bundle <path>] [--in-place] [--writing]
 //! ```
@@ -19,7 +16,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::process::ExitCode;
 
-use libstrata::bundle::{self, FLAG_ROLLBACK, Mode, Spec};
+use libstrata::bundle;
 use sha2::{Digest, Sha256};
 
 const CTL_SIZE: usize = 4096;
@@ -37,7 +34,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
         let key = a
             .strip_prefix("--")
             .ok_or(format!("unexpected argument {a}"))?;
-        let flag = matches!(key, "rollback" | "in-place" | "writing");
+        let flag = matches!(key, "in-place" | "writing");
         let val = if flag {
             String::new()
         } else {
@@ -78,38 +75,6 @@ fn keygen(a: &Args) -> Result<(), String> {
     let seed = hex32(one(a, "seed")?)?;
     fs::write(one(a, "key-out")?, seed).map_err(|e| e.to_string())?;
     fs::write(one(a, "pub-out")?, bundle::public_key(&seed)).map_err(|e| e.to_string())
-}
-
-fn build(a: &Args) -> Result<(), String> {
-    let seed: [u8; 32] = fs::read(one(a, "key")?)
-        .map_err(|e| e.to_string())?
-        .try_into()
-        .map_err(|_| "key file must hold a 32-byte seed")?;
-    // --policy <name>[:shadow|:enforce], shadow by default
-    let mut policies: Vec<(&str, Mode)> = vec![];
-    for p in a.get("policy").into_iter().flatten() {
-        let (name, mode) = match p.split_once(':') {
-            None => (p.as_str(), Mode::Shadow),
-            Some((n, "shadow")) => (n, Mode::Shadow),
-            Some((n, "enforce")) => (n, Mode::Enforce),
-            Some((_, m)) => return Err(format!("--policy: unknown mode {m:?}")),
-        };
-        policies.push((name, mode));
-    }
-    let sections = vec![0x5a; num(a, "sections-size", Some(64))? as usize];
-    let spec = Spec {
-        version: num(a, "version", None)?,
-        created_at_ms: num(a, "created-at", Some(0))?,
-        flags: if a.contains_key("rollback") {
-            FLAG_ROLLBACK
-        } else {
-            0
-        },
-        policies: &policies,
-        sections: &sections,
-    };
-    let out = bundle::build(&spec, &seed).map_err(|e| e.message().to_string())?;
-    fs::write(one(a, "out")?, out).map_err(|e| e.to_string())
 }
 
 fn control(a: &Args) -> Result<(), String> {
@@ -175,11 +140,10 @@ fn main() -> ExitCode {
     let result = match argv.split_first() {
         Some((cmd, rest)) => parse(rest).and_then(|a| match cmd.as_str() {
             "keygen" => keygen(&a),
-            "build" => build(&a),
             "control" => control(&a),
             _ => Err(format!("unknown command {cmd}")),
         }),
-        None => Err("usage: mkbundle keygen|build|control ...".into()),
+        None => Err("usage: mkbundle keygen|control ...".into()),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

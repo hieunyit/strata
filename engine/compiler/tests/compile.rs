@@ -1,0 +1,143 @@
+//! W04-R-01: the ten sample rules compile into a bundle the engine maps;
+//! one modified byte breaks the signature; YAML and JSON are the same model.
+
+use std::path::{Path, PathBuf};
+
+use libstrata::bundle::{Mode, public_key};
+use libstrata::engine::Engine;
+use strata_compiler::{Build, compile, from_yaml, load, policies_from, rules_from_ir};
+
+const SEED: [u8; 32] = [5; 32];
+
+fn examples() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples")
+}
+
+fn sample_bundle() -> Vec<u8> {
+    let rules = rules_from_ir(&load(&examples().join("rules.yaml")).unwrap()).unwrap();
+    let pol = policies_from(
+        &load(&examples().join("policies.yaml")).unwrap(),
+        &examples(),
+    )
+    .unwrap();
+    let build = Build {
+        version: 7,
+        created_at_ms: 1_760_000_000_000,
+        rollback: false,
+    };
+    compile(&rules, &pol, &build, &SEED).unwrap()
+}
+
+fn map(b: Vec<u8>) -> Result<Engine, (i32, &'static str)> {
+    Engine::map(Box::new(b), &public_key(&SEED))
+}
+
+#[test]
+fn ten_sample_rules_load() {
+    let e = map(sample_bundle()).unwrap();
+    assert_eq!(e.info().version, 7);
+    assert_eq!(e.n_rules(), 10);
+    let ids: Vec<u32> = (0..10).map(|i| e.rule(i).unwrap().id).collect();
+    assert_eq!(
+        ids,
+        [
+            100011, 100013, 920170, 942100, 941100, 932160, 400100, 500100, 800001, 800002
+        ]
+    );
+    let r = e.rule(8).unwrap();
+    assert_eq!(
+        (r.name, r.score, r.cond_count, r.any),
+        (&b"Admin path outside the office network"[..], 100, 2, false)
+    );
+    assert!(e.rule(1).unwrap().any);
+
+    let (html, contact) = e.block_page().unwrap();
+    assert_eq!(html, std::fs::read(examples().join("block.html")).unwrap());
+    assert_eq!(contact, b"Support: support@example.test");
+
+    assert_eq!(e.policy(b"example-api"), Some((0, Mode::Enforce)));
+    assert_eq!(e.policy(b"example-web"), Some((2, Mode::Shadow)));
+}
+
+#[test]
+fn any_modified_byte_is_rejected() {
+    let b = sample_bundle();
+    for off in (0..b.len()).step_by(b.len() / 97 + 1) {
+        let mut t = b.clone();
+        t[off] ^= 0x01;
+        assert!(map(t).is_err(), "byte {off} modified but accepted");
+    }
+}
+
+#[test]
+fn compilation_is_deterministic() {
+    assert_eq!(sample_bundle(), sample_bundle());
+}
+
+#[test]
+fn yaml_and_json_are_the_same_model() {
+    let yaml_doc = load(&examples().join("rules.yaml")).unwrap();
+    let json_path = std::env::temp_dir().join(format!("strata-rules-{}.json", std::process::id()));
+    std::fs::write(&json_path, serde_json::to_vec_pretty(&yaml_doc).unwrap()).unwrap();
+    let json_doc = load(&json_path).unwrap();
+    std::fs::remove_file(&json_path).unwrap();
+    assert_eq!(
+        rules_from_ir(&yaml_doc).unwrap(),
+        rules_from_ir(&json_doc).unwrap()
+    );
+}
+
+fn ir(rule_yaml: &str) -> Result<Vec<libstrata::rules::RuleDef>, String> {
+    let doc = format!("ir_version: 1\nruleset: {{ name: t, version: '1' }}\nrules:\n{rule_yaml}");
+    rules_from_ir(&from_yaml(&doc)?)
+}
+
+const OK_RULE: &str =
+    "  - { id: 800010, name: n, layer: managed, stage: request_headers, score: 1, severity: notice,
+      match: { all: [ { targets: [ { var: path } ], operator: { type: contains, value: x } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }\n";
+
+#[test]
+fn schema_errors_are_reported() {
+    assert!(ir(OK_RULE).is_ok());
+    let no_license = OK_RULE.replace(", license: Apache-2.0", "");
+    assert!(ir(&no_license).unwrap_err().contains("license"));
+    let bad_var = OK_RULE.replace("var: path", "var: nowhere");
+    assert!(
+        ir(&bad_var)
+            .unwrap_err()
+            .contains("does not follow its schema")
+    );
+    let backtracking = OK_RULE.replace("type: contains", "type: pcre");
+    assert!(ir(&backtracking).is_err());
+}
+
+#[test]
+fn duplicate_rule_ids_are_refused() {
+    let rules = ir(&format!("{OK_RULE}{OK_RULE}")).unwrap();
+    let pol = policies_from(&from_yaml("policies: []").unwrap(), Path::new(".")).unwrap();
+    let build = Build {
+        version: 1,
+        created_at_ms: 0,
+        rollback: false,
+    };
+    assert_eq!(
+        compile(&rules, &pol, &build, &SEED).unwrap_err(),
+        "duplicate rule id 800010"
+    );
+}
+
+#[test]
+fn policies_are_checked() {
+    let dup =
+        from_yaml("policies: [{ name: a, mode: shadow }, { name: a, mode: enforce }]").unwrap();
+    assert!(
+        policies_from(&dup, Path::new("."))
+            .unwrap_err()
+            .contains("duplicate policy")
+    );
+    let bad_mode = from_yaml("policies: [{ name: a, mode: block }]").unwrap();
+    assert!(policies_from(&bad_mode, Path::new(".")).is_err());
+    let both = from_yaml("policies: []\nblock_page: { html: x, html_file: y }").unwrap();
+    assert!(policies_from(&both, Path::new(".")).is_err());
+}

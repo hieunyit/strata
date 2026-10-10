@@ -1,10 +1,11 @@
 # Bundle hot reload with a real master and two workers.
 #
 # Test::Nginx cannot change files between the requests of one block, so this
-# suite drives nginx itself: it publishes bundles with mkbundle (seqlock
-# updates of the control file, in place) and watches the error log of every
-# worker. Needs TEST_NGINX_LOAD_MODULES, TEST_NGINX_STRATA_MKBUNDLE and nginx
-# in PATH (see `make test-nginx`).
+# suite drives nginx itself: it compiles bundles with strata-compile,
+# publishes them with mkbundle (seqlock updates of the control file, in
+# place) and watches the error log of every worker. Needs
+# TEST_NGINX_LOAD_MODULES, TEST_NGINX_STRATA_MKBUNDLE, TEST_NGINX_STRATA_COMPILE
+# and nginx in PATH (see `make test-nginx`).
 
 use strict;
 use warnings;
@@ -25,6 +26,8 @@ my $module = $ENV{TEST_NGINX_LOAD_MODULES}
     or plan skip_all => "TEST_NGINX_LOAD_MODULES not set";
 my $mk = $ENV{TEST_NGINX_STRATA_MKBUNDLE}
     or plan skip_all => "TEST_NGINX_STRATA_MKBUNDLE not set";
+my $compiler = $ENV{TEST_NGINX_STRATA_COMPILE}
+    or plan skip_all => "TEST_NGINX_STRATA_COMPILE not set";
 
 my $here     = abs_path(dirname(__FILE__));
 my $fixtures = "$here/fixtures";
@@ -41,10 +44,14 @@ sub run {
 sub bundle {
     my ($version, %o) = @_;
     my $name = $o{name} // "bundle-$version.sbn";
-    run($mk, "build", "--key", "$fixtures/" . ($o{key} // "test.key"),
-        "--version", $version,
-        "--policy", "example-api:" . ($o{mode} // "shadow"),
-        ($o{rollback} ? ("--rollback") : ()), "--out", "$root/bundles/$name");
+    my $mode = $o{mode} // "shadow";
+    my $pol = "$root/policies-$mode.yaml";
+    open my $fh, ">", $pol or die $!;
+    print $fh "policies: [{ name: example-api, mode: $mode }]\n";
+    close $fh;
+    run("$compiler --policies $pol --key $fixtures/" . ($o{key} // "test.key")
+        . " --version $version" . ($o{rollback} ? " --rollback" : "")
+        . " --out $root/bundles/$name 2>/dev/null");
     return $name;
 }
 

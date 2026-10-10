@@ -1,4 +1,4 @@
-//! Bundle file format, version 1 (minimal; see docs/design/bundle-format.md).
+//! Bundle file format, version 1 (docs/design/control-file.md).
 //!
 //! ```text
 //! 0      header (64 bytes, little-endian)
@@ -9,8 +9,10 @@
 //!          name [u8; 56] (1..55 chars [a-z0-9._-], NUL-padded) | mode u8
 //!          (0 shadow, 1 enforce) | reserved [u8; 7] (zero)
 //! ...    zero padding up to sections_off (multiple of 4096)
-//! off    sections (opaque here; rule sections are still a stub)
-//! ...    zero padding
+//! off    section directory: count u32 | reserved u32 |
+//!          count x { kind u32 | reserved u32 | offset u64 | len u64 }
+//!        then every section at a multiple of 4096, in offset order
+//!        (layouts of the rule sections: `crate::rules`)
 //! len-64 Ed25519 signature over bytes [0, len - 64)
 //! ```
 //!
@@ -28,6 +30,24 @@ pub const POLICY_NAME_LEN: usize = 56;
 pub const SIG_LEN: usize = 64;
 pub const SECTION_ALIGN: usize = 4096;
 pub const MAX_POLICIES: u32 = 4096;
+pub const MAX_SECTIONS: usize = 64;
+const DIR_ENTRY_LEN: usize = 24;
+
+/// Section kinds. Unknown kinds are skipped (bounds still checked), so newer
+/// compilers can add sections that older engines ignore.
+pub mod kind {
+    pub const RULES: u32 = 1;
+    pub const CONDITIONS: u32 = 2;
+    pub const TARGETS: u32 = 3;
+    pub const LISTS: u32 = 4;
+    pub const STRINGS: u32 = 5;
+    pub const BLOCK_PAGE: u32 = 6;
+    /// Highest kind this engine reads.
+    pub const KNOWN: u32 = 6;
+}
+
+/// (offset, len) of a section inside the bundle; (0, 0) when absent.
+pub type Range = (usize, usize);
 /// Header flag: this bundle may replace a newer one (signed rollback).
 pub const FLAG_ROLLBACK: u16 = 1 << 0;
 
@@ -44,6 +64,15 @@ pub struct Info {
     pub created_at_ms: u64,
     pub flags: u16,
     pub n_policies: u32,
+    /// Known sections, indexed by kind.
+    pub sections: [Range; kind::KNOWN as usize + 1],
+}
+
+impl Info {
+    pub fn section<'a>(&self, bundle: &'a [u8], kind: u32) -> &'a [u8] {
+        let (off, len) = self.sections.get(kind as usize).copied().unwrap_or((0, 0));
+        &bundle[off..off + len]
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -137,11 +166,12 @@ pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
     if u16_at(bundle, 8) != FORMAT {
         return Err(Error::BadFormat);
     }
-    let info = Info {
+    let mut info = Info {
         flags: u16_at(bundle, 10),
         n_policies: u32_at(bundle, 12),
         version: u64_at(bundle, 16),
         created_at_ms: u64_at(bundle, 24),
+        sections: [(0, 0); kind::KNOWN as usize + 1],
     };
     let sections_off = u64_at(bundle, 32);
     let sections_len = u64_at(bundle, 40);
@@ -168,7 +198,56 @@ pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
     {
         return Err(Error::BadLayout("bad policy entry"));
     }
+    if sections_len > 0 {
+        read_directory(
+            bundle,
+            sections_off as usize,
+            sections_len as usize,
+            &mut info,
+        )?;
+    }
     Ok(info)
+}
+
+/// Validates the section directory: aligned, inside the section region,
+/// sorted, non-overlapping, each known kind at most once.
+fn read_directory(bundle: &[u8], off: usize, len: usize, info: &mut Info) -> Result<(), Error> {
+    let end = off + len;
+    if len < 8 {
+        return Err(Error::BadLayout("section directory too short"));
+    }
+    let n = u32_at(bundle, off) as usize;
+    if n > MAX_SECTIONS || u32_at(bundle, off + 4) != 0 {
+        return Err(Error::BadLayout("bad section directory"));
+    }
+    let dir_end = off + 8 + n * DIR_ENTRY_LEN;
+    if dir_end > end {
+        return Err(Error::BadLayout("section directory too short"));
+    }
+    let mut next = dir_end;
+    for i in 0..n {
+        let e = off + 8 + i * DIR_ENTRY_LEN;
+        let k = u32_at(bundle, e);
+        let s_off = u64_at(bundle, e + 8);
+        let s_len = u64_at(bundle, e + 16);
+        let s_end = s_off.saturating_add(s_len);
+        if u32_at(bundle, e + 4) != 0
+            || !s_off.is_multiple_of(SECTION_ALIGN as u64)
+            || s_off < next as u64
+            || s_end > end as u64
+        {
+            return Err(Error::BadLayout("bad section bounds"));
+        }
+        if (1..=kind::KNOWN).contains(&k) {
+            let slot = &mut info.sections[k as usize];
+            if *slot != (0, 0) {
+                return Err(Error::BadLayout("duplicate section"));
+            }
+            *slot = (s_off as usize, s_len as usize);
+        }
+        next = s_end as usize;
+    }
+    Ok(())
 }
 
 /// Iterates the policy names of a bundle that passed `verify`.
@@ -200,7 +279,8 @@ pub struct Spec<'a> {
     pub created_at_ms: u64,
     pub flags: u16,
     pub policies: &'a [(&'a str, Mode)],
-    pub sections: &'a [u8],
+    /// (kind, bytes), written in this order, each 4 KB-aligned.
+    pub sections: &'a [(u32, &'a [u8])],
 }
 
 /// Builds and signs a bundle with an Ed25519 seed (32 bytes).
@@ -226,14 +306,39 @@ pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     out[12..16].copy_from_slice(&(spec.policies.len() as u32).to_le_bytes());
     out[16..24].copy_from_slice(&spec.version.to_le_bytes());
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
-    out[32..40].copy_from_slice(&(sections_off as u64).to_le_bytes());
-    out[40..48].copy_from_slice(&(spec.sections.len() as u64).to_le_bytes());
     for (i, (p, mode)) in spec.policies.iter().enumerate() {
         let at = HEADER_LEN + i * POLICY_ENTRY_LEN;
         out[at..at + p.len()].copy_from_slice(p.as_bytes());
         out[at + POLICY_NAME_LEN] = *mode as u8;
     }
-    out.extend_from_slice(spec.sections);
+
+    if spec.sections.len() > MAX_SECTIONS {
+        return Err(Error::BadLayout("too many sections"));
+    }
+    if !spec.sections.is_empty() {
+        // directory, then each section on the next 4 KB boundary
+        let dir_len = 8 + spec.sections.len() * DIR_ENTRY_LEN;
+        let mut dir = vec![0u8; dir_len];
+        dir[..4].copy_from_slice(&(spec.sections.len() as u32).to_le_bytes());
+        let mut at = (sections_off + dir_len).div_ceil(SECTION_ALIGN) * SECTION_ALIGN;
+        let mut placed = Vec::with_capacity(spec.sections.len());
+        for (i, (k, bytes)) in spec.sections.iter().enumerate() {
+            let e = 8 + i * DIR_ENTRY_LEN;
+            dir[e..e + 4].copy_from_slice(&k.to_le_bytes());
+            dir[e + 8..e + 16].copy_from_slice(&(at as u64).to_le_bytes());
+            dir[e + 16..e + 24].copy_from_slice(&(bytes.len() as u64).to_le_bytes());
+            placed.push(at);
+            at = (at + bytes.len()).div_ceil(SECTION_ALIGN) * SECTION_ALIGN;
+        }
+        out.extend_from_slice(&dir);
+        for ((_, bytes), at) in spec.sections.iter().zip(placed) {
+            out.resize(at, 0);
+            out.extend_from_slice(bytes);
+        }
+    }
+    let sections_len = out.len() - sections_off;
+    out[32..40].copy_from_slice(&(sections_off as u64).to_le_bytes());
+    out[40..48].copy_from_slice(&(sections_len as u64).to_le_bytes());
 
     let sig = SigningKey::from_bytes(seed).sign(&out);
     out.extend_from_slice(&sig.to_bytes());
@@ -257,7 +362,10 @@ mod tests {
             created_at_ms: 1_700_000_000_000,
             flags: 0,
             policies,
-            sections: b"stub rule section",
+            sections: &[
+                (kind::STRINGS, b"strings"),
+                (0x7fff, b"unknown kind, skipped"),
+            ],
         }
     }
 

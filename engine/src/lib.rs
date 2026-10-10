@@ -10,5 +10,6 @@ pub mod block_id;
 pub mod bundle;
 pub mod detectors;
 pub mod engine;
+pub mod rules;
 pub mod tx;
 pub mod verdict;

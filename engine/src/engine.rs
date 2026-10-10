@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 use crate::bundle::{self, Info, Mode};
+use crate::rules::{RuleView, Tables};
 use crate::verdict::{E_BUNDLE, E_INVALID, PUBKEY_LEN, Rc};
 
 /// Bytes of a bundle that stay valid, unchanged, for the engine's life.
@@ -33,18 +34,41 @@ impl Engine {
         if pubkey.len() != PUBKEY_LEN {
             return Err((E_INVALID, "public key must be 32 bytes"));
         }
-        match bundle::verify((*bundle).as_ref(), pubkey) {
-            Ok(info) => Ok(Engine {
-                bytes: bundle,
-                info,
-            }),
-            Err(bundle::Error::BadKey) => Err((E_INVALID, bundle::Error::BadKey.message())),
-            Err(e) => Err((E_BUNDLE, e.message())),
-        }
+        let bytes = (*bundle).as_ref();
+        let info = match bundle::verify(bytes, pubkey) {
+            Ok(info) => info,
+            Err(bundle::Error::BadKey) => {
+                return Err((E_INVALID, bundle::Error::BadKey.message()));
+            }
+            Err(e) => return Err((E_BUNDLE, e.message())),
+        };
+        // every record is checked once here; later reads are in place
+        Tables::validate(bytes, &info).map_err(|e| (E_BUNDLE, e.message()))?;
+        Ok(Engine {
+            bytes: bundle,
+            info,
+        })
     }
 
     pub fn info(&self) -> &Info {
         &self.info
+    }
+
+    fn tables(&self) -> Tables<'_> {
+        Tables::view((*self.bytes).as_ref(), &self.info)
+    }
+
+    pub fn n_rules(&self) -> usize {
+        self.tables().n_rules()
+    }
+
+    pub fn rule(&self, i: usize) -> Option<RuleView<'_>> {
+        self.tables().rule(i)
+    }
+
+    /// Default block page template and support contact, from the bundle.
+    pub fn block_page(&self) -> Option<(&[u8], &[u8])> {
+        self.tables().block_page()
     }
 
     /// Index and signed mode of a policy, read from the mapping.
@@ -69,7 +93,7 @@ pub(crate) mod tests {
                 ("example-api", Mode::Enforce),
                 ("example-web", Mode::Shadow),
             ],
-            sections: b"",
+            sections: &[],
         };
         build(&spec, &SEED).unwrap()
     }
