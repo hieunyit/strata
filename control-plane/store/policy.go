@@ -244,3 +244,21 @@ func (s *Store) LatestBundle(ctx context.Context) (Bundle, error) {
 	_ = json.Unmarshal(contents, &b.Contents)
 	return b, nil
 }
+
+// ListBundles returns the newest bundles first.
+func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
+	rows, err := s.pool.Query(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at
+		FROM bundles ORDER BY version DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: list bundles: %w", err)
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Bundle, error) {
+		var b Bundle
+		var v int64
+		var contents []byte
+		err := r.Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt)
+		b.Version = uint64(v)
+		_ = json.Unmarshal(contents, &b.Contents)
+		return b, err
+	})
+}

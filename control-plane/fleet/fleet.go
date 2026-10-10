@@ -59,6 +59,14 @@ type Registry interface {
 	NodeSeen(ctx context.Context, id string, at time.Time, hostname, proxyVersion, moduleVersion string, bundleVersion *int64) error
 	NodeDisconnected(ctx context.Context, id string, at time.Time) error
 	RenewCertificate(ctx context.Context, id, oldSerial string, iss store.Issued) error
+	// DesiredBundle is the bundle a node should run (store.ErrNotFound: none).
+	DesiredBundle(ctx context.Context, node string) (store.Bundle, error)
+	ReportBundleStatus(ctx context.Context, node string, version uint64, state, msg string) error
+}
+
+// BundleObjects opens a stored bundle at an offset (policy.S3).
+type BundleObjects interface {
+	Open(ctx context.Context, key string, offset int64) (io.ReadCloser, error)
 }
 
 // Config of the server. Ingest is required; without Registry and CA only
@@ -73,7 +81,10 @@ type Config struct {
 	// BundlePubKey verifies bundle signatures on the node.
 	BundlePubKey []byte
 	Presence     *Presence
-	Now          func() time.Time
+	// Objects serves FetchBundle; Rollouts is told of bundle statuses.
+	Objects  BundleObjects
+	Rollouts *Rollouts
+	Now      func() time.Time
 }
 
 // Server implements FleetService.
@@ -330,7 +341,7 @@ func (s *Server) RenewCertificate(ctx context.Context, req *fleetv1.RenewRequest
 // heartbeats; the node is online while the stream is open.
 func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 	id, _ := NodeID(st.Context())
-	ctx, done := s.cfg.Presence.Attach(st.Context(), id, KindConnect)
+	ctx, out, done := s.cfg.Presence.AttachControl(st.Context(), id)
 	defer done()
 	defer func() {
 		if s.cfg.Registry == nil || s.otherStreams(id) {
@@ -375,6 +386,10 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 			if !greeted {
 				return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 			}
+		case m := <-out:
+			if err := st.Send(m); err != nil {
+				return err
+			}
 		case err := <-errc:
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -388,20 +403,127 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 				v := int64(msg.Hello.GetActiveBundleVersion())
 				s.seen(ctx, id, clean(ni.GetHostname(), 253), clean(ni.GetConnector().GetProxyVersion(), 64),
 					clean(ni.GetConnector().GetModuleVersion(), 64), &v)
+				// After a reconnect the node gets its desired version again.
+				if m := s.desired(ctx, id, msg.Hello.GetActiveBundleVersion()); m != nil {
+					if err := st.Send(m); err != nil {
+						return err
+					}
+				}
 			case *fleetv1.AgentMessage_Heartbeat:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 				}
 				v := int64(msg.Heartbeat.GetActiveBundleVersion())
 				s.seen(ctx, id, "", "", "", &v)
+			case *fleetv1.AgentMessage_BundleStatus:
+				if !greeted {
+					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
+				}
+				s.bundleStatus(ctx, id, msg.BundleStatus)
 			default:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 				}
-				// BundleStatus and CommandResult arrive with W05-G1-01.
+				// CommandResult comes with the commands (W12).
 			}
 		}
 	}
+}
+
+var bundleStates = map[fleetv1.BundleStatus_State]string{
+	fleetv1.BundleStatus_STATE_DOWNLOADING: "DOWNLOADING",
+	fleetv1.BundleStatus_STATE_VERIFIED:    "VERIFIED",
+	fleetv1.BundleStatus_STATE_ACTIVE:      "ACTIVE",
+	fleetv1.BundleStatus_STATE_FAILED:      "FAILED",
+}
+
+func (s *Server) bundleStatus(ctx context.Context, node string, bs *fleetv1.BundleStatus) {
+	state, ok := bundleStates[bs.GetState()]
+	if !ok || s.cfg.Registry == nil {
+		return
+	}
+	msg := clean(bs.GetError(), 1024)
+	if err := s.cfg.Registry.ReportBundleStatus(ctx, node, bs.GetVersion(), state, msg); err != nil {
+		log.Printf("[WARN] fleet: node %s bundle %d %s: %v", node, bs.GetVersion(), state, err)
+		return
+	}
+	log.Printf("[INFO] fleet: node %s bundle %d %s %s", node, bs.GetVersion(), state, msg)
+	if s.cfg.Rollouts != nil {
+		s.cfg.Rollouts.Kick()
+	}
+}
+
+// desired is the BundleAvailable for a node not running its desired
+// version, or nil.
+func (s *Server) desired(ctx context.Context, node string, active uint64) *fleetv1.ControlMessage {
+	if s.cfg.Registry == nil {
+		return nil
+	}
+	b, err := s.cfg.Registry.DesiredBundle(ctx, node)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			log.Printf("[WARN] fleet: desired bundle of %s: %v", node, err)
+		}
+		return nil
+	}
+	if b.Version == active {
+		return nil
+	}
+	return BundleAvailable(b, b.Version < active)
+}
+
+// BundleAvailable is the control message announcing b.
+func BundleAvailable(b store.Bundle, rollback bool) *fleetv1.ControlMessage {
+	return &fleetv1.ControlMessage{Msg: &fleetv1.ControlMessage_BundleAvailable{BundleAvailable: &fleetv1.BundleAvailable{
+		Version: b.Version, Sha256: b.SHA256, SizeBytes: uint64(b.SizeBytes), Rollback: rollback,
+	}}}
+}
+
+// ChunkSize of FetchBundle.
+const ChunkSize = 1 << 20
+
+// FetchBundle streams the node's desired bundle from offset, in chunks of
+// 1 MB; an interrupted download resumes with the offset it reached. A
+// node gets only the version it should run.
+func (s *Server) FetchBundle(req *fleetv1.FetchBundleRequest, st fleetv1.FleetService_FetchBundleServer) error {
+	if s.cfg.Registry == nil || s.cfg.Objects == nil {
+		return status.Error(codes.Unimplemented, "bundle distribution is not configured on this control plane")
+	}
+	node, _ := NodeID(st.Context())
+	b, err := s.cfg.Registry.DesiredBundle(st.Context(), node)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return status.Error(codes.NotFound, "no bundle is due for this node")
+	case err != nil:
+		log.Printf("[ERROR] fleet: desired bundle of %s: %v", node, err)
+		return status.Error(codes.Unavailable, "node registry unavailable")
+	case req.GetVersion() != b.Version:
+		return status.Errorf(codes.PermissionDenied, "bundle %d is not the one this node should run (%d)", req.GetVersion(), b.Version)
+	case req.GetOffset() > uint64(b.SizeBytes):
+		return status.Errorf(codes.OutOfRange, "offset %d past the end (%d bytes)", req.GetOffset(), b.SizeBytes)
+	}
+	r, err := s.cfg.Objects.Open(st.Context(), b.ObjectKey, int64(req.GetOffset()))
+	if err != nil {
+		log.Printf("[ERROR] fleet: open %s: %v", b.ObjectKey, err)
+		return status.Error(codes.Unavailable, "bundle storage unavailable")
+	}
+	defer r.Close()
+	buf := make([]byte, ChunkSize)
+	off := req.GetOffset()
+	for off < uint64(b.SizeBytes) {
+		n, err := io.ReadFull(r, buf[:min(uint64(len(buf)), uint64(b.SizeBytes)-off)])
+		if n > 0 {
+			if err := st.Send(&fleetv1.BundleChunk{Offset: off, Data: buf[:n]}); err != nil {
+				return err
+			}
+			off += uint64(n)
+		}
+		if err != nil && off < uint64(b.SizeBytes) {
+			log.Printf("[ERROR] fleet: read %s at %d: %v", b.ObjectKey, off, err)
+			return status.Error(codes.Unavailable, "bundle storage read failed")
+		}
+	}
+	return nil
 }
 
 // otherStreams reports whether node still has a Connect stream here besides

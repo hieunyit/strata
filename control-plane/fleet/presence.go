@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 )
 
 // OnlineWindow: a node counts as online when its Connect stream is open on
@@ -25,7 +27,10 @@ const (
 	KindEvents  = "events"
 )
 
-type stream struct{ kind string }
+type stream struct {
+	kind string
+	out  chan *fleetv1.ControlMessage // Connect streams only
+}
 
 // NewPresence returns an empty registry.
 func NewPresence() *Presence {
@@ -35,15 +40,28 @@ func NewPresence() *Presence {
 // Attach registers a stream of node; call the returned function when the
 // stream ends. The context is cancelled by Cut.
 func (p *Presence) Attach(ctx context.Context, node, kind string) (context.Context, func()) {
+	ctx, _, done := p.attach(ctx, node, kind)
+	return ctx, done
+}
+
+// AttachControl registers a Connect stream: Notify sends on the channel.
+func (p *Presence) AttachControl(ctx context.Context, node string) (context.Context, <-chan *fleetv1.ControlMessage, func()) {
+	return p.attach(ctx, node, KindConnect)
+}
+
+func (p *Presence) attach(ctx context.Context, node, kind string) (context.Context, chan *fleetv1.ControlMessage, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	key := &stream{kind: kind}
+	if kind == KindConnect {
+		key.out = make(chan *fleetv1.ControlMessage, 8)
+	}
 	p.mu.Lock()
 	if p.streams[node] == nil {
 		p.streams[node] = map[*stream]context.CancelFunc{}
 	}
 	p.streams[node][key] = cancel
 	p.mu.Unlock()
-	return ctx, func() {
+	return ctx, key.out, func() {
 		cancel()
 		p.mu.Lock()
 		delete(p.streams[node], key)
@@ -59,6 +77,26 @@ func (p *Presence) Connected(node string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.streams[node]) > 0
+}
+
+// Notify sends m on every Connect stream of node; it reports whether some
+// stream took it (a full stream drops it: the agent gets the desired
+// version again in reply to its next Hello).
+func (p *Presence) Notify(node string, m *fleetv1.ControlMessage) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	sent := false
+	for s := range p.streams[node] {
+		if s.out == nil {
+			continue
+		}
+		select {
+		case s.out <- m:
+			sent = true
+		default:
+		}
+	}
+	return sent
 }
 
 // connects counts node's open Connect streams.

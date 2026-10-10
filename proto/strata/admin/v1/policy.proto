@@ -139,4 +139,7 @@ message DeployPolicyRequest {
 
 message DeployPolicyResponse {
   Bundle bundle = 1;
+  // The rollout of the bundle to the nodes (GET /v1/rollouts/{id}); 0 when
+  // this control plane does not distribute bundles.
+  int64 rollout_id = 2;
 }

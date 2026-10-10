@@ -35,3 +35,18 @@ http:
     - selector: strata.admin.v1.PolicyService.DeployPolicy
       post: /v1/policies/{policy_id}:deploy
       body: "*"
+    - selector: strata.admin.v1.RolloutService.ListBundles
+      get: /v1/bundles
+    - selector: strata.admin.v1.RolloutService.ListRollouts
+      get: /v1/rollouts
+    - selector: strata.admin.v1.RolloutService.GetRollout
+      get: /v1/rollouts/{rollout_id}
+    - selector: strata.admin.v1.RolloutService.PauseRollout
+      post: /v1/rollouts/{rollout_id}:pause
+      body: "*"
+    - selector: strata.admin.v1.RolloutService.ResumeRollout
+      post: /v1/rollouts/{rollout_id}:resume
+      body: "*"
+    - selector: strata.admin.v1.RolloutService.AbortRollout
+      post: /v1/rollouts/{rollout_id}:abort
+      body: "*"

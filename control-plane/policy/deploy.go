@@ -31,6 +31,14 @@ type Deployer struct {
 	// PubKey verifies each bundle before it is published: a bundle the
 	// nodes would refuse never leaves the control plane.
 	PubKey []byte
+	// Publish starts the rollout of a recorded bundle; nil: none.
+	Publish func(ctx context.Context, b store.Bundle, a store.Audit) (store.Rollout, error)
+}
+
+// Deployment is a bundle and its rollout.
+type Deployment struct {
+	Bundle  store.Bundle
+	Rollout *store.Rollout
 }
 
 // ObjectKey of a bundle version.
@@ -39,8 +47,20 @@ func ObjectKey(version uint64) string {
 }
 
 // Deploy builds the next bundle from the current version of every policy,
-// verifies it, uploads it and records it.
-func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (store.Bundle, error) {
+// verifies it, uploads it, records it and starts its rollout.
+func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (Deployment, error) {
+	b, err := d.build(ctx, a)
+	if err != nil || d.Publish == nil {
+		return Deployment{Bundle: b}, err
+	}
+	ro, err := d.Publish(ctx, b, a)
+	if err != nil {
+		return Deployment{Bundle: b}, fmt.Errorf("policy: bundle %d stored, rollout not started: %w", b.Version, err)
+	}
+	return Deployment{Bundle: b, Rollout: &ro}, nil
+}
+
+func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, error) {
 	var out store.Bundle
 	err := d.Store.WithBundleLock(ctx, func(next uint64) error {
 		ps, err := d.Store.ListPolicies(ctx)

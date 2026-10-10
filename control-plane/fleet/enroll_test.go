@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"net/url"
 	"sync"
 	"testing"
@@ -25,10 +26,12 @@ import (
 
 // memRegistry is an in-memory Registry with store.Store's semantics.
 type memRegistry struct {
-	mu     sync.Mutex
-	tokens map[string]*memToken // by token
-	nodes  map[string]store.Node
-	seen   map[string]int
+	mu       sync.Mutex
+	tokens   map[string]*memToken // by token
+	nodes    map[string]store.Node
+	seen     map[string]int
+	desired  map[string]store.Bundle
+	statuses []string // node/version/state
 }
 
 type memToken struct {
@@ -38,7 +41,7 @@ type memToken struct {
 }
 
 func newMemRegistry() *memRegistry {
-	return &memRegistry{tokens: map[string]*memToken{}, nodes: map[string]store.Node{}, seen: map[string]int{}}
+	return &memRegistry{tokens: map[string]*memToken{}, nodes: map[string]store.Node{}, seen: map[string]int{}, desired: map[string]store.Bundle{}}
 }
 
 func (m *memRegistry) addToken(tok string, ttl time.Duration) {
@@ -84,6 +87,23 @@ func (m *memRegistry) NodeSeen(_ context.Context, id string, at time.Time, host,
 	}
 	m.nodes[id] = n
 	m.seen[id]++
+	return nil
+}
+
+func (m *memRegistry) DesiredBundle(_ context.Context, node string) (store.Bundle, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	b, ok := m.desired[node]
+	if !ok {
+		return store.Bundle{}, store.ErrNotFound
+	}
+	return b, nil
+}
+
+func (m *memRegistry) ReportBundleStatus(_ context.Context, node string, version uint64, state, _ string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.statuses = append(m.statuses, fmt.Sprintf("%s/%d/%s", node, version, state))
 	return nil
 }
 

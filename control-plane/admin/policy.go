@@ -2,10 +2,8 @@ package admin
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,7 +26,7 @@ type PolicyStore interface {
 
 // Deployer publishes bundles (policy.Deployer).
 type Deployer interface {
-	Deploy(ctx context.Context, a store.Audit) (store.Bundle, error)
+	Deploy(ctx context.Context, a store.Audit) (policy.Deployment, error)
 }
 
 type policyAdmin struct {
@@ -190,16 +188,13 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	if _, err := p.store.GetPolicy(ctx, req.GetPolicyId()); err != nil {
 		return nil, notFound(err, "policy")
 	}
-	b, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
+	d, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
 	if err != nil {
 		return nil, internal("deploy", err)
 	}
-	contents := map[string]uint32{}
-	for k, v := range b.Contents {
-		contents[k] = uint32(v)
+	out := &adminv1.DeployPolicyResponse{Bundle: bundlePB(d.Bundle)}
+	if d.Rollout != nil {
+		out.RolloutId = d.Rollout.ID
 	}
-	return &adminv1.DeployPolicyResponse{Bundle: &adminv1.Bundle{
-		Version: b.Version, Sha256: strings.ToLower(hex.EncodeToString(b.SHA256)), ObjectKey: b.ObjectKey,
-		SizeBytes: uint64(b.SizeBytes), Contents: contents, CreatedBy: b.CreatedBy, CreateTime: timestamppb.New(b.CreatedAt),
-	}}, nil
+	return out, nil
 }

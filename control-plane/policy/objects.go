@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -74,4 +75,19 @@ func (s *S3) Get(ctx context.Context, key string) ([]byte, error) {
 		return nil, fmt.Errorf("policy: download %s: %w", key, err)
 	}
 	return buf.Bytes(), nil
+}
+
+// Open reads an object from offset on (FetchBundle resumes there).
+func (s *S3) Open(ctx context.Context, key string, offset int64) (io.ReadCloser, error) {
+	opts := minio.GetObjectOptions{}
+	if offset > 0 {
+		if err := opts.SetRange(offset, 0); err != nil {
+			return nil, err
+		}
+	}
+	obj, err := s.client.GetObject(ctx, s.bucket, key, opts)
+	if err != nil {
+		return nil, fmt.Errorf("policy: open %s: %w", key, err)
+	}
+	return obj, nil
 }

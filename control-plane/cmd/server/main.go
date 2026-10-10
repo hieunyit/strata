@@ -7,11 +7,13 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -66,6 +68,8 @@ func main() {
 	s3Endpoint := flag.String("s3-endpoint", "", "Object store host:port for bundles; keys from STRATA_S3_ACCESS_KEY, STRATA_S3_SECRET_KEY")
 	s3Bucket := flag.String("s3-bucket", "strata-bundles", "Bucket for bundles")
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
+	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
+	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
 
@@ -146,12 +150,25 @@ func main() {
 		})))
 	}
 	deps := admin.Deps{Presence: presence}
+	var objects *policy.S3
+	var rollouts *fleet.Rollouts
 	if pg != nil {
-		deps.Fleet, deps.Policies = pg, pg
+		deps.Fleet, deps.Policies, deps.Rollouts = pg, pg, pg
+		waves, err := parseWaves(*rolloutWaves)
+		if err != nil {
+			log.Fatalf("[FATAL] -rollout-waves: %v", err)
+		}
+		rollouts = fleet.NewRollouts(pg, presence, waves, *rolloutSoak)
+		deps.Kicker = rollouts
+		go rollouts.Run(ctx)
+		if *s3Endpoint != "" {
+			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
+				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		}
 		if *signingKey != "" {
-			deps.Deployer = newDeployer(ctx, pg, *signingKey, *bundlePub, *rulesFlag, *blockPage, *supportContact, *compilerBin,
-				policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
-					AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+			d := newDeployer(pg, objects, *signingKey, *bundlePub, *rulesFlag, *blockPage, *supportContact, *compilerBin)
+			d.Publish = rollouts.Start
+			deps.Deployer = d
 		}
 	}
 	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
@@ -227,7 +244,10 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
-		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence}
+		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts}
+		if objects != nil {
+			fcfg.Objects = objects
+		}
 		if *nodeCACert != "" {
 			if pg == nil {
 				log.Fatal("[FATAL] enrollment (-node-ca-cert) needs PostgreSQL (STRATA_POSTGRES_DSN)")
@@ -281,9 +301,24 @@ func main() {
 	log.Println("[INFO] Server stopped")
 }
 
+// connectS3 connects to the bundle bucket, waiting for it to come up.
+func connectS3(ctx context.Context, cfg policy.S3Config) *policy.S3 {
+	sctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	var objects *policy.S3
+	if err := retry(sctx, func() error {
+		var err error
+		objects, err = policy.NewS3(sctx, cfg)
+		return err
+	}); err != nil {
+		log.Fatalf("[FATAL] %v", err)
+	}
+	return objects
+}
+
 // newDeployer wires the compiler, the signing key and the object store.
-func newDeployer(ctx context.Context, pg *store.Store, key, pubFile, rules, blockPage, contact, bin string, s3 policy.S3Config) admin.Deployer {
-	if pubFile == "" || s3.Endpoint == "" {
+func newDeployer(pg *store.Store, objects *policy.S3, key, pubFile, rules, blockPage, contact, bin string) *policy.Deployer {
+	if pubFile == "" || objects == nil {
 		log.Fatal("[FATAL] -bundle-signing-key needs -bundle-pubkey and -s3-endpoint")
 	}
 	pub, err := os.ReadFile(pubFile)
@@ -296,19 +331,38 @@ func newDeployer(ctx context.Context, pg *store.Store, key, pubFile, rules, bloc
 			ruleFiles = append(ruleFiles, r)
 		}
 	}
-	sctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	var objects *policy.S3
-	if err := retry(sctx, func() error { var err error; objects, err = policy.NewS3(sctx, s3); return err }); err != nil {
-		log.Fatalf("[FATAL] %v", err)
-	}
-	log.Printf("[INFO] Deploys: %s, %d rule files, bundles in s3://%s", bin, len(ruleFiles), s3.Bucket)
+	log.Printf("[INFO] Deploys: %s, %d rule files", bin, len(ruleFiles))
 	return &policy.Deployer{
 		Store:   pg,
 		Builder: &policy.Compiler{Binary: bin, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage, SupportContact: contact},
 		Objects: objects,
 		PubKey:  pub,
 	}
+}
+
+// parseWaves reads "1,10%,100%": the first wave's node count (only 1 is
+// supported, meaning one node), then cumulative percentages.
+func parseWaves(s string) ([]float64, error) {
+	var out []float64
+	for i, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		switch {
+		case i == 0 && part == "1":
+			out = append(out, 0)
+		case strings.HasSuffix(part, "%"):
+			v, err := strconv.ParseFloat(strings.TrimSuffix(part, "%"), 64)
+			if err != nil || v <= 0 || v > 100 {
+				return nil, fmt.Errorf("bad percentage %q", part)
+			}
+			out = append(out, v/100)
+		default:
+			return nil, fmt.Errorf("%q: the first wave is 1 (one node), the others are percentages", part)
+		}
+	}
+	if len(out) == 0 || out[len(out)-1] != 1 {
+		return nil, fmt.Errorf("the last wave must be 100%%")
+	}
+	return out, nil
 }
 
 // retry calls f until it succeeds or ctx ends (the database may start after

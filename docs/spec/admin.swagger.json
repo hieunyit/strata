@@ -12,6 +12,9 @@
       "name": "PolicyService"
     },
     {
+      "name": "RolloutService"
+    },
+    {
       "name": "VersionService"
     }
   ],
@@ -22,6 +25,29 @@
     "application/json"
   ],
   "paths": {
+    "/v1/bundles": {
+      "get": {
+        "summary": "REST: GET /v1/bundles",
+        "operationId": "RolloutService_ListBundles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListBundlesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
     "/v1/groups": {
       "get": {
         "summary": "REST: GET /v1/groups",
@@ -433,6 +459,181 @@
         ]
       }
     },
+    "/v1/rollouts": {
+      "get": {
+        "summary": "REST: GET /v1/rollouts",
+        "operationId": "RolloutService_ListRollouts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListRolloutsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
+    "/v1/rollouts/{rollout_id}": {
+      "get": {
+        "summary": "REST: GET /v1/rollouts/{rollout_id}",
+        "operationId": "RolloutService_GetRollout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRolloutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rollout_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
+    "/v1/rollouts/{rollout_id}:abort": {
+      "post": {
+        "summary": "REST: POST /v1/rollouts/{rollout_id}:abort. Nodes keep what they run.",
+        "operationId": "RolloutService_AbortRollout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AbortRolloutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rollout_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RolloutServiceAbortRolloutBody"
+            }
+          }
+        ],
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
+    "/v1/rollouts/{rollout_id}:pause": {
+      "post": {
+        "summary": "REST: POST /v1/rollouts/{rollout_id}:pause. No new wave starts.",
+        "operationId": "RolloutService_PauseRollout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PauseRolloutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rollout_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RolloutServicePauseRolloutBody"
+            }
+          }
+        ],
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
+    "/v1/rollouts/{rollout_id}:resume": {
+      "post": {
+        "summary": "REST: POST /v1/rollouts/{rollout_id}:resume. Also after a failure,\nonce the cause is fixed.",
+        "operationId": "RolloutService_ResumeRollout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ResumeRolloutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rollout_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RolloutServiceResumeRolloutBody"
+            }
+          }
+        ],
+        "tags": [
+          "RolloutService"
+        ]
+      }
+    },
     "/v1/version": {
       "get": {
         "summary": "REST: GET /v1/version",
@@ -490,6 +691,15 @@
       "default": "OVERSIZE_UNSPECIFIED",
       "title": "- OVERSIZE_UNSPECIFIED: pass"
     },
+    "RolloutServiceAbortRolloutBody": {
+      "type": "object"
+    },
+    "RolloutServicePauseRolloutBody": {
+      "type": "object"
+    },
+    "RolloutServiceResumeRolloutBody": {
+      "type": "object"
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -515,6 +725,14 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "v1AbortRolloutResponse": {
+      "type": "object",
+      "properties": {
+        "rollout": {
+          "$ref": "#/definitions/v1Rollout"
         }
       }
     },
@@ -593,6 +811,11 @@
       "properties": {
         "bundle": {
           "$ref": "#/definitions/v1Bundle"
+        },
+        "rollout_id": {
+          "type": "string",
+          "format": "int64",
+          "description": "The rollout of the bundle to the nodes (GET /v1/rollouts/{id}); 0 when\nthis control plane does not distribute bundles."
         }
       }
     },
@@ -609,6 +832,14 @@
       "properties": {
         "version": {
           "$ref": "#/definitions/v1PolicyVersion"
+        }
+      }
+    },
+    "v1GetRolloutResponse": {
+      "type": "object",
+      "properties": {
+        "rollout": {
+          "$ref": "#/definitions/v1Rollout"
         }
       }
     },
@@ -642,6 +873,18 @@
         "create_time": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "v1ListBundlesResponse": {
+      "type": "object",
+      "properties": {
+        "bundles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Bundle"
+          }
         }
       }
     },
@@ -693,6 +936,18 @@
         }
       }
     },
+    "v1ListRolloutsResponse": {
+      "type": "object",
+      "properties": {
+        "rollouts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Rollout"
+          }
+        }
+      }
+    },
     "v1Node": {
       "type": "object",
       "properties": {
@@ -737,6 +992,14 @@
         "create_time": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "v1PauseRolloutResponse": {
+      "type": "object",
+      "properties": {
+        "rollout": {
+          "$ref": "#/definitions/v1Rollout"
         }
       }
     },
@@ -832,11 +1095,96 @@
         }
       }
     },
+    "v1ResumeRolloutResponse": {
+      "type": "object",
+      "properties": {
+        "rollout": {
+          "$ref": "#/definitions/v1Rollout"
+        }
+      }
+    },
     "v1RevokeNodeResponse": {
       "type": "object",
       "properties": {
         "node": {
           "$ref": "#/definitions/v1Node"
+        }
+      }
+    },
+    "v1Rollout": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "bundle_version": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "state": {
+          "type": "string",
+          "title": "RUNNING, PAUSED, FAILED, DONE, ABORTED"
+        },
+        "waves": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": "cumulative node counts"
+        },
+        "current_wave": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "soak_seconds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RolloutNode"
+          }
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1RolloutNode": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "wave": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "state": {
+          "type": "string",
+          "title": "PENDING, NOTIFIED, DOWNLOADING, VERIFIED, ACTIVE, FAILED"
+        },
+        "error": {
+          "type": "string"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

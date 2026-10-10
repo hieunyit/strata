@@ -37,6 +37,12 @@ var Permissions = auth.MethodPermissions{
 	adminv1.PolicyService_ListPolicyVersions_FullMethodName:        auth.PermPoliciesRead,
 	adminv1.PolicyService_GetPolicyVersion_FullMethodName:          auth.PermPoliciesRead,
 	adminv1.PolicyService_DeployPolicy_FullMethodName:              auth.PermPoliciesDeploy,
+	adminv1.RolloutService_ListBundles_FullMethodName:              auth.PermNodesRead,
+	adminv1.RolloutService_ListRollouts_FullMethodName:             auth.PermNodesRead,
+	adminv1.RolloutService_GetRollout_FullMethodName:               auth.PermNodesRead,
+	adminv1.RolloutService_PauseRollout_FullMethodName:             auth.PermPoliciesDeploy,
+	adminv1.RolloutService_ResumeRollout_FullMethodName:            auth.PermPoliciesDeploy,
+	adminv1.RolloutService_AbortRollout_FullMethodName:             auth.PermPoliciesDeploy,
 }
 
 // Deps are the services behind the admin API. A nil field leaves its
@@ -46,6 +52,8 @@ type Deps struct {
 	Presence NodePresence
 	Policies PolicyStore
 	Deployer Deployer // nil: DeployPolicy answers FailedPrecondition
+	Rollouts RolloutStore
+	Kicker   Kicker
 	Now      func() time.Time
 }
 
@@ -81,6 +89,9 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	if deps.Policies != nil {
 		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})
 	}
+	if deps.Rollouts != nil {
+		adminv1.RegisterRolloutServiceServer(gs, &rolloutAdmin{store: deps.Rollouts, kick: deps.Kicker})
+	}
 
 	lis := bufconn.Listen(1 << 20)
 	go func() { _ = gs.Serve(lis) }()
@@ -104,6 +115,7 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 		adminv1.RegisterVersionServiceHandler,
 		adminv1.RegisterFleetAdminServiceHandler,
 		adminv1.RegisterPolicyServiceHandler,
+		adminv1.RegisterRolloutServiceHandler,
 	} {
 		if err := register(ctx, mux, conn); err != nil {
 			_ = conn.Close()

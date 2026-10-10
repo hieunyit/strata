@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package strata.admin.v1;
+
+import "google/protobuf/timestamp.proto";
+import "strata/admin/v1/policy.proto";
+
+// RolloutService shows and steers bundle rollouts (nginx-module.md › API
+// quản trị: Bundle, rollout). A deploy starts one: its waves (one node,
+// 10%, all by default) get the bundle in turn; a wave starts when every
+// node of the previous one runs it (ACTIVE); a FAILED node stops it.
+service RolloutService {
+  // REST: GET /v1/bundles
+  rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
+  // REST: GET /v1/rollouts
+  rpc ListRollouts(ListRolloutsRequest) returns (ListRolloutsResponse);
+  // REST: GET /v1/rollouts/{rollout_id}
+  rpc GetRollout(GetRolloutRequest) returns (GetRolloutResponse);
+  // REST: POST /v1/rollouts/{rollout_id}:pause. No new wave starts.
+  rpc PauseRollout(PauseRolloutRequest) returns (PauseRolloutResponse);
+  // REST: POST /v1/rollouts/{rollout_id}:resume. Also after a failure,
+  // once the cause is fixed.
+  rpc ResumeRollout(ResumeRolloutRequest) returns (ResumeRolloutResponse);
+  // REST: POST /v1/rollouts/{rollout_id}:abort. Nodes keep what they run.
+  rpc AbortRollout(AbortRolloutRequest) returns (AbortRolloutResponse);
+}
+
+message Rollout {
+  int64 id = 1;
+  uint64 bundle_version = 2;
+  string state = 3; // RUNNING, PAUSED, FAILED, DONE, ABORTED
+  repeated int32 waves = 4; // cumulative node counts
+  int32 current_wave = 5;
+  int32 soak_seconds = 6;
+  string reason = 7;
+  repeated RolloutNode nodes = 8;
+  string created_by = 9;
+  google.protobuf.Timestamp create_time = 10;
+  google.protobuf.Timestamp update_time = 11;
+}
+
+message RolloutNode {
+  string node_id = 1;
+  int32 wave = 2;
+  string state = 3; // PENDING, NOTIFIED, DOWNLOADING, VERIFIED, ACTIVE, FAILED
+  string error = 4;
+  google.protobuf.Timestamp update_time = 5;
+}
+
+message ListBundlesRequest {}
+
+message ListBundlesResponse {
+  repeated Bundle bundles = 1;
+}
+
+message ListRolloutsRequest {}
+
+message ListRolloutsResponse {
+  repeated Rollout rollouts = 1;
+}
+
+message GetRolloutRequest {
+  int64 rollout_id = 1;
+}
+
+message GetRolloutResponse {
+  Rollout rollout = 1;
+}
+
+message PauseRolloutRequest {
+  int64 rollout_id = 1;
+}
+
+message PauseRolloutResponse {
+  Rollout rollout = 1;
+}
+
+message ResumeRolloutRequest {
+  int64 rollout_id = 1;
+}
+
+message ResumeRolloutResponse {
+  Rollout rollout = 1;
+}
+
+message AbortRolloutRequest {
+  int64 rollout_id = 1;
+}
+
+message AbortRolloutResponse {
+  Rollout rollout = 1;
+}

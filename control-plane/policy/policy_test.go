@@ -100,7 +100,8 @@ func TestDeploy(t *testing.T) {
 			st := &fakeStore{policies: pols}
 			obj := &fakeObjects{puts: map[string][]byte{}}
 			d := &Deployer{Store: st, Builder: tc.build, Objects: obj, PubKey: pub}
-			b, err := d.Deploy(context.Background(), store.Audit{Actor: "alice"})
+			dep, err := d.Deploy(context.Background(), store.Audit{Actor: "alice"})
+			b := dep.Bundle
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want %q", err, tc.wantErr)
