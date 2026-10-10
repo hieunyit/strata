@@ -10,6 +10,7 @@
 use crate::bundle::{self, Info, Mode};
 use crate::rules::{RuleView, Tables};
 use crate::verdict::{E_BUNDLE, E_INVALID, PUBKEY_LEN, Rc};
+use strata_hs::MappedDb;
 
 /// Bytes of a bundle that stay valid, unchanged, for the engine's life.
 pub trait Mapping: AsRef<[u8]> + Send + Sync {}
@@ -43,7 +44,15 @@ impl Engine {
             Err(e) => return Err((E_BUNDLE, e.message())),
         };
         // every record is checked once here; later reads are in place
-        Tables::validate(bytes, &info).map_err(|e| (E_BUNDLE, e.message()))?;
+        let tables = Tables::validate(bytes, &info).map_err(|e| (E_BUNDLE, e.message()))?;
+        if let Some(hs) = tables.hyperscan() {
+            // the image is version-specific; its CRC is checked here, on the
+            // mapping itself (hs_scan alone would trust damaged bytecode)
+            if hs.version != strata_hs::version().as_bytes() {
+                return Err((E_BUNDLE, "bundle built for another Hyperscan version"));
+            }
+            MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
+        }
         Ok(Engine {
             bytes: bundle,
             info,
@@ -54,7 +63,14 @@ impl Engine {
         &self.info
     }
 
-    fn tables(&self) -> Tables<'_> {
+    /// The Hyperscan database of the bundle, validated at map time.
+    pub fn hyperscan(&self) -> Option<MappedDb<'_>> {
+        self.tables()
+            .hyperscan()
+            .map(|h| MappedDb::assume_valid(h.image))
+    }
+
+    pub fn tables(&self) -> Tables<'_> {
         Tables::view((*self.bytes).as_ref(), &self.info)
     }
 

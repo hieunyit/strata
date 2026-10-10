@@ -11,7 +11,7 @@ HEADER     := engine/ffi/strata.h
 NGX_HEADER := connectors/nginx/include/strata.h
 LIBSTRATA  := target/release/libstrata.a
 NGX_OBJS   := $(BUILD)/nginx-$(NGINX_VERSION)/objs
-RUST_LIBS  := -lpthread -ldl -lm
+RUST_LIBS  := -lstdc++ -lpthread -ldl -lm
 
 NGX_ASAN_OBJS := $(BUILD)/nginx-$(NGINX_VERSION)-asan/objs
 ASAN_LOGS     := $(CURDIR)/$(BUILD)/asan

@@ -28,8 +28,13 @@ fn sample_bundle() -> Vec<u8> {
     compile(&rules, &pol, &build, &SEED).unwrap()
 }
 
+/// Bundles are mapped at page-aligned addresses; the Hyperscan image needs
+/// that alignment, so tests use an aligned copy.
 fn map(b: Vec<u8>) -> Result<Engine, (i32, &'static str)> {
-    Engine::map(Box::new(b), &public_key(&SEED))
+    Engine::map(
+        Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+        &public_key(&SEED),
+    )
 }
 
 #[test]

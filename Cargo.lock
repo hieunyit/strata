@@ -427,6 +427,7 @@ dependencies = [
  "ed25519-dalek",
  "jsonschema",
  "serde_json",
+ "strata-hs",
 ]
 
 [[package]]
@@ -827,8 +828,13 @@ dependencies = [
  "jsonschema",
  "libstrata",
  "serde_json",
+ "strata-hs",
  "yaml-rust2",
 ]
+
+[[package]]
+name = "strata-hs"
+version = "0.1.0"
 
 [[package]]
 name = "strum"

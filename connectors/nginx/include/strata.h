@@ -322,7 +322,9 @@ uint32_t strata_abi_version(void);
 
 /**
  * Builds an engine directly over a read-only mapped bundle after verifying
- * its Ed25519 signature with `pubkey`. libstrata does not copy the bundle: the mapping must stay valid until the last
+ * its Ed25519 signature with `pubkey`. `base` must be page-aligned (as
+ * returned by mmap): sections are 4 KB-aligned relative to it, and the
+ * Hyperscan image inside needs that alignment. libstrata does not copy the bundle: the mapping must stay valid until the last
  * `strata_engine_release`. `pubkey` points to `STRATA_PUBKEY_LEN` bytes.
  * Returns NULL on failure and fills `err` when it is not NULL.
  *

@@ -7,6 +7,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+strata-hs = { path = "ffi/hyperscan" }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "fast"] }
 
 [features]

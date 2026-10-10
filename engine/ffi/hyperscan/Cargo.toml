@@ -1,0 +1,14 @@
+[package]
+name = "strata-hs"
+version = "0.1.0"
+description = "Thin, safe bindings to Hyperscan for Strata (runtime; compiler behind a feature)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+links = "hs"
+build = "build.rs"
+
+[features]
+# Pattern compilation (links the full libhs.a); the engine only needs the
+# runtime (libhs_runtime.a): scanning databases compiled elsewhere.
+compile = []

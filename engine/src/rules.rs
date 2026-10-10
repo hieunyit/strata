@@ -18,7 +18,16 @@
 //! LISTS        8 B: off u32 | len u32 (a string in STRINGS)
 //! STRINGS          raw bytes, no header
 //! BLOCK_PAGE       html_len u32 | contact_len u32 | html | contact
+//! HYPERSCAN        magic "SHS1" | n_patterns u32 | hs_version [u8; 32]
+//!                  (NUL-padded) | db_off u32 | db_len u32 | reserved [u8; 8]
+//!                  | n_patterns x cond_index u32 | zero padding
+//!                  | database image at db_off (a multiple of 4096 from the
+//!                  section start), as produced by hs_deserialize_database_at
 //! ```
+//!
+//! Conditions whose operator is one of `HS_OPERATORS` are compiled into the
+//! HYPERSCAN database: a match of pattern `i` means "the condition
+//! `cond_index[i]` matched".
 //!
 //! Codes follow the order of the enums in docs/spec/ir.schema.json.
 #![forbid(unsafe_code)]
@@ -99,6 +108,13 @@ pub const OPERATORS: &[&str] = &[
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;
+
+/// Operators evaluated through the Hyperscan database: rx, pm, contains,
+/// begins_with, ends_with, streq.
+pub const HS_OPERATORS: std::ops::RangeInclusive<u8> = 0..=5;
+pub const HS_MAGIC: &[u8; 4] = b"SHS1";
+const HS_HEADER_LEN: usize = 56;
+pub const HS_VERSION_LEN: usize = 32;
 const RULE_LEN: usize = 32;
 const COND_LEN: usize = 48;
 const TARGET_LEN: usize = 24;
@@ -274,6 +290,28 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
     out
 }
 
+/// HYPERSCAN section from a compiled image (see the module docs).
+pub fn encode_hyperscan(hs_version: &str, cond_index: &[u32], image: &[u8]) -> Vec<u8> {
+    let table_end = HS_HEADER_LEN + cond_index.len() * 4;
+    let db_off = table_end.div_ceil(4096) * 4096;
+    let mut s = Vec::with_capacity(db_off + image.len());
+    s.extend_from_slice(HS_MAGIC);
+    put_u32(&mut s, cond_index.len() as u32);
+    let mut v = [0u8; HS_VERSION_LEN];
+    let n = hs_version.len().min(HS_VERSION_LEN - 1);
+    v[..n].copy_from_slice(&hs_version.as_bytes()[..n]);
+    s.extend_from_slice(&v);
+    put_u32(&mut s, db_off as u32);
+    put_u32(&mut s, image.len() as u32);
+    s.extend_from_slice(&[0; 8]);
+    for c in cond_index {
+        put_u32(&mut s, *c);
+    }
+    s.resize(db_off, 0);
+    s.extend_from_slice(image);
+    s
+}
+
 fn u32_at(b: &[u8], off: usize) -> u32 {
     u32::from_le_bytes([b[off], b[off + 1], b[off + 2], b[off + 3]])
 }
@@ -317,8 +355,101 @@ fn str_ok(off: u32, len: u32, strings: &[u8]) -> bool {
 pub struct Tables<'a> {
     rules: &'a [u8],
     n_rules: usize,
+    conds: &'a [u8],
+    targets: &'a [u8],
+    lists: &'a [u8],
     strings: &'a [u8],
     page: Option<(&'a [u8], &'a [u8])>,
+    hs: Option<Hyperscan<'a>>,
+}
+
+/// The HYPERSCAN section: pattern id -> condition index, and the image.
+#[derive(Clone, Copy, Debug)]
+pub struct Hyperscan<'a> {
+    pub version: &'a [u8],
+    cond_index: &'a [u8],
+    pub image: &'a [u8],
+}
+
+impl Hyperscan<'_> {
+    pub fn n_patterns(&self) -> usize {
+        self.cond_index.len() / 4
+    }
+
+    /// Condition matched by pattern `id`.
+    pub fn condition(&self, id: u32) -> Option<u32> {
+        let at = id as usize * 4;
+        self.cond_index.get(at..at + 4).map(|b| u32_at(b, 0))
+    }
+}
+
+/// Parses (and bounds-checks) the HYPERSCAN section; the image itself is
+/// validated by the engine with Hyperscan.
+fn parse_hyperscan<'a>(sec: &'a [u8], conds: &[u8]) -> Result<Option<Hyperscan<'a>>, Error> {
+    if sec.is_empty() {
+        return Ok(None);
+    }
+    let bad = Error::BadLayout("bad hyperscan section");
+    if sec.len() < HS_HEADER_LEN || &sec[..4] != HS_MAGIC {
+        return Err(bad);
+    }
+    let n = u32_at(sec, 4) as usize;
+    let (db_off, db_len) = (u32_at(sec, 40) as usize, u32_at(sec, 44) as usize);
+    let table_end = n.checked_mul(4).and_then(|t| t.checked_add(HS_HEADER_LEN));
+    if table_end.is_none_or(|t| t > db_off)
+        || !db_off.is_multiple_of(4096)
+        || db_len == 0
+        || db_off.checked_add(db_len).is_none_or(|e| e > sec.len())
+    {
+        return Err(bad);
+    }
+    let cond_index = &sec[HS_HEADER_LEN..HS_HEADER_LEN + n * 4];
+    for c in cond_index.as_chunks::<4>().0 {
+        let c = u32::from_le_bytes(*c) as usize;
+        if c >= conds.len() / COND_LEN || !HS_OPERATORS.contains(&conds[c * COND_LEN]) {
+            return Err(Error::BadLayout(
+                "hyperscan pattern for a non-pattern condition",
+            ));
+        }
+    }
+    let version = &sec[8..8 + HS_VERSION_LEN];
+    let version = &version[..version
+        .iter()
+        .position(|&c| c == 0)
+        .unwrap_or(HS_VERSION_LEN)];
+    Ok(Some(Hyperscan {
+        version,
+        cond_index,
+        image: &sec[db_off..db_off + db_len],
+    }))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValueView<'a> {
+    None,
+    Str(&'a [u8]),
+    Int(i64),
+    /// (first, count) in the LISTS table
+    List(u32, u32),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CondView<'a> {
+    pub op: u8,
+    pub negate: bool,
+    pub transforms: &'a [u8],
+    pub target_first: u32,
+    pub target_count: u32,
+    pub value: ValueView<'a>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TargetView<'a> {
+    pub var: u8,
+    pub count: bool,
+    pub key: Option<&'a [u8]>,
+    pub exclude_first: u32,
+    pub exclude_count: u32,
 }
 
 /// One rule, decoded from its record.
@@ -427,43 +558,118 @@ impl<'a> Tables<'a> {
             Some((&page_sec[8..8 + h], &page_sec[8 + h..8 + h + c]))
         };
 
+        let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
+
         Ok(Tables {
             rules,
             n_rules,
+            conds,
+            targets,
+            lists,
             strings,
             page,
+            hs,
         })
     }
 
     /// View of a bundle that already passed `validate` (only the cheap
     /// table headers are read again).
     pub fn view(bundle: &'a [u8], info: &Info) -> Tables<'a> {
-        Tables::validate_tables(bundle, info).unwrap_or(Tables {
+        Tables::view_tables(bundle, info).unwrap_or(Tables {
             rules: &[],
             n_rules: 0,
+            conds: &[],
+            targets: &[],
+            lists: &[],
             strings: &[],
             page: None,
+            hs: None,
         })
     }
 
-    fn validate_tables(bundle: &'a [u8], info: &Info) -> Result<Tables<'a>, Error> {
+    fn view_tables(bundle: &'a [u8], info: &Info) -> Result<Tables<'a>, Error> {
         let strings = info.section(bundle, kind::STRINGS);
         let (rules, n_rules) = records(
             info.section(bundle, kind::RULES),
             RULE_LEN,
             "bad rules section",
         )?;
+        let (conds, _) = records(
+            info.section(bundle, kind::CONDITIONS),
+            COND_LEN,
+            "bad conditions section",
+        )?;
+        let (targets, _) = records(
+            info.section(bundle, kind::TARGETS),
+            TARGET_LEN,
+            "bad targets section",
+        )?;
+        let (lists, _) = records(
+            info.section(bundle, kind::LISTS),
+            LIST_LEN,
+            "bad lists section",
+        )?;
         let sec = info.section(bundle, kind::BLOCK_PAGE);
         let page = (sec.len() >= 8).then(|| {
             let (h, c) = (u32_at(sec, 0) as usize, u32_at(sec, 4) as usize);
             (&sec[8..8 + h], &sec[8 + h..8 + h + c])
         });
+        let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
         Ok(Tables {
             rules,
             n_rules,
+            conds,
+            targets,
+            lists,
             strings,
             page,
+            hs,
         })
+    }
+
+    pub fn hyperscan(&self) -> Option<Hyperscan<'a>> {
+        self.hs
+    }
+
+    pub fn cond(&self, i: u32) -> Option<CondView<'a>> {
+        let i = i as usize;
+        let c = self.conds.get(i * COND_LEN..(i + 1) * COND_LEN)?;
+        let (a, b) = (u32_at(c, 28) as usize, u32_at(c, 32) as usize);
+        let value = match c[3] {
+            1 => ValueView::Str(&self.strings[a..a + b]),
+            2 => ValueView::Int(i64::from_le_bytes(c[40..48].try_into().ok()?)),
+            3 => ValueView::List(a as u32, b as u32),
+            _ => ValueView::None,
+        };
+        Some(CondView {
+            op: c[0],
+            negate: c[1] == 1,
+            transforms: &c[4..4 + c[2] as usize],
+            target_first: u32_at(c, 20),
+            target_count: u32_at(c, 24),
+            value,
+        })
+    }
+
+    pub fn target(&self, i: u32) -> Option<TargetView<'a>> {
+        let i = i as usize;
+        let t = self.targets.get(i * TARGET_LEN..(i + 1) * TARGET_LEN)?;
+        let (k_off, k_len) = (u32_at(t, 4) as usize, u32_at(t, 8) as usize);
+        Some(TargetView {
+            var: t[0],
+            count: t[1] & 1 != 0,
+            key: (t[1] & 2 != 0).then(|| &self.strings[k_off..k_off + k_len]),
+            exclude_first: u32_at(t, 12),
+            exclude_count: u32_at(t, 16),
+        })
+    }
+
+    /// String `i` of the LISTS table (pm items, ip_match ranges, excludes).
+    pub fn list(&self, i: u32) -> Option<&'a [u8]> {
+        let i = i as usize;
+        let l = self.lists.get(i * LIST_LEN..(i + 1) * LIST_LEN)?;
+        let (off, len) = (u32_at(l, 0) as usize, u32_at(l, 4) as usize);
+        self.strings.get(off..off + len)
     }
 
     pub fn n_rules(&self) -> usize {

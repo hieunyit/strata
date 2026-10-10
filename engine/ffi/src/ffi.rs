@@ -124,7 +124,9 @@ pub extern "C" fn strata_abi_version() -> u32 {
 }
 
 /// Builds an engine directly over a read-only mapped bundle after verifying
-/// its Ed25519 signature with `pubkey`. libstrata does not copy the bundle: the mapping must stay valid until the last
+/// its Ed25519 signature with `pubkey`. `base` must be page-aligned (as
+/// returned by mmap): sections are 4 KB-aligned relative to it, and the
+/// Hyperscan image inside needs that alignment. libstrata does not copy the bundle: the mapping must stay valid until the last
 /// `strata_engine_release`. `pubkey` points to `STRATA_PUBKEY_LEN` bytes.
 /// Returns NULL on failure and fills `err` when it is not NULL.
 ///
@@ -338,14 +340,19 @@ pub unsafe extern "C" fn strata_tx_new(
                 Some(Arc::from_raw(engine.cast_const().cast::<Engine>()))
             }
         };
-        let (node, flags) = if conn.is_null() {
-            (&[][..], 0)
+        let (node, flags, client) = if conn.is_null() {
+            (&[][..], 0, &[][..])
         } else {
             // SAFETY: conn is non-NULL and valid for the call.
             let c = unsafe { &*conn };
-            (unsafe { bytes(c.node_id) }.unwrap_or(&[]), c.flags)
+            (
+                unsafe { bytes(c.node_id) }.unwrap_or(&[]),
+                c.flags,
+                unsafe { bytes(c.client_addr) }.unwrap_or(&[]),
+            )
         };
-        let tx = Tx::new(engine, node, flags);
+        let mut tx = Tx::new(engine, node, flags);
+        tx.set_client_addr(client);
         Box::into_raw(Box::new(tx)).cast::<TxHandle>()
     })
 }
@@ -396,13 +403,11 @@ pub unsafe extern "C" fn strata_tx_request_headers(
             } else {
                 slice::from_raw_parts(h, n)
             };
-            for p in headers {
-                let rc = t.request_header(bytes(p.key)?, bytes(p.val)?);
-                if rc != STRATA_OK {
-                    return Ok(rc);
-                }
-            }
-            Ok(t.request_headers_done())
+            let pairs = headers
+                .iter()
+                .map(|p| Ok((bytes(p.key)?, bytes(p.val)?)))
+                .collect::<Result<Vec<_>, strata_rc_t>>()?;
+            Ok(t.request_headers(&pairs))
         })
     }
 }

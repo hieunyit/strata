@@ -6,7 +6,9 @@
 //! sections follow `libstrata::rules`. Same inputs, same bytes.
 //!
 //! v0 encodes what the engine will evaluate (ids, layers, stages, scores,
-//! conditions). Rule metadata (source, license, author...) is checked by the
+//! conditions) and compiles every pattern condition (rx, pm, contains,
+//! begins_with, ends_with, streq) into one Hyperscan database for a generic
+//! x86-64 target, stored as an in-memory image (docs/poc/hyperscan-mmap.md). Rule metadata (source, license, author...) is checked by the
 //! schema but not shipped yet: it belongs in events, not in the hot path.
 #![forbid(unsafe_code)]
 
@@ -242,6 +244,62 @@ pub struct Build {
     pub rollback: bool,
 }
 
+/// `\xHH` for every byte that is not alphanumeric: a literal as a regex.
+fn escape(lit: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(lit.len() * 2);
+    for &c in lit {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else {
+            out.extend_from_slice(format!("\\x{c:02x}").as_bytes());
+        }
+    }
+    out
+}
+
+/// One Hyperscan pattern per pattern-condition (one per item for pm); the
+/// pattern id indexes the returned condition table.
+fn patterns(rules: &[RuleDef]) -> (Vec<strata_hs::Pattern>, Vec<u32>, Vec<u32>) {
+    use strata_hs::compile::{ALLOWEMPTY, CASELESS, SINGLEMATCH};
+    let (mut pats, mut conds, mut rule_of) = (vec![], vec![], vec![]);
+    let op = |name| rules::code(OPERATORS, name).unwrap_or(u8::MAX);
+    let mut ci = 0u32;
+    for r in rules {
+        for c in &r.conditions {
+            let mut push = |expr: Vec<u8>, flags: u32| {
+                pats.push(strata_hs::Pattern {
+                    expression: expr,
+                    flags: flags | SINGLEMATCH | ALLOWEMPTY,
+                    id: pats.len() as u32,
+                });
+                conds.push(ci);
+                rule_of.push(r.id);
+            };
+            match &c.value {
+                RValue::Str(v) if c.op == op("rx") => push(v.clone(), 0),
+                RValue::Str(v) if c.op == op("contains") => push(escape(v), 0),
+                RValue::Str(v) if c.op == op("begins_with") => {
+                    push([b"^".as_slice(), &escape(v)].concat(), 0)
+                }
+                RValue::Str(v) if c.op == op("ends_with") => {
+                    push([escape(v).as_slice(), b"$"].concat(), 0)
+                }
+                RValue::Str(v) if c.op == op("streq") => {
+                    push([b"^".as_slice(), &escape(v), b"$"].concat(), 0)
+                }
+                RValue::List(items) if c.op == op("pm") => {
+                    for it in items {
+                        push(escape(it), CASELESS);
+                    }
+                }
+                _ => {}
+            }
+            ci += 1;
+        }
+    }
+    (pats, conds, rule_of)
+}
+
 /// Signs a bundle from rules (in input order) and policies.
 pub fn compile(
     rules: &[RuleDef],
@@ -255,7 +313,20 @@ pub fn compile(
             return Err(format!("duplicate rule id {}", r.id));
         }
     }
-    let sections = rules::encode(rules, policies.block_page.as_ref());
+    let mut sections = rules::encode(rules, policies.block_page.as_ref());
+    let (pats, conds, rule_of) = patterns(rules);
+    if !pats.is_empty() {
+        let image = strata_hs::compile(&pats).map_err(|(i, msg)| {
+            format!(
+                "rule {}: pattern not supported by Hyperscan: {msg}",
+                rule_of.get(i).copied().unwrap_or(0)
+            )
+        })?;
+        sections.push((
+            libstrata::bundle::kind::HYPERSCAN,
+            rules::encode_hyperscan(strata_hs::version(), &conds, &image),
+        ));
+    }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
     let names: Vec<(&str, Mode)> = policies
         .policies

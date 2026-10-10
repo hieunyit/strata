@@ -12,6 +12,7 @@ path = "src/bin/strata-compile.rs"
 
 [dependencies]
 libstrata = { path = ".." }
+strata-hs = { path = "../ffi/hyperscan", features = ["compile"] }
 jsonschema = { version = "=0.56.0", default-features = false }
 serde_json = "1.0.149"
 yaml-rust2 = "=0.12.0"

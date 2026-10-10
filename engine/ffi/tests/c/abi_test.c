@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200112L
 /*
  * C-side ABI test for libstrata: layout, version, NULL/idempotency rules,
  * stub behaviour and Block ID format, exercised through strata.h exactly as
@@ -67,8 +68,11 @@ slurp(const char *path, size_t *len)
         fprintf(stderr, "cannot read %s\n", path);
         exit(2);
     }
-    p = malloc((size_t) n);
-    if (p == NULL || fread(p, 1, (size_t) n, f) != (size_t) n) {
+    /* page-aligned, like a connector's mmap: the Hyperscan image in the
+       bundle needs it */
+    if (posix_memalign((void **) &p, 4096, (size_t) n) != 0
+        || fread(p, 1, (size_t) n, f) != (size_t) n)
+    {
         exit(2);
     }
     fclose(f);

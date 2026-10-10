@@ -13,6 +13,7 @@ use std::sync::Arc;
 use crate::block_id::{self, Kind};
 use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
+use crate::eval;
 use crate::verdict::*;
 
 pub(crate) const NEEDLE: &[u8] = b"STRATA-TEST-BLOCK";
@@ -36,9 +37,28 @@ enum Stage {
     Response,
 }
 
+/// Copy of the request line, kept from `request_line` until the headers
+/// arrive (connector buffers are only borrowed per call). Made only when
+/// the bundle has rules to evaluate.
+#[derive(Debug, Default)]
+struct Line {
+    buf: Vec<u8>,
+    /// method, raw_uri, uri, args, proto, client_addr
+    ends: [usize; 6],
+}
+
+impl Line {
+    fn part(&self, i: usize) -> &[u8] {
+        let start = if i == 0 { 0 } else { self.ends[i - 1] };
+        &self.buf[start..self.ends[i]]
+    }
+}
+
 #[derive(Debug)]
 pub struct Tx {
-    _engine: Option<Arc<Engine>>,
+    engine: Option<Arc<Engine>>,
+    client_addr: Vec<u8>,
+    line: Option<Line>,
     node: u16,
     shadow: bool,
     json: bool,
@@ -78,7 +98,9 @@ impl Tx {
     pub fn new(engine: Option<Arc<Engine>>, node_id: &[u8], flags: u32) -> Tx {
         let missing = engine.is_none();
         let mut tx = Tx {
-            _engine: engine,
+            engine,
+            client_addr: Vec::new(),
+            line: None,
             node: block_id::node_hash(node_id),
             shadow: flags & TXF_FORCE_SHADOW != 0,
             json: false,
@@ -100,6 +122,18 @@ impl Tx {
             tx.fail(E_BUNDLE);
         }
         tx
+    }
+
+    /// Client address for rules on `remote_addr` (copied only when the
+    /// bundle has rules).
+    pub fn set_client_addr(&mut self, addr: &[u8]) {
+        if self.has_rules() {
+            self.client_addr = addr.to_vec();
+        }
+    }
+
+    fn has_rules(&self) -> bool {
+        self.engine.as_ref().is_some_and(|e| e.n_rules() > 0)
     }
 
     /// Adds engine time measured by the caller around one call.
@@ -207,6 +241,24 @@ impl Tx {
                 false,
             ));
         }
+        if self.has_rules() {
+            let mut line = Line::default();
+            for (i, part) in [
+                _method,
+                raw_uri,
+                norm_uri,
+                args,
+                _proto,
+                &self.client_addr[..],
+            ]
+            .iter()
+            .enumerate()
+            {
+                line.buf.extend_from_slice(part);
+                line.ends[i] = line.buf.len();
+            }
+            self.line = Some(line);
+        }
         protocol::check_uri(raw_uri, &mut |v| self.add(v));
         for part in [raw_uri, norm_uri, args] {
             self.scan(part);
@@ -246,6 +298,45 @@ impl Tx {
         }
         let headers = std::mem::take(&mut self.headers);
         headers.finish(&mut |v| self.add(v));
+        OK
+    }
+
+    /// All headers in one call: protocol checks, then the rules of stage
+    /// `request_headers` over the request line and these headers.
+    pub fn request_headers(&mut self, headers: &[(&[u8], &[u8])]) -> Rc {
+        for (k, v) in headers {
+            let rc = self.request_header(k, v);
+            if rc != OK {
+                return rc;
+            }
+        }
+        let rc = self.request_headers_done();
+        if rc != OK {
+            return rc;
+        }
+        if let (Some(engine), Some(line)) = (self.engine.clone(), self.line.take()) {
+            let req = eval::Request {
+                method: line.part(0),
+                raw_uri: line.part(1),
+                uri: line.part(2),
+                args: line.part(3),
+                proto: line.part(4),
+                client_addr: line.part(5),
+                headers,
+            };
+            let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
+            let mut found = vec![];
+            eval::evaluate(
+                &engine.tables(),
+                engine.hyperscan(),
+                &req,
+                stage,
+                &mut |v| found.push(v),
+            );
+            for v in found {
+                self.add(v);
+            }
+        }
         OK
     }
 

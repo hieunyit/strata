@@ -42,8 +42,9 @@ pub mod kind {
     pub const LISTS: u32 = 4;
     pub const STRINGS: u32 = 5;
     pub const BLOCK_PAGE: u32 = 6;
+    pub const HYPERSCAN: u32 = 7;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 6;
+    pub const KNOWN: u32 = 7;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.
