@@ -270,7 +270,6 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 {
     ngx_str_t                     identity;
     strata_conn_t                 conn;
-    strata_engine_t              *engine;
     ngx_http_variable_value_t    *vv;
     ngx_http_strata_main_conf_t  *smcf;
 
@@ -315,9 +314,13 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
         conn.request_id = (strata_str_t) { vv->data, vv->len };
     }
 
-    engine = smcf->bundle ? smcf->bundle->engine : NULL;
+    /* the request keeps this bundle mapped until its pool cleanup */
 
-    ctx->tx = strata_tx_new(engine, ngx_http_strata_str(&ctx->policy), &conn,
+    ctx->bundle = ngx_http_strata_bundle_acquire();
+    ctx->bundle_version = ctx->bundle ? ctx->bundle->version : 0;
+
+    ctx->tx = strata_tx_new(ctx->bundle ? ctx->bundle->engine : NULL,
+                            ngx_http_strata_str(&ctx->policy), &conn,
                             (uint64_t) slcf->cpu_budget * 1000);
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -396,4 +399,9 @@ ngx_http_strata_cleanup(void *data)
 
     strata_tx_free(ctx->tx);
     ctx->tx = NULL;
+
+    /* after the tx: the engine must outlive every transaction built on it */
+
+    ngx_http_strata_bundle_release(ctx->bundle);
+    ctx->bundle = NULL;
 }

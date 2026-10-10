@@ -12,6 +12,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#if (NGX_THREADS)
+#include <ngx_thread_pool.h>
+#endif
 
 #include "strata.h"
 
@@ -32,7 +35,8 @@
 /* $strata_action value when the engine failed (beyond STRATA_ACTION_*) */
 #define NGX_HTTP_STRATA_ACTION_ERROR   4
 
-#define NGX_HTTP_STRATA_BUNDLE_FILE    "current.sbn"
+#define NGX_HTTP_STRATA_CTL_SIZE       4096
+#define NGX_HTTP_STRATA_CTL_NAME_MAX   255
 #define NGX_HTTP_STRATA_PAGE_MAX       65536
 
 /* placeholders of the block page template */
@@ -56,10 +60,18 @@ typedef struct {
 } ngx_http_strata_page_t;
 
 
+/*
+ * A mapped bundle. "refs" counts the requests using it, plus one while it is
+ * the worker's current bundle; the last release unmaps it.
+ */
 typedef struct {
     strata_engine_t            *engine;
     u_char                     *base;
     size_t                      len;
+    uint64_t                    version;
+    ngx_uint_t                  refs;
+    unsigned                    heap:1;      /* worker-loaded, ngx_alloc'd */
+    unsigned                    unmapped:1;
 } ngx_http_strata_bundle_t;
 
 
@@ -73,8 +85,14 @@ typedef struct {
 
     ngx_flag_t                  enabled;        /* "strata on" somewhere */
     ngx_int_t                   request_id_index;
-    ngx_http_strata_bundle_t   *bundle;         /* NULL: no bundle loaded */
+    ngx_http_strata_bundle_t   *bundle;         /* mapped by the master */
+    uint64_t                    generation;     /* control file generation
+                                                   of that bundle */
+    u_char                      pubkey[STRATA_PUBKEY_LEN];
     ngx_http_strata_page_t     *default_page;
+#if (NGX_THREADS)
+    ngx_thread_pool_t          *thread_pool;
+#endif
 } ngx_http_strata_main_conf_t;
 
 
@@ -99,6 +117,8 @@ typedef struct {
  */
 typedef struct {
     strata_tx_t                *tx;
+    ngx_http_strata_bundle_t   *bundle;         /* reference held */
+    uint64_t                    bundle_version; /* 0: no bundle */
     ngx_str_t                   policy;
     size_t                      body_limit;
     size_t                      body_inspected;
@@ -133,6 +153,10 @@ ngx_http_strata_page_t *ngx_http_strata_page_compile(ngx_pool_t *pool,
 /* ngx_http_strata_bundle.c */
 ngx_int_t ngx_http_strata_bundle_init(ngx_conf_t *cf,
     ngx_http_strata_main_conf_t *smcf);
+ngx_int_t ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle);
+void ngx_http_strata_bundle_exit_process(ngx_cycle_t *cycle);
+ngx_http_strata_bundle_t *ngx_http_strata_bundle_acquire(void);
+void ngx_http_strata_bundle_release(ngx_http_strata_bundle_t *bundle);
 
 /* ngx_http_strata_vars.c */
 ngx_int_t ngx_http_strata_add_variables(ngx_conf_t *cf);

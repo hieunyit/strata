@@ -6,6 +6,8 @@
 
 
 static ngx_int_t ngx_http_strata_preconfiguration(ngx_conf_t *cf);
+static ngx_int_t ngx_http_strata_init_process(ngx_cycle_t *cycle);
+static void ngx_http_strata_exit_process(ngx_cycle_t *cycle);
 static ngx_int_t ngx_http_strata_postconfiguration(ngx_conf_t *cf);
 static void *ngx_http_strata_create_main_conf(ngx_conf_t *cf);
 static char *ngx_http_strata_init_main_conf(ngx_conf_t *cf, void *conf);
@@ -190,10 +192,10 @@ ngx_module_t  ngx_http_strata_module = {
     NGX_HTTP_MODULE,                       /* module type */
     NULL,                                  /* init master */
     NULL,                                  /* init module */
-    NULL,                                  /* init process */
+    ngx_http_strata_init_process,          /* init process */
     NULL,                                  /* init thread */
     NULL,                                  /* exit thread */
-    NULL,                                  /* exit process */
+    ngx_http_strata_exit_process,          /* exit process */
     NULL,                                  /* exit master */
     NGX_MODULE_V1_PADDING
 };
@@ -215,6 +217,20 @@ static ngx_int_t
 ngx_http_strata_preconfiguration(ngx_conf_t *cf)
 {
     return ngx_http_strata_add_variables(cf);
+}
+
+
+static ngx_int_t
+ngx_http_strata_init_process(ngx_cycle_t *cycle)
+{
+    return ngx_http_strata_bundle_init_process(cycle);
+}
+
+
+static void
+ngx_http_strata_exit_process(ngx_cycle_t *cycle)
+{
+    ngx_http_strata_bundle_exit_process(cycle);
 }
 
 

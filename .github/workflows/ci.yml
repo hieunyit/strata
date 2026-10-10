@@ -45,6 +45,11 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
+      - name: Signed test fixtures are reproducible
+        run: deploy/dev/run.sh make check-fixtures
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: C-side ABI test
         run: deploy/dev/run.sh make abi-test
         env:

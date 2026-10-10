@@ -6,6 +6,7 @@ Strata là WAF mã nguồn mở: lõi detection viết bằng Rust (`libstrata`,
 
 - `docs/design/nginx-module.md` — **nguồn chính** cho giai đoạn hiện tại: module NGINX, FFI, bundle, agent, control plane, API, lộ trình.
 - `docs/design/strata-overview.md` — bối cảnh tổng thể: ma trận vấn đề, mô hình policy & rule, danh mục tính năng.
+- `docs/design/control-file.md` — layout byte của control file và bundle v1, quy tắc nạp bundle trong worker (bổ sung cho mục "Bundle & hot reload").
 
 Khi tài liệu và code mâu thuẫn, tài liệu NGINX module thắng; nếu thấy tài liệu sai hoặc thiếu, dừng lại và hỏi, không tự đổi thiết kế. Sơ đồ trong tài liệu không có trong bản Markdown; phần chữ đủ để code.
 
@@ -25,7 +26,9 @@ Chỉ làm những việc sau, theo thứ tự:
 6. **CI**: build module cho 2 phiên bản NGINX OSS (stable + mainline), chạy test; build Rust với clippy và test.
 7. **PoC mmap + Hyperscan** trong `engine/poc/`: xác nhận database Hyperscan dùng được từ vùng `mmap(PROT_READ, MAP_SHARED)` ở địa chỉ khác nhau giữa các process. Ghi kết quả vào `docs/poc/hyperscan-mmap.md`.
 
-**Chưa làm** ở giai đoạn này: control plane, agent, UI, hot reload bundle, response body filter, gRPC, circuit breaker, các connector khác.
+8. **Hot reload bundle** (sau khi xong 1–7): định dạng bundle tối thiểu (header + bảng policy + section căn lề 4 KB + chữ ký Ed25519) và `strata_engine_info` trong libstrata; control file seqlock (`docs/design/control-file.md`); master nạp bundle theo control file; worker theo dõi generation bằng timer, nạp bundle trong thread pool, đổi engine có đếm tham chiếu, `munmap` khi request cuối xong; từ chối bản cũ hơn trừ khi có cờ rollback đã ký. Section rule vẫn là stub.
+
+**Chưa làm** ở giai đoạn này: control plane, agent, UI, response body filter, gRPC, circuit breaker, các connector khác.
 
 ## Quy tắc code
 

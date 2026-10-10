@@ -11,7 +11,7 @@ __DATA__
 === TEST 1: every directive is accepted in its documented contexts
 --- http_config
     strata on;
-    strata_control_file        /run/strata/control;
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
     strata_bundle_dir          $TEST_NGINX_STRATA_FIXTURES/bundle;
     strata_bundle_pubkey       $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
     strata_bundle_check        2s;
@@ -52,6 +52,7 @@ X-Policy: example-api-upload
 === TEST 2: "strata on" at http level is inherited, "strata off" overrides
 --- http_config
     strata on;
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
 --- config
@@ -71,6 +72,7 @@ X-Policy: example-api-upload
 
 === TEST 3: server-level policy and fail mode are inherited by locations
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/empty/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/empty;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
 --- config
@@ -105,6 +107,7 @@ strata: tx created
 
 === TEST 5: strata_bundle_pubkey is required when strata is enabled
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
     strata_bundle_dir $TEST_NGINX_STRATA_FIXTURES/bundle;
 --- config
     location /t { strata on; }
@@ -116,6 +119,7 @@ strata: tx created
 
 === TEST 6: public key of the wrong size is rejected
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/short.pub;
 --- config
@@ -128,13 +132,14 @@ must be 32 raw bytes
 
 === TEST 7: a bundle libstrata rejects makes the configuration fail
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bad/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bad;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
 --- config
     location /t { strata on; }
 --- must_die
 --- error_log
-rejected (5): bad bundle magic
+rejected (5): bad bundle signature
 
 
 

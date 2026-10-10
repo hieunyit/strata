@@ -1,13 +1,14 @@
 /*
- * Bundle loading at configuration time.
+ * Bundle loading and hot reload (docs/design/control-file.md).
  *
- * The master maps <strata_bundle_dir>/current.sbn read-only and shared while
- * reading the configuration; workers inherit the mapping through fork(), so
- * all of them share one copy in physical memory. A missing bundle is only a
- * warning (requests then follow strata_fail_mode); a bundle libstrata rejects
- * makes "nginx -t" fail.
+ * Master: while reading the configuration, reads the control file and maps
+ * the current bundle read-only and shared; workers inherit the mapping.
  *
- * TODO(hot reload): control file timer, thread pool loading, engine swap.
+ * Worker: maps the control file once, then a timer reads its generation from
+ * memory only. A new generation posts a load task to the "default" thread
+ * pool (open, mmap, signature check in strata_engine_map, version check);
+ * the completion handler swaps the current bundle in the event loop. A bundle
+ * is unmapped, again in the thread pool, when its last reference is released.
  */
 
 #include "ngx_http_strata_module.h"
@@ -15,25 +16,79 @@
 #include <sys/mman.h>
 
 
+typedef void (*ngx_http_strata_done_pt)(void *ctx);
+
+
+typedef struct {
+    /* in */
+    u_char                       path[NGX_MAX_PATH];
+    u_char                       key[STRATA_PUBKEY_LEN];
+    uint64_t                     generation;
+    uint64_t                     current_version;
+    unsigned                     have_current:1;
+    unsigned                     open_ctl:1;
+
+    /* out */
+    strata_engine_t             *engine;
+    u_char                      *base;
+    size_t                       len;
+    strata_engine_info_t         info;
+    ngx_err_t                    err;
+    const char                  *step;          /* failed syscall, or NULL */
+    strata_err_t                 serr;          /* strata_engine_map error */
+    unsigned                     stale:1;       /* not newer, no rollback */
+} ngx_http_strata_load_t;
+
+
+#if (NGX_THREADS)
+typedef struct {
+    ngx_thread_task_t            task;
+    ngx_http_strata_done_pt      done;
+} ngx_http_strata_task_t;
+#endif
+
+
 static ngx_int_t ngx_http_strata_read_pubkey(ngx_conf_t *cf, ngx_str_t *path,
     u_char *key);
+static ngx_int_t ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen,
+    ngx_str_t *name);
+static ngx_int_t ngx_http_strata_bundle_path(ngx_str_t *dir, ngx_str_t *name,
+    u_char *path);
+static void ngx_http_strata_load_handler(void *data, ngx_log_t *log);
+static void ngx_http_strata_load_done(void *data);
+static void ngx_http_strata_unmap_handler(void *data, ngx_log_t *log);
+static void ngx_http_strata_unmap_done(void *data);
+static void ngx_http_strata_post(void (*handler)(void *data, ngx_log_t *log),
+    ngx_http_strata_done_pt done, void *ctx);
+static void ngx_http_strata_tick(ngx_event_t *ev);
+static void ngx_http_strata_schedule(void);
 static void ngx_http_strata_bundle_cleanup(void *data);
 
+
+/* per worker */
+static ngx_http_strata_main_conf_t  *ngx_http_strata_smcf;
+static ngx_http_strata_bundle_t     *ngx_http_strata_current;
+static u_char                       *ngx_http_strata_ctl;
+static uint64_t                      ngx_http_strata_seen;
+static ngx_uint_t                    ngx_http_strata_busy;
+static ngx_uint_t                    ngx_http_strata_ctl_invalid;
+static ngx_event_t                   ngx_http_strata_timer;
+static ngx_connection_t              ngx_http_strata_dummy;  /* ev->data, for
+                                                               debug logging */
+
+
+/* master, at configuration time */
 
 ngx_int_t
 ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
 {
-    off_t                      size;
-    u_char                    *base, *p;
-    ngx_fd_t                   fd;
-    ngx_err_t                  err;
-    ngx_str_t                  path;
-    strata_err_t               serr;
-    ngx_file_info_t            fi;
+    uint64_t                   gen;
+    ngx_int_t                  rc;
+    ngx_str_t                  name;
     ngx_pool_cleanup_t        *cln;
-    strata_engine_t           *engine;
+    ngx_http_strata_load_t    *ld;
     ngx_http_strata_bundle_t  *bundle;
-    u_char                     key[STRATA_PUBKEY_LEN];
+    u_char                     path[NGX_MAX_PATH];
 
     if (smcf->pubkey_file.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -43,95 +98,122 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
     }
 
     if (ngx_conf_full_name(cf->cycle, &smcf->pubkey_file, 1) != NGX_OK
-        || ngx_conf_full_name(cf->cycle, &smcf->bundle_dir, 1) != NGX_OK)
+        || ngx_conf_full_name(cf->cycle, &smcf->bundle_dir, 1) != NGX_OK
+        || ngx_conf_full_name(cf->cycle, &smcf->control_file, 1) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    if (ngx_http_strata_read_pubkey(cf, &smcf->pubkey_file, key) != NGX_OK) {
+    if (ngx_http_strata_read_pubkey(cf, &smcf->pubkey_file, smcf->pubkey)
+        != NGX_OK)
+    {
         return NGX_ERROR;
     }
 
-    path.len = smcf->bundle_dir.len + sizeof("/" NGX_HTTP_STRATA_BUNDLE_FILE);
-    path.data = ngx_pnalloc(cf->pool, path.len);
-    if (path.data == NULL) {
+#if (NGX_THREADS)
+    smcf->thread_pool = ngx_thread_pool_add(cf, NULL);
+    if (smcf->thread_pool == NULL) {
+        return NGX_ERROR;
+    }
+#endif
+
+    /* the control file names the current bundle */
+
+    ld = ngx_pcalloc(cf->pool, sizeof(ngx_http_strata_load_t));
+    if (ld == NULL || smcf->control_file.len + 1 > NGX_MAX_PATH) {
         return NGX_ERROR;
     }
 
-    p = ngx_cpymem(path.data, smcf->bundle_dir.data, smcf->bundle_dir.len);
-    ngx_memcpy(p, "/" NGX_HTTP_STRATA_BUNDLE_FILE,
-               sizeof("/" NGX_HTTP_STRATA_BUNDLE_FILE));
-    path.len--;
+    ngx_memcpy(ld->path, smcf->control_file.data, smcf->control_file.len + 1);
+    ld->open_ctl = 1;
 
-    fd = ngx_open_file(path.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
-    if (fd == NGX_INVALID_FILE) {
-        err = ngx_errno;
-        ngx_conf_log_error(NGX_LOG_WARN, cf, err,
-                           "strata: no bundle at \"%V\", requests follow "
-                           "strata_fail_mode", &path);
+    ngx_http_strata_load_handler(ld, cf->log);
+
+    if (ld->step) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ld->err,
+                           "strata: no control file \"%V\", requests follow "
+                           "strata_fail_mode until a bundle is published",
+                           &smcf->control_file);
         return NGX_OK;
     }
 
-    if (ngx_fd_info(fd, &fi) == NGX_FILE_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           ngx_fd_info_n " \"%V\" failed", &path);
-        goto failed;
+    rc = ngx_http_strata_ctl_read(ld->base, &gen, &name);
+
+    if (rc == NGX_OK) {
+        /* copy the name out before unmapping */
+        rc = ngx_http_strata_bundle_path(&smcf->bundle_dir, &name, path);
     }
 
-    size = ngx_file_size(&fi);
-    if (size <= 0 || (uint64_t) size > (uint64_t) NGX_MAX_SIZE_T_VALUE) {
+    munmap(ld->base, NGX_HTTP_STRATA_CTL_SIZE);
+
+    if (rc != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                           "strata: control file \"%V\" is %s, requests "
+                           "follow strata_fail_mode until it is valid",
+                           &smcf->control_file,
+                           rc == NGX_AGAIN ? "being written" : "invalid");
+        return NGX_OK;
+    }
+
+    ngx_memzero(ld, sizeof(ngx_http_strata_load_t));
+    ngx_memcpy(ld->path, path, NGX_MAX_PATH);
+    ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
+
+    ngx_http_strata_load_handler(ld, cf->log);
+
+    if (ld->step) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ld->err,
+                           "strata: %s(\"%s\") failed, requests follow "
+                           "strata_fail_mode", ld->step, ld->path);
+        return NGX_OK;
+    }
+
+    if (ld->engine == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "strata: bundle \"%V\" has invalid size %O",
-                           &path, size);
-        goto failed;
-    }
-
-    base = mmap(NULL, (size_t) size, PROT_READ, MAP_SHARED, fd, 0);
-    if (base == MAP_FAILED) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "mmap(\"%V\") failed", &path);
-        goto failed;
-    }
-
-    ngx_close_file(fd);
-
-    ngx_memzero(&serr, sizeof(strata_err_t));
-    engine = strata_engine_map(base, (size_t) size, key, &serr);
-    if (engine == NULL) {
-        serr.msg[STRATA_ERR_MSG_SIZE - 1] = '\0';
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "strata: bundle \"%V\" rejected (%d): %s",
-                           &path, serr.code, serr.msg);
-        munmap(base, (size_t) size);
+                           "strata: bundle \"%s\" rejected (%D): %s",
+                           ld->path, ld->serr.code, ld->serr.msg);
         return NGX_ERROR;
     }
 
-    bundle = ngx_palloc(cf->pool, sizeof(ngx_http_strata_bundle_t));
+    bundle = ngx_pcalloc(cf->pool, sizeof(ngx_http_strata_bundle_t));
     cln = ngx_pool_cleanup_add(cf->pool, 0);
     if (bundle == NULL || cln == NULL) {
-        strata_engine_release(engine);
-        munmap(base, (size_t) size);
+        strata_engine_release(ld->engine);
+        munmap(ld->base, ld->len);
         return NGX_ERROR;
     }
 
-    bundle->engine = engine;
-    bundle->base = base;
-    bundle->len = (size_t) size;
+    bundle->engine = ld->engine;
+    bundle->base = ld->base;
+    bundle->len = ld->len;
+    bundle->version = ld->info.version;
+    bundle->refs = 1;
 
     cln->handler = ngx_http_strata_bundle_cleanup;
     cln->data = bundle;
 
     smcf->bundle = bundle;
-
-    ngx_log_error(NGX_LOG_INFO, cf->log, 0,
-                  "strata: bundle \"%V\" mapped, %uz bytes", &path, bundle->len);
+    smcf->generation = gen;
 
     return NGX_OK;
+}
 
-failed:
 
-    ngx_close_file(fd);
-    return NGX_ERROR;
+static void
+ngx_http_strata_bundle_cleanup(void *data)
+{
+    ngx_http_strata_bundle_t  *bundle = data;
+
+    /*
+     * Configuration cycle destroyed (master on reload, or worker exit).
+     * A worker may already have unmapped this bundle after a swap.
+     */
+
+    if (!bundle->unmapped) {
+        bundle->unmapped = 1;
+        strata_engine_release(bundle->engine);
+        munmap(bundle->base, bundle->len);
+    }
 }
 
 
@@ -183,17 +265,541 @@ done:
 }
 
 
+/*
+ * Seqlock reader. NGX_OK: stable and valid, "name" points into "ctl" and is
+ * only valid until the next check; NGX_AGAIN: being written; NGX_ERROR:
+ * invalid. Fields are little-endian, like every supported platform.
+ */
+
+static ngx_int_t
+ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
+{
+    u_char     c;
+    size_t     i;
+    uint16_t   len;
+    uint32_t   layout;
+    uint64_t   g1, g2;
+    u_char     magic[8];
+
+    g1 = *(volatile const uint64_t *) (ctl + 16);
+    if (g1 & 1) {
+        return NGX_AGAIN;
+    }
+
+    ngx_memory_barrier();
+
+    ngx_memcpy(magic, ctl, 8);
+    ngx_memcpy(&layout, ctl + 8, 4);
+    ngx_memcpy(&len, ctl + 64, 2);
+
+    ngx_memory_barrier();
+
+    g2 = *(volatile const uint64_t *) (ctl + 16);
+    if (g1 != g2) {
+        return NGX_AGAIN;
+    }
+
+    if (ngx_memcmp(magic, "STRCTL1\0", 8) != 0
+        || layout != 1
+        || len == 0
+        || len > NGX_HTTP_STRATA_CTL_NAME_MAX)
+    {
+        return NGX_ERROR;
+    }
+
+    name->data = (u_char *) ctl + 66;
+    name->len = len;
+
+    for (i = 0; i < len; i++) {
+        c = name->data[i];
+
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+              || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-'))
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    if ((len == 1 && name->data[0] == '.')
+        || (len == 2 && name->data[0] == '.' && name->data[1] == '.'))
+    {
+        return NGX_ERROR;
+    }
+
+    *gen = g1;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_strata_bundle_path(ngx_str_t *dir, ngx_str_t *name, u_char *path)
+{
+    u_char  *p;
+
+    if (dir->len + 1 + name->len + 1 > NGX_MAX_PATH) {
+        return NGX_ERROR;
+    }
+
+    p = ngx_cpymem(path, dir->data, dir->len);
+    *p++ = '/';
+    p = ngx_cpymem(p, name->data, name->len);
+    *p = '\0';
+
+    return NGX_OK;
+}
+
+
+/* runs in a thread pool thread (or synchronously): no NGINX state touched */
+
 static void
-ngx_http_strata_bundle_cleanup(void *data)
+ngx_http_strata_load_handler(void *data, ngx_log_t *log)
+{
+    ngx_http_strata_load_t  *ld = data;
+
+    int          fd;
+    void        *p;
+    struct stat  st;
+
+    if (ld->open_ctl) {
+        fd = open((char *) ld->path, O_RDONLY | O_CLOEXEC);
+        if (fd == -1) {
+            ld->err = ngx_errno;
+            ld->step = "open";
+            return;
+        }
+
+        p = MAP_FAILED;
+        if (fstat(fd, &st) == 0 && st.st_size == NGX_HTTP_STRATA_CTL_SIZE) {
+            p = mmap(NULL, NGX_HTTP_STRATA_CTL_SIZE, PROT_READ, MAP_SHARED,
+                     fd, 0);
+        }
+
+        ld->err = ngx_errno;
+        close(fd);
+
+        if (p == MAP_FAILED) {
+            ld->step = "mmap";
+            return;
+        }
+
+        ld->base = p;
+        return;
+    }
+
+    fd = open((char *) ld->path, O_RDONLY | O_CLOEXEC);
+    if (fd == -1) {
+        ld->err = ngx_errno;
+        ld->step = "open";
+        return;
+    }
+
+    if (fstat(fd, &st) == -1) {
+        ld->err = ngx_errno;
+        ld->step = "fstat";
+        close(fd);
+        return;
+    }
+
+    if (st.st_size <= 0 || (uint64_t) st.st_size > NGX_MAX_SIZE_T_VALUE) {
+        ld->err = 0;
+        ld->step = "size";
+        close(fd);
+        return;
+    }
+
+    ld->len = (size_t) st.st_size;
+
+    p = mmap(NULL, ld->len, PROT_READ, MAP_SHARED, fd, 0);
+    ld->err = ngx_errno;
+    close(fd);
+
+    if (p == MAP_FAILED) {
+        ld->step = "mmap";
+        return;
+    }
+
+    ld->base = p;
+    (void) madvise(p, ld->len, MADV_WILLNEED);
+
+    /* signature and layout are verified here, off the event loop */
+
+    ld->engine = strata_engine_map(ld->base, ld->len, ld->key, &ld->serr);
+    ld->serr.msg[STRATA_ERR_MSG_SIZE - 1] = '\0';
+
+    if (ld->engine == NULL) {
+        munmap(ld->base, ld->len);
+        ld->base = NULL;
+        return;
+    }
+
+    strata_engine_info(ld->engine, &ld->info);
+
+    if (ld->have_current
+        && ld->info.version <= ld->current_version
+        && !(ld->info.flags & STRATA_BUNDLE_ROLLBACK))
+    {
+        ld->stale = 1;
+        strata_engine_release(ld->engine);
+        ld->engine = NULL;
+        munmap(ld->base, ld->len);
+        ld->base = NULL;
+    }
+}
+
+
+/* worker */
+
+ngx_int_t
+ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle)
+{
+    ngx_http_strata_load_t       *ld;
+    ngx_http_strata_main_conf_t  *smcf;
+
+    smcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_strata_module);
+    if (smcf == NULL || !smcf->enabled) {
+        return NGX_OK;
+    }
+
+    ngx_http_strata_smcf = smcf;
+    ngx_http_strata_current = smcf->bundle;   /* holds its "current" ref */
+    ngx_http_strata_seen = smcf->generation;
+
+    /* one-time syscalls at worker start, not on the request path */
+
+    ld = ngx_calloc(sizeof(ngx_http_strata_load_t), cycle->log);
+    if (ld == NULL || smcf->control_file.len + 1 > NGX_MAX_PATH) {
+        ngx_free(ld);
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(ld->path, smcf->control_file.data, smcf->control_file.len + 1);
+    ld->open_ctl = 1;
+
+    ngx_http_strata_load_handler(ld, cycle->log);
+    ngx_http_strata_ctl = ld->base;      /* NULL: retried by the timer */
+    ngx_free(ld);
+
+#if !(NGX_THREADS)
+    ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+                  "strata: NGINX built without threads, bundles are loaded "
+                  "in the event loop");
+#endif
+
+    ngx_http_strata_dummy.fd = (ngx_socket_t) -1;
+    ngx_http_strata_timer.handler = ngx_http_strata_tick;
+    ngx_http_strata_timer.log = cycle->log;
+    ngx_http_strata_timer.data = &ngx_http_strata_dummy;
+    ngx_http_strata_timer.cancelable = 1;
+
+    ngx_http_strata_schedule();
+
+    return NGX_OK;
+}
+
+
+void
+ngx_http_strata_bundle_exit_process(ngx_cycle_t *cycle)
+{
+    if (ngx_http_strata_ctl) {
+        munmap(ngx_http_strata_ctl, NGX_HTTP_STRATA_CTL_SIZE);
+        ngx_http_strata_ctl = NULL;
+    }
+}
+
+
+static void
+ngx_http_strata_schedule(void)
+{
+    ngx_msec_t  t;
+
+    t = ngx_http_strata_smcf->bundle_check;
+    t += (ngx_msec_t) ngx_random() % (t / 4 + 1);   /* spread the workers */
+
+    ngx_add_timer(&ngx_http_strata_timer, t);
+}
+
+
+static void
+ngx_http_strata_tick(ngx_event_t *ev)
+{
+    uint64_t                     gen;
+    ngx_int_t                    rc;
+    ngx_str_t                    name;
+    ngx_http_strata_load_t      *ld;
+    ngx_http_strata_main_conf_t *smcf;
+
+    if (ngx_exiting || ngx_quit || ngx_terminate) {
+        return;
+    }
+
+    smcf = ngx_http_strata_smcf;
+
+    if (ngx_http_strata_busy) {
+        goto next;
+    }
+
+    if (ngx_http_strata_ctl == NULL) {
+        /* control file missing at start: try again, off the event loop */
+
+        ld = ngx_calloc(sizeof(ngx_http_strata_load_t), ev->log);
+        if (ld == NULL) {
+            goto next;
+        }
+
+        if (smcf->control_file.len + 1 > NGX_MAX_PATH) {
+            ngx_free(ld);
+            goto next;
+        }
+
+        ngx_memcpy(ld->path, smcf->control_file.data,
+                   smcf->control_file.len + 1);
+        ld->open_ctl = 1;
+
+        ngx_http_strata_busy = 1;
+        ngx_http_strata_post(ngx_http_strata_load_handler,
+                             ngx_http_strata_load_done, ld);
+        goto next;
+    }
+
+    /* the steady state: memory reads only */
+
+    rc = ngx_http_strata_ctl_read(ngx_http_strata_ctl, &gen, &name);
+
+    if (rc == NGX_ERROR) {
+        if (!ngx_http_strata_ctl_invalid) {
+            ngx_http_strata_ctl_invalid = 1;
+            ngx_log_error(NGX_LOG_ERR, ev->log, 0,
+                          "strata: invalid control file \"%V\", keeping the "
+                          "current bundle", &smcf->control_file);
+        }
+        goto next;
+    }
+
+    ngx_http_strata_ctl_invalid = 0;
+
+    if (rc == NGX_AGAIN || gen == ngx_http_strata_seen) {
+        goto next;
+    }
+
+    ld = ngx_calloc(sizeof(ngx_http_strata_load_t), ev->log);
+    if (ld == NULL) {
+        goto next;
+    }
+
+    if (ngx_http_strata_bundle_path(&smcf->bundle_dir, &name, ld->path)
+        != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_ERR, ev->log, 0,
+                      "strata: bundle path too long");
+        ngx_http_strata_seen = gen;
+        ngx_free(ld);
+        goto next;
+    }
+
+    ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
+    ld->generation = gen;
+
+    if (ngx_http_strata_current) {
+        ld->have_current = 1;
+        ld->current_version = ngx_http_strata_current->version;
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, ev->log, 0,
+                   "strata: generation %uL, loading \"%s\"", gen, ld->path);
+
+    ngx_http_strata_busy = 1;
+    ngx_http_strata_post(ngx_http_strata_load_handler,
+                         ngx_http_strata_load_done, ld);
+
+next:
+
+    ngx_http_strata_schedule();
+}
+
+
+/* event loop: swap in the new bundle or report why it was refused */
+
+static void
+ngx_http_strata_load_done(void *data)
+{
+    ngx_http_strata_load_t  *ld = data;
+
+    ngx_log_t                 *log;
+    ngx_http_strata_bundle_t  *bundle, *old;
+
+    log = ngx_cycle->log;
+    ngx_http_strata_busy = 0;
+
+    if (ld->open_ctl) {
+        if (ld->base) {
+            ngx_http_strata_ctl = ld->base;
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                          "strata: control file \"%s\" mapped", ld->path);
+        }
+        goto done;
+    }
+
+    /* do not retry the same generation, whatever the outcome */
+
+    ngx_http_strata_seen = ld->generation;
+
+    if (ld->step) {
+        ngx_log_error(NGX_LOG_ERR, log, ld->err,
+                      "strata: %s(\"%s\") failed, keeping the current bundle",
+                      ld->step, ld->path);
+        goto done;
+    }
+
+    if (ld->stale) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "strata: bundle \"%s\" version %uL is not newer than "
+                      "%uL and not a signed rollback, keeping the current "
+                      "bundle", ld->path, ld->info.version,
+                      ld->current_version);
+        goto done;
+    }
+
+    if (ld->engine == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "strata: bundle \"%s\" rejected (%D): %s, keeping the "
+                      "current bundle", ld->path, ld->serr.code,
+                      ld->serr.msg);
+        goto done;
+    }
+
+    bundle = ngx_calloc(sizeof(ngx_http_strata_bundle_t), log);
+    if (bundle == NULL) {
+        strata_engine_release(ld->engine);
+        munmap(ld->base, ld->len);
+        goto done;
+    }
+
+    bundle->engine = ld->engine;
+    bundle->base = ld->base;
+    bundle->len = ld->len;
+    bundle->version = ld->info.version;
+    bundle->refs = 1;
+    bundle->heap = 1;
+
+    old = ngx_http_strata_current;
+    ngx_http_strata_current = bundle;
+
+    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                  "strata: bundle version %uL active (generation %uL)%s",
+                  bundle->version, ld->generation,
+                  (ld->info.flags & STRATA_BUNDLE_ROLLBACK) ? ", rollback" : "");
+
+    ngx_http_strata_bundle_release(old);
+
+done:
+
+    ngx_free(ld);
+}
+
+
+ngx_http_strata_bundle_t *
+ngx_http_strata_bundle_acquire(void)
+{
+    ngx_http_strata_bundle_t  *bundle;
+
+    bundle = ngx_http_strata_current;
+
+    if (bundle) {
+        bundle->refs++;
+    }
+
+    return bundle;
+}
+
+
+void
+ngx_http_strata_bundle_release(ngx_http_strata_bundle_t *bundle)
+{
+    if (bundle == NULL || --bundle->refs > 0) {
+        return;
+    }
+
+    ngx_log_error(NGX_LOG_NOTICE, ngx_cycle->log, 0,
+                  "strata: bundle version %uL released, unmapping",
+                  bundle->version);
+
+    /* the cycle pool cleanup must not unmap it again */
+    bundle->unmapped = 1;
+
+    ngx_http_strata_post(ngx_http_strata_unmap_handler,
+                         ngx_http_strata_unmap_done, bundle);
+}
+
+
+/* thread pool: drop the engine, then the mapping it was reading */
+
+static void
+ngx_http_strata_unmap_handler(void *data, ngx_log_t *log)
 {
     ngx_http_strata_bundle_t  *bundle = data;
 
-    /*
-     * Runs when the configuration cycle is destroyed. Transactions hold
-     * their own engine reference; a worker only drops a cycle once its
-     * requests are done, so nothing still reads the mapping here.
-     */
-
     strata_engine_release(bundle->engine);
     munmap(bundle->base, bundle->len);
+}
+
+
+static void
+ngx_http_strata_unmap_done(void *data)
+{
+    ngx_http_strata_bundle_t  *bundle = data;
+
+    if (bundle->heap) {
+        ngx_free(bundle);
+    }
+}
+
+
+#if (NGX_THREADS)
+
+static void
+ngx_http_strata_task_done(ngx_event_t *ev)
+{
+    ngx_http_strata_task_t  *t = ev->data;
+
+    t->done(t->task.ctx);
+    ngx_free(t);
+}
+
+#endif
+
+
+static void
+ngx_http_strata_post(void (*handler)(void *data, ngx_log_t *log),
+    ngx_http_strata_done_pt done, void *ctx)
+{
+#if (NGX_THREADS)
+    ngx_http_strata_task_t  *t;
+
+    if (ngx_http_strata_smcf && ngx_http_strata_smcf->thread_pool) {
+        t = ngx_calloc(sizeof(ngx_http_strata_task_t), ngx_cycle->log);
+
+        if (t) {
+            t->done = done;
+            t->task.ctx = ctx;
+            t->task.handler = handler;
+            t->task.event.handler = ngx_http_strata_task_done;
+            t->task.event.data = t;
+
+            if (ngx_thread_task_post(ngx_http_strata_smcf->thread_pool,
+                                     &t->task)
+                == NGX_OK)
+            {
+                return;
+            }
+
+            ngx_free(t);
+        }
+    }
+#endif
+
+    /* no thread pool: run here, in the event loop */
+
+    handler(ctx, ngx_cycle->log);
+    done(ctx);
 }

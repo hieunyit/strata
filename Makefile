@@ -16,13 +16,26 @@ RUST_LIBS  := -lpthread -ldl -lm
 NGX_ASAN_OBJS := $(BUILD)/nginx-$(NGINX_VERSION)-asan/objs
 ASAN_LOGS     := $(CURDIR)/$(BUILD)/asan
 
-.PHONY: all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
+MKBUNDLE := target/release/mkbundle
+FIXTURES := connectors/nginx/t/fixtures
+
+.PHONY: fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind
 
 all: lib nginx
 
 lib:
 	cargo build --release -p libstrata $(CARGO_FEATURES)
+
+$(MKBUNDLE):
+	cargo build --release -p mkbundle
+
+fixtures: $(MKBUNDLE)
+	$(FIXTURES)/make.sh $(CURDIR)/$(MKBUNDLE)
+
+# Fixtures are deterministic: regenerating must not change committed files.
+check-fixtures: fixtures
+	git diff --exit-code -- $(FIXTURES)
 
 header:
 	cbindgen --quiet --config engine/ffi/cbindgen.toml --crate libstrata --output $(HEADER) engine/ffi
@@ -43,17 +56,18 @@ abi-test: lib
 	@mkdir -p $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -DSTRATA_TEST_HOOKS -Iengine/ffi \
 		engine/ffi/tests/c/abi_test.c $(LIBSTRATA) $(RUST_LIBS) -o $(BUILD)/abi_test
-	$(BUILD)/abi_test
+	$(BUILD)/abi_test $(FIXTURES)/bundle/bundle-1.sbn $(FIXTURES)/bundle.pub
 
 nginx: lib
 	connectors/nginx/scripts/build.sh $(NGINX_VERSION) $(BUILD)
 
-test-nginx:
+test-nginx: $(MKBUNDLE)
+	TEST_NGINX_STRATA_MKBUNDLE="$(CURDIR)/$(MKBUNDLE)" \
 	PATH="$(CURDIR)/$(NGX_OBJS):$$PATH" \
 	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
 		sh -c "cd connectors/nginx && prove -r t/"
 
-test: rust-check check-header abi-test nginx test-nginx
+test: rust-check check-header check-fixtures abi-test nginx test-nginx
 
 nginx-asan: lib
 	STRATA_SANITIZE=1 connectors/nginx/scripts/build.sh $(NGINX_VERSION) $(BUILD)
@@ -61,8 +75,9 @@ nginx-asan: lib
 # Sanitizer reports go to $(ASAN_LOGS)/{asan,ubsan}*; any report fails the run.
 # detect_odr_violation=0: NGINX defines ngx_module_names in the binary and in
 # every dynamic module by design. Leaks are checked with Valgrind instead.
-test-nginx-asan:
+test-nginx-asan: $(MKBUNDLE)
 	rm -rf $(ASAN_LOGS) && mkdir -p $(ASAN_LOGS)
+	TEST_NGINX_STRATA_MKBUNDLE="$(CURDIR)/$(MKBUNDLE)" \
 	PATH="$(CURDIR)/$(NGX_ASAN_OBJS):$$PATH" \
 	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_ASAN_OBJS)/ngx_http_strata_module.so" \
 	ASAN_OPTIONS="detect_leaks=0,detect_odr_violation=0,abort_on_error=0,log_path=$(ASAN_LOGS)/asan" \
@@ -75,8 +90,9 @@ test-nginx-asan:
 # master_process off + Valgrind memcheck (leak-check=full). Test::Nginx only
 # prints reports, so any "Memcheck:" entry not in valgrind.suppress fails here.
 # Valgrind makes nginx start slowly: wait longer, and never hang (timeout).
-test-nginx-valgrind:
+test-nginx-valgrind: $(MKBUNDLE)
 	rm -f connectors/nginx/vgcore.*
+	TEST_NGINX_STRATA_MKBUNDLE="$(CURDIR)/$(MKBUNDLE)" \
 	PATH="$(CURDIR)/$(NGX_OBJS):$$PATH" \
 	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
 	TEST_NGINX_USE_VALGRIND=1 TEST_NGINX_SLEEP=1 TEST_NGINX_TIMEOUT=10 \

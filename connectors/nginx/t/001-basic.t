@@ -237,6 +237,7 @@ HEAD /t?STRATA-TEST-BLOCK
 
 === TEST 13: no bundle + fail open: pass, action "error", Event ID
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/empty/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/empty;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
 --- config
@@ -256,12 +257,13 @@ GET /t?STRATA-TEST-BLOCK
 --- response_body
 backend uri=/backend/?STRATA-TEST-BLOCK len=
 --- error_log
-requests follow strata_fail_mode
+requests follow
 
 
 
 === TEST 14: no bundle + fail closed: 503 with Event ID
 --- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/empty/control;
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/empty;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
 --- config
