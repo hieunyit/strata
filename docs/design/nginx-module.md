@@ -88,7 +88,7 @@ Tại sao chọn PREACCESS mà không phải ACCESS: với `satisfy any`, NGINX 
 
 **Mẫu đọc body: xử lý cả trường hợp đồng bộ và bất đồng bộ**
 
-`ngx_http_read_client_request_body` tăng `r->main->count` khi bắt đầu, và gọi post-handler **ngay trong lời gọi** nếu body đã nằm hết trong preread buffer (trả `NGX_OK`), hoặc **sau này** khi đọc xong (trả `NGX_AGAIN`). Code phải xử lý cả hai, và post-handler luôn trả lại phần count đã tăng; thiếu một trong hai là request treo. Mẫu dưới theo cách ModSecurity-nginx đang làm:
+`ngx_http_read_client_request_body` tăng `r->main->count` khi bắt đầu, và gọi post-handler **ngay trong lời gọi** nếu body đã nằm hết trong preread buffer (trả `NGX_OK`), hoặc **sau này** khi đọc xong (trả `NGX_AGAIN`). Code phải xử lý cả hai, và phần count đã tăng phải được trả lại đúng một lần; thiếu là request treo. Khi đọc bất đồng bộ, NGINX có thể tự kết thúc request mà **không gọi post-handler** (ví dụ body chunked vượt `client_max_body_size` → 413, timeout đọc body), nên phần count phải được trả ngay khi nhận `NGX_AGAIN` bằng `ngx_http_finalize_request(r, NGX_DONE)`, giống module `mirror` của NGINX; post-handler chỉ trả count ở nhánh đồng bộ:
 
 ```c
 /* PREACCESS handler */
@@ -100,6 +100,7 @@ if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) return rc;
 
 if (rc == NGX_AGAIN) {            /* body chưa đủ: chờ bất đồng bộ */
     ctx->body_state = BODY_WAITING;
+    ngx_http_finalize_request(r, NGX_DONE);   /* trả count ngay */
     return NGX_DONE;
 }
 /* rc == NGX_OK: post-handler đã chạy đồng bộ ngay trong lời gọi trên */
@@ -111,17 +112,22 @@ static void strata_body_read(ngx_http_request_t *r)
     ngx_http_strata_ctx_t *ctx = strata_get_ctx(r);
     ngx_int_t waiting = (ctx->body_state == BODY_WAITING);
 
-    r->main->count--;               /* trả lại phần read_client_request_body đã tăng */
+    if (!waiting) {
+        r->main->count--;           /* đồng bộ: trả phần read_client_request_body đã tăng */
+    }
     strata_finish_body(ctx);        /* gửi chunk cuối, lấy verdict */
     ctx->body_state = BODY_DONE;
 
-    if (waiting) {                  /* chỉ trường hợp bất đồng bộ */
+    if (waiting) {                  /* bất đồng bộ: count đã trả lúc NGX_AGAIN */
+        r->write_event_handler = ngx_http_core_run_phases;
         ngx_http_core_run_phases(r);   /* quay lại PREACCESS, đi nhánh BODY_DONE */
     }
 }
 ```
 
-Test bắt buộc cho phần này: body nằm hết trong preread buffer; `Content-Length: 0`; HTTP/2 có `END_STREAM` ngay trên frame HEADERS; body gửi từng byte một; client đóng kết nối khi đang chờ body; body vượt `client_max_body_size` (NGINX trả 413); internal redirect sau khi đã đọc body.
+Response chặn gửi từ PREACCESS (ngoài CONTENT phase) phải tự gọi `ngx_http_finalize_request(r, rc)` rồi trả `NGX_DONE`; trả `NGX_OK` sẽ làm phase engine chạy tiếp sang proxy.
+
+Test bắt buộc cho phần này: body nằm hết trong preread buffer; `Content-Length: 0`; HTTP/2 có `END_STREAM` ngay trên frame HEADERS; body gửi từng byte một; client đóng kết nối khi đang chờ body; body vượt `client_max_body_size` (NGINX trả 413; với `Content-Length` lỗi xảy ra trước PREACCESS, với body chunked lỗi xảy ra trong lúc module đang đọc body và request phải được giải phóng); internal redirect sau khi đã đọc body.
 
 **Stream bị hủy giữa chừng (RST\_STREAM ở HTTP/2, HTTP/3)**
 
@@ -937,7 +943,7 @@ Bảng dưới ghi nhận từng điểm của bản review, đánh giá và tha
 
 | Đề xuất | Đánh giá | Quyết định cho v1 |
 | --- | --- | --- |
-| Xử lý post-handler đọc body chạy đồng bộ và bất đồng bộ | Đúng; điểm dễ gây treo request nhất là cân bằng `r->main->count` | Đưa vào: mẫu code và danh sách test ở mục Vòng đời request |
+| Xử lý post-handler đọc body chạy đồng bộ và bất đồng bộ | Đúng; điểm dễ gây treo request nhất là cân bằng `r->main->count` | Đưa vào: mẫu code và danh sách test ở mục Vòng đời request. Sửa khi triển khai tuần 1–2: mẫu ban đầu (trả count trong post-handler ở cả hai nhánh) làm treo request khi NGINX tự báo lỗi lúc đọc body bất đồng bộ (413 với body chunked) vì post-handler không được gọi; chuyển sang trả count ngay khi `NGX_AGAIN` như module `mirror` |
 | RST\_STREAM ở HTTP/2, HTTP/3 | Đúng một nửa: pool cleanup luôn chạy đúng một lần; NGINX không hủy được task đang chạy trong thread pool | Đưa vào: `strata_tx_free` idempotent; giữ request sống bằng `r->main->blocked` + `r->aio` khi có task |
 | Tắt sendfile khi inspect response | Đã có từ bản trước qua `r->filter_need_in_memory`, là cơ chế chuẩn của NGINX; chỉ đặt `r->sendfile = 0` là chưa đủ | Giữ nguyên thiết kế |
 | Header zero-copy (`strata_str_pair_t`) | Đồng ý | Đưa vào và chốt ABI ở tuần 2, kèm quy tắc lifetime |

@@ -46,8 +46,8 @@ nginx: lib
 
 test-nginx:
 	PATH="$(CURDIR)/$(NGX_OBJS):$$PATH" \
-	TEST_NGINX_STRATA_MODULE="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
-		prove -r connectors/nginx/t/
+	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
+		sh -c "cd connectors/nginx && prove -r t/"
 
 test: rust-check check-header abi-test nginx test-nginx
 
