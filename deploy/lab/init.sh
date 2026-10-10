@@ -4,7 +4,8 @@
 #                   node CA, whose key the control plane uses to issue node
 #                   certificates at enrollment
 #   /state/enroll   enrollment tokens, written by fleet-init.sh
-#   /state/signing  bundle signing key (never leaves the volume)
+#   /state/signing  bundle signing key (never leaves the volume; read by the
+#                   control plane, which signs bundles at deploy)
 #   /bundles        bundle-1.sbn, bundle.pub and the control file
 # Everything is created once and kept across lab restarts.
 set -euo pipefail
@@ -60,5 +61,7 @@ chown root:root "$pki/ca-key.pem"
 chmod 0755 /state "$pki" "$bundles"
 chmod 0644 "$pki"/*.pem "$bundles"/*
 chmod 0600 "$pki/ca-key.pem" "$pki"/*-key.pem
-chown -R root:root "$sign" && chmod 0700 "$sign"
+# The control plane signs bundles at deploy (nginx-module.md: Compiler +
+# signer; production keeps the key in a KMS/HSM). Only it reads the key.
+chown -R 1001:1001 "$sign" && chmod 0700 "$sign" && chmod 0600 "$sign/bundle.key"
 echo "lab-init: done"

@@ -30,6 +30,13 @@ var Permissions = auth.MethodPermissions{
 	adminv1.FleetAdminService_CreateEnrollmentToken_FullMethodName: auth.PermNodesWrite,
 	adminv1.FleetAdminService_ListNodes_FullMethodName:             auth.PermNodesRead,
 	adminv1.FleetAdminService_RevokeNode_FullMethodName:            auth.PermNodesWrite,
+	adminv1.PolicyService_ListPolicies_FullMethodName:              auth.PermPoliciesRead,
+	adminv1.PolicyService_GetPolicy_FullMethodName:                 auth.PermPoliciesRead,
+	adminv1.PolicyService_CreatePolicy_FullMethodName:              auth.PermPoliciesWrite,
+	adminv1.PolicyService_UpdatePolicy_FullMethodName:              auth.PermPoliciesWrite,
+	adminv1.PolicyService_ListPolicyVersions_FullMethodName:        auth.PermPoliciesRead,
+	adminv1.PolicyService_GetPolicyVersion_FullMethodName:          auth.PermPoliciesRead,
+	adminv1.PolicyService_DeployPolicy_FullMethodName:              auth.PermPoliciesDeploy,
 }
 
 // Deps are the services behind the admin API. A nil field leaves its
@@ -37,6 +44,8 @@ var Permissions = auth.MethodPermissions{
 type Deps struct {
 	Fleet    FleetStore
 	Presence NodePresence
+	Policies PolicyStore
+	Deployer Deployer // nil: DeployPolicy answers FailedPrecondition
 	Now      func() time.Time
 }
 
@@ -69,6 +78,9 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	if deps.Fleet != nil && deps.Presence != nil {
 		adminv1.RegisterFleetAdminServiceServer(gs, &fleetAdmin{store: deps.Fleet, presence: deps.Presence, now: deps.Now})
 	}
+	if deps.Policies != nil {
+		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})
+	}
 
 	lis := bufconn.Listen(1 << 20)
 	go func() { _ = gs.Serve(lis) }()
@@ -91,6 +103,7 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	for _, register := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
 		adminv1.RegisterVersionServiceHandler,
 		adminv1.RegisterFleetAdminServiceHandler,
+		adminv1.RegisterPolicyServiceHandler,
 	} {
 		if err := register(ctx, mux, conn); err != nil {
 			_ = conn.Close()

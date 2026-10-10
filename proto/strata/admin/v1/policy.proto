@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package strata.admin.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// PolicyService edits policies and deploys them as signed bundles
+// (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
+// a new version; updates carry the etag they were based on, and a stale
+// one is refused with ABORTED (HTTP 409). Approval (four eyes) and replay
+// come with later tasks.
+service PolicyService {
+  // REST: GET /v1/policies
+  rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+  // REST: GET /v1/policies/{policy_id}
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+  // REST: POST /v1/policies
+  rpc CreatePolicy(CreatePolicyRequest) returns (CreatePolicyResponse);
+  // REST: PATCH /v1/policies/{policy.id}
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (UpdatePolicyResponse);
+  // REST: GET /v1/policies/{policy_id}/versions
+  rpc ListPolicyVersions(ListPolicyVersionsRequest) returns (ListPolicyVersionsResponse);
+  // REST: GET /v1/policies/{policy_id}/versions/{version}
+  rpc GetPolicyVersion(GetPolicyVersionRequest) returns (GetPolicyVersionResponse);
+  // REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
+  // current version of every policy, signs it and stores it in object
+  // storage.
+  rpc DeployPolicy(DeployPolicyRequest) returns (DeployPolicyResponse);
+}
+
+// PolicySpec is what the bundle carries for the policy
+// (docs/spec/policies.schema.json).
+message PolicySpec {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    MODE_SHADOW = 1;
+    MODE_ENFORCE = 2;
+  }
+  Mode mode = 1;
+  enum Oversize {
+    OVERSIZE_UNSPECIFIED = 0; // pass
+    OVERSIZE_PASS = 1;
+    OVERSIZE_BLOCK = 2;
+  }
+  Oversize oversize = 2;
+  ResponseLayer response = 3;
+}
+
+message ResponseLayer {
+  bool allowed_codes_check = 1;
+  bool db_errors = 2;
+  // cccd, jwt
+  repeated string data_guard = 3;
+}
+
+message Policy {
+  // [a-z0-9][a-z0-9-]{0,62}; set at creation.
+  string id = 1;
+  // Name in the bundle and in strata_policy: [a-z0-9._-]{1,55}.
+  string name = 2;
+  PolicySpec spec = 3;
+  uint32 version = 4;
+  string etag = 5;
+  string created_by = 6;
+  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp update_time = 8;
+}
+
+message PolicyVersion {
+  string policy_id = 1;
+  uint32 version = 2;
+  PolicySpec spec = 3;
+  string state = 4;
+  string created_by = 5;
+  google.protobuf.Timestamp create_time = 6;
+}
+
+message Bundle {
+  uint64 version = 1;
+  string sha256 = 2; // hex
+  string object_key = 3;
+  uint64 size_bytes = 4;
+  // policy id -> version built into the bundle
+  map<string, uint32> contents = 5;
+  string created_by = 6;
+  google.protobuf.Timestamp create_time = 7;
+}
+
+message ListPoliciesRequest {}
+
+message ListPoliciesResponse {
+  repeated Policy policies = 1;
+}
+
+message GetPolicyRequest {
+  string policy_id = 1;
+}
+
+message GetPolicyResponse {
+  Policy policy = 1;
+}
+
+message CreatePolicyRequest {
+  Policy policy = 1; // id, name, spec
+}
+
+message CreatePolicyResponse {
+  Policy policy = 1;
+}
+
+message UpdatePolicyRequest {
+  Policy policy = 1; // id, spec, and the etag it was read with
+}
+
+message UpdatePolicyResponse {
+  Policy policy = 1;
+}
+
+message ListPolicyVersionsRequest {
+  string policy_id = 1;
+}
+
+message ListPolicyVersionsResponse {
+  repeated PolicyVersion versions = 1;
+}
+
+message GetPolicyVersionRequest {
+  string policy_id = 1;
+  uint32 version = 2;
+}
+
+message GetPolicyVersionResponse {
+  PolicyVersion version = 1;
+}
+
+message DeployPolicyRequest {
+  string policy_id = 1;
+}
+
+message DeployPolicyResponse {
+  Bundle bundle = 1;
+}

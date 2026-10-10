@@ -123,7 +123,7 @@ func TestVersion_GRPC(t *testing.T) {
 
 // Every method the server registers has a permission.
 func TestEveryMethodHasPermission(t *testing.T) {
-	for _, sd := range []grpc.ServiceDesc{adminv1.VersionService_ServiceDesc, adminv1.FleetAdminService_ServiceDesc} {
+	for _, sd := range []grpc.ServiceDesc{adminv1.VersionService_ServiceDesc, adminv1.FleetAdminService_ServiceDesc, adminv1.PolicyService_ServiceDesc} {
 		for _, m := range sd.Methods {
 			full := "/" + sd.ServiceName + "/" + m.MethodName
 			if _, ok := admin.Permissions[full]; !ok {

@@ -62,6 +62,25 @@ if retry 30 online2; then ok "both agents enrolled and online"; else bad "both a
 [ "$(status http://127.0.0.1:18090/v1/groups -X POST -H "$(auth operator)" -H 'Content-Type: application/json' -d '{"id":"x","name":"x"}')" = 403 ] \
     && ok "operator may not create groups: 403" || bad "operator may not create groups: 403"
 
+echo "policies and bundles (W04-G2-01)"
+api() { # role method path [body]: prints the body, status on the last line
+    curl -s -w '\n%{http_code}' -X "$2" -H "$(auth "$1")" -H 'Content-Type: application/json' ${4:+-d "$4"} "http://127.0.0.1:18090$3"
+}
+field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | head -1; }
+pid=smoke-$(date +%s)
+out=$(api operator POST /v1/policies "{\"id\":\"$pid\",\"name\":\"$pid\",\"spec\":{\"mode\":\"MODE_SHADOW\"}}")
+[ "$(tail -1 <<<"$out")" = 200 ] && ok "operator creates policy $pid" || bad "operator creates policy $pid: $out"
+etag1=$(head -n -1 <<<"$out" | field etag)
+out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"mode\":\"MODE_ENFORCE\"}}")
+[ "$(tail -1 <<<"$out")" = 200 ] && grep -q '"version":2' <<<"$out" && ok "edit with the current etag: version 2" || bad "edit with the current etag: $out"
+out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"mode\":\"MODE_SHADOW\"}}")
+[ "$(tail -1 <<<"$out")" = 409 ] && ok "edit with a stale etag: 409" || bad "edit with a stale etag: $out"
+out=$(api operator POST "/v1/policies/$pid:deploy" '{}')
+key=$(head -n -1 <<<"$out" | field object_key); sum=$(head -n -1 <<<"$out" | field sha256)
+if [ "$(tail -1 <<<"$out")" = 200 ] && [ -n "$key" ]; then ok "deploy built and signed a bundle ($key)"; else bad "deploy: $out"; fi
+stored=$("${compose[@]}" run --rm -T minio-init cat "lab/strata-bundles/$key" 2>/dev/null | sha256sum | cut -d' ' -f1)
+[ -n "$sum" ] && [ "$stored" = "$sum" ] && ok "bundle in MinIO, sha256 matches" || bad "bundle in MinIO, sha256 matches ($stored vs $sum)"
+
 echo "nginx + ngx_http_strata_module"
 for port in 18080 18081; do
     check "$port pass" curl -fsS -H 'Host: api.example.test' "http://127.0.0.1:$port/v1/items"

@@ -26,6 +26,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -57,6 +58,14 @@ func main() {
 	nodeCAKey := flag.String("node-ca-key", "", "Key of -node-ca-cert")
 	trustBundle := flag.String("fleet-trust-bundle", "", "CA bundle enrolled agents trust for FleetService (default: -tls-ca)")
 	bundlePub := flag.String("bundle-pubkey", "", "Public key that verifies bundle signatures, sent to enrolled agents")
+	signingKey := flag.String("bundle-signing-key", "", "Ed25519 seed that signs bundles (deploys need it, with -bundle-pubkey and -s3-*)")
+	rulesFlag := flag.String("rules", "", "Comma-separated rule IR files compiled into every bundle")
+	blockPage := flag.String("block-page", "", "HTML of the default block page put in bundles")
+	supportContact := flag.String("support-contact", "", "Support contact shown on the block page")
+	compilerBin := flag.String("compiler", "strata-compile", "Bundle compiler binary")
+	s3Endpoint := flag.String("s3-endpoint", "", "Object store host:port for bundles; keys from STRATA_S3_ACCESS_KEY, STRATA_S3_SECRET_KEY")
+	s3Bucket := flag.String("s3-bucket", "strata-bundles", "Bucket for bundles")
+	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
 
@@ -138,7 +147,12 @@ func main() {
 	}
 	deps := admin.Deps{Presence: presence}
 	if pg != nil {
-		deps.Fleet = pg
+		deps.Fleet, deps.Policies = pg, pg
+		if *signingKey != "" {
+			deps.Deployer = newDeployer(ctx, pg, *signingKey, *bundlePub, *rulesFlag, *blockPage, *supportContact, *compilerBin,
+				policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
+					AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		}
 	}
 	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
 	if err != nil {
@@ -265,6 +279,36 @@ func main() {
 		}
 	}
 	log.Println("[INFO] Server stopped")
+}
+
+// newDeployer wires the compiler, the signing key and the object store.
+func newDeployer(ctx context.Context, pg *store.Store, key, pubFile, rules, blockPage, contact, bin string, s3 policy.S3Config) admin.Deployer {
+	if pubFile == "" || s3.Endpoint == "" {
+		log.Fatal("[FATAL] -bundle-signing-key needs -bundle-pubkey and -s3-endpoint")
+	}
+	pub, err := os.ReadFile(pubFile)
+	if err != nil {
+		log.Fatalf("[FATAL] bundle public key: %v", err)
+	}
+	var ruleFiles []string
+	for _, r := range strings.Split(rules, ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			ruleFiles = append(ruleFiles, r)
+		}
+	}
+	sctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	var objects *policy.S3
+	if err := retry(sctx, func() error { var err error; objects, err = policy.NewS3(sctx, s3); return err }); err != nil {
+		log.Fatalf("[FATAL] %v", err)
+	}
+	log.Printf("[INFO] Deploys: %s, %d rule files, bundles in s3://%s", bin, len(ruleFiles), s3.Bucket)
+	return &policy.Deployer{
+		Store:   pg,
+		Builder: &policy.Compiler{Binary: bin, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage, SupportContact: contact},
+		Objects: objects,
+		PubKey:  pub,
+	}
 }
 
 // retry calls f until it succeeds or ctx ends (the database may start after

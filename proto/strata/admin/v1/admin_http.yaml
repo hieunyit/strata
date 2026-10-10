@@ -18,3 +18,20 @@ http:
       get: /v1/nodes
     - selector: strata.admin.v1.FleetAdminService.RevokeNode
       delete: /v1/nodes/{node_id}
+    - selector: strata.admin.v1.PolicyService.ListPolicies
+      get: /v1/policies
+    - selector: strata.admin.v1.PolicyService.GetPolicy
+      get: /v1/policies/{policy_id}
+    - selector: strata.admin.v1.PolicyService.CreatePolicy
+      post: /v1/policies
+      body: policy
+    - selector: strata.admin.v1.PolicyService.UpdatePolicy
+      patch: /v1/policies/{policy.id}
+      body: policy
+    - selector: strata.admin.v1.PolicyService.ListPolicyVersions
+      get: /v1/policies/{policy_id}/versions
+    - selector: strata.admin.v1.PolicyService.GetPolicyVersion
+      get: /v1/policies/{policy_id}/versions/{version}
+    - selector: strata.admin.v1.PolicyService.DeployPolicy
+      post: /v1/policies/{policy_id}:deploy
+      body: "*"
