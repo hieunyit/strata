@@ -40,6 +40,8 @@ pub const URL_DECODE: u8 = 12;
 pub const NORMALIZE_PATH_WIN: u8 = 13;
 pub const REPLACE_COMMENTS: u8 = 14;
 pub const REMOVE_COMMENTS_CHAR: u8 = 15;
+/// The byte length of the value, in decimal (for numeric operators).
+pub const LENGTH: u8 = 16;
 
 /// Applies one transformation; `None` when this engine does not implement
 /// it yet (the condition using it is then skipped).
@@ -61,6 +63,7 @@ pub fn apply(code: u8, input: &[u8]) -> Option<Cow<'_, [u8]>> {
         NORMALIZE_PATH_WIN => normalize_path_win(input),
         REPLACE_COMMENTS => replace_comments(input),
         REMOVE_COMMENTS_CHAR => remove_comments_char(input),
+        LENGTH => Cow::Owned(input.len().to_string().into_bytes()),
         _ => return None,
     })
 }
@@ -78,7 +81,7 @@ pub fn apply_chain<'a>(codes: &[u8], input: &'a [u8]) -> Option<Cow<'a, [u8]>> {
 }
 
 pub fn is_implemented(code: u8) -> bool {
-    code <= REMOVE_COMMENTS_CHAR
+    code <= LENGTH
 }
 
 pub(crate) fn hex(c: u8) -> Option<u8> {
@@ -490,7 +493,7 @@ mod tests {
         .unwrap();
         assert_eq!(&*out, b"/b/c");
         // a code past the table: not implemented, the condition is skipped
-        assert!(apply_chain(&[URL_DECODE_UNI, REMOVE_COMMENTS_CHAR + 1], b"x").is_none());
+        assert!(apply_chain(&[URL_DECODE_UNI, LENGTH + 1], b"x").is_none());
     }
 
     #[test]

@@ -503,12 +503,15 @@ fn condition(
                 let chain = &c.transforms[..k];
                 let tv = || transform::apply_chain(chain, v);
                 let hit = if numeric {
-                    // a value that is not a number counts as 0, as atoi does
-                    let x = std::str::from_utf8(trim(v))
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                        .unwrap_or(0);
-                    compare(op, x, y)
+                    // on the transformed value; one that is not a number
+                    // counts as 0, as atoi does
+                    tv().is_some_and(|tv| {
+                        let x = std::str::from_utf8(trim(&tv))
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                            .unwrap_or(0);
+                        compare(op, x, y)
+                    })
                 } else if detect {
                     tv().is_some_and(|tv| {
                         if op == "detect_sqli" {
@@ -715,6 +718,16 @@ mod tests {
         for v in SUPPORTED_VARS {
             assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
         }
+    }
+
+    #[test]
+    fn length_transform() {
+        assert_eq!(&*transform::apply(transform::LENGTH, b"").unwrap(), b"0");
+        assert_eq!(
+            &*transform::apply(transform::LENGTH, "é".as_bytes()).unwrap(),
+            b"2",
+            "bytes"
+        );
     }
 
     #[test]

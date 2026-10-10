@@ -97,6 +97,7 @@ pub const TRANSFORMS: &[&str] = &[
     "normalize_path_win",
     "replace_comments",
     "remove_comments_char",
+    "length",
 ];
 pub const OPERATORS: &[&str] = &[
     "rx",

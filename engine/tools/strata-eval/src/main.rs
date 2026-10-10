@@ -10,7 +10,8 @@
 //! `--capabilities` prints the operators, transformations and targets this
 //! libstrata evaluates: `{"operators": [...], "transforms": [...], "vars": [...]}`.
 //! Request: `{"id": "...", "method": "GET", "uri": "/a?b=1",
-//! "headers": {"Name": "v" | ["v1", "v2"]}, "body": "...", "remote_addr": "192.0.2.1"}`.
+//! "headers": {"Name": "v" | ["v1", "v2"]}, "body": "...", "remote_addr": "192.0.2.1",
+//! "protocol": "HTTP/1.1"}` (protocol defaults to HTTP/1.1).
 //! Verdict: `{"id": "...", "action": "allow|log|block|challenge", "score": 0,
 //! "rules": [100011], "error": 0}`.
 //!
@@ -48,10 +49,34 @@ struct Request {
     body: String,
     #[serde(default)]
     remote_addr: String,
+    #[serde(default = "http11")]
+    protocol: String,
 }
 
 fn get() -> String {
     "GET".into()
+}
+
+fn http11() -> String {
+    "HTTP/1.1".into()
+}
+
+/// The path of a request target: an absolute-form target
+/// (`http://host/p?q`) is reduced to its path, as NGINX does for `$uri`.
+fn target_path(raw: &[u8]) -> &[u8] {
+    let scheme_end = raw
+        .windows(3)
+        .position(|w| w == b"://")
+        .filter(|&i| i > 0 && raw[0].is_ascii_alphabetic() && !raw[..i].contains(&b'/'));
+    match scheme_end {
+        Some(i) => {
+            let host = &raw[i + 3..];
+            host.iter()
+                .position(|&c| c == b'/' || c == b'?')
+                .map_or(&b"/"[..], |p| &host[p..])
+        }
+        None => raw,
+    }
 }
 
 #[derive(Serialize)]
@@ -163,9 +188,9 @@ fn run(args: &[String]) -> Result<(), String> {
         let req: Request =
             serde_json::from_str(&line).map_err(|e| format!("line {}: {e}", n + 1))?;
         let raw = req.uri.as_bytes();
-        let (path, query) = match raw.iter().position(|&c| c == b'?') {
-            Some(q) => (&raw[..q], &raw[q + 1..]),
-            None => (raw, &b""[..]),
+        let (path, query) = match target_path(raw).iter().position(|&c| c == b'?') {
+            Some(q) => (&target_path(raw)[..q], &target_path(raw)[q + 1..]),
+            None => (target_path(raw), &b""[..]),
         };
         let mut tx = Tx::new(Some(engine.clone()), b"strata-eval", 0);
         tx.set_client_addr(req.remote_addr.as_bytes());
@@ -175,7 +200,7 @@ fn run(args: &[String]) -> Result<(), String> {
             raw,
             &normalize(path),
             query,
-            b"HTTP/1.1",
+            req.protocol.as_bytes(),
         );
         // As the connector: all headers in one call (it runs the
         // request_headers rules), then the body, empty for a GET, which
@@ -220,7 +245,15 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize;
+    use super::{normalize, target_path};
+
+    #[test]
+    fn absolute_form_targets_keep_their_path() {
+        assert_eq!(target_path(b"http://api.example.test/a?b=1"), b"/a?b=1");
+        assert_eq!(target_path(b"https://api.example.test"), b"/");
+        assert_eq!(target_path(b"/p?u=http://x/y"), b"/p?u=http://x/y");
+        assert_eq!(target_path(b"*"), b"*");
+    }
 
     #[test]
     fn normalizes_like_nginx() {

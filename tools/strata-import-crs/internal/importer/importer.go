@@ -57,6 +57,7 @@ var transforms = map[string]string{
 	"utf8toUnicode": "utf8_to_unicode", "base64Decode": "base64_decode",
 	"urlDecode": "url_decode", "normalizePathWin": "normalize_path_win", "normalisePathWin": "normalize_path_win",
 	"replaceComments": "replace_comments", "removeCommentsChar": "remove_comments_char",
+	"length": "length",
 }
 
 // SecLang operators -> IR.

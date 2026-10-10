@@ -449,6 +449,31 @@ rules:
       source: crs
       upstream_id: "920500"
       upstream_version: 4.25.2
+  - id: 920520
+    name: Accept-Encoding header exceeded sensible length
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: gt
+            value: 100
+          targets:
+            - key: Accept-Encoding
+              var: request_headers
+          transforms:
+            - lowercase
+            - length
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920520"
+      upstream_version: 4.25.2
   - id: 920530
     name: Multiple charsets detected in content type header
     layer: protocol

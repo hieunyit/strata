@@ -990,3 +990,61 @@ rules:
         assert_eq!(run(true, "/get?arg=pineapple"), Vec::<u32>::new());
     }
 }
+
+// Numeric operators run on the transformed value: with length, on the
+// value's byte length.
+mod length {
+    use super::*;
+
+    const RULES: &str = r#"
+ir_version: 1
+ruleset: { name: length-test, version: "1" }
+rules:
+  - { id: 800351, name: long argument, layer: protocol, stage: request_headers, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args } ], transforms: [length], operator: { type: gt, value: 5 } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800352, name: long after decoding, layer: protocol, stage: request_headers, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: uri_raw } ], transforms: [url_decode, length], operator: { type: le, value: 3 } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn run(uri: &str) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: []").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        rules(&super::run(&e, "GET", uri, &[("Host", "a")], "192.0.2.1"))
+            .into_iter()
+            .filter(|id| *id >= 800000)
+            .collect()
+    }
+
+    #[test]
+    fn compares_the_length() {
+        assert_eq!(run("/s?a=123456"), [800351]);
+        assert_eq!(run("/s?a=12345&b=1"), Vec::<u32>::new());
+        // "/%41" is 4 bytes raw, 2 decoded
+        assert_eq!(run("/%41"), [800352]);
+        assert_eq!(run("/abcd"), Vec::<u32>::new());
+    }
+}
