@@ -158,6 +158,8 @@ Request body được inspect theo luồng (streaming) qua request body filter, 
   - Buffer cấp từ `r->pool` tồn tại tới khi request kết thúc hẳn (output đã gửi xong hoặc kết nối đóng), nên an toàn khi NGINX còn đang gửi dữ liệu ra socket.
   - Không bao giờ truyền buffer `in_file` vào libstrata. Nhờ `filter_need_in_memory` thì không còn gặp buffer loại này; nếu vẫn gặp, bỏ qua inspect phần đó và ghi metric.
   - Inspect tới `strata_response_body_limit`; phần còn lại truyền nguyên.
+  - Data guard giữ lại đuôi mỗi chunk (độ dài giá trị dài nhất trừ 1 byte) để giá trị bị cắt giữa hai buffer vẫn bị che; tổng độ dài không đổi. Gặp buffer có cờ `flush` (SSE, `proxy_buffering off`), module gọi `strata_tx_response_body_flush` và gửi phần đang giữ cùng buffer đó, nên stream không bị chậm; giá trị bị cắt đúng tại điểm flush thì không được che.
+  - Bộ nhớ: buffer gốc được trả ngay cho module phía trên, nên nguồn đọc tiếp trong khi bản copy còn chờ socket. Đỉnh bộ nhớ của một request vì vậy xấp xỉ min(`strata_response_body_limit`, kích thước body) và được trả khi request xong; không tăng dần qua các request. Mặc định 512 KB giữ mức này nhỏ; location đặt giới hạn lớn phải tính phần bộ nhớ này.
 - **Ba chế độ khi phát hiện vấn đề**:
   - **Log**: ghi sự kiện, không đổi response.
   - **Che (data guard)**: thay ký tự bằng `*` cùng độ dài nên `Content-Length` không đổi.
@@ -178,7 +180,7 @@ Module truyền cho libstrata cả ba giá trị: `r->unparsed_uri` (thô, đún
 | HTTP/2, HTTP/3 | Cùng API body của NGINX; header đã được NGINX giải nén HPACK/QPACK trước khi tới module |
 | gRPC (`grpc_pass`) | Xem mục Traffic gRPC qua NGINX |
 | WebSocket | Inspect handshake (URL, header, cookie, origin); sau `101 Switching Protocols` không inspect frame |
-| Server-Sent Events, streaming dài | Không buffer response; chỉ inspect header và byte đầu tới giới hạn |
+| Server-Sent Events, streaming dài | Không buffer response; chỉ inspect header và byte đầu tới giới hạn. Buffer `flush` xả phần data guard đang giữ (`strata_tx_response_body_flush`) |
 | Subrequest (`auth_request`, SSI) | Nhận diện bằng `r != r->main`, bỏ qua; chỉ inspect request chính |
 | Internal redirect (`error_page`, `try_files`, `rewrite … last`) | NGINX xóa module context khi redirect nhưng giữ nguyên request và pool. Module lưu trạng thái (đã inspect chưa, verdict, phase đã qua, đã đếm metric chưa) trong một struct gắn vào pool cleanup của request. Khi PREACCESS thấy context rỗng, module tìm struct này trong `r->pool->cleanup` và gắn lại. Nếu đã có verdict thì không inspect lại, không đếm metric lần hai; verdict và policy của lần đầu được giữ. Request mới luôn có pool mới nên không thể nhầm với request đã redirect |
 
@@ -256,6 +258,8 @@ strata_rc_t strata_tx_response_headers(strata_tx_t *tx, uint16_t status,
 strata_rc_t strata_tx_response_body_chunk(strata_tx_t *tx, const uint8_t *p,
                                           size_t len, int last,
                                           strata_buf_t *rewritten);
+/* ABI 1.1: gặp buffer flush (streaming), lấy ngay phần data guard đang giữ */
+strata_rc_t strata_tx_response_body_flush(strata_tx_t *tx, strata_buf_t *out);
 void strata_tx_verdict(const strata_tx_t *tx, strata_verdict_t *out);
 size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
 void strata_tx_free(strata_tx_t *tx);
@@ -275,7 +279,7 @@ typedef strata_str_pair_t strata_header_t;
 - So khớp tên header không phân biệt hoa thường bằng so sánh byte ASCII, không cấp phát.
 - Rust chỉ copy dữ liệu cần giữ qua nhiều lời gọi, và chỉ trong hai trường hợp: đoạn input khớp rule để đưa vào sự kiện (tối đa 1 KB mỗi match, đã che), và một số ít header cần đối chiếu với response (ví dụ `Origin`, `Content-Type`). Phần copy nằm trong arena riêng của transaction, có giới hạn kích thước, giải phóng một lần ở `strata_tx_free`.
 - `strata_tx_free` idempotent: libstrata bỏ qua con trỏ NULL, module đặt con trỏ trong context về NULL ngay sau khi gọi.
-- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI sau tuần 2 phải tăng major và kèm lớp tương thích.
+- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`.
 
 `strata_verdict_t` gồm: action (`allow`, `log`, `challenge`, `block`), mã HTTP trả về, Block ID (24 byte), điểm tổng, tối đa 16 rule ID khớp, cờ `need_body` / `need_response`.
 

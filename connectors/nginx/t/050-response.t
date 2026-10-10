@@ -2,8 +2,9 @@
 # masks STRATA-TEST-MASK in response bodies. Checks that the filter sees
 # the body before gzip, in memory (static files with sendfile), across
 # buffer boundaries (libstrata holds back the tail of a chunk), without
-# changing the length, up to strata_response_body_limit, and that bodies
-# the upstream already compressed are passed and logged.
+# changing the length, up to strata_response_body_limit, that bodies the
+# upstream already compressed are passed and logged, and that a flush
+# (streaming) sends what libstrata holds back.
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
@@ -203,3 +204,27 @@ GET /t?STRATA-TEST-BLOCK
 h2 STRATA-TEST-MASK h2
 --- response_body eval
 "h2 $::Masked h2\n"
+
+
+
+=== TEST 12: streaming (proxy_buffering off): a flush sends what is held back
+The upstream sends two Server-Sent Events and keeps the connection open: both
+must reach the client now, not when the stream ends (the data guard holds
+back the last 15 bytes of each chunk until the flush).
+--- config
+    location /t {
+        strata on;
+        proxy_buffering off;
+        proxy_pass http://127.0.0.1:19851;
+    }
+--- tcp_listen: 19851
+--- tcp_no_close
+--- tcp_reply eval
+"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n"
+. "data: STRATA-TEST-MASK\n\ndata: 1\n\n"
+--- request
+GET /t HTTP/1.0
+--- timeout: 0.5
+--- abort
+--- response_body eval
+"data: $::Masked\n\ndata: 1\n\n"

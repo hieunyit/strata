@@ -16,7 +16,8 @@
  * of the original (last_buf, last_in_chain, flush, sync), and the original
  * is marked consumed. The copies are reused once sent (free/busy chains),
  * so memory follows the buffer sizes, not the response size or the limit;
- * beyond the limit buffers pass untouched.
+ * beyond the limit buffers pass untouched. A flush buffer (streaming, e.g.
+ * Server-Sent Events) also sends what the data guard holds back.
  */
 
 #include "ngx_http_strata_module.h"
@@ -146,18 +147,20 @@ ngx_http_strata_out(ngx_http_request_t *r, ngx_chain_t ***ll, ngx_buf_t *b)
 
 
 /*
- * A buffer with "len" bytes from p and, if asked, b's flags: a free one of
- * ours when large enough, else a new one from the pool.
+ * A buffer with the bytes of rw then fl and, if asked, b's flags: a free one
+ * of ours when large enough, else a new one from the pool.
  */
 
 static ngx_buf_t *
 ngx_http_strata_copy_buf(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
-    u_char *p, size_t len, ngx_buf_t *b, ngx_uint_t flags)
+    strata_buf_t *rw, strata_buf_t *fl, ngx_buf_t *b, ngx_uint_t flags)
 {
+    size_t        len;
     ngx_buf_t    *nb;
     ngx_chain_t  *cl, **ll;
 
     nb = NULL;
+    len = rw->len + fl->len;
 
     for (ll = &ctx->resp_free; *ll; ll = &(*ll)->next) {
         cl = *ll;
@@ -180,7 +183,11 @@ ngx_http_strata_copy_buf(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
     }
 
     nb->pos = nb->start;
-    nb->last = ngx_cpymem(nb->pos, p, len);
+    nb->last = ngx_cpymem(nb->pos, rw->ptr, rw->len);
+
+    if (fl->len) {
+        nb->last = ngx_cpymem(nb->last, fl->ptr, fl->len);
+    }
 
     nb->last_buf = flags ? b->last_buf : 0;
     nb->last_in_chain = flags ? b->last_in_chain : 0;
@@ -198,7 +205,7 @@ ngx_http_strata_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_int_t               rc, last, mem, whole;
     ngx_buf_t              *b, *nb;
     ngx_chain_t            *cl, *out, **ll;
-    strata_buf_t            rw;
+    strata_buf_t            rw, fl;
     ngx_http_strata_ctx_t  *ctx;
 
     if (r != r->main || in == NULL) {
@@ -241,8 +248,8 @@ ngx_http_strata_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         last = (!mem && ngx_buf_size(b) > 0) || b->last_buf
                || ctx->resp_inspected + n >= ctx->resp_limit;
 
-        if (size == 0 && !last) {
-            /* flush, sync or empty buffer: nothing for libstrata */
+        if (size == 0 && !last && !b->flush) {
+            /* sync or empty buffer: nothing for libstrata */
             if (ngx_http_strata_out(r, &ll, b) != NGX_OK) {
                 return NGX_ERROR;
             }
@@ -250,34 +257,47 @@ ngx_http_strata_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         }
 
         rw.ptr = NULL;
+        fl.ptr = NULL;
+        fl.len = 0;
+
         (void) strata_tx_response_body_chunk(ctx->tx, n ? b->pos : NULL, n,
                                              last ? 1 : 0, &rw);
         ctx->resp_inspected += n;
         ctx->resp_done = last ? 1 : 0;
 
+        /* streaming: what the data guard holds back goes out with b */
+
+        if (rw.ptr && b->flush && !last) {
+            (void) strata_tx_response_body_flush(ctx->tx, &fl);
+        }
+
         /*
          * Rewritten: a copy carries the data. If all of b was inspected, the
          * copy takes b's flags and b is consumed; otherwise (limit reached,
-         * or b not in memory) the rest of b follows the copy untouched.
+         * b not in memory, or a flush without data) the rest of b follows
+         * the copy untouched.
          */
 
         whole = (rw.ptr != NULL && mem && n == size);
 
-        if (rw.ptr && (rw.len || (whole && (b->last_buf || b->last_in_chain
-                                            || b->flush || b->sync))))
+        if (rw.ptr && (rw.len || fl.len
+                       || (whole && (b->last_buf || b->last_in_chain
+                                     || b->flush || b->sync))))
         {
-            nb = ngx_http_strata_copy_buf(r, ctx, rw.ptr, rw.len, b, whole);
+            nb = ngx_http_strata_copy_buf(r, ctx, &rw, &fl, b, whole);
             if (nb == NULL || ngx_http_strata_out(r, &ll, nb) != NGX_OK) {
                 strata_buf_free(&rw);
+                strata_buf_free(&fl);
                 return NGX_ERROR;
             }
         }
 
-        if (rw.ptr) {
+        if (rw.ptr && n) {
             b->pos += n;
         }
 
         strata_buf_free(&rw);
+        strata_buf_free(&fl);
 
         if (!whole && ngx_http_strata_out(r, &ll, b) != NGX_OK) {
             return NGX_ERROR;
