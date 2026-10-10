@@ -16,7 +16,13 @@ Kiểm tra (chạy trong CI):
 
 ```bash
 make lint-rules        # = cd tools/strata-rules && go run . lint --repo ../..
+make test-rules        # mẫu match / no_match qua libstrata, rồi báo cáo FP/recall trên corpus/
 ```
+
+`strata-rules test` biên dịch mọi rule file thành bundle và chạy từng mẫu qua
+libstrata (`strata-eval`, đúng thứ tự gọi của connector NGINX): FAIL khi mẫu
+`match` không khớp hoặc mẫu `no_match` khớp; SKIP kèm lý do khi rule dùng
+operator, transformation hay target mà engine chưa đánh giá.
 
 `strata-rules lint` báo lỗi khi file sai schema (thiếu `license`, thiếu
 thông tin upstream, Rule ID sai dải của nguồn), trùng Rule ID, tên file không

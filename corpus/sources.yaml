@@ -1,0 +1,28 @@
+# Attack payload sources of corpus v0 (W04-S-01), pinned by commit. Both
+# projects are MIT licensed (see NOTICE); payloads are used to measure
+# recall and are never packed into bundles.
+#   strata-rules corpus fetch     regenerates corpus/attack/*.jsonl
+max_per_file: 400 # sampled with a fixed seed when a file is longer
+max_length: 2000 # longer payloads are left out
+sources:
+  - repo: danielmiessler/SecLists
+    commit: cae9eab995852c183fbe5e03fc92471fcac82f0e
+    files:
+      - { path: Fuzzing/Databases/SQLi/Generic-SQLi.txt, type: sql-injection }
+      - { path: Fuzzing/Databases/SQLi/quick-SQLi.txt, type: sql-injection }
+      - { path: Fuzzing/Databases/SQLi/sqli.auth.bypass.txt, type: sql-injection }
+      - { path: Fuzzing/XSS/human-friendly/XSS-With-Context-Jhaddix.txt, type: xss }
+      - { path: Fuzzing/XSS/human-friendly/XSS-Bypass-Strings-BruteLogic.txt, type: xss }
+      - { path: Fuzzing/XSS/human-friendly/XSS-RSNAKE.txt, type: xss }
+      - { path: Fuzzing/LFI/LFI-Jhaddix.txt, type: path-traversal }
+      - { path: Fuzzing/command-injection-commix.txt, type: command-injection }
+  - repo: swisskyrepo/PayloadsAllTheThings
+    commit: 3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a
+    files:
+      - { path: SQL Injection/Intruder/Generic_UnionSelect.txt, type: sql-injection }
+      - { path: SQL Injection/Intruder/Generic_ErrorBased.txt, type: sql-injection }
+      - { path: SQL Injection/Intruder/Auth_Bypass.txt, type: sql-injection }
+      - { path: XSS Injection/Intruders/IntrudersXSS.txt, type: xss }
+      - { path: XSS Injection/Intruders/BRUTELOGIC-XSS-STRINGS.txt, type: xss }
+      - { path: Directory Traversal/Intruder/directory_traversal.txt, type: path-traversal }
+      - { path: Command Injection/Intruder/command-execution-unix.txt, type: command-injection }

