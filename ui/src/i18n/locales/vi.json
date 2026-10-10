@@ -1,0 +1,112 @@
+{
+  "app": {
+    "title": "Strata WAF",
+    "subtitle": "Bảng quản trị bảo mật"
+  },
+  "nav": {
+    "events": "Sự kiện",
+    "overview": "Tổng quan",
+    "policies": "Policy",
+    "rules": "Rule & Signature",
+    "fleet": "Fleet"
+  },
+  "header": {
+    "searchPlaceholder": "Tìm nhanh Block ID (STR-... hoặc EVT-...)",
+    "searchBtn": "Tra cứu",
+    "role": "Vai trò",
+    "roles": {
+      "viewer": "Viewer (Chỉ xem)",
+      "operator": "Operator (Vận hành)",
+      "admin": "Admin (Quản trị)"
+    },
+    "lang": "Ngôn ngữ",
+    "theme": "Giao diện"
+  },
+  "events": {
+    "title": "Nhật ký Sự kiện Bảo mật",
+    "subtitle": "Theo dõi và phân tích các request được xử lý qua NGINX connector và libstrata",
+    "filter": {
+      "title": "Bộ lọc",
+      "action": "Hành động",
+      "allActions": "Tất cả hành động",
+      "clientIp": "Client IP",
+      "ruleId": "Mã Rule ID",
+      "nodeId": "Node ID",
+      "httpMethod": "Phương thức HTTP",
+      "allMethods": "Tất cả method",
+      "timeRange": "Khoảng thời gian",
+      "last15m": "15 phút qua",
+      "last1h": "1 giờ qua",
+      "last24h": "24 giờ qua",
+      "apply": "Áp dụng",
+      "reset": "Đặt lại"
+    },
+    "actions": {
+      "block": "Chặn (Block)",
+      "shadow": "Giám sát (Shadow)",
+      "allow": "Cho phép (Allow)"
+    },
+    "table": {
+      "timestamp": "Thời gian",
+      "blockId": "Block ID",
+      "action": "Hành động",
+      "method": "Method",
+      "path": "Đường dẫn",
+      "host": "Host",
+      "clientIp": "Client IP",
+      "matchedRules": "Rule khớp",
+      "score": "Điểm anomaly",
+      "actions": "Thao tác",
+      "viewTrace": "Decision trace",
+      "empty": "Không tìm thấy sự kiện nào phù hợp.",
+      "loading": "Đang tải sự kiện..."
+    },
+    "toolbar": {
+      "exportCsv": "Xuất CSV",
+      "autoRefresh": "Tự động làm mới",
+      "paused": "Đã tạm dừng",
+      "pause": "Tạm dừng",
+      "resume": "Tiếp tục"
+    },
+    "pagination": {
+      "totalMatched": "Tổng số khớp: {{count}} sự kiện",
+      "next": "Trang sau",
+      "prev": "Trang trước"
+    }
+  },
+  "detail": {
+    "title": "Chi tiết Quyết định (Decision Trace)",
+    "subtitle": "Phân tích nguồn gốc và các lớp phát hiện cho sự kiện {{blockId}}",
+    "blockId": "Block ID",
+    "action": "Kết luận",
+    "timestamp": "Thời điểm",
+    "requestInfo": "Thông tin Request",
+    "method": "Phương thức",
+    "host": "Host",
+    "path": "Đường dẫn",
+    "statusCode": "Mã phản hồi",
+    "clientIp": "Client IP",
+    "nodeId": "Node ID",
+    "policy": "Policy & Phiên bản",
+    "requestId": "Request ID liên kết",
+    "scoresTitle": "Điểm số theo từng lớp phát hiện",
+    "scoreProtocol": "Điểm Protocol",
+    "scoreSqli": "Điểm SQLi",
+    "scoreXss": "Điểm XSS",
+    "scoreAnomaly": "Tổng điểm Anomaly",
+    "violationsTitle": "Quy tắc vi phạm chi tiết",
+    "noViolations": "Không có violation chi tiết nào được ghi nhận.",
+    "ruleId": "Rule ID",
+    "layer": "Lớp phát hiện",
+    "field": "Vị trí / Trường",
+    "snippet": "Đoạn payload phát hiện",
+    "redacted": "[ĐÃ ẨN ĐỐI VỚI VAI TRÒ VIEWER]",
+    "actions": {
+      "markFp": "Đánh dấu FP",
+      "createException": "Tạo exception",
+      "blockIp": "Chặn IP này",
+      "close": "Đóng"
+    },
+    "viewerNotice": "Bạn đang đăng nhập với vai trò Viewer. Dữ liệu nhạy cảm (IP, input snippet) đã được che và các nút tác vụ bị vô hiệu hóa."
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "app": {
+    "title": "Strata WAF",
+    "subtitle": "Security Management Console"
+  },
+  "nav": {
+    "events": "Events",
+    "overview": "Overview",
+    "policies": "Policies",
+    "rules": "Rules & Signatures",
+    "fleet": "Fleet"
+  },
+  "header": {
+    "searchPlaceholder": "Search Block ID (STR-... or EVT-...)",
+    "searchBtn": "Lookup",
+    "role": "Role",
+    "roles": {
+      "viewer": "Viewer (Read-only)",
+      "operator": "Operator",
+      "admin": "Admin"
+    },
+    "lang": "Language",
+    "theme": "Theme"
+  },
+  "events": {
+    "title": "Security Events Log",
+    "subtitle": "Monitor and inspect requests processed through NGINX connector and libstrata",
+    "filter": {
+      "title": "Filters",
+      "action": "Action",
+      "allActions": "All Actions",
+      "clientIp": "Client IP",
+      "ruleId": "Rule ID",
+      "nodeId": "Node ID",
+      "httpMethod": "HTTP Method",
+      "allMethods": "All Methods",
+      "timeRange": "Time Range",
+      "last15m": "Last 15m",
+      "last1h": "Last 1h",
+      "last24h": "Last 24h",
+      "apply": "Apply",
+      "reset": "Reset"
+    },
+    "actions": {
+      "block": "Block",
+      "shadow": "Shadow",
+      "allow": "Allow"
+    },
+    "table": {
+      "timestamp": "Timestamp",
+      "blockId": "Block ID",
+      "action": "Action",
+      "method": "Method",
+      "path": "Path",
+      "host": "Host",
+      "clientIp": "Client IP",
+      "matchedRules": "Matched Rules",
+      "score": "Anomaly Score",
+      "actions": "Actions",
+      "viewTrace": "Decision Trace",
+      "empty": "No events matching your search criteria.",
+      "loading": "Loading events..."
+    },
+    "toolbar": {
+      "exportCsv": "Export CSV",
+      "autoRefresh": "Auto-refresh",
+      "paused": "Paused",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "pagination": {
+      "totalMatched": "Total matched: {{count}} events",
+      "next": "Next",
+      "prev": "Previous"
+    }
+  },
+  "detail": {
+    "title": "Decision Trace Details",
+    "subtitle": "Detection layers and forensic analysis for event {{blockId}}",
+    "blockId": "Block ID",
+    "action": "Verdict",
+    "timestamp": "Timestamp",
+    "requestInfo": "Request Details",
+    "method": "Method",
+    "host": "Host",
+    "path": "Path",
+    "statusCode": "Status Code",
+    "clientIp": "Client IP",
+    "nodeId": "Node ID",
+    "policy": "Policy & Version",
+    "requestId": "Correlated Request ID",
+    "scoresTitle": "Layer Detection Scores",
+    "scoreProtocol": "Protocol Score",
+    "scoreSqli": "SQLi Score",
+    "scoreXss": "XSS Score",
+    "scoreAnomaly": "Total Anomaly Score",
+    "violationsTitle": "Matched Violations",
+    "noViolations": "No detailed violations recorded.",
+    "ruleId": "Rule ID",
+    "layer": "Layer",
+    "field": "Target Field",
+    "snippet": "Matched Payload Snippet",
+    "redacted": "[REDACTED FOR VIEWER ROLE]",
+    "actions": {
+      "markFp": "Mark False Positive",
+      "createException": "Create Exception",
+      "blockIp": "Block this IP",
+      "close": "Close"
+    },
+    "viewerNotice": "You are logged in as Viewer. Sensitive request info (IP, payload snippet) is redacted and write actions are disabled."
+  }
+}

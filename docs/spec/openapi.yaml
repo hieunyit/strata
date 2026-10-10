@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: Strata Control Plane API
+  version: 1.0.0
+  description: Control plane management and security event inspection API for Strata WAF.
+paths:
+  /v1/events/{block_id}:
+    get:
+      summary: Get Event by Block ID
+      description: Retrieve the detailed decision trace and violations for a specific Block ID.
+      operationId: getEvent
+      parameters:
+        - name: block_id
+          in: path
+          required: true
+          description: Unique Block ID (e.g. STR-8F3K-Q2VD-7XNM-A1PC or EVT-xxxx)
+          schema:
+            type: string
+            pattern: '^(STR|EVT)-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$'
+      responses:
+        '200':
+          description: Event found and returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetEventResponse'
+        '400':
+          description: Invalid Block ID format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Event not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/events:search:
+    post:
+      summary: Search Security Events
+      description: Search and filter events across time, IP, action, policy, rules, and nodes.
+      operationId: searchEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchEventsRequest'
+      responses:
+        '200':
+          description: List of matched events and pagination token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchEventsResponse'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Violation:
+      type: object
+      required:
+        - rule_id
+        - layer
+        - field
+        - snippet
+      properties:
+        rule_id:
+          type: integer
+          format: int64
+          description: Numeric Rule ID that triggered the violation.
+          example: 100001
+        layer:
+          type: string
+          description: Detection layer that identified the violation (protocol, sqli, xss, etc.).
+          example: protocol
+        field:
+          type: string
+          description: Request target field (e.g. uri.query, header.user-agent, body.json).
+          example: uri.query.q
+        snippet:
+          type: string
+          description: Matched raw or normalized snippet (redacted for viewer role).
+          example: STRATA-TEST-BLOCK
+
+    Event:
+      type: object
+      required:
+        - block_id
+        - timestamp
+        - node_id
+        - connector_type
+        - policy_id
+        - policy_version
+        - client_ip
+        - http_method
+        - http_host
+        - http_path
+        - status_code
+        - action
+      properties:
+        block_id:
+          type: string
+          example: STR-8F3K-Q2VD-7XNM-A1PC
+        timestamp:
+          type: string
+          format: date-time
+        node_id:
+          type: string
+          example: edge-worker-01
+        connector_type:
+          type: string
+          example: nginx
+        policy_id:
+          type: string
+          example: example-api
+        policy_version:
+          type: integer
+          format: int64
+          example: 1
+        client_ip:
+          type: string
+          example: 192.168.1.50
+        identity:
+          type: string
+          example: anon
+        request_id:
+          type: string
+          example: 9a3e21cb-4d89-4fa2-bf41-6e3e579bd66c
+        http_method:
+          type: string
+          example: GET
+        http_host:
+          type: string
+          example: api.example.test
+        http_path:
+          type: string
+          example: /t
+        status_code:
+          type: integer
+          example: 403
+        action:
+          type: string
+          enum: [block, shadow, allow]
+          example: block
+        score_protocol:
+          type: integer
+          example: 20
+        score_sqli:
+          type: integer
+          example: 0
+        score_xss:
+          type: integer
+          example: 0
+        score_anomaly:
+          type: integer
+          example: 20
+        matched_rules:
+          type: array
+          items:
+            type: integer
+          example: [100001]
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Violation'
+        received_at:
+          type: string
+          format: date-time
+
+    GetEventResponse:
+      type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: '#/components/schemas/Event'
+
+    SearchEventsRequest:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        policy_id:
+          type: string
+        action:
+          type: string
+          enum: [block, shadow, allow]
+        client_ip:
+          type: string
+        rule_id:
+          type: integer
+        node_id:
+          type: string
+        http_method:
+          type: string
+        page_size:
+          type: integer
+          default: 50
+        page_token:
+          type: string
+
+    SearchEventsResponse:
+      type: object
+      required:
+        - events
+        - total_matched
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        next_page_token:
+          type: string
+        total_matched:
+          type: integer
+          format: int64
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        block_id:
+          type: string
+        code:
+          type: integer

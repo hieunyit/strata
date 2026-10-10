@@ -136,3 +136,27 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		TotalMatched:  res.Total,
 	})
 }
+
+// HandleIngestEvents handles POST /v1/events:ingest
+func (h *EventHandler) HandleIngestEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+		return
+	}
+
+	var events []ingest.Event
+	if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json request body: "+err.Error(), "")
+		return
+	}
+
+	if err := h.store.SaveEvents(r.Context(), events); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save events: "+err.Error(), "")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"saved": len(events),
+	})
+}
+
