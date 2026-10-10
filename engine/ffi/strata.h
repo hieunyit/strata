@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 0
+#define STRATA_ABI_VERSION_MINOR 1
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -505,6 +505,23 @@ strata_rc_t strata_tx_response_body_chunk(strata_tx_t *tx,
                                           size_t len,
                                           int32_t last,
                                           strata_buf_t *rewritten);
+
+/**
+ * The connector flushes the response (a `flush` buffer, e.g. Server-Sent
+ * Events with `proxy_buffering off`): the bytes the data guard holds back
+ * are emitted now instead of with the next chunk (ABI 1.1).
+ *
+ * On return, `out->ptr == NULL` means nothing to send. Otherwise send
+ * `out->len` bytes (possibly 0) from `out->ptr` right after the bytes of
+ * the previous chunk, then release them with `strata_buf_free`. A value
+ * split exactly across the flush is not masked. `out` must not be NULL
+ * when the verdict has `STRATA_VF_NEED_RESPONSE`, as for
+ * `strata_tx_response_body_chunk`.
+ *
+ * # Safety
+ * `tx` must be NULL or live; `out` NULL or writable.
+ */
+strata_rc_t strata_tx_response_body_flush(strata_tx_t *tx, strata_buf_t *out);
 
 /**
  * Current verdict. With a NULL `tx`, `out` gets an `allow` verdict with

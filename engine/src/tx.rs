@@ -445,6 +445,18 @@ impl Tx {
         (OK, self.guard.as_mut().map(|g| g.chunk(data, last)))
     }
 
+    /// The connector flushes the response: `Some(bytes)` held back by the
+    /// data guard, to send now; `None`: nothing to send.
+    pub fn response_body_flush(&mut self) -> (Rc, Option<Vec<u8>>) {
+        if self.error != OK {
+            return (self.error, None);
+        }
+        if self.stage != Stage::Response {
+            return (E_STATE, None);
+        }
+        (OK, self.guard.as_mut().map(Guard::flush))
+    }
+
     pub fn verdict(&self) -> Verdict {
         let mut v = Verdict::allow();
         v.error = self.error;
@@ -500,6 +512,20 @@ mod tests {
         let v = t.verdict();
         assert!(!v.need_body);
         assert_eq!(id_str(&v), "");
+    }
+
+    #[test]
+    fn response_flush_needs_the_response_stage() {
+        let mut t = tx();
+        assert_eq!(t.response_body_flush(), (E_STATE, None));
+        let mut t = tx();
+        line(&mut t, b"/");
+        assert_eq!(t.request_body_chunk(b"", true), OK);
+        assert_eq!(t.response_headers(200), OK);
+        let (rc, out) = t.response_body_flush();
+        assert_eq!(rc, OK);
+        // a data guard exists only when there is something to mask
+        assert_eq!(out.is_some(), cfg!(feature = "test-hooks"));
     }
 
     #[test]
