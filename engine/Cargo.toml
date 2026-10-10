@@ -1,0 +1,14 @@
+[package]
+name = "libstrata"
+version = "0.1.0"
+description = "Strata WAF engine: bundle, transactions, detectors (safe Rust)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "fast"] }
+
+[features]
+# Test-only triggers (deliberate panic, ...). Never in release packages.
+test-hooks = []

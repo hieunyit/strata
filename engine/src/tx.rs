@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use crate::abi::*;
 use crate::block_id::{self, Kind};
 use crate::engine::Engine;
+use crate::verdict::*;
 
 pub(crate) const NEEDLE: &[u8] = b"STRATA-TEST-BLOCK";
 /// Rule id reported by the stub rule (organization range 800000–899999).
@@ -36,7 +36,7 @@ pub struct Tx {
     shadow: bool,
     json: bool,
     stage: Stage,
-    error: strata_rc_t,
+    error: Rc,
     matched: bool,
     id: Option<[u8; block_id::ID_LEN]>,
     tail: [u8; TAIL],
@@ -56,31 +56,31 @@ fn contains_ignore_case(hay: &[u8], needle: &[u8]) -> bool {
 
 impl Tx {
     /// Without an engine (no bundle loaded) the transaction starts in
-    /// `STRATA_E_BUNDLE`, so the connector applies its fail mode but still
+    /// `E_BUNDLE`, so the connector applies its fail mode but still
     /// gets an Event ID.
     pub fn new(engine: Option<Arc<Engine>>, node_id: &[u8], flags: u32) -> Tx {
         let missing = engine.is_none();
         let mut tx = Tx {
             _engine: engine,
             node: block_id::node_hash(node_id),
-            shadow: flags & STRATA_TXF_FORCE_SHADOW != 0,
+            shadow: flags & TXF_FORCE_SHADOW != 0,
             json: false,
             stage: Stage::New,
-            error: STRATA_OK,
+            error: OK,
             matched: false,
             id: None,
             tail: [0; TAIL],
             tail_len: 0,
         };
         if missing {
-            tx.fail(STRATA_E_BUNDLE);
+            tx.fail(E_BUNDLE);
         }
         tx
     }
 
     /// Marks the transaction broken; the first error wins.
-    pub fn fail(&mut self, rc: strata_rc_t) {
-        if self.error == STRATA_OK {
+    pub fn fail(&mut self, rc: Rc) {
+        if self.error == OK {
             self.error = rc;
         }
         if self.id.is_none() {
@@ -88,12 +88,12 @@ impl Tx {
         }
     }
 
-    fn check(&self, at_least: Stage, before: Stage) -> Result<(), strata_rc_t> {
-        if self.error != STRATA_OK {
+    fn check(&self, at_least: Stage, before: Stage) -> Result<(), Rc> {
+        if self.error != OK {
             return Err(self.error);
         }
         if self.stage < at_least || self.stage >= before {
-            return Err(STRATA_E_STATE);
+            return Err(E_STATE);
         }
         Ok(())
     }
@@ -127,7 +127,7 @@ impl Tx {
         norm_uri: &[u8],
         args: &[u8],
         _proto: &[u8],
-    ) -> strata_rc_t {
+    ) -> Rc {
         if let Err(rc) = self.check(Stage::New, Stage::Line) {
             return rc;
         }
@@ -135,10 +135,10 @@ impl Tx {
         for part in [raw_uri, norm_uri, args] {
             self.scan(part);
         }
-        STRATA_OK
+        OK
     }
 
-    pub fn request_header(&mut self, key: &[u8], val: &[u8]) -> strata_rc_t {
+    pub fn request_header(&mut self, key: &[u8], val: &[u8]) -> Rc {
         if let Err(rc) = self.check(Stage::Line, Stage::Headers) {
             return rc;
         }
@@ -148,18 +148,18 @@ impl Tx {
         {
             self.json = true;
         }
-        STRATA_OK
+        OK
     }
 
-    pub fn request_headers_done(&mut self) -> strata_rc_t {
+    pub fn request_headers_done(&mut self) -> Rc {
         if let Err(rc) = self.check(Stage::Line, Stage::Headers) {
             return rc;
         }
         self.stage = Stage::Headers;
-        STRATA_OK
+        OK
     }
 
-    pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> strata_rc_t {
+    pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
             return rc;
         }
@@ -192,49 +192,45 @@ impl Tx {
         if last {
             self.stage = Stage::BodyDone;
         }
-        STRATA_OK
+        OK
     }
 
-    pub fn response_headers(&mut self, _status: u16) -> strata_rc_t {
+    pub fn response_headers(&mut self, _status: u16) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::Response) {
             return rc;
         }
         self.stage = Stage::Response;
-        STRATA_OK
+        OK
     }
 
-    pub fn response_body_chunk(&mut self, _data: &[u8], _last: bool) -> strata_rc_t {
-        if self.error != STRATA_OK {
+    pub fn response_body_chunk(&mut self, _data: &[u8], _last: bool) -> Rc {
+        if self.error != OK {
             return self.error;
         }
         if self.stage != Stage::Response {
-            return STRATA_E_STATE;
+            return E_STATE;
         }
-        STRATA_OK
+        OK
     }
 
-    pub fn verdict(&self) -> strata_verdict_t {
-        let mut v = strata_verdict_t::empty();
+    pub fn verdict(&self) -> Verdict {
+        let mut v = Verdict::allow();
         v.error = self.error;
-        if self.json {
-            v.flags |= STRATA_VF_JSON;
-        }
+        v.json = self.json;
         if self.matched {
             v.score = STUB_SCORE;
             v.n_rules = 1;
             v.rules[0] = STUB_RULE_ID;
             if self.shadow {
-                v.action = STRATA_ACTION_LOG;
+                v.action = ACTION_LOG;
             } else {
-                v.action = STRATA_ACTION_BLOCK;
+                v.action = ACTION_BLOCK;
                 v.status = 403;
             }
-        } else if self.error == STRATA_OK && self.stage < Stage::BodyDone {
-            v.flags |= STRATA_VF_NEED_BODY;
+        } else if self.error == OK && self.stage < Stage::BodyDone {
+            v.need_body = true;
         }
-        if let Some(id) = &self.id {
-            write_c_str(&mut v.block_id, id);
-        }
+        v.id = self.id;
         v
     }
 }
@@ -248,20 +244,14 @@ mod tests {
         Tx::new(Some(Arc::new(test_engine())), b"node-a", 0)
     }
 
-    fn id_str(v: &strata_verdict_t) -> String {
-        v.block_id
-            .iter()
-            .take_while(|&&c| c != 0)
-            .map(|&c| c as u8 as char)
-            .collect()
+    fn id_str(v: &Verdict) -> String {
+        v.id.map(|id| String::from_utf8_lossy(&id).into_owned())
+            .unwrap_or_default()
     }
 
     fn line(t: &mut Tx, uri: &[u8]) {
-        assert_eq!(
-            t.request_line(b"GET", uri, uri, b"", b"HTTP/1.1"),
-            STRATA_OK
-        );
-        assert_eq!(t.request_headers_done(), STRATA_OK);
+        assert_eq!(t.request_line(b"GET", uri, uri, b"", b"HTTP/1.1"), OK);
+        assert_eq!(t.request_headers_done(), OK);
     }
 
     #[test]
@@ -269,11 +259,11 @@ mod tests {
         let mut t = tx();
         line(&mut t, b"/index.html");
         let v = t.verdict();
-        assert_eq!(v.action, STRATA_ACTION_ALLOW);
-        assert_ne!(v.flags & STRATA_VF_NEED_BODY, 0);
-        assert_eq!(t.request_body_chunk(b"", true), STRATA_OK);
+        assert_eq!(v.action, ACTION_ALLOW);
+        assert!(v.need_body);
+        assert_eq!(t.request_body_chunk(b"", true), OK);
         let v = t.verdict();
-        assert_eq!(v.flags & STRATA_VF_NEED_BODY, 0);
+        assert!(!v.need_body);
         assert_eq!(id_str(&v), "");
     }
 
@@ -282,10 +272,10 @@ mod tests {
         let mut t = tx();
         line(&mut t, b"/a?STRATA-TEST-BLOCK");
         let v = t.verdict();
-        assert_eq!(v.action, STRATA_ACTION_BLOCK);
+        assert_eq!(v.action, ACTION_BLOCK);
         assert_eq!(v.status, 403);
         assert_eq!(v.rules[0], STUB_RULE_ID);
-        assert_eq!(v.flags & STRATA_VF_NEED_BODY, 0);
+        assert!(!v.need_body);
         assert!(id_str(&v).starts_with("STR-"));
         // Stable across calls.
         assert_eq!(id_str(&v), id_str(&t.verdict()));
@@ -297,10 +287,10 @@ mod tests {
         line(&mut t, b"/upload");
         let body = b"xxSTRATA-TEST-BLOCKyy";
         for b in body.chunks(1) {
-            assert_eq!(t.request_body_chunk(b, false), STRATA_OK);
+            assert_eq!(t.request_body_chunk(b, false), OK);
         }
-        assert_eq!(t.request_body_chunk(b"", true), STRATA_OK);
-        assert_eq!(t.verdict().action, STRATA_ACTION_BLOCK);
+        assert_eq!(t.request_body_chunk(b"", true), OK);
+        assert_eq!(t.verdict().action, ACTION_BLOCK);
     }
 
     #[test]
@@ -313,7 +303,7 @@ mod tests {
                 t.request_body_chunk(&body[..split], false);
                 t.request_body_chunk(&body[split..split2], false);
                 t.request_body_chunk(&body[split2..], true);
-                assert_eq!(t.verdict().action, STRATA_ACTION_BLOCK, "{split} {split2}");
+                assert_eq!(t.verdict().action, ACTION_BLOCK, "{split} {split2}");
             }
         }
     }
@@ -324,16 +314,16 @@ mod tests {
         line(&mut t, b"/");
         t.request_body_chunk(b"STRATA-TEST-BLOC", false);
         t.request_body_chunk(b"STRATA-TEST-BLOC", true);
-        assert_eq!(t.verdict().action, STRATA_ACTION_ALLOW);
+        assert_eq!(t.verdict().action, ACTION_ALLOW);
     }
 
     #[test]
     fn shadow_logs_with_event_id() {
         let e = Arc::new(test_engine());
-        let mut t = Tx::new(Some(e), b"n", STRATA_TXF_FORCE_SHADOW);
+        let mut t = Tx::new(Some(e), b"n", TXF_FORCE_SHADOW);
         line(&mut t, b"/STRATA-TEST-BLOCK");
         let v = t.verdict();
-        assert_eq!(v.action, STRATA_ACTION_LOG);
+        assert_eq!(v.action, ACTION_LOG);
         assert_eq!(v.status, 0);
         assert!(id_str(&v).starts_with("EVT-"));
     }
@@ -343,20 +333,20 @@ mod tests {
         let mut t = Tx::new(None, b"n", 0);
         assert_eq!(
             t.request_line(b"GET", b"/", b"/", b"", b"HTTP/1.1"),
-            STRATA_E_BUNDLE
+            E_BUNDLE
         );
         let v = t.verdict();
-        assert_eq!(v.error, STRATA_E_BUNDLE);
+        assert_eq!(v.error, E_BUNDLE);
         assert!(id_str(&v).starts_with("EVT-"));
     }
 
     #[test]
     fn out_of_order_calls_fail() {
         let mut t = tx();
-        assert_eq!(t.request_body_chunk(b"x", false), STRATA_E_STATE);
-        assert_eq!(t.request_headers_done(), STRATA_E_STATE);
+        assert_eq!(t.request_body_chunk(b"x", false), E_STATE);
+        assert_eq!(t.request_headers_done(), E_STATE);
         line(&mut t, b"/");
-        assert_eq!(t.request_line(b"GET", b"/", b"/", b"", b""), STRATA_E_STATE);
+        assert_eq!(t.request_line(b"GET", b"/", b"/", b"", b""), E_STATE);
     }
 
     #[test]
@@ -365,12 +355,12 @@ mod tests {
         t.request_line(b"GET", b"/", b"/", b"", b"HTTP/1.1");
         t.request_header(b"ACCEPT", b"application/json");
         t.request_headers_done();
-        assert_ne!(t.verdict().flags & STRATA_VF_JSON, 0);
+        assert!(t.verdict().json);
 
         let mut t = tx();
         t.request_line(b"GET", b"/", b"/", b"", b"HTTP/1.1");
         t.request_header(b"accept", b"text/html,application/json");
         t.request_headers_done();
-        assert_eq!(t.verdict().flags & STRATA_VF_JSON, 0);
+        assert!(!t.verdict().json);
     }
 }

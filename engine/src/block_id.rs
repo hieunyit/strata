@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /// Formatted id length without the trailing NUL.
-pub(crate) const ID_LEN: usize = 23;
+pub const ID_LEN: usize = 23;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {

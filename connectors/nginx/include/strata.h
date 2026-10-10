@@ -105,25 +105,15 @@
  */
 #define STRATA_BUNDLE_ROLLBACK (1 << 0)
 
-#define FORMAT 1
-
-#define HEADER_LEN 64
-
-#define POLICY_ENTRY_LEN 64
-
-#define SIG_LEN 64
-
-#define SECTION_ALIGN 4096
-
-#define MAX_POLICIES 4096
-
 /**
- * Header flag: this bundle may replace a newer one (signed rollback).
+ * Opaque `strata_engine_t`: an `Arc<Engine>` behind the pointer.
  */
-#define FLAG_ROLLBACK (1 << 0)
-
 typedef struct strata_engine_t strata_engine_t;
 
+/**
+ * Opaque `strata_tx_t`: a `Box<Tx>` behind the pointer; one request, used
+ * from a single thread.
+ */
 typedef struct strata_tx_t strata_tx_t;
 
 /**

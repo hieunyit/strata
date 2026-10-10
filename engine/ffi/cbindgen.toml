@@ -32,5 +32,5 @@ include = ["strata_engine_info_t", "strata_header_t", "strata_conn_t", "strata_v
 rename_variants = "None"
 
 [export.rename]
-"Engine" = "strata_engine_t"
-"Tx" = "strata_tx_t"
+"EngineHandle" = "strata_engine_t"
+"TxHandle" = "strata_tx_t"

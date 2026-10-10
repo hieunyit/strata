@@ -25,7 +25,7 @@ FIXTURES := connectors/nginx/t/fixtures
 all: lib nginx
 
 lib:
-	cargo build --release -p libstrata $(CARGO_FEATURES)
+	cargo build --release -p libstrata-ffi $(CARGO_FEATURES)
 
 $(MKBUNDLE):
 	cargo build --release -p mkbundle
@@ -38,19 +38,19 @@ check-fixtures: fixtures
 	git diff --exit-code -- $(FIXTURES)
 
 header:
-	cbindgen --quiet --config engine/ffi/cbindgen.toml --crate libstrata --output $(HEADER) engine/ffi
+	cbindgen --quiet --config engine/ffi/cbindgen.toml --crate libstrata-ffi --output $(HEADER) engine/ffi
 	cp $(HEADER) $(NGX_HEADER)
 
 # Fails when the committed headers differ from what the Rust sources produce.
 check-header:
-	cbindgen --quiet --config engine/ffi/cbindgen.toml --crate libstrata --output $(BUILD)/strata.h engine/ffi
+	cbindgen --quiet --config engine/ffi/cbindgen.toml --crate libstrata-ffi --output $(BUILD)/strata.h engine/ffi
 	diff -u $(HEADER) $(BUILD)/strata.h
 	diff -u $(HEADER) $(NGX_HEADER)
 
 rust-check:
 	cargo fmt --all --check
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cargo test -p libstrata --all-features
+	cargo test --workspace --all-features
 
 abi-test: lib
 	@mkdir -p $(BUILD)

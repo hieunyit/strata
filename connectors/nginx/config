@@ -1,5 +1,5 @@
 # ngx_http_strata_module: links libstrata (Rust, static) into the module.
-# Build libstrata first: cargo build --release -p libstrata
+# Build libstrata first: cargo build --release -p libstrata-ffi
 # Override the archive location with STRATA_LIB=/path/to/libstrata.a
 
 ngx_addon_name=ngx_http_strata_module
@@ -9,7 +9,7 @@ STRATA_LIB=${STRATA_LIB:-$STRATA_ROOT/target/release/libstrata.a}
 
 if [ ! -f "$STRATA_LIB" ]; then
     echo "$0: error: libstrata not found at $STRATA_LIB"
-    echo "$0: error: run \"cargo build --release -p libstrata\" first"
+    echo "$0: error: run \"cargo build --release -p libstrata-ffi\" first"
     exit 1
 fi
 

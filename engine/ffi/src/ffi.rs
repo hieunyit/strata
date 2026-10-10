@@ -8,12 +8,46 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::{ptr, slice};
 
-use crate::abi::*;
-use crate::engine::Engine;
-use crate::tx::Tx;
+use libstrata::engine::Engine;
+use libstrata::tx::Tx;
+use libstrata::verdict::Verdict;
 
-// Opaque handles: `Engine` is exported as `Engine` (reference
-// counted through `Arc`), `Tx` as `Tx` (one request, one thread).
+use crate::abi::*;
+
+/// Opaque `strata_engine_t`: an `Arc<Engine>` behind the pointer.
+pub struct EngineHandle {
+    _private: [u8; 0],
+}
+
+/// Opaque `strata_tx_t`: a `Box<Tx>` behind the pointer; one request, used
+/// from a single thread.
+pub struct TxHandle {
+    _private: [u8; 0],
+}
+
+/// Copies an engine verdict into its C layout.
+fn to_c(v: &Verdict) -> strata_verdict_t {
+    let mut out = strata_verdict_t::empty();
+    out.action = v.action;
+    out.status = v.status;
+    out.error = v.error;
+    out.score = v.score;
+    out.n_rules = v.n_rules.min(STRATA_MAX_RULES as u32);
+    out.rules = v.rules;
+    if v.need_body {
+        out.flags |= STRATA_VF_NEED_BODY;
+    }
+    if v.need_response {
+        out.flags |= STRATA_VF_NEED_RESPONSE;
+    }
+    if v.json {
+        out.flags |= STRATA_VF_JSON;
+    }
+    if let Some(id) = &v.id {
+        write_c_str(&mut out.block_id, id);
+    }
+    out
+}
 
 /// Runs `f`, converting a panic into `on_panic`.
 pub(crate) fn guard<T>(on_panic: T, f: impl FnOnce() -> T) -> T {
@@ -40,14 +74,14 @@ unsafe fn bytes<'a>(s: strata_str_t) -> Result<&'a [u8], strata_rc_t> {
 /// # Safety
 /// `tx` must be NULL or a live pointer returned by `strata_tx_new`.
 unsafe fn with_tx(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     f: impl FnOnce(&mut Tx) -> Result<strata_rc_t, strata_rc_t>,
 ) -> strata_rc_t {
     if tx.is_null() {
         return STRATA_E_INVALID;
     }
     // SAFETY: non-NULL and live per the contract above.
-    let tx = unsafe { &mut *tx };
+    let tx = unsafe { &mut *tx.cast::<Tx>() };
     let rc = catch_unwind(AssertUnwindSafe(|| f(tx).unwrap_or_else(|rc| rc)))
         .unwrap_or(STRATA_E_INTERNAL);
     // Any failed call leaves the inspection incomplete: mark the transaction
@@ -78,7 +112,7 @@ pub unsafe extern "C" fn strata_engine_map(
     len: usize,
     pubkey: *const u8,
     err: *mut strata_err_t,
-) -> *mut Engine {
+) -> *mut EngineHandle {
     let result = guard(
         Err((STRATA_E_INTERNAL, "panic in strata_engine_map")),
         || {
@@ -97,7 +131,9 @@ pub unsafe extern "C" fn strata_engine_map(
         Ok(engine) => (
             STRATA_OK,
             &b""[..],
-            Arc::into_raw(Arc::new(engine)).cast_mut(),
+            Arc::into_raw(Arc::new(engine))
+                .cast_mut()
+                .cast::<EngineHandle>(),
         ),
         Err((code, msg)) => (code, msg.as_bytes(), ptr::null_mut()),
     };
@@ -116,7 +152,10 @@ pub unsafe extern "C" fn strata_engine_map(
 /// # Safety
 /// `e` must be NULL or a live engine handle; `out` NULL or writable.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_engine_info(e: *const Engine, out: *mut strata_engine_info_t) {
+pub unsafe extern "C" fn strata_engine_info(
+    e: *const EngineHandle,
+    out: *mut strata_engine_info_t,
+) {
     if out.is_null() {
         return;
     }
@@ -124,11 +163,11 @@ pub unsafe extern "C" fn strata_engine_info(e: *const Engine, out: *mut strata_e
         strata_engine_info_t::default()
     } else {
         // SAFETY: live handle per contract.
-        let i = unsafe { &*e }.info();
+        let i = unsafe { &*e.cast::<Engine>() }.info();
         strata_engine_info_t {
             version: i.version,
             created_at_ms: i.created_at_ms,
-            flags: if i.flags & crate::bundle::FLAG_ROLLBACK != 0 {
+            flags: if i.flags & libstrata::bundle::FLAG_ROLLBACK != 0 {
                 STRATA_BUNDLE_ROLLBACK
             } else {
                 0
@@ -145,10 +184,10 @@ pub unsafe extern "C" fn strata_engine_info(e: *const Engine, out: *mut strata_e
 /// # Safety
 /// `e` must be NULL or a live engine handle.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_engine_retain(e: *mut Engine) {
+pub unsafe extern "C" fn strata_engine_retain(e: *mut EngineHandle) {
     if !e.is_null() {
         // SAFETY: e came from Arc::into_raw and is still alive.
-        unsafe { Arc::increment_strong_count(e.cast_const()) };
+        unsafe { Arc::increment_strong_count(e.cast_const().cast::<Engine>()) };
     }
 }
 
@@ -160,11 +199,11 @@ pub unsafe extern "C" fn strata_engine_retain(e: *mut Engine) {
 /// `e` must be NULL or a live engine handle; each call balances one
 /// `strata_engine_map` or `strata_engine_retain`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_engine_release(e: *mut Engine) {
+pub unsafe extern "C" fn strata_engine_release(e: *mut EngineHandle) {
     if !e.is_null() {
         // SAFETY: as above; the strong count is at least one.
         guard((), || unsafe {
-            Arc::decrement_strong_count(e.cast_const())
+            Arc::decrement_strong_count(e.cast_const().cast::<Engine>())
         });
     }
 }
@@ -179,11 +218,11 @@ pub unsafe extern "C" fn strata_engine_release(e: *mut Engine) {
 /// `conn` must be valid for the call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_new(
-    engine: *mut Engine,
+    engine: *mut EngineHandle,
     policy: strata_str_t,
     conn: *const strata_conn_t,
     cpu_budget_us: u64,
-) -> *mut Tx {
+) -> *mut TxHandle {
     // The stub has no policies and no budget accounting yet.
     let _ = (policy, cpu_budget_us);
     guard(ptr::null_mut(), || {
@@ -192,8 +231,8 @@ pub unsafe extern "C" fn strata_tx_new(
         } else {
             // SAFETY: live handle from Arc::into_raw; take a new reference.
             unsafe {
-                Arc::increment_strong_count(engine.cast_const());
-                Some(Arc::from_raw(engine.cast_const()))
+                Arc::increment_strong_count(engine.cast_const().cast::<Engine>());
+                Some(Arc::from_raw(engine.cast_const().cast::<Engine>()))
             }
         };
         let (node, flags) = if conn.is_null() {
@@ -204,7 +243,7 @@ pub unsafe extern "C" fn strata_tx_new(
             (unsafe { bytes(c.node_id) }.unwrap_or(&[]), c.flags)
         };
         let tx = Tx::new(engine, node, flags);
-        Box::into_raw(Box::new(tx))
+        Box::into_raw(Box::new(tx)).cast::<TxHandle>()
     })
 }
 
@@ -215,7 +254,7 @@ pub unsafe extern "C" fn strata_tx_new(
 /// `tx` must be NULL or live; strings valid for the call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_request_line(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     method: strata_str_t,
     raw_uri: strata_str_t,
     norm_uri: strata_str_t,
@@ -241,7 +280,7 @@ pub unsafe extern "C" fn strata_tx_request_line(
 /// `tx` must be NULL or live; `h` must point to `n` headers (or n == 0).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_request_headers(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     h: *const strata_header_t,
     n: usize,
 ) -> strata_rc_t {
@@ -272,7 +311,7 @@ pub unsafe extern "C" fn strata_tx_request_headers(
 /// `tx` must be NULL or live; `p` must point to `len` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_request_body_chunk(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     p: *const u8,
     len: usize,
     last: i32,
@@ -290,7 +329,7 @@ pub unsafe extern "C" fn strata_tx_request_body_chunk(
 /// `tx` must be NULL or live; `h` must point to `n` headers (or n == 0).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_response_headers(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     status: u16,
     h: *const strata_header_t,
     n: usize,
@@ -315,7 +354,7 @@ pub unsafe extern "C" fn strata_tx_response_headers(
 /// NULL or writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_response_body_chunk(
-    tx: *mut Tx,
+    tx: *mut TxHandle,
     p: *const u8,
     len: usize,
     last: i32,
@@ -338,7 +377,7 @@ pub unsafe extern "C" fn strata_tx_response_body_chunk(
 /// # Safety
 /// `tx` must be NULL or live; `out` must be NULL or writable.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_tx_verdict(tx: *const Tx, out: *mut strata_verdict_t) {
+pub unsafe extern "C" fn strata_tx_verdict(tx: *const TxHandle, out: *mut strata_verdict_t) {
     if out.is_null() {
         return;
     }
@@ -348,14 +387,14 @@ pub unsafe extern "C" fn strata_tx_verdict(tx: *const Tx, out: *mut strata_verdi
         v
     } else {
         // SAFETY: live per contract.
-        let t = unsafe { &*tx };
+        let t = unsafe { &*tx.cast::<Tx>() };
         guard(
             {
                 let mut v = strata_verdict_t::empty();
                 v.error = STRATA_E_INTERNAL;
                 v
             },
-            || t.verdict(),
+            || to_c(&t.verdict()),
         )
     };
     // SAFETY: out is non-NULL and writable.
@@ -369,7 +408,7 @@ pub unsafe extern "C" fn strata_tx_verdict(tx: *const Tx, out: *mut strata_verdi
 /// # Safety
 /// `tx` must be NULL or live; `dst` must point to `cap` writable bytes.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_tx_event(tx: *const Tx, dst: *mut u8, cap: usize) -> usize {
+pub unsafe extern "C" fn strata_tx_event(tx: *const TxHandle, dst: *mut u8, cap: usize) -> usize {
     let _ = (tx, dst, cap);
     0
 }
@@ -379,10 +418,10 @@ pub unsafe extern "C" fn strata_tx_event(tx: *const Tx, dst: *mut u8, cap: usize
 /// # Safety
 /// `tx` must be NULL or a live pointer from `strata_tx_new`, freed once.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn strata_tx_free(tx: *mut Tx) {
+pub unsafe extern "C" fn strata_tx_free(tx: *mut TxHandle) {
     if !tx.is_null() {
         // SAFETY: tx came from Box::into_raw in strata_tx_new.
-        guard((), || drop(unsafe { Box::from_raw(tx) }));
+        guard((), || drop(unsafe { Box::from_raw(tx.cast::<Tx>()) }));
     }
 }
 

@@ -160,6 +160,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "libstrata-ffi"
+version = "0.1.0"
+dependencies = [
+ "libstrata",
+]
+
+[[package]]
 name = "mkbundle"
 version = "0.1.0"
 dependencies = [

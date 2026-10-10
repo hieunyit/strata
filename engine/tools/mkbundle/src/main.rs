@@ -18,8 +18,8 @@ use std::fs::{self, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::process::ExitCode;
 
+use libstrata::bundle::{self, FLAG_ROLLBACK, Spec};
 use sha2::{Digest, Sha256};
-use strata::bundle::{self, FLAG_ROLLBACK, Spec};
 
 const CTL_SIZE: usize = 4096;
 const CTL_MAGIC: &[u8; 8] = b"STRCTL1\0";

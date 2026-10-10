@@ -1,11 +1,26 @@
-//! libstrata — Strata WAF engine behind a small, versioned C ABI (`strata.h`).
-//!
-//! This is the week 1–2 stub: the full ABI is implemented, the detection
-//! logic is a single test rule (see [`tx`]). `unsafe` is confined to [`ffi`].
+//! libstrata-ffi — the C ABI of libstrata (`strata.h`), built as
+//! `libstrata.a`. This crate is the only place where `unsafe` is allowed;
+//! the engine itself is the safe `libstrata` crate (`engine/`).
 
 pub mod abi;
-pub mod block_id;
-pub mod bundle;
-pub mod engine;
 pub mod ffi;
-pub mod tx;
+
+// The engine's codes are the ABI's codes: keep them identical.
+const _: () = {
+    use abi::*;
+    use libstrata::verdict as v;
+    assert!(v::OK == STRATA_OK);
+    assert!(v::E_INVALID == STRATA_E_INVALID);
+    assert!(v::E_STATE == STRATA_E_STATE);
+    assert!(v::E_INTERNAL == STRATA_E_INTERNAL);
+    assert!(v::E_BUDGET == STRATA_E_BUDGET);
+    assert!(v::E_BUNDLE == STRATA_E_BUNDLE);
+    assert!(v::ACTION_ALLOW == STRATA_ACTION_ALLOW);
+    assert!(v::ACTION_LOG == STRATA_ACTION_LOG);
+    assert!(v::ACTION_CHALLENGE == STRATA_ACTION_CHALLENGE);
+    assert!(v::ACTION_BLOCK == STRATA_ACTION_BLOCK);
+    assert!(v::TXF_FORCE_SHADOW == STRATA_TXF_FORCE_SHADOW);
+    assert!(v::MAX_RULES == STRATA_MAX_RULES);
+    assert!(v::PUBKEY_LEN == STRATA_PUBKEY_LEN);
+    assert!(libstrata::block_id::ID_LEN < STRATA_BLOCK_ID_SIZE);
+};
