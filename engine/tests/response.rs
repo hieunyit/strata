@@ -200,7 +200,10 @@ fn flush_sends_everything_held() {
     let mut out = t.response_body_chunk(b"data: hello\n\n", false).1.unwrap();
     out.extend(t.response_body_flush().1.unwrap());
     assert_eq!(out, b"data: hello\n\n");
-    let mut out = t.response_body_chunk(b"data: 001203012345\n\n", false).1.unwrap();
+    let mut out = t
+        .response_body_chunk(b"data: 001203012345\n\n", false)
+        .1
+        .unwrap();
     out.extend(t.response_body_flush().1.unwrap());
     assert_eq!(out, b"data: ************\n\n");
     assert_eq!(t.response_body_flush().1.unwrap(), b"");
