@@ -38,6 +38,13 @@
 #define STRATA_ABI_VERSION ((STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR)
 
 /**
+ * `strata_policy_info_t.mode`: policy mode signed into the bundle.
+ */
+#define STRATA_POLICY_SHADOW 0
+
+#define STRATA_POLICY_ENFORCE 1
+
+/**
  * Verdict actions.
  */
 #define STRATA_ACTION_ALLOW 0
@@ -167,6 +174,20 @@ typedef struct {
 } strata_str_t;
 
 /**
+ * A policy of the engine's bundle, from `strata_engine_policy`.
+ */
+typedef struct {
+  /**
+   * `STRATA_POLICY_*`.
+   */
+  uint32_t mode;
+  /**
+   * Position in the bundle's policy table.
+   */
+  uint32_t index;
+} strata_policy_info_t;
+
+/**
  * Request/connection context given to `strata_tx_new`.
  * All strings are borrowed for the duration of the call only.
  */
@@ -285,6 +306,11 @@ typedef struct {
  */
 #define STRATA_E_BUNDLE 5
 
+/**
+ * The requested item (e.g. a policy) is not in the bundle.
+ */
+#define STRATA_E_NOT_FOUND 6
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -316,6 +342,19 @@ strata_engine_t *strata_engine_map(const uint8_t *base,
  * `e` must be NULL or a live engine handle; `out` NULL or writable.
  */
 void strata_engine_info(const strata_engine_t *e, strata_engine_info_t *out);
+
+/**
+ * Looks a policy up in the engine's bundle. Returns `STRATA_OK` and fills
+ * `out`, `STRATA_E_NOT_FOUND` when the bundle has no such policy, or
+ * `STRATA_E_INVALID` for a NULL engine or `out`.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle; `name` valid for the call;
+ * `out` NULL or writable.
+ */
+strata_rc_t strata_engine_policy(const strata_engine_t *e,
+                                 strata_str_t name,
+                                 strata_policy_info_t *out);
 
 /**
  * Adds a reference to the engine.

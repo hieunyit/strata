@@ -33,6 +33,7 @@ _Static_assert(sizeof(strata_rc_t) == 4, "rc");
 _Static_assert(STRATA_ABI_VERSION_MAJOR == 1, "abi major");
 _Static_assert(sizeof(strata_engine_info_t) == 24, "engine info size");
 _Static_assert(offsetof(strata_engine_info_t, flags) == 16, "engine info.flags");
+_Static_assert(sizeof(strata_policy_info_t) == 8, "policy info size");
 
 static int failures;
 
@@ -129,6 +130,7 @@ main(int argc, char **argv)
     strata_err_t           err;
     strata_engine_t       *e;
     strata_engine_info_t   info;
+    strata_policy_info_t   pol;
     strata_tx_t      *tx;
     strata_verdict_t  v;
     strata_buf_t      buf;
@@ -177,6 +179,16 @@ main(int argc, char **argv)
     strata_engine_info(NULL, &info);
     CHECK(info.version == 0);
     strata_engine_info(e, NULL);
+
+    /* policies and their signed modes, read in place */
+    CHECK(strata_engine_policy(e, S("example-api"), &pol) == STRATA_OK);
+    CHECK(pol.mode == STRATA_POLICY_ENFORCE && pol.index == 0);
+    CHECK(strata_engine_policy(e, S("example-web"), &pol) == STRATA_OK);
+    CHECK(pol.mode == STRATA_POLICY_SHADOW && pol.index == 2);
+    CHECK(strata_engine_policy(e, S("example"), &pol) == STRATA_E_NOT_FOUND);
+    CHECK(strata_engine_policy(e, S(""), &pol) == STRATA_E_NOT_FOUND);
+    CHECK(strata_engine_policy(NULL, S("example-api"), &pol) == STRATA_E_INVALID);
+    CHECK(strata_engine_policy(e, S("example-api"), NULL) == STRATA_E_INVALID);
     strata_engine_retain(e);
     strata_engine_release(e);
 

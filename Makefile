@@ -19,7 +19,7 @@ ASAN_LOGS     := $(CURDIR)/$(BUILD)/asan
 MKBUNDLE := target/release/mkbundle
 FIXTURES := connectors/nginx/t/fixtures
 
-.PHONY: fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
+.PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind
 
 all: lib nginx
@@ -27,8 +27,11 @@ all: lib nginx
 lib:
 	cargo build --release -p libstrata-ffi $(CARGO_FEATURES)
 
-$(MKBUNDLE):
+# Always ask cargo: it rebuilds only when the sources changed.
+$(MKBUNDLE): FORCE
 	cargo build --release -p mkbundle
+
+FORCE:
 
 fixtures: $(MKBUNDLE)
 	$(FIXTURES)/make.sh $(CURDIR)/$(MKBUNDLE)

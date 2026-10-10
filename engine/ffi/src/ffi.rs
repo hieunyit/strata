@@ -25,6 +25,27 @@ pub struct TxHandle {
     _private: [u8; 0],
 }
 
+/// The connector's read-only bundle mapping. The ABI contract keeps it
+/// valid and unchanged until the last `strata_engine_release`, so the
+/// engine may read it for its whole life without copying.
+struct Mapped {
+    ptr: *const u8,
+    len: usize,
+}
+
+// SAFETY: the mapping is read-only and outlives the engine (ABI contract);
+// shared reads from any thread are fine.
+unsafe impl Send for Mapped {}
+unsafe impl Sync for Mapped {}
+
+impl AsRef<[u8]> for Mapped {
+    fn as_ref(&self) -> &[u8] {
+        // SAFETY: ptr is non-NULL with len readable bytes (checked when the
+        // engine was mapped) and stays valid for the engine's life.
+        unsafe { slice::from_raw_parts(self.ptr, self.len) }
+    }
+}
+
 /// Copies an engine verdict into its C layout.
 fn to_c(v: &Verdict) -> strata_verdict_t {
     let mut out = strata_verdict_t::empty();
@@ -116,15 +137,15 @@ pub unsafe extern "C" fn strata_engine_map(
     let result = guard(
         Err((STRATA_E_INTERNAL, "panic in strata_engine_map")),
         || {
-            // SAFETY: caller contract.
-            let bundle = unsafe { bytes(strata_str_t { ptr: base, len }) }
-                .map_err(|rc| (rc, "bundle pointer is NULL"))?;
+            if base.is_null() || len == 0 {
+                return Err((STRATA_E_INVALID, "bundle pointer is NULL or empty"));
+            }
             if pubkey.is_null() {
                 return Err((STRATA_E_INVALID, "public key is NULL"));
             }
             // SAFETY: caller contract: pubkey points to STRATA_PUBKEY_LEN bytes.
             let key = unsafe { slice::from_raw_parts(pubkey, STRATA_PUBKEY_LEN) };
-            Engine::map(bundle, key)
+            Engine::map(Box::new(Mapped { ptr: base, len }), key)
         },
     );
     let (code, msg, handle) = match result {
@@ -177,6 +198,44 @@ pub unsafe extern "C" fn strata_engine_info(
     };
     // SAFETY: out is non-NULL and writable.
     unsafe { *out = info };
+}
+
+/// Looks a policy up in the engine's bundle. Returns `STRATA_OK` and fills
+/// `out`, `STRATA_E_NOT_FOUND` when the bundle has no such policy, or
+/// `STRATA_E_INVALID` for a NULL engine or `out`.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle; `name` valid for the call;
+/// `out` NULL or writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_policy(
+    e: *const EngineHandle,
+    name: strata_str_t,
+    out: *mut strata_policy_info_t,
+) -> strata_rc_t {
+    if e.is_null() || out.is_null() {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        // SAFETY: live handle and valid name per contract.
+        let engine = unsafe { &*e.cast::<Engine>() };
+        let Ok(name) = (unsafe { bytes(name) }) else {
+            return STRATA_E_INVALID;
+        };
+        match engine.policy(name) {
+            Some((index, mode)) => {
+                // SAFETY: out is non-NULL and writable.
+                unsafe {
+                    *out = strata_policy_info_t {
+                        mode: mode as u32,
+                        index,
+                    }
+                };
+                STRATA_OK
+            }
+            None => STRATA_E_NOT_FOUND,
+        }
+    })
 }
 
 /// Adds a reference to the engine.

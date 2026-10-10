@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 "$mk" keygen --seed 0202020202020202020202020202020202020202020202020202020202020202 \
     --key-out other.key --pub-out other.pub
 
-policies=(--policy example-api --policy example-api-upload --policy example-web)
+policies=(--policy example-api:enforce --policy example-api-upload:shadow --policy example-web:shadow)
 
 mkdir -p bundle bad empty
 "$mk" build --key test.key --version 1 --created-at 1760000000000 "${policies[@]}" \

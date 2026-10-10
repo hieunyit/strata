@@ -32,6 +32,12 @@ pub const STRATA_E_INTERNAL: strata_rc_t = 3;
 pub const STRATA_E_BUDGET: strata_rc_t = 4;
 /// No usable bundle (missing, corrupt, bad signature).
 pub const STRATA_E_BUNDLE: strata_rc_t = 5;
+/// The requested item (e.g. a policy) is not in the bundle.
+pub const STRATA_E_NOT_FOUND: strata_rc_t = 6;
+
+/// `strata_policy_info_t.mode`: policy mode signed into the bundle.
+pub const STRATA_POLICY_SHADOW: u32 = 0;
+pub const STRATA_POLICY_ENFORCE: u32 = 1;
 
 /// Verdict actions.
 pub const STRATA_ACTION_ALLOW: u32 = 0;
@@ -128,6 +134,16 @@ pub struct strata_verdict_t {
     /// NUL-terminated: `STR-…` when blocked, `EVT-…` in shadow or on error,
     /// empty when allowed.
     pub block_id: [c_char; STRATA_BLOCK_ID_SIZE],
+}
+
+/// A policy of the engine's bundle, from `strata_engine_policy`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct strata_policy_info_t {
+    /// `STRATA_POLICY_*`.
+    pub mode: u32,
+    /// Position in the bundle's policy table.
+    pub index: u32,
 }
 
 /// Metadata of the bundle an engine was built from (signed header fields).

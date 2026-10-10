@@ -15,6 +15,7 @@ pub const E_STATE: Rc = 2;
 pub const E_INTERNAL: Rc = 3;
 pub const E_BUDGET: Rc = 4;
 pub const E_BUNDLE: Rc = 5;
+pub const E_NOT_FOUND: Rc = 6;
 
 pub const ACTION_ALLOW: u32 = 0;
 pub const ACTION_LOG: u32 = 1;

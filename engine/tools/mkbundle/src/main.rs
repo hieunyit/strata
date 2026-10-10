@@ -3,7 +3,8 @@
 //! ```text
 //! mkbundle keygen  --seed <64 hex> --key-out <file> --pub-out <file>
 //! mkbundle build   --key <seed file> --version <n> --out <file>
-//!                  [--rollback] [--created-at <ms>] [--policy <name>]...
+//!                  [--rollback] [--created-at <ms>]
+//!                  [--policy <name>[:shadow|:enforce]]...
 //!                  [--sections-size <bytes>]
 //! mkbundle control --out <file> --generation <n> --version <n> --name <file>
 //!                  [--bundle <path>] [--in-place] [--writing]
@@ -18,7 +19,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::process::ExitCode;
 
-use libstrata::bundle::{self, FLAG_ROLLBACK, Spec};
+use libstrata::bundle::{self, FLAG_ROLLBACK, Mode, Spec};
 use sha2::{Digest, Sha256};
 
 const CTL_SIZE: usize = 4096;
@@ -84,10 +85,17 @@ fn build(a: &Args) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .try_into()
         .map_err(|_| "key file must hold a 32-byte seed")?;
-    let policies: Vec<&str> = a
-        .get("policy")
-        .map(|v| v.iter().map(String::as_str).collect())
-        .unwrap_or_default();
+    // --policy <name>[:shadow|:enforce], shadow by default
+    let mut policies: Vec<(&str, Mode)> = vec![];
+    for p in a.get("policy").into_iter().flatten() {
+        let (name, mode) = match p.split_once(':') {
+            None => (p.as_str(), Mode::Shadow),
+            Some((n, "shadow")) => (n, Mode::Shadow),
+            Some((n, "enforce")) => (n, Mode::Enforce),
+            Some((_, m)) => return Err(format!("--policy: unknown mode {m:?}")),
+        };
+        policies.push((name, mode));
+    }
     let sections = vec![0x5a; num(a, "sections-size", Some(64))? as usize];
     let spec = Spec {
         version: num(a, "version", None)?,

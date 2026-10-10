@@ -5,7 +5,9 @@
 //!          magic "STRBNDL\0" | format u16 | flags u16 | n_policies u32
 //!          version u64 | created_at_ms u64 | sections_off u64 | sections_len u64
 //!          reserved [u8; 16] (zero)
-//! 64     policy table: n_policies x 64 bytes, NUL-padded names
+//! 64     policy table: n_policies x 64 bytes:
+//!          name [u8; 56] (1..55 chars [a-z0-9._-], NUL-padded) | mode u8
+//!          (0 shadow, 1 enforce) | reserved [u8; 7] (zero)
 //! ...    zero padding up to sections_off (multiple of 4096)
 //! off    sections (opaque here; rule sections are still a stub)
 //! ...    zero padding
@@ -21,11 +23,20 @@ pub const MAGIC: &[u8; 8] = b"STRBNDL\0";
 pub const FORMAT: u16 = 1;
 pub const HEADER_LEN: usize = 64;
 pub const POLICY_ENTRY_LEN: usize = 64;
+/// Bytes of the NUL-padded name inside a policy entry.
+pub const POLICY_NAME_LEN: usize = 56;
 pub const SIG_LEN: usize = 64;
 pub const SECTION_ALIGN: usize = 4096;
 pub const MAX_POLICIES: u32 = 4096;
 /// Header flag: this bundle may replace a newer one (signed rollback).
 pub const FLAG_ROLLBACK: u16 = 1 << 0;
+
+/// Policy mode signed into the bundle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Shadow = 0,
+    Enforce = 1,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Info {
@@ -74,14 +85,36 @@ fn u64_at(b: &[u8], off: usize) -> u64 {
     u64::from_le_bytes(a)
 }
 
-fn valid_policy_name(entry: &[u8]) -> bool {
-    let len = entry.iter().position(|&c| c == 0).unwrap_or(entry.len());
+fn valid_policy_name(name: &[u8]) -> bool {
+    let len = name.iter().position(|&c| c == 0).unwrap_or(name.len());
     len > 0
-        && len < POLICY_ENTRY_LEN
-        && entry[len..].iter().all(|&c| c == 0)
-        && entry[..len]
+        && len < POLICY_NAME_LEN
+        && name[len..].iter().all(|&c| c == 0)
+        && name[..len]
             .iter()
             .all(|&c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(&c))
+}
+
+fn valid_policy_entry(entry: &[u8]) -> bool {
+    valid_policy_name(&entry[..POLICY_NAME_LEN])
+        && entry[POLICY_NAME_LEN] <= Mode::Enforce as u8
+        && entry[POLICY_NAME_LEN + 1..].iter().all(|&c| c == 0)
+}
+
+fn entry_name(e: &[u8]) -> &[u8] {
+    let len = e[..POLICY_NAME_LEN]
+        .iter()
+        .position(|&c| c == 0)
+        .unwrap_or(POLICY_NAME_LEN);
+    &e[..len]
+}
+
+fn entry_mode(e: &[u8]) -> Mode {
+    if e[POLICY_NAME_LEN] == Mode::Enforce as u8 {
+        Mode::Enforce
+    } else {
+        Mode::Shadow
+    }
 }
 
 /// Verifies the signature first, then the layout; returns the header info.
@@ -131,20 +164,34 @@ pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
     }
     if !bundle[HEADER_LEN..table_end]
         .chunks(POLICY_ENTRY_LEN)
-        .all(valid_policy_name)
+        .all(valid_policy_entry)
     {
-        return Err(Error::BadLayout("bad policy name"));
+        return Err(Error::BadLayout("bad policy entry"));
     }
     Ok(info)
 }
 
 /// Iterates the policy names of a bundle that passed `verify`.
-pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = &'a [u8]> + use<'a> {
+pub fn policies<'a>(
+    bundle: &'a [u8],
+    info: &Info,
+) -> impl Iterator<Item = (&'a [u8], Mode)> + use<'a> {
     let end = HEADER_LEN + info.n_policies as usize * POLICY_ENTRY_LEN;
-    bundle[HEADER_LEN..end].chunks(POLICY_ENTRY_LEN).map(|e| {
-        let len = e.iter().position(|&c| c == 0).unwrap_or(e.len());
-        &e[..len]
-    })
+    bundle[HEADER_LEN..end]
+        .chunks(POLICY_ENTRY_LEN)
+        .map(|e| (entry_name(e), entry_mode(e)))
+}
+
+/// Index and mode of the policy `name` in a bundle that passed `verify`.
+pub fn find_policy(bundle: &[u8], info: &Info, name: &[u8]) -> Option<(u32, Mode)> {
+    policies(bundle, info)
+        .position(|(n, _)| n == name)
+        .map(|i| {
+            (
+                i as u32,
+                policies(bundle, info).nth(i).map_or(Mode::Shadow, |p| p.1),
+            )
+        })
 }
 
 /// Parameters for `build` (bundle compiler, tools and tests).
@@ -152,18 +199,18 @@ pub struct Spec<'a> {
     pub version: u64,
     pub created_at_ms: u64,
     pub flags: u16,
-    pub policies: &'a [&'a str],
+    pub policies: &'a [(&'a str, Mode)],
     pub sections: &'a [u8],
 }
 
 /// Builds and signs a bundle with an Ed25519 seed (32 bytes).
 pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     if spec.policies.len() > MAX_POLICIES as usize
-        || !spec.policies.iter().all(|p| {
-            let mut e = [0u8; POLICY_ENTRY_LEN];
-            let n = p.len().min(POLICY_ENTRY_LEN);
+        || !spec.policies.iter().all(|(p, _)| {
+            let mut e = [0u8; POLICY_NAME_LEN];
+            let n = p.len().min(POLICY_NAME_LEN);
             e[..n].copy_from_slice(&p.as_bytes()[..n]);
-            p.len() < POLICY_ENTRY_LEN && valid_policy_name(&e)
+            p.len() < POLICY_NAME_LEN && valid_policy_name(&e)
         })
     {
         return Err(Error::BadLayout("bad policy name"));
@@ -181,9 +228,10 @@ pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
     out[32..40].copy_from_slice(&(sections_off as u64).to_le_bytes());
     out[40..48].copy_from_slice(&(spec.sections.len() as u64).to_le_bytes());
-    for (i, p) in spec.policies.iter().enumerate() {
+    for (i, (p, mode)) in spec.policies.iter().enumerate() {
         let at = HEADER_LEN + i * POLICY_ENTRY_LEN;
         out[at..at + p.len()].copy_from_slice(p.as_bytes());
+        out[at + POLICY_NAME_LEN] = *mode as u8;
     }
     out.extend_from_slice(spec.sections);
 
@@ -203,7 +251,7 @@ mod tests {
 
     const SEED: [u8; 32] = [7; 32];
 
-    fn spec<'a>(policies: &'a [&'a str]) -> Spec<'a> {
+    fn spec<'a>(policies: &'a [(&'a str, Mode)]) -> Spec<'a> {
         Spec {
             version: 42,
             created_at_ms: 1_700_000_000_000,
@@ -215,13 +263,35 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let b = build(&spec(&["example-api", "example-web"]), &SEED).unwrap();
+        let b = build(
+            &spec(&[
+                ("example-api", Mode::Enforce),
+                ("example-web", Mode::Shadow),
+            ]),
+            &SEED,
+        )
+        .unwrap();
         let info = verify(&b, &public_key(&SEED)).unwrap();
         assert_eq!(info.version, 42);
         assert_eq!(info.n_policies, 2);
         assert_eq!(info.flags, 0);
         let names: Vec<_> = policies(&b, &info).collect();
-        assert_eq!(names, [&b"example-api"[..], b"example-web"]);
+        assert_eq!(
+            names,
+            [
+                (&b"example-api"[..], Mode::Enforce),
+                (b"example-web", Mode::Shadow)
+            ]
+        );
+        assert_eq!(
+            find_policy(&b, &info, b"example-web"),
+            Some((1, Mode::Shadow))
+        );
+        assert_eq!(
+            find_policy(&b, &info, b"example-api"),
+            Some((0, Mode::Enforce))
+        );
+        assert_eq!(find_policy(&b, &info, b"example"), None);
         // sections start on a 4 KB boundary
         assert_eq!(u64_at(&b, 32) % 4096, 0);
     }
@@ -236,7 +306,7 @@ mod tests {
 
     #[test]
     fn any_modified_byte_breaks_the_signature() {
-        let b = build(&spec(&["example-api"]), &SEED).unwrap();
+        let b = build(&spec(&[("example-api", Mode::Shadow)]), &SEED).unwrap();
         let key = public_key(&SEED);
         for i in (8..b.len()).step_by(97) {
             let mut t = b.clone();
@@ -262,7 +332,7 @@ mod tests {
     #[test]
     fn signed_but_malformed_layout_is_rejected() {
         // a signer bug must not turn into out-of-bounds reads
-        let mut b = build(&spec(&["example-api"]), &SEED).unwrap();
+        let mut b = build(&spec(&[("example-api", Mode::Shadow)]), &SEED).unwrap();
         b.truncate(b.len() - SIG_LEN);
         b[12..16].copy_from_slice(&5000u32.to_le_bytes());
         let sig = SigningKey::from_bytes(&SEED).sign(&b);
@@ -275,8 +345,25 @@ mod tests {
 
     #[test]
     fn invalid_policy_names() {
-        for bad in ["", "Upper", "a/b", "x".repeat(64).as_str()] {
-            assert!(build(&spec(&[bad]), &SEED).is_err(), "{bad:?}");
+        for bad in ["", "Upper", "a/b", "x".repeat(56).as_str()] {
+            assert!(
+                build(&spec(&[(bad, Mode::Shadow)]), &SEED).is_err(),
+                "{bad:?}"
+            );
         }
+        assert!(build(&spec(&[("x".repeat(55).as_str(), Mode::Shadow)]), &SEED).is_ok());
+    }
+
+    #[test]
+    fn signed_bad_policy_mode_is_rejected() {
+        let mut b = build(&spec(&[("example-api", Mode::Shadow)]), &SEED).unwrap();
+        b.truncate(b.len() - SIG_LEN);
+        b[HEADER_LEN + POLICY_NAME_LEN] = 2;
+        let sig = SigningKey::from_bytes(&SEED).sign(&b);
+        b.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&b, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
     }
 }
