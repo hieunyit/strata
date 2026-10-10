@@ -10,7 +10,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: detect_sqli
           targets:
             - var: request_cookies
@@ -21,6 +22,8 @@ rules:
               var: request_headers
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -49,6 +52,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -75,6 +80,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -102,6 +109,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - replace_comments
@@ -129,6 +138,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -155,6 +166,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - remove_comments_char
@@ -182,6 +195,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -208,6 +223,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -234,6 +251,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -260,6 +279,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -286,6 +307,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -316,6 +339,8 @@ rules:
               var: request_headers
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -342,6 +367,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -368,6 +395,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -394,6 +423,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - replace_comments
@@ -421,6 +452,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -439,7 +472,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: rx
             value: (?i)/\*[\s\x0b]*?[!\+](?:[\s\x0b\(\)\-0-9=A-Z_a-z]+)?\*/
           targets:
@@ -447,6 +481,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -473,6 +509,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - replace_comments
@@ -501,6 +539,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - remove_whitespace
@@ -528,6 +568,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - replace_comments

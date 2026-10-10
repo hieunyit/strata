@@ -17,6 +17,8 @@ rules:
             - var: args_names
             - var: args
             - var: request_body
+            - var: xml
+            - var: xml_attributes
           transforms:
             - html_entity_decode
             - lowercase
@@ -44,6 +46,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - lowercase
     score: 100
@@ -70,6 +74,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - html_entity_decode
             - lowercase
@@ -189,6 +195,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - html_entity_decode
     score: 100

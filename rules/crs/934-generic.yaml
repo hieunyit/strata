@@ -10,7 +10,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: rx
             value: _(?:\$\$ND_FUNC\$\$_|_js_function)|(?:\beval|new[\s\x0b]+Function[\s\x0b]*)\(|(?:String\.fromCharCod|Module:prototyp)e|function\(\)\{|this\.constructor|module\.exports=|\([\s\x0b]*[^0-9A-Z_a-z]child_process[^0-9A-Z_a-z][\s\x0b]*\)|cons(?:tructor:constructor|ole(?:\.(?:(?:debu|lo)g|error|info|trace|warn)(?:\.call)?\(|\[[\"'`](?:(?:debu|lo)g|error|info|trace|warn)[\"'`]\]))|process(?:\.(?:(?:a(?:ccess|ppendfile|rgv|vailability)|c(?:aveats|h(?:mod|own)|(?:los|opyfil)e|p|reate(?:read|write)stream)|ex(?:ec(?:file)?|ists)|f(?:ch(?:mod|own)|data(?:sync)?|s(?:tat|ync)|utimes)|inodes|l(?:chmod|ink|stat|utimes)|mkd(?:ir|temp)|open(?:dir)?|r(?:e(?:ad(?:dir|file|link|v)?|name)|m)|s(?:pawn(?:file)?|tat|ymlink)|truncate|u(?:n(?:link|watchfile)|times)|w(?:atchfile|rite(?:file|v)?))(?:sync)?(?:\.call)?\(|binding|constructor|env|global|main(?:Module)?|process|require)|\[[\"'`](?:(?:a(?:ccess|ppendfile|rgv|vailability)|c(?:aveats|h(?:mod|own)|(?:los|opyfil)e|p|reate(?:read|write)stream)|ex(?:ec(?:file)?|ists)|f(?:ch(?:mod|own)|data(?:sync)?|s(?:tat|ync)|utimes)|inodes|l(?:chmod|ink|stat|utimes)|mkd(?:ir|temp)|open(?:dir)?|r(?:e(?:ad(?:dir|file|link|v)?|name)|m)|s(?:pawn(?:file)?|tat|ymlink)|truncate|u(?:n(?:link|watchfile)|times)|w(?:atchfile|rite(?:file|v)?))(?:sync)?|binding|constructor|env|global|main(?:Module)?|process|require)[\"'`]\])|(?:binding|constructor|env|global|main(?:Module)?|process|require)\[|require(?:\.(?:resolve(?:\.call)?\(|main|extensions|cache)|\[[\"'`](?:(?:resolv|cach)e|main|extensions)[\"'`]\])
           targets:
@@ -19,6 +20,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - js_decode
@@ -155,6 +158,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -171,7 +176,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: rx
             value: __proto__|constructor[\s\x0b]*(?:\.|\]?\[)[\s\x0b]*prototype
           targets:
@@ -179,6 +185,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - js_decode
@@ -206,6 +214,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -222,7 +232,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: rx
             value: while[\s\x0b]*\([\s\x0b\(]*(?:!+(?:false|null|undefined|NaN|[\+\-]?0|\"{2}|'{2}|`{2})|(?:!!)*(?:(?:t(?:rue|his)|[\+\-]?(?:Infinity|[1-9][0-9]*)|new [A-Za-z][0-9A-Z_a-z]*|window|String|(?:Boolea|Functio)n|Object|Array)\b|\{[^\}]*\}|\[[^\]]*\]|\"[^\"]+\"|'[^']+'|`[^`]+`)).*\)
           targets:
@@ -231,6 +242,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - js_decode
@@ -263,6 +276,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100
@@ -303,6 +318,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1

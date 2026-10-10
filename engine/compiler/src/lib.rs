@@ -152,6 +152,7 @@ fn condition(c: &Value) -> Result<CondDef> {
         transforms,
         op: coded(OPERATORS, s(op, "type"))?,
         negate: op["negate"].as_bool().unwrap_or(false),
+        multi_match: c["multi_match"].as_bool().unwrap_or(false),
         value,
     })
 }

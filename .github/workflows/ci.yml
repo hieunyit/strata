@@ -108,6 +108,11 @@ jobs:
         run: |
           deploy/dev/run.sh sh -c 'make crs-import crs-inventory crs-ftw'
           git diff --exit-code -- rules/crs docs/crs-import-report.md docs/crs-inventory.csv corpus/crs-ftw docs/crs-ftw-unconverted.md
+
+      - name: CRS go-ftw tests of the injection groups pass at least 90% (and the report is current)
+        run: |
+          deploy/dev/run.sh make test-crs-ftw
+          git diff --exit-code -- docs/crs-ftw-report.md
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 

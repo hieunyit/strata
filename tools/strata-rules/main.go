@@ -4,6 +4,7 @@
 //	strata-rules test [--repo <root>] [dir]   match / no_match requests through libstrata
 //	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file]
 //	                                          FP and recall on the corpus, as Markdown
+//	strata-rules ftw [--repo <root>] [--group 942] [--min 90]  CRS go-ftw tests of rules/crs, as Markdown
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
 //	strata-rules corpus benign [--repo <root>] [--n N] [--seed S]   corpus/benign/synthetic.jsonl
 //
@@ -16,8 +17,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/strata/strata/tools/strata-rules/internal/corpus"
+	"github.com/strata/strata/tools/strata-rules/internal/ftw"
 	"github.com/strata/strata/tools/strata-rules/internal/lint"
 	"github.com/strata/strata/tools/strata-rules/internal/report"
 	"github.com/strata/strata/tools/strata-rules/internal/ruletest"
@@ -37,13 +40,15 @@ func main() {
 		reportCmd()
 	case "corpus":
 		corpusCmd()
+	case "ftw":
+		ftwCmd()
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|corpus ... (see the package comment)")
+	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|corpus ... (see the package comment)")
 	os.Exit(2)
 }
 
@@ -203,6 +208,57 @@ func lintCmd() {
 	}
 	fmt.Fprintf(os.Stderr, "strata-rules lint: %d files, %d problems\n", files, len(findings))
 	if len(findings) > 0 {
+		os.Exit(1)
+	}
+}
+
+// ftwCmd runs the CRS go-ftw tests; with --min, it fails when a group of
+// --group is under that pass rate.
+func ftwCmd() {
+	fs := flag.NewFlagSet("ftw", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository root")
+	groups := fs.String("group", "", "comma-separated CRS groups to run (930,942); default all")
+	minRate := fs.Float64("min", 0, "fail when a group passes under this percentage")
+	maxPL := fs.Int("pl", 1, "paranoia levels imported")
+	_ = fs.Parse(os.Args[2:])
+	tools, err := runner.Find(*repo)
+	if err != nil {
+		die(err)
+	}
+	tests, err := ftw.Load(filepath.Join(*repo, "corpus", "crs-ftw"))
+	if err != nil {
+		die(err)
+	}
+	if *groups != "" {
+		want := strings.Split(*groups, ",")
+		kept := tests[:0]
+		for _, t := range tests {
+			for _, g := range want {
+				if strings.HasPrefix(t.Group, "REQUEST-"+strings.TrimSpace(g)+"-") {
+					kept = append(kept, t)
+					break
+				}
+			}
+		}
+		tests = kept
+	}
+	pl, err := ftw.ParanoiaLevels(filepath.Join(*repo, "docs", "crs-inventory.csv"))
+	if err != nil {
+		die(err)
+	}
+	results, err := ftw.Run(tools, filepath.Join(*repo, "rules", "crs"), tests, pl, *maxPL)
+	if err != nil {
+		die(err)
+	}
+	ftw.Markdown(os.Stdout, results, *maxPL)
+	low := false
+	for _, g := range ftw.Groups(results) {
+		if *minRate > 0 && g.Tests > 0 && g.Rate() < *minRate {
+			fmt.Fprintf(os.Stderr, "strata-rules ftw: %s passes %.1f%%, under %.0f%%\n", g.Name, g.Rate(), *minRate)
+			low = true
+		}
+	}
+	if low {
 		os.Exit(1)
 	}
 }

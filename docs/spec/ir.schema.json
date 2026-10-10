@@ -95,6 +95,10 @@
             ]
           }
         },
+        "multi_match": {
+          "description": "The operator also runs on each value before the transformations and after each one (ModSecurity's multiMatch); the condition holds when one of those matches.",
+          "type": "boolean"
+        },
         "operator": { "$ref": "#/$defs/operator" }
       }
     },
@@ -104,13 +108,13 @@
       "required": ["var"],
       "properties": {
         "var": {
-          "description": "request_line: method, raw URI and protocol as sent. query_string: the query, not decoded. files: names of uploaded files (multipart/form-data); files_names: their field names. matched_vars: the values, after its transformations, for which the previous condition of an all match held (ModSecurity's MATCHED_VARS, for chained rules); only in an all match, not in its first condition.",
+          "description": "request_line: method, raw URI and protocol as sent. query_string: the query, not decoded. files: names of uploaded files (multipart/form-data); files_names: their field names. xml: the text of an XML body (text and CDATA nodes joined, references decoded, DTD never expanded); xml_attributes: its attribute values. args and args_post include the fields of a form, multipart or JSON body (JSON: one argument per scalar, named json.a.b, json.a.0 for array items). matched_vars: the values, after its transformations, for which the previous condition of an all match held (ModSecurity's MATCHED_VARS, for chained rules); only in an all match, not in its first condition.",
           "enum": [
             "method", "uri_raw", "uri", "path", "args", "args_names", "args_get", "args_post",
             "request_headers", "request_headers_names", "request_cookies", "request_cookies_names",
             "request_body", "files", "files_names", "remote_addr", "protocol",
             "response_status", "response_headers", "response_body",
-            "matched_vars", "request_line", "query_string"
+            "matched_vars", "request_line", "query_string", "xml", "xml_attributes"
           ]
         },
         "key": { "description": "Only this name (header, argument, cookie), case-insensitive for headers.", "type": "string", "minLength": 1 },

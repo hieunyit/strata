@@ -19,6 +19,8 @@ rules:
               var: request_headers
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -54,6 +56,8 @@ rules:
               var: request_headers
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -89,6 +93,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -123,6 +129,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -159,6 +167,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -196,6 +206,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -232,6 +244,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -275,6 +289,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -307,6 +323,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -339,6 +357,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -371,6 +391,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -403,6 +425,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -435,6 +459,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -467,6 +493,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -500,6 +528,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -532,6 +562,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -564,6 +596,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -596,6 +630,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -628,6 +664,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -660,6 +698,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -692,6 +732,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - lowercase
             - url_decode_uni
@@ -727,6 +769,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - html_entity_decode
@@ -756,6 +800,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -780,6 +826,8 @@ rules:
             - var: request_cookies_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - compress_whitespace
@@ -808,6 +856,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - html_entity_decode
             - js_decode
@@ -836,6 +886,8 @@ rules:
             - var: args_names
             - var: args
             - var: path
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - compress_whitespace

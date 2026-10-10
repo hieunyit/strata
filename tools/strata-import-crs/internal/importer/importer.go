@@ -43,9 +43,10 @@ var vars = map[string]string{
 	"REQUEST_LINE": "request_line", "QUERY_STRING": "query_string", "MATCHED_VARS": "matched_vars",
 }
 
-// Targets dropped from a rule rather than refusing the rule: the engine
-// has no XML body parser yet; the other targets of the rule still count.
-var droppable = map[string]bool{"XML": true}
+// XPath selectors of XML the engine reads: the document text and every
+// attribute value; another selector is dropped from the rule (noted),
+// the rule's other targets still count.
+var xmlSelectors = map[string]string{"/*": "xml", "//@*": "xml_attributes"}
 
 // SecLang transformations -> IR.
 var transforms = map[string]string{
@@ -128,8 +129,13 @@ func convertLink(l seclang.Link, dataDir string, notes *[]string) (map[string]an
 		count := strings.HasPrefix(raw, "&")
 		raw = strings.TrimPrefix(raw, "&")
 		name, sel, _ := strings.Cut(raw, ":")
-		if droppable[name] {
-			*notes = append(*notes, "target "+raw+" left out (no XML body parser yet)")
+		if name == "XML" {
+			v, ok := xmlSelectors[sel]
+			if !ok || neg || count {
+				*notes = append(*notes, "target "+raw+" left out (XPath selector the engine does not read)")
+				continue
+			}
+			ts = append(ts, &target{v: v})
 			continue
 		}
 		v, ok := vars[name]
@@ -220,6 +226,11 @@ func convertLink(l seclang.Link, dataDir string, notes *[]string) (map[string]an
 	cond := map[string]any{"targets": targets, "operator": opm}
 	if len(chain) > 0 {
 		cond["transforms"] = chain
+		for _, a := range l.Actions {
+			if a == "multiMatch" {
+				cond["multi_match"] = true
+			}
+		}
 	}
 	return cond, ""
 }

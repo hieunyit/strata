@@ -40,8 +40,8 @@ type Report struct {
 	Attacks     map[string]Type `json:"attacks"`
 }
 
-// rulesUnder returns every rule of rules dir: rule files and IR rulesets.
-func rulesUnder(dir string) ([]map[string]any, error) {
+// RulesUnder returns every rule of rules dir: rule files and IR rulesets.
+func RulesUnder(dir string) ([]map[string]any, error) {
 	var out []map[string]any
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -78,7 +78,7 @@ func rulesUnder(dir string) ([]map[string]any, error) {
 
 // Run measures the rules of rulesDir on c.
 func Run(tools runner.Tools, rulesDir string, c *corpus.Corpus) (*Report, error) {
-	all, err := rulesUnder(rulesDir)
+	all, err := RulesUnder(rulesDir)
 	if err != nil {
 		return nil, err
 	}

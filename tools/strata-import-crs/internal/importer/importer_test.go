@@ -17,7 +17,7 @@ SecRule ARGS|ARGS_NAMES|!ARGS:password|!REQUEST_COOKIES:/__utm/|REQUEST_COOKIES 
     "id:930120,phase:2,block,t:none,t:lowercase,t:urlDecodeUni,msg:'OS File Access Attempt',\
     tag:'paranoia-level/1',severity:'WARNING'"
 
-SecRule ARGS "@detectSQLi" "id:942100,phase:2,block,t:urlDecodeUni,t:none,t:removeNulls,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule ARGS "@detectSQLi" "id:942100,phase:2,block,t:urlDecodeUni,t:none,t:removeNulls,multiMatch,severity:'CRITICAL',tag:'paranoia-level/1'"
 
 SecRule ARGS "@rx a" "id:942101,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/2'"
 SecRule ARGS "@rx a" "id:942102,phase:2,pass,nolog,tag:'paranoia-level/1'"
@@ -27,6 +27,7 @@ SecRule ARGS "@rx %{tx.x}" "id:942105,phase:2,block,severity:'CRITICAL'"
 SecRule ARGS "@rx a" "id:942106,phase:2,block,t:sqlHexDecode,severity:'CRITICAL'"
 SecRule ARGS:/^id/ "@rx a" "id:942107,phase:2,block,severity:'CRITICAL'"
 SecRule &REQUEST_HEADERS:Host "@eq 0" "id:920280,phase:1,block,severity:'WARNING'"
+SecRule ARGS|XML:/*|XML://@*|XML:/a/b "@rx evil" "id:941100,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
 SecRule ARGS "@pm java.lang" "id:944120,phase:2,block,t:none,t:lowercase,severity:'CRITICAL',tag:'paranoia-level/1',chain"
     SecRule MATCHED_VARS "@rx (?:runtime|processbuilder)" "t:none"
 `
@@ -109,13 +110,33 @@ func TestDataFilesExclusionsAndTransforms(t *testing.T) {
 	}
 
 	// t:none drops the transformations before it.
-	if got := conds(rule(t, res, 942100))[0].(map[string]any)["transforms"]; !reflect.DeepEqual(got, []string{"remove_nulls"}) {
+	c942 := conds(rule(t, res, 942100))[0].(map[string]any)
+	if got := c942["transforms"]; !reflect.DeepEqual(got, []string{"remove_nulls"}) {
 		t.Errorf("942100 transforms %v", got)
+	}
+	if c942["multi_match"] != true || c["multi_match"] != nil {
+		t.Errorf("multiMatch: 942100 %v, 930120 %v", c942["multi_match"], c["multi_match"])
 	}
 	cnt := conds(rule(t, res, 920280))[0].(map[string]any)
 	if !reflect.DeepEqual(cnt["targets"], []map[string]any{{"var": "request_headers", "key": "Host", "count": true}}) ||
 		!reflect.DeepEqual(cnt["operator"], map[string]any{"type": "eq", "value": 0}) {
 		t.Errorf("920280: %+v", cnt)
+	}
+}
+
+func TestXMLSelectors(t *testing.T) {
+	res := importConf(t)
+	got := conds(rule(t, res, 941100))[0].(map[string]any)["targets"]
+	want := []map[string]any{{"var": "args"}, {"var": "xml"}, {"var": "xml_attributes"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("targets %+v", got)
+	}
+	var noted bool
+	for _, n := range res.Groups[0].Notes {
+		noted = noted || (n.Rule == 941100 && strings.Contains(n.Text, "XML:/a/b"))
+	}
+	if !noted {
+		t.Errorf("another XPath is noted: %+v", res.Groups[0].Notes)
 	}
 }
 
@@ -146,7 +167,7 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 			t.Errorf("%d: reason %q, want %q", id, got[id], w)
 		}
 	}
-	if len(got) != len(want) || res.Groups[0].Read != len(want)+5 || len(res.Groups[0].Rules) != 5 {
+	if len(got) != len(want) || res.Groups[0].Read != len(want)+6 || len(res.Groups[0].Rules) != 6 {
 		t.Errorf("read %d, imported %d, skipped %v", res.Groups[0].Read, len(res.Groups[0].Rules), got)
 	}
 }

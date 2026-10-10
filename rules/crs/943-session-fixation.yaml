@@ -18,6 +18,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
     score: 100

@@ -2,13 +2,16 @@
 //! `request_body`.
 //!
 //! Targets: method, uri_raw, uri, path, args (query string and, for an
-//! `application/x-www-form-urlencoded` body, its fields), args_get (query),
-//! args_post (body fields), args_names, request_body (the raw body as
+//! `application/x-www-form-urlencoded`, `multipart/form-data` or JSON body,
+//! its fields: `json.a.0` for JSON), args_get (query), args_post (body
+//! fields), args_names, files and files_names (uploads of a multipart
+//! body), xml and xml_attributes (an XML body's text and attribute values),
+//! request_body (the raw body as
 //! inspected), request_headers[_names], request_cookies[_names],
 //! remote_addr, protocol, request_line, query_string (raw), and
 //! matched_vars: the values (transformed) for which the previous condition
 //! of an `all` rule held. At stage request_headers the body is empty.
-//! Other body formats (JSON, multipart, XML) and files come later. Operators: the Hyperscan ones (rx, pm, contains,
+//! JSON and XML bodies come later. Operators: the Hyperscan ones (rx, pm, contains,
 //! begins_with, ends_with, streq) and the numeric ones (eq ... le, on a
 //! value or on the count of values), and detect_sqli / detect_xss (the
 //! libinjection port, on each transformed value). A rule using an operator or a
@@ -33,6 +36,7 @@ use crate::rules::{
     CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS, ValueView, code,
 };
 use crate::transform;
+use crate::{json, multipart, xml};
 
 /// The rx patterns of a bundle that are not in its Hyperscan database,
 /// compiled with the `regex` crate when the bundle is mapped.
@@ -145,9 +149,13 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "request_headers_names",
     "request_cookies",
     "request_cookies_names",
+    "files",
+    "files_names",
     "matched_vars",
     "request_line",
     "query_string",
+    "xml",
+    "xml_attributes",
 ];
 
 /// Operators and transformations this evaluator runs; a rule using
@@ -196,6 +204,14 @@ fn form_body(headers: &[(&[u8], &[u8])]) -> bool {
             && trim(v).len() >= FORM.len()
             && trim(v)[..FORM.len()].eq_ignore_ascii_case(FORM)
     })
+}
+
+/// The request's Content-Type (empty without one).
+fn content_type<'a>(headers: &[(&'a [u8], &'a [u8])]) -> &'a [u8] {
+    headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(b"content-type"))
+        .map_or(&b""[..], |(_, v)| v)
 }
 
 /// `application/x-www-form-urlencoded` decoding: %XX and '+'.
@@ -273,6 +289,10 @@ struct Data<'a> {
     args: Vec<Pair<'a>>,
     n_get: usize,
     cookies: Vec<Pair<'a>>,
+    /// uploaded files of a multipart body: (field name, file name)
+    files: Vec<(&'a [u8], &'a [u8])>,
+    /// an XML body
+    xml: Option<xml::Xml>,
 }
 
 struct Ctx<'t, 'b> {
@@ -365,8 +385,27 @@ fn values<'d>(
             .filter(|(n, _)| keyed(n))
             .map(|(n, _)| &**n)
             .collect()
+    } else if v == var("xml") {
+        d.xml.iter().map(|x| &x.text[..]).collect()
+    } else if v == var("xml_attributes") {
+        d.xml
+            .iter()
+            .flat_map(|x| x.attrs.iter().map(|a| &a[..]))
+            .collect()
+    } else if v == var("files") {
+        d.files
+            .iter()
+            .filter(|(n, _)| keyed(n))
+            .map(|(_, f)| *f)
+            .collect()
+    } else if v == var("files_names") {
+        d.files
+            .iter()
+            .filter(|(n, _)| keyed(n))
+            .map(|(n, _)| *n)
+            .collect()
     } else {
-        vec![] // files, other body formats, response variables: later
+        vec![] // response variables: later
     }
 }
 
@@ -453,39 +492,49 @@ fn condition(
             }
             continue;
         }
-        for v in vals {
-            let tv = || transform::apply_chain(c.transforms, v);
-            let hit = if numeric {
-                // a value that is not a number counts as 0, as atoi does
-                let x = std::str::from_utf8(trim(v))
-                    .ok()
-                    .and_then(|s| s.parse::<i64>().ok())
-                    .unwrap_or(0);
-                compare(op, x, y)
-            } else if detect {
-                tv().is_some_and(|tv| {
-                    if op == "detect_sqli" {
-                        detect_sqli(&tv).is_some()
-                    } else {
-                        detect_xss(&tv)
-                    }
-                })
-            } else if let Some(re) = fallback {
-                tv().is_some_and(|tv| re.is_match(&tv))
-            } else if from_prev {
-                scan(ctx, &tv()).contains(&ci)
-            } else {
-                matched(ctx, v, c.transforms).contains(&ci)
-            };
-            if hit != neg {
-                any = true;
-                match collect.as_deref_mut() {
-                    Some(m) => {
-                        if let Some(tv) = tv() {
-                            m.push(tv.into_owned());
+        // with multi_match, every prefix of the chain: none, the first, ...
+        let chains = if c.multi_match {
+            0..=c.transforms.len()
+        } else {
+            c.transforms.len()..=c.transforms.len()
+        };
+        'values: for v in vals {
+            for k in chains.clone() {
+                let chain = &c.transforms[..k];
+                let tv = || transform::apply_chain(chain, v);
+                let hit = if numeric {
+                    // a value that is not a number counts as 0, as atoi does
+                    let x = std::str::from_utf8(trim(v))
+                        .ok()
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .unwrap_or(0);
+                    compare(op, x, y)
+                } else if detect {
+                    tv().is_some_and(|tv| {
+                        if op == "detect_sqli" {
+                            detect_sqli(&tv).is_some()
+                        } else {
+                            detect_xss(&tv)
                         }
+                    })
+                } else if let Some(re) = fallback {
+                    tv().is_some_and(|tv| re.is_match(&tv))
+                } else if from_prev {
+                    scan(ctx, &tv()).contains(&ci)
+                } else {
+                    matched(ctx, v, chain).contains(&ci)
+                };
+                if hit != neg {
+                    any = true;
+                    match collect.as_deref_mut() {
+                        Some(m) => {
+                            if let Some(tv) = tv() {
+                                m.push(tv.into_owned());
+                            }
+                            continue 'values;
+                        }
+                        None => break 'values,
                     }
-                    None => break,
                 }
             }
         }
@@ -576,9 +625,31 @@ pub fn evaluate(
     };
     let mut args = parse_query(req.args);
     let n_get = args.len();
-    if !req.body.is_empty() && form_body(req.headers) {
-        let room = MAX_ARGS.saturating_sub(n_get);
+    let mut files = vec![];
+    let mut xml_body = None;
+    let room = MAX_ARGS.saturating_sub(n_get);
+    let ct = content_type(req.headers);
+    if req.body.is_empty() {
+    } else if form_body(req.headers) {
         args.extend(parse_query(req.body).into_iter().take(room));
+    } else if json::is_json(ct) {
+        args.extend(
+            json::args(req.body, room)
+                .into_iter()
+                .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))),
+        );
+    } else if xml::is_xml(ct) {
+        xml_body = Some(xml::parse(req.body));
+    } else if let Some(b) = multipart::boundary(ct) {
+        for p in multipart::parts(req.body, b) {
+            match p.filename {
+                Some(f) => files.push((p.name, f)),
+                None if args.len() < MAX_ARGS => {
+                    args.push((Cow::Borrowed(p.name), Cow::Borrowed(p.content)))
+                }
+                None => {}
+            }
+        }
     }
     let d = Data {
         req,
@@ -587,6 +658,8 @@ pub fn evaluate(
         args,
         n_get,
         cookies: parse_cookies(req.headers),
+        files,
+        xml: xml_body,
     };
     let hs = tables.hyperscan().zip(db);
     let mut ctx = Ctx {

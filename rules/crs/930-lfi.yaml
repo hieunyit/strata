@@ -20,6 +20,8 @@ rules:
                 - Referer
               var: request_headers
             - var: files
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -36,7 +38,8 @@ rules:
     stage: request_body
     match:
       all:
-        - operator:
+        - multi_match: true
+          operator:
             type: rx
             value: (?:^|[/;\x5c])\.{2,3}[/;\x5c]
           targets:
@@ -46,6 +49,8 @@ rules:
                 - Referer
               var: request_headers
             - var: files
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -1052,6 +1057,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni

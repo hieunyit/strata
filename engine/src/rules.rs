@@ -9,9 +9,11 @@
 //!                   | paranoia u8 | reserved [u8; 3]
 //! CONDITIONS  48 B: op u8 | negate u8 | n_transforms u8 | value_kind u8
 //!                   | transforms [u8; 16] | target_first u32 | target_count u32
-//!                   | value_a u32 | value_b u32 | reserved u32 | value_int i64
+//!                   | value_a u32 | value_b u32 | flags u32 | value_int i64
 //!                   value_kind 0 none, 1 string (a = off, b = len in STRINGS),
-//!                   2 integer (value_int), 3 list (a = first, b = count in LISTS)
+//!                   2 integer (value_int), 3 list (a = first, b = count in LISTS);
+//!                   flags bit 0: multi_match (was reserved, 0: bundles from
+//!                   before it keep their meaning)
 //! TARGETS     24 B: var u8 | flags u8 (bit 0: count, bit 1: key) | reserved u16
 //!                   | key_off u32 | key_len u32 | exclude_first u32
 //!                   | exclude_count u32 | reserved u32
@@ -74,6 +76,8 @@ pub const VARS: &[&str] = &[
     "matched_vars",
     "request_line",
     "query_string",
+    "xml",
+    "xml_attributes",
 ];
 pub const TRANSFORMS: &[&str] = &[
     "url_decode_uni",
@@ -155,6 +159,8 @@ pub struct CondDef {
     pub transforms: Vec<u8>,
     pub op: u8,
     pub negate: bool,
+    /// the operator also runs on the value before and between transformations
+    pub multi_match: bool,
     pub value: Value,
 }
 
@@ -252,7 +258,7 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
             put_u32(&mut ct, c.targets.len() as u32);
             put_u32(&mut ct, a);
             put_u32(&mut ct, b);
-            put_u32(&mut ct, 0);
+            put_u32(&mut ct, u32::from(c.multi_match));
             ct.extend_from_slice(&int.to_le_bytes());
 
             for t in &c.targets {
@@ -445,6 +451,7 @@ pub enum ValueView<'a> {
 pub struct CondView<'a> {
     pub op: u8,
     pub negate: bool,
+    pub multi_match: bool,
     pub transforms: &'a [u8],
     pub target_first: u32,
     pub target_count: u32,
@@ -652,6 +659,7 @@ impl<'a> Tables<'a> {
         Some(CondView {
             op: c[0],
             negate: c[1] == 1,
+            multi_match: u32_at(c, 36) & 1 == 1,
             transforms: &c[4..4 + c[2] as usize],
             target_first: u32_at(c, 20),
             target_count: u32_at(c, 24),
@@ -747,6 +755,7 @@ mod tests {
                     ],
                     op: code(OPERATORS, "detect_sqli").unwrap(),
                     negate: false,
+                    multi_match: false,
                     value: Value::None,
                 }],
             },
@@ -770,6 +779,7 @@ mod tests {
                         transforms: vec![code(TRANSFORMS, "lowercase").unwrap()],
                         op: code(OPERATORS, "pm").unwrap(),
                         negate: false,
+                        multi_match: false,
                         value: Value::List(vec![b"sqlmap".to_vec(), b"nikto".to_vec()]),
                     },
                     CondDef {
@@ -782,6 +792,7 @@ mod tests {
                         transforms: vec![],
                         op: code(OPERATORS, "gt").unwrap(),
                         negate: true,
+                        multi_match: false,
                         value: Value::Int(1_000_000),
                     },
                 ],

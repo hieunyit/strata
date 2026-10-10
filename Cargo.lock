@@ -426,6 +426,7 @@ version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "jsonschema",
+ "memchr",
  "regex",
  "serde_json",
  "strata-hs",

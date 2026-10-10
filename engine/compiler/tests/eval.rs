@@ -754,3 +754,239 @@ rules:
         }
     }
 }
+
+// multipart/form-data: files and files_names, fields in args_post.
+mod multipart_body {
+    use super::*;
+
+    const RULES: &str = r#"
+ir_version: 1
+ruleset: { name: multipart-test, version: "1" }
+rules:
+  - { id: 800321, name: php upload, layer: managed, stage: request_body, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: files } ], transforms: [lowercase], operator: { type: ends_with, value: .php } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800322, name: upload field, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: files_names } ], operator: { type: streq, value: avatar } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800323, name: field value, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args_post, key: title } ], operator: { type: contains, value: union select } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn post(ct: &str, body: &str) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: [{ name: example-api, mode: enforce }]").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        let mut t = Tx::new(Some(e), b"node", 0);
+        t.set_client_addr(b"192.0.2.1");
+        t.request_line(b"POST", b"/upload", b"/upload", b"", b"HTTP/1.1");
+        t.request_headers(&[
+            (b"Host", b"api.example.test"),
+            (b"Content-Type", ct.as_bytes()),
+        ]);
+        t.request_body_chunk(body.as_bytes(), true);
+        rules(&t.verdict())
+    }
+
+    const BODY: &str = "--b1\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\n1 union select 2\r\n\
+--b1\r\nContent-Disposition: form-data; name=\"avatar\"; filename=\"Shell.PHP\"\r\n\
+Content-Type: image/png\r\n\r\n\x7fPNG\r\n--b1--\r\n";
+
+    #[test]
+    fn files_and_fields() {
+        assert_eq!(
+            post("multipart/form-data; boundary=b1", BODY),
+            [800321, 800322, 800323]
+        );
+    }
+
+    #[test]
+    fn only_for_multipart() {
+        assert_eq!(post("text/plain", BODY), Vec::<u32>::new());
+        assert_eq!(
+            post("multipart/form-data; boundary=other", BODY),
+            Vec::<u32>::new()
+        );
+    }
+}
+
+// JSON bodies give arguments, XML bodies the xml and xml_attributes targets.
+mod json_and_xml_bodies {
+    use super::*;
+
+    const RULES: &str = r#"
+ir_version: 1
+ruleset: { name: body-formats-test, version: "1" }
+rules:
+  - { id: 800331, name: xss in args, layer: managed, stage: request_body, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: args } ], transforms: [html_entity_decode, lowercase], operator: { type: rx, value: 'javascript\s*:' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800332, name: json argument name, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args_names } ], operator: { type: streq, value: json.user.roles.1 } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800333, name: rfi in xml text, layer: managed, stage: request_body, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: xml } ], transforms: [url_decode_uni], operator: { type: contains, value: 'ftp://' } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800334, name: xss in xml attribute, layer: managed, stage: request_body, score: 100, severity: critical,
+      match: { all: [ { targets: [ { var: xml_attributes } ], operator: { type: detect_xss } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+
+    fn post(ct: &str, body: &str) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: [{ name: example-api, mode: enforce }]").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        let mut t = Tx::new(Some(e), b"node", 0);
+        t.set_client_addr(b"192.0.2.1");
+        t.request_line(b"POST", b"/api", b"/api", b"", b"HTTP/1.1");
+        t.request_headers(&[
+            (b"Host", b"api.example.test"),
+            (b"Content-Type", ct.as_bytes()),
+        ]);
+        t.request_body_chunk(body.as_bytes(), true);
+        rules(&t.verdict())
+    }
+
+    #[test]
+    fn json_scalars_are_arguments() {
+        assert_eq!(
+            post("application/json", r#"{"url":"javascript&#10;:alert(7)"}"#),
+            [800331]
+        );
+        assert_eq!(
+            post(
+                "application/json; charset=utf-8",
+                r#"{"user": {"roles": ["a", "b"]}}"#
+            ),
+            [800332]
+        );
+        assert_eq!(
+            post("text/plain", r#"{"url":"javascript:alert(7)"}"#),
+            Vec::<u32>::new()
+        );
+    }
+
+    #[test]
+    fn xml_text_and_attributes() {
+        assert_eq!(
+            post(
+                "application/xml",
+                r#"<?xml version="1.0"?><catalog><tag>ftp%3A%2F%2F192.0.2.1</tag></catalog>"#
+            ),
+            [800333]
+        );
+        assert_eq!(
+            post(
+                "text/xml",
+                r#"<root><a probe="&lt;script&gt;alert(1)&lt;/script&gt;"/></root>"#
+            ),
+            [800334]
+        );
+        assert_eq!(
+            post("application/xml", "<root><a probe=\"safe\">text</a></root>"),
+            Vec::<u32>::new()
+        );
+    }
+}
+
+// multi_match: the operator runs before the transformations and after each.
+mod multi_match {
+    use super::*;
+
+    fn rule(multi: bool) -> String {
+        format!(
+            r#"
+ir_version: 1
+ruleset: {{ name: multi-match-test, version: "1" }}
+rules:
+  - {{ id: 800341, name: dot dot backslash, layer: managed, stage: request_headers, score: 100, severity: critical,
+      match: {{ all: [ {{ targets: [ {{ var: args }} ], transforms: [url_decode_uni, cmd_line], multi_match: {multi},
+                        operator: {{ type: rx, value: '\.\.\\' }} }} ] }},
+      metadata: {{ source: organization, license: Apache-2.0 }} }}
+"#
+        )
+    }
+
+    fn run(multi: bool, uri: &str) -> Vec<u32> {
+        let defs = rules_from_ir(&from_yaml(&rule(multi)).unwrap()).unwrap();
+        assert_eq!(defs[0].conditions[0].multi_match, multi);
+        let pol = policies_from(
+            &from_yaml("policies: []").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        rules(&super::run(&e, "GET", uri, &[("Host", "a")], "192.0.2.1"))
+            .into_iter()
+            .filter(|id| *id >= 800000)
+            .collect()
+    }
+
+    #[test]
+    fn matches_between_transformations() {
+        // cmd_line removes the backslash: only the value before it matches
+        assert_eq!(run(false, "/get?arg=..%5Cpineapple"), Vec::<u32>::new());
+        assert_eq!(run(true, "/get?arg=..%5Cpineapple"), [800341]);
+        assert_eq!(run(true, "/get?arg=pineapple"), Vec::<u32>::new());
+    }
+}

@@ -18,6 +18,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -74,6 +76,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - normalize_path
     score: 100
@@ -121,6 +125,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - normalize_path
             - url_decode_uni
@@ -149,6 +155,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -173,6 +181,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -432,6 +442,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
         - operator:
             type: pm
             value:
@@ -464,6 +476,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -489,6 +503,8 @@ rules:
             - var: request_headers
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -514,6 +530,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
     score: 100
     severity: critical
     paranoia_level: 1
@@ -538,6 +556,8 @@ rules:
             - var: request_cookies_names
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - utf8_to_unicode
             - url_decode_uni
@@ -568,6 +588,8 @@ rules:
             - var: path
             - var: args_names
             - var: args
+            - var: xml
+            - var: xml_attributes
           transforms:
             - url_decode_uni
             - replace_comments
