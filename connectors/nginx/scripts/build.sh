@@ -49,6 +49,13 @@ if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$
     echo "$stamp" > objs/.strata-configure
 fi
 
+# NGINX's link rule for the module does not depend on libstrata.a: force a
+# relink when the archive is newer, or Rust changes would silently be lost.
+lib="${STRATA_LIB:-$root/target/release/libstrata.a}"
+if [ -f objs/ngx_http_strata_module.so ] && [ "$lib" -nt objs/ngx_http_strata_module.so ]; then
+    rm -f objs/ngx_http_strata_module.so
+fi
+
 make -j"$(nproc)"
 make modules
 ls -l objs/nginx objs/ngx_http_strata_module.so
