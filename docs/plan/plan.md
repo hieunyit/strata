@@ -93,7 +93,7 @@ Cần bộ phận pháp chế xác nhận lại các giấy phép trước khi p
 
 **Bộ nhập CRS (`strata-import-crs`)**
 
-- Viết bằng Go, dùng parser SecLang của Coraza để đọc file `.conf`, xuất IR của Strata; R chỉ cần cài các operator, transformation và variable trong libstrata.
+- Viết bằng Go, đọc file `.conf` bằng ngữ pháp SecLang của dự án CRS (`coreruleset/seclang_parser`; parser của Coraza là package `internal`), xuất IR của Strata; bản CRS ghim trong `tools/strata-import-crs/crs.lock` (4.25.2, kiểm sha256); R chỉ cần cài các operator, transformation và variable trong libstrata.
 - Regex: CRS v4 đã tương thích RE2 (không lookaround, không backreference). Mỗi regex được thử biên dịch vào Hyperscan trước; nếu không được hoặc rule cần capture group, dùng crate `regex` của Rust (cũng thời gian tuyến tính); không biên dịch được cả hai thì đánh dấu viết lại thủ công.
 - `chain` → điều kiện AND phẳng trong IR.
 - Phase SecLang → phase Strata: 1 → PREACCESS (header, URI); 2 → request body; 3 → header filter; 4 → body filter; 5 → log.
@@ -167,7 +167,7 @@ Mục tiêu: request thật đi qua module trên 2 route thí điểm ở chế 
   - Xong khi: `strata-rules lint rules/` chạy trong CI; 10 rule mẫu pass; rule thiếu `license` bị báo lỗi.
   - Đọc: strata-overview.md › Mô hình policy & rule; mục Luồng S của file này.
 - **W03-S-02 · Khung bộ nhập CRS và kiểm kê**
-  - Thư mục: `tools/strata-import-crs/` (Go, dùng parser SecLang của Coraza)
+  - Thư mục: `tools/strata-import-crs/` (Go; parser SecLang của Coraza nằm trong `internal/` nên không import được, dùng ngữ pháp SecLang chính thức của dự án CRS `coreruleset/seclang_parser`, ANTLR, Apache-2.0)
   - Xong khi: parse được 100% file `.conf` của CRS 4.25 LTS; xuất `docs/crs-inventory.csv` gồm rule ID, phase, operator, transformation, variable, action.
 - **W03-G1-01 · Khung agent, proto, enroll**
   - Thư mục: `agent/`, `proto/strata/fleet/v1/`

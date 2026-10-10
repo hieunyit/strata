@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e lint-rules
+	proto check-proto test-agent e2e lint-rules crs-fetch crs-inventory
 
 all: lib nginx
 
@@ -145,6 +145,16 @@ test-go: test-agent
 	cd tests/e2e && go vet ./... && golangci-lint run ./... && go test -count=1 -run '^$$' ./...
 	cd tools/strata-rules && go vet ./... && go test -race ./... && golangci-lint run ./...
 	$(MAKE) lint-rules
+	tools/strata-import-crs/fetch-crs.sh >/dev/null
+	cd tools/strata-import-crs && go vet ./... && go test -race ./... && golangci-lint run ./...
+
+# CRS release pinned in tools/strata-import-crs/crs.lock, into build/crs/.
+crs-fetch:
+	tools/strata-import-crs/fetch-crs.sh
+
+# docs/crs-inventory.csv (W03-S-02); CI checks that it is current.
+crs-inventory:
+	cd tools/strata-import-crs && go run . inventory --crs "$$(./fetch-crs.sh)" --out ../../docs/crs-inventory.csv
 
 # Rule files under rules/ (W03-S-01): schema, ids, RE2 regexes, licenses.
 lint-rules:
