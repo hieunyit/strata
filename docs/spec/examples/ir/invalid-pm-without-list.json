@@ -1,0 +1,9 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example", "version": "1" },
+  "rules": [
+    { "id": 800003, "name": "pm needs a list", "layer": "managed", "stage": "request_headers",
+      "match": { "all": [ { "targets": [ { "var": "request_headers", "key": "User-Agent" } ], "operator": { "type": "pm", "value": "sqlmap" } } ] },
+      "score": 5, "severity": "warning", "metadata": { "source": "organization", "license": "Apache-2.0" } }
+  ]
+}

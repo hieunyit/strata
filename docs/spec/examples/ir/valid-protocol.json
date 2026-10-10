@@ -1,0 +1,17 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example-protocol", "version": "2026.w41" },
+  "rules": [
+    {
+      "id": 100011,
+      "name": "Encoded dot-segment in the raw path",
+      "layer": "protocol",
+      "stage": "request_headers",
+      "match": { "all": [ { "targets": [ { "var": "uri_raw" } ], "transforms": ["lowercase"],
+                            "operator": { "type": "rx", "value": "%2e(%2e|\\.)/|\\.%2e/" } } ] },
+      "score": 100,
+      "severity": "critical",
+      "metadata": { "source": "strata", "license": "Apache-2.0", "attack_type": "path-traversal", "accuracy": "high", "risk": "high" }
+    }
+  ]
+}

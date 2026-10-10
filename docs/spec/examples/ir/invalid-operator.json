@@ -1,0 +1,9 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example", "version": "1" },
+  "rules": [
+    { "id": 800002, "name": "backtracking regex engine is not supported", "layer": "managed", "stage": "request_body",
+      "match": { "all": [ { "targets": [ { "var": "args" } ], "operator": { "type": "pcre", "value": "(a+)+$" } } ] },
+      "score": 5, "severity": "error", "metadata": { "source": "organization", "license": "Apache-2.0" } }
+  ]
+}

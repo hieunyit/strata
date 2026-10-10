@@ -1,0 +1,9 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example", "version": "1" },
+  "rules": [
+    { "id": 300001, "name": "protocol rule outside 100000-199999", "layer": "protocol", "stage": "request_headers",
+      "match": { "any": [ { "targets": [ { "var": "uri_raw" } ], "operator": { "type": "contains", "value": "%00" } } ] },
+      "score": 100, "severity": "critical", "metadata": { "source": "strata", "license": "Apache-2.0" } }
+  ]
+}

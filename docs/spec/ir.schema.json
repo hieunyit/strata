@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://strata.example.test/spec/ir.schema.json",
+  "title": "Strata rule IR, version 1",
+  "description": "Input of the bundle compiler: rules after import (CRS, Sigma, ET) or authoring, normalized. Draft for review by stream S (W03-R-02).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ir_version", "ruleset", "rules"],
+  "properties": {
+    "ir_version": { "const": 1 },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "layer", "stage", "match", "score", "severity", "metadata"],
+      "properties": {
+        "id": {
+          "description": "Fixed, never reused. 100000-199999 protocol, 200000-299999 schema, 300000-399999 semantic, 400000-499999 imported signatures (Sigma, ET), 500000-599999 behavior/bot, 600000-699999 response, 700000-799999 CVE virtual patch, 800000-899999 organization, 900000-999999 OWASP CRS (original ids).",
+          "type": "integer",
+          "minimum": 100000,
+          "maximum": 999999
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "layer": {
+          "description": "Evaluation order of the detection pipeline.",
+          "enum": ["pre", "protocol", "rate", "managed", "custom-post", "response"]
+        },
+        "stage": {
+          "description": "Connector hook where the inputs exist. SecLang phase 1 -> request_headers, 2 -> request_body, 3 -> response_headers, 4 -> response_body, 5 -> log.",
+          "enum": ["request_headers", "request_body", "response_headers", "response_body", "log"]
+        },
+        "match": { "$ref": "#/$defs/match" },
+        "score": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "severity": { "enum": ["critical", "error", "warning", "notice"] },
+        "paranoia_level": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "labels": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }, "uniqueItems": true },
+        "metadata": { "$ref": "#/$defs/metadata" }
+      },
+      "allOf": [
+        {
+          "description": "Strata's own protocol rules use 100000-199999; imported ones (e.g. CRS 920xxx) keep their range.",
+          "if": {
+            "required": ["layer", "metadata"],
+            "properties": { "layer": { "const": "protocol" }, "metadata": { "properties": { "source": { "const": "strata" } } } }
+          },
+          "then": { "properties": { "id": { "minimum": 100000, "maximum": 199999 } } }
+        },
+        {
+          "if": { "properties": { "metadata": { "properties": { "source": { "const": "crs" } } } } },
+          "then": { "properties": { "id": { "minimum": 900000, "maximum": 999999 } } }
+        },
+        {
+          "if": { "properties": { "metadata": { "properties": { "source": { "enum": ["sigma", "et-open"] } } } } },
+          "then": { "properties": { "id": { "minimum": 400000, "maximum": 499999 } } }
+        }
+      ]
+    },
+    "match": {
+      "description": "Conditions combined with AND (all) or OR (any); SecLang chains become a flat all.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "all": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/condition" } },
+        "any": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/condition" } }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets", "operator"],
+      "properties": {
+        "targets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/target" } },
+        "transforms": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "enum": [
+              "url_decode_uni", "html_entity_decode", "js_decode", "css_decode",
+              "lowercase", "remove_nulls", "remove_whitespace", "compress_whitespace",
+              "cmd_line", "normalize_path", "utf8_to_unicode", "base64_decode"
+            ]
+          }
+        },
+        "operator": { "$ref": "#/$defs/operator" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["var"],
+      "properties": {
+        "var": {
+          "enum": [
+            "method", "uri_raw", "uri", "path", "args", "args_names", "args_get", "args_post",
+            "request_headers", "request_headers_names", "request_cookies", "request_cookies_names",
+            "request_body", "files", "files_names", "remote_addr", "protocol",
+            "response_status", "response_headers", "response_body"
+          ]
+        },
+        "key": { "description": "Only this name (header, argument, cookie), case-insensitive for headers.", "type": "string", "minLength": 1 },
+        "exclude": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "count": { "description": "Match on the number of values instead of the values.", "type": "boolean" }
+      }
+    },
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "rx", "pm", "contains", "begins_with", "ends_with", "streq",
+            "eq", "ne", "gt", "ge", "lt", "le",
+            "detect_sqli", "detect_xss",
+            "validate_byte_range", "validate_url_encoding", "validate_utf8_encoding",
+            "ip_match"
+          ]
+        },
+        "value": {
+          "description": "Pattern, literal, number, list (pm, ip_match) or byte ranges (validate_byte_range); absent for detect_* and validate_*_encoding.",
+          "type": ["string", "integer", "array"]
+        },
+        "negate": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "enum": ["rx", "contains", "begins_with", "ends_with", "streq"] } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "type": { "enum": ["pm", "ip_match"] } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } } } }
+        },
+        {
+          "if": { "properties": { "type": { "enum": ["eq", "ne", "gt", "ge", "lt", "le"] } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": "integer" } } }
+        },
+        {
+          "if": { "properties": { "type": { "enum": ["detect_sqli", "detect_xss", "validate_url_encoding", "validate_utf8_encoding"] } } },
+          "then": { "not": { "required": ["value"] } }
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "license"],
+      "properties": {
+        "source": { "enum": ["strata", "crs", "sigma", "et-open", "crawler-user-agents", "organization"] },
+        "upstream_id": { "type": "string", "minLength": 1 },
+        "upstream_version": { "type": "string", "minLength": 1 },
+        "license": { "description": "SPDX identifier, e.g. Apache-2.0, MIT, DRL-1.1, BSD-3-Clause.", "type": "string", "minLength": 1 },
+        "author": { "type": "string", "minLength": 1 },
+        "attack_type": {
+          "enum": [
+            "protocol", "sql-injection", "xss", "command-injection", "path-traversal", "file-inclusion",
+            "rce", "ssrf", "xxe", "template-injection", "scanner", "bot", "data-leak", "other"
+          ]
+        },
+        "accuracy": { "enum": ["low", "medium", "high"] },
+        "risk": { "enum": ["low", "medium", "high"] },
+        "systems": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "tags": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "revision": { "type": "string", "format": "date" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "source": { "enum": ["crs", "sigma", "et-open", "crawler-user-agents"] } } },
+          "then": { "required": ["upstream_id", "upstream_version", "author"] }
+        }
+      ]
+    }
+  }
+}

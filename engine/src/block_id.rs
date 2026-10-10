@@ -1,8 +1,15 @@
 //! Block ID / Event ID generation.
 //!
 //! 80 bits = 42 bits of Unix time in ms + 10 bits from a hash of
-//! `strata_node_id` + 28 random bits, encoded as 16 Crockford base32
+//! `strata_node_id` + 28 bits of sequence, encoded as 16 Crockford base32
 //! characters: `STR-XXXX-XXXX-XXXX-XXXX` (block) or `EVT-…` (shadow/error).
+//!
+//! The 28 bits are monotonic within a millisecond (ULID style): each new
+//! millisecond starts at a random value below 2^27, then every id of that
+//! millisecond takes the next value, so one thread never repeats an id even
+//! in a burst. When a millisecond runs out of values, the next one is
+//! borrowed. Workers of one node only collide if two of them generate ids
+//! in the same millisecond from overlapping random starts.
 #![forbid(unsafe_code)]
 
 use std::cell::Cell;
@@ -77,8 +84,13 @@ pub fn parse(id: &[u8]) -> Option<(Kind, u128)> {
     Some((kind, bits))
 }
 
+const SEQ_MAX: u32 = (1 << 28) - 1;
+const SEQ_START_MASK: u32 = (1 << 27) - 1;
+
 thread_local! {
     static RNG: Cell<u64> = Cell::new(seed());
+    /// (millisecond, last sequence) of the last id made by this thread.
+    static LAST: Cell<(u64, u32)> = const { Cell::new((0, 0)) };
 }
 
 fn seed() -> u64 {
@@ -106,9 +118,27 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// Next (millisecond, sequence) after `last` at time `now`. Never goes back,
+/// even if the clock does.
+fn advance(last: (u64, u32), now: u64, rand: u32) -> (u64, u32) {
+    let (ms, seq) = last;
+    if now > ms {
+        (now, rand & SEQ_START_MASK)
+    } else if seq < SEQ_MAX {
+        (ms, seq + 1)
+    } else {
+        (ms + 1, rand & SEQ_START_MASK)
+    }
+}
+
 /// Generates a fresh id for the given node hash.
 pub fn generate(kind: Kind, node: u16) -> [u8; ID_LEN] {
-    format(kind, pack(now_ms(), node, next_rand()))
+    let (ms, seq) = LAST.with(|l| {
+        let next = advance(l.get(), now_ms(), next_rand());
+        l.set(next);
+        next
+    });
+    format(kind, pack(ms, node, seq))
 }
 
 #[cfg(test)]
@@ -152,12 +182,71 @@ mod tests {
         assert_eq!(((bits >> 28) & 0x3ff) as u16, n);
     }
 
-    #[test]
-    fn ids_are_unique() {
-        let mut seen = std::collections::HashSet::new();
-        for _ in 0..10_000 {
-            assert!(seen.insert(generate(Kind::Block, 7)));
+    fn well_formed_all(ids: &[[u8; ID_LEN]]) {
+        for id in ids {
+            assert!(well_formed(id), "{}", String::from_utf8_lossy(id));
         }
+    }
+
+    #[test]
+    fn ids_are_unique_in_a_burst() {
+        let ids: Vec<_> = (0..200_000).map(|_| generate(Kind::Block, 7)).collect();
+        well_formed_all(&ids);
+        let mut bits: Vec<u128> = ids.iter().map(|id| parse(id).unwrap().1).collect();
+        // monotonic within a thread
+        assert!(bits.windows(2).all(|w| w[0] < w[1]));
+        bits.dedup();
+        assert_eq!(bits.len(), 200_000);
+    }
+
+    /// Per-thread state: threads of different nodes never collide. (Threads
+    /// or workers of the *same* node only collide when two of them pick
+    /// overlapping random starts in the same millisecond; see module docs.)
+    #[test]
+    fn ids_are_unique_across_threads() {
+        let all: Vec<u128> = std::thread::scope(|s| {
+            let hs: Vec<_> = (0..8u16)
+                .map(|node| {
+                    s.spawn(move || {
+                        (0..100_000)
+                            .map(|_| parse(&generate(Kind::Block, node)).unwrap().1)
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
+        });
+        let mut sorted = all.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), all.len());
+    }
+
+    /// W03-R-02: 10 million ids, unique and well formed. Slow unoptimized:
+    /// `cargo test --release -p libstrata -- --ignored ten_million`.
+    #[test]
+    #[ignore]
+    fn ten_million_ids_unique_and_well_formed() {
+        const N: usize = 10_000_000;
+        let mut bits = Vec::with_capacity(N);
+        for _ in 0..N {
+            let id = generate(Kind::Block, node_hash(b"web-01"));
+            assert!(well_formed(&id), "{}", String::from_utf8_lossy(&id));
+            bits.push(parse(&id).unwrap().1);
+        }
+        bits.sort_unstable();
+        bits.dedup();
+        assert_eq!(bits.len(), N);
+    }
+
+    #[test]
+    fn sequence_rolls_into_the_next_millisecond() {
+        assert_eq!(advance((5, 10), 5, 0), (5, 11));
+        assert_eq!(advance((5, SEQ_MAX), 5, 3), (6, 3));
+        // clock going backwards does not reuse an id
+        assert_eq!(advance((9, 1), 4, 0), (9, 2));
+        // a new millisecond starts low enough to leave room for a burst
+        assert!(advance((1, 0), 2, u32::MAX).1 <= SEQ_START_MASK);
     }
 
     #[test]

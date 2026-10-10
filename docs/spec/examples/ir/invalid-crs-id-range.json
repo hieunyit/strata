@@ -1,0 +1,10 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "crs", "version": "4.25.0" },
+  "rules": [
+    { "id": 800100, "name": "CRS rule outside its range", "layer": "managed", "stage": "request_headers",
+      "match": { "all": [ { "targets": [ { "var": "args" } ], "operator": { "type": "detect_xss" } } ] },
+      "score": 5, "severity": "critical",
+      "metadata": { "source": "crs", "upstream_id": "941100", "upstream_version": "4.25.0", "license": "Apache-2.0", "author": "OWASP CRS project" } }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "crs", "version": "4.25.0" },
+  "rules": [
+    {
+      "id": 942100,
+      "name": "SQL Injection Attack Detected via libinjection",
+      "layer": "managed",
+      "stage": "request_body",
+      "match": { "all": [ { "targets": [ { "var": "request_cookies", "exclude": ["__utm"] }, { "var": "args" }, { "var": "args_names" } ],
+                            "transforms": ["url_decode_uni", "remove_nulls"],
+                            "operator": { "type": "detect_sqli" } } ] },
+      "score": 5,
+      "severity": "critical",
+      "paranoia_level": 1,
+      "labels": ["attack-sqli"],
+      "metadata": { "source": "crs", "upstream_id": "942100", "upstream_version": "4.25.0", "license": "Apache-2.0",
+                    "author": "OWASP CRS project", "attack_type": "sql-injection", "accuracy": "high", "risk": "high",
+                    "tags": ["owasp-a03", "paranoia-level/1"] }
+    },
+    {
+      "id": 920170,
+      "name": "GET or HEAD Request with Body Content",
+      "layer": "protocol",
+      "stage": "request_headers",
+      "match": { "all": [
+        { "targets": [ { "var": "method" } ], "operator": { "type": "rx", "value": "^(?:GET|HEAD)$" } },
+        { "targets": [ { "var": "request_headers", "key": "Content-Length" } ], "operator": { "type": "ne", "value": 0 } }
+      ] },
+      "score": 5,
+      "severity": "critical",
+      "metadata": { "source": "crs", "upstream_id": "920170", "upstream_version": "4.25.0", "license": "Apache-2.0", "author": "OWASP CRS project" }
+    }
+  ]
+}

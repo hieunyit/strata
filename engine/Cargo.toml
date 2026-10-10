@@ -12,3 +12,7 @@ ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std"
 [features]
 # Test-only triggers (deliberate panic, ...). Never in release packages.
 test-hooks = []
+
+[dev-dependencies]
+jsonschema = { version = "=0.56.0", default-features = false }
+serde_json = "1.0.149"

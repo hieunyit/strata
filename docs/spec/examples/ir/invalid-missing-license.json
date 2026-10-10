@@ -1,0 +1,9 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example", "version": "1" },
+  "rules": [
+    { "id": 800001, "name": "no license", "layer": "custom-post", "stage": "request_headers",
+      "match": { "all": [ { "targets": [ { "var": "path" } ], "operator": { "type": "begins_with", "value": "/admin" } } ] },
+      "score": 10, "severity": "warning", "metadata": { "source": "organization" } }
+  ]
+}
