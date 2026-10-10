@@ -21,7 +21,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss libinjection-diff \
+	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw rules-tools test-rules
 
 all: lib nginx
@@ -116,6 +116,10 @@ test-nginx-valgrind: $(MKBUNDLE) $(COMPILE)
 # W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
 bench-reload: $(MKBUNDLE) $(COMPILE)
 	connectors/nginx/scripts/reload-under-load.sh $(NGINX_VERSION) 8 100
+
+# W05-Q-01: latency percentiles while bundles are swapped (docs/reports/w05-q01-reload-latency.md)
+bench-reload-latency: $(MKBUNDLE) $(COMPILE)
+	connectors/nginx/scripts/latency-during-reload.sh $(NGINX_VERSION) 4 30 300
 
 check-strace: $(MKBUNDLE) $(COMPILE)
 	connectors/nginx/scripts/strace-idle.sh $(NGINX_VERSION) 5
