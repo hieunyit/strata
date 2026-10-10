@@ -1,0 +1,36 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100130
+  name: Range header with a unit other than bytes
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Range
+      operator:
+        type: rx
+        value: '(?i)^\s*bytes\s*='
+        negate: true
+  score: 20
+  severity: notice
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /f.bin
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Range: 'items=0-9'
+  no_match:
+  - uri: /f.bin
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Range: 'bytes=0-99'

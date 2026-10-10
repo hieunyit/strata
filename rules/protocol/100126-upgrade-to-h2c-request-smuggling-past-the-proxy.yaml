@@ -1,0 +1,37 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100126
+  name: Upgrade to h2c (request smuggling past the proxy)
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Upgrade
+      operator:
+        type: rx
+        value: '(?i)(?:^|,)\s*h2c\s*(?:,|$)'
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Upgrade: h2c
+      Connection: 'Upgrade, HTTP2-Settings'
+      HTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA
+  no_match:
+  - uri: /ws
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Upgrade: websocket

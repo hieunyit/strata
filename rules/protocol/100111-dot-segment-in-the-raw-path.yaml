@@ -1,0 +1,43 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100111
+  name: Dot segment in the raw path
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: uri_raw
+      operator:
+        type: rx
+        value: '^[^?#]*(?:^|/)\.{1,2}(?:/|$|\?)'
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+tests:
+  match:
+  - uri: /static/../etc/passwd
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /a/./b
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: /v1/files/report-2026.10.pdf
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: '/s?path=../x'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+    name: dots in the query are for the injection rules

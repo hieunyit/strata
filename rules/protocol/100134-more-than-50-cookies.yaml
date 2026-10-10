@@ -1,0 +1,37 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100134
+  name: More than 50 cookies
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_cookies
+        count: true
+      operator:
+        type: gt
+        value: 50
+  score: 20
+  severity: notice
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Cookie: 'c0=1; c1=1; c2=1; c3=1; c4=1; c5=1; c6=1; c7=1; c8=1; c9=1; c10=1; c11=1; c12=1; c13=1; c14=1; c15=1; c16=1; c17=1; c18=1; c19=1; c20=1; c21=1; c22=1; c23=1; c24=1; c25=1; c26=1; c27=1; c28=1;
+        c29=1; c30=1; c31=1; c32=1; c33=1; c34=1; c35=1; c36=1; c37=1; c38=1; c39=1; c40=1; c41=1; c42=1; c43=1; c44=1; c45=1; c46=1; c47=1; c48=1; c49=1; c50=1; c51=1; c52=1; c53=1; c54=1; c55=1; c56=1;
+        c57=1; c58=1; c59=1'
+  no_match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Cookie: 'sid=1; theme=dark'

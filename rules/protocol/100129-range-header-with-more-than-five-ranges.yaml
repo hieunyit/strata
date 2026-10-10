@@ -1,0 +1,35 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100129
+  name: Range header with more than five ranges
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Range
+      operator:
+        type: rx
+        value: '^[^,]*(?:,[^,]*){5}'
+  score: 30
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - uri: /f.bin
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Range: 'bytes=0-1,2-3,4-5,6-7,8-9,10-11'
+  no_match:
+  - uri: /f.bin
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Range: 'bytes=0-99,200-299'

@@ -1,0 +1,48 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100122
+  name: Host header with user information or a bad port
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Host
+      operator:
+        type: rx
+        value: '@|^(?:\[[^\]]*\]|[^\[:]*):(?:[0-9]*[^0-9]|[0-9]{6}|$)'
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: 'admin@api.example.test'
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    headers:
+      Host: 'api.example.test:80x'
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    headers:
+      Host: 'api.example.test:'
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: /
+    headers:
+      Host: 'api.example.test:8443'
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    headers:
+      Host: '[2001:db8::1]:8443'
+      User-Agent: example-client/1.0
+      Accept: application/json

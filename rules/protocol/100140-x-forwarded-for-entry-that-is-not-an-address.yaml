@@ -1,0 +1,42 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100140
+  name: X-Forwarded-For entry that is not an address
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: X-Forwarded-For
+      operator:
+        type: rx
+        value: '(?i)^\s*(?:unknown|[0-9a-f.:\[\]]+)(?:\s*,\s*(?:unknown|[0-9a-f.:\[\]]+))*\s*$'
+        negate: true
+  score: 20
+  severity: notice
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Forwarded-For: '127.0.0.1, <script>'
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Forwarded-For: localhost
+  no_match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Forwarded-For: '198.51.100.7, 2001:db8::1, unknown'

@@ -1,0 +1,62 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100133
+  name: 'Content-Type charset other than UTF-8, US-ASCII or ISO-8859-1'
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Content-Type
+      operator:
+        type: rx
+        value: '(?i)charset\s*='
+    - targets:
+      - var: request_headers
+        key: Content-Type
+      operator:
+        type: rx
+        value: '(?i)charset\s*=\s*[\"'']?(?:utf-8|us-ascii|iso-8859-1)[\"'']?\s*(?:;|$)'
+        negate: true
+  score: 30
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'text/plain; charset=utf-7'
+    body: x
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'application/json; charset=ibm037'
+    body: x
+  no_match:
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'application/json; charset=UTF-8'
+    body: '{}'
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/json
+    body: '{}'

@@ -1,0 +1,43 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100124
+  name: Expect header other than 100-continue
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Expect
+      operator:
+        type: rx
+        value: '(?i)^\s*100-continue\s*$'
+        negate: true
+  score: 30
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Expect: 200-ok
+  no_match:
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Expect: 100-Continue
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

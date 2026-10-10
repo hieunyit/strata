@@ -1,0 +1,42 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100125
+  name: Upgrade to a protocol other than WebSocket
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Upgrade
+      operator:
+        type: rx
+        value: '(?i)^\s*(?:websocket|h2c)\s*$'
+        negate: true
+  score: 30
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Upgrade: IRC/6.9
+  no_match:
+  - uri: /ws
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Upgrade: websocket
+      Connection: Upgrade
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

@@ -1,0 +1,45 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100118
+  name: Asterisk-form target with a method other than OPTIONS
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: uri_raw
+      operator:
+        type: streq
+        value: '*'
+    - targets:
+      - var: method
+      operator:
+        type: streq
+        value: OPTIONS
+        negate: true
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: GET
+    uri: '*'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - method: OPTIONS
+    uri: '*'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

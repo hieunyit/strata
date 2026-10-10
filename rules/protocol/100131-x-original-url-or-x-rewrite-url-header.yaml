@@ -1,0 +1,35 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100131
+  name: X-Original-URL or X-Rewrite-URL header
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: X-Original-URL
+        count: true
+      operator:
+        type: gt
+        value: 0
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Original-URL: /admin
+  no_match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

@@ -1,0 +1,54 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100136
+  name: Malformed multipart boundary
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Content-Type
+      operator:
+        type: rx
+        value: '(?i)^\s*multipart/form-data'
+    - targets:
+      - var: request_headers
+        key: Content-Type
+      operator:
+        type: rx
+        value: '(?i);\s*boundary=(?:\"[0-9A-Za-z''()+_,./:=? -]{1,70}\"|[0-9A-Za-z''()+_,./:=?-]{1,70})\s*(?:;|$)'
+        negate: true
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: POST
+    uri: /upload
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: multipart/form-data
+    body: x
+  - method: POST
+    uri: /upload
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'multipart/form-data; boundary=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+    body: x
+  no_match:
+  - method: POST
+    uri: /upload
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW'
+    body: x

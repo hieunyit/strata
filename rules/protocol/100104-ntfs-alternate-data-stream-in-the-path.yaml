@@ -1,0 +1,45 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100104
+  name: NTFS alternate data stream in the path
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: uri_raw
+      transforms:
+      - url_decode
+      - lowercase
+      operator:
+        type: rx
+        value: '::\$(?:data|index_allocation)'
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+tests:
+  match:
+  - uri: '/web.config::$DATA'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: '/admin%3A%3A%24index_allocation/'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: '/v1/items?filter=a::b'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /price/$data
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

@@ -2,7 +2,7 @@
 //
 //	strata-rules lint [--repo <root>] [dir]   schema, ids, RE2, licenses (default dir: rules)
 //	strata-rules test [--repo <root>] [dir]   match / no_match requests through libstrata
-//	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file]
+//	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file] [--max-fp N]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90]  CRS go-ftw tests of rules/crs, as Markdown
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
@@ -114,6 +114,7 @@ func reportCmd() {
 	corpusDir := fs.String("corpus", "", "corpus directory (default <repo>/corpus)")
 	jsonOut := fs.String("json", "", "also write the report as JSON (a baseline for later runs)")
 	baseline := fs.String("baseline", "", "JSON report to compare with")
+	maxFP := fs.Int("max-fp", -1, "fail when more benign requests than this match some rule (-1: no limit)")
 	_ = fs.Parse(os.Args[2:])
 	if *rules == "" {
 		*rules = filepath.Join(*repo, "rules")
@@ -144,6 +145,10 @@ func reportCmd() {
 		if err := rep.Save(*jsonOut); err != nil {
 			die(err)
 		}
+	}
+	if *maxFP >= 0 && rep.BenignHit > *maxFP {
+		fmt.Fprintf(os.Stderr, "strata-rules report: %d benign requests matched, at most %d allowed\n", rep.BenignHit, *maxFP)
+		os.Exit(1)
 	}
 }
 

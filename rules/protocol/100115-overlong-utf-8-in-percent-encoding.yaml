@@ -1,0 +1,37 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100115
+  name: Overlong UTF-8 in percent-encoding
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: uri_raw
+      operator:
+        type: rx
+        value: '(?i)%c[01]%[89ab][0-9a-f]|%e0%[89][0-9a-f]%[89ab][0-9a-f]|%f0%8[0-9a-f]%'
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+tests:
+  match:
+  - uri: '/static/%c0%af%c0%afetc/passwd'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: '/x%e0%80%afy'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: '/caf%C3%A9'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

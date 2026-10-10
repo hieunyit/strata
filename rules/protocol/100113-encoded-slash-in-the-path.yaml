@@ -1,0 +1,32 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100113
+  name: Encoded slash in the path
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: uri_raw
+      operator:
+        type: rx
+        value: '(?i)^[^?#]*%2f'
+  score: 30
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+tests:
+  match:
+  - uri: '/v1/files/..%2Fsecret'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: '/s?next=%2Fhome'
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

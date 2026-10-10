@@ -147,6 +147,7 @@ type Request struct {
 	Headers    map[string]any `json:"headers,omitempty"` // string or []string
 	Body       string         `json:"body,omitempty"`
 	RemoteAddr string         `json:"remote_addr,omitempty"`
+	Protocol   string         `json:"protocol,omitempty"`
 }
 
 // Verdict is strata-eval's answer.

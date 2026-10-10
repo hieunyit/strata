@@ -1,0 +1,49 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100135
+  name: Compressed request body (not inspected as sent)
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Content-Encoding
+      operator:
+        type: rx
+        value: '(?i)^\s*identity\s*$'
+        negate: true
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - method: POST
+    uri: /v1/items
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/json
+      Content-Encoding: gzip
+    body: x
+  no_match:
+  - method: POST
+    uri: /v1/items
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/json
+    body: '{}'
+  - method: POST
+    uri: /v1/items
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Encoding: identity
+    body: '{}'

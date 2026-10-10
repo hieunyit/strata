@@ -144,6 +144,7 @@ func ToRequest(id string, m map[string]any) runner.Request {
 	r.URI, _ = m["uri"].(string)
 	r.Body, _ = m["body"].(string)
 	r.RemoteAddr, _ = m["remote_addr"].(string)
+	r.Protocol, _ = m["protocol"].(string)
 	if h, ok := m["headers"].(map[string]any); ok {
 		r.Headers = h
 	}

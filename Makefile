@@ -159,6 +159,8 @@ rules-tools:
 test-rules: rules-tools
 	cd tools/strata-rules && STRATA_RULES_REQUIRE_TOOLS=1 go test -count=1 ./... && go run . test --repo ../..
 	cd tools/strata-rules && go run . report --repo ../..
+	# the protocol pack (W05-S-01) matches no benign request
+	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/protocol --max-fp 0 > /dev/null
 
 # go-ftw tests of the pinned CRS, converted (W04-S-01).
 crs-ftw:

@@ -1,0 +1,40 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100102
+  name: TRACE or TRACK method
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: method
+      operator:
+        type: rx
+        value: '^(?:TRACE|TRACK)$'
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - method: TRACE
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - method: TRACK
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - method: OPTIONS
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

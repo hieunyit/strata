@@ -29,7 +29,8 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "method": { "type": "string", "pattern": "^[A-Z]{1,16}$", "default": "GET" },
-        "uri": { "description": "Raw request target, as sent on the request line.", "type": "string", "pattern": "^/", "maxLength": 8192 },
+        "uri": { "description": "Raw request target, as sent on the request line: origin form (/path?query), absolute form (http://host/path) or *.", "type": "string", "pattern": "^(?:/|\\*$|[A-Za-z][A-Za-z0-9+.-]*://)", "maxLength": 8192 },
+        "protocol": { "description": "HTTP version of the request line.", "type": "string", "pattern": "^HTTP/[0-9](?:\\.[0-9])?$", "default": "HTTP/1.1" },
         "headers": {
           "description": "Header name -> value; a list repeats the header.",
           "type": "object",

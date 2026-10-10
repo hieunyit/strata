@@ -1,0 +1,52 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100105
+  name: 'HTTP version other than 1.0, 1.1, 2 or 3'
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: protocol
+      operator:
+        type: rx
+        value: '^HTTP/(?:1\.[01]|2(?:\.0)?|3(?:\.0)?)$'
+        negate: true
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /
+    protocol: HTTP/1.2
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    protocol: HTTP/0.9
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  no_match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    protocol: HTTP/2.0
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - uri: /
+    protocol: HTTP/1.0
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json

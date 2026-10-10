@@ -1,0 +1,51 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100128
+  name: Transfer-Encoding in an HTTP/1.0 request
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: protocol
+      operator:
+        type: streq
+        value: HTTP/1.0
+    - targets:
+      - var: request_headers
+        key: Transfer-Encoding
+        count: true
+      operator:
+        type: gt
+        value: 0
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: POST
+    uri: /
+    protocol: HTTP/1.0
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Transfer-Encoding: chunked
+  no_match:
+  - method: POST
+    uri: /
+    protocol: HTTP/1.0
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Transfer-Encoding: chunked

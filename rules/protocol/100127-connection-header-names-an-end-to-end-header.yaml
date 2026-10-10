@@ -1,0 +1,47 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100127
+  name: Connection header names an end-to-end header
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: Connection
+      operator:
+        type: rx
+        value: '(?i)(?:^|,)\s*(?:x-forwarded-[a-z-]+|x-real-ip|forwarded|authorization|cookie|host|content-length|transfer-encoding|x-api-key)\s*(?:,|$)'
+  score: 50
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+tests:
+  match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Connection: 'close, X-Forwarded-For'
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Connection: 'keep-alive,authorization'
+  no_match:
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Connection: keep-alive
+  - uri: /ws
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Connection: Upgrade
