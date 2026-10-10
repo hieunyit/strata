@@ -1,4 +1,4 @@
-//! W05-R-01: transformations match Coraza v3.8.1 test vectors (vendored in
+//! W05-R-01, W06-S-01: transformations match Coraza v3.8.1 test vectors (vendored in
 //! tests/vectors/coraza, Apache-2.0; originally SpiderLabs
 //! secrules-language-tests). Inputs are decoded exactly as Coraza's
 //! TestTransformations does: literal `\u0000` becomes NUL, and a string
@@ -86,6 +86,17 @@ fn transformations_match_coraza_vectors() {
         ("removeNulls", transform::REMOVE_NULLS),
         ("compressWhitespace", transform::COMPRESS_WHITESPACE),
         ("normalisePath", transform::NORMALIZE_PATH),
+        // batch 2 (W06-S-01)
+        ("jsDecode", transform::JS_DECODE),
+        ("cssDecode", transform::CSS_DECODE),
+        ("removeWhitespace", transform::REMOVE_WHITESPACE),
+        ("cmdLine", transform::CMD_LINE),
+        ("utf8toUnicode", transform::UTF8_TO_UNICODE),
+        ("base64Decode", transform::BASE64_DECODE),
+        ("urlDecode", transform::URL_DECODE),
+        ("normalisePathWin", transform::NORMALIZE_PATH_WIN),
+        ("replaceComments", transform::REPLACE_COMMENTS),
+        ("removeCommentsChar", transform::REMOVE_COMMENTS_CHAR),
     ];
     let (mut total, mut failures) = (0, vec![]);
     for (name, code) in files {

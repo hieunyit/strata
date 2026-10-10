@@ -456,7 +456,11 @@ mod tests {
             assert!(ops.contains(&op), "{op}");
         }
         assert!(!ops.contains(&"ip_match"));
-        assert!(transforms.contains(&"url_decode_uni") && !transforms.contains(&"cmd_line"));
+        assert_eq!(
+            transforms.len(),
+            crate::rules::TRANSFORMS.len(),
+            "every IR transformation runs"
+        );
         for v in SUPPORTED_VARS {
             assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
         }

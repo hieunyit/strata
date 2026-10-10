@@ -85,6 +85,11 @@ pub const TRANSFORMS: &[&str] = &[
     "normalize_path",
     "utf8_to_unicode",
     "base64_decode",
+    // appended for CRS (W06-S-01): codes above keep their meaning
+    "url_decode",
+    "normalize_path_win",
+    "replace_comments",
+    "remove_comments_char",
 ];
 pub const OPERATORS: &[&str] = &[
     "rx",

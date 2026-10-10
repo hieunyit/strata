@@ -90,7 +90,8 @@
             "enum": [
               "url_decode_uni", "html_entity_decode", "js_decode", "css_decode",
               "lowercase", "remove_nulls", "remove_whitespace", "compress_whitespace",
-              "cmd_line", "normalize_path", "utf8_to_unicode", "base64_decode"
+              "cmd_line", "normalize_path", "utf8_to_unicode", "base64_decode",
+              "url_decode", "normalize_path_win", "replace_comments", "remove_comments_char"
             ]
           }
         },

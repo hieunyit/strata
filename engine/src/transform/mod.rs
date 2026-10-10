@@ -1,5 +1,6 @@
 //! Transformations, batch 1 (W05-R-01): urlDecodeUni, htmlEntityDecode,
-//! lowercase, removeNulls, compressWhitespace, normalizePath.
+//! lowercase, removeNulls, compressWhitespace, normalizePath; batch 2
+//! (W06-S-01) in batch2.rs.
 //!
 //! Semantics follow Coraza v3.8.1 (and, through it, ModSecurity and Go's
 //! standard library) byte for byte, so that differential runs against
@@ -8,19 +9,37 @@
 //! no recursion and returns `Cow::Borrowed` when nothing changes.
 #![forbid(unsafe_code)]
 
+mod batch2;
 mod tables;
 
 use std::borrow::Cow;
+
+pub use batch2::{
+    base64_decode, cmd_line, css_decode, js_decode, normalize_path_win, remove_comments_char,
+    remove_whitespace, replace_comments, url_decode, utf8_to_unicode,
+};
 
 use tables::{BEST_FIT, ENTITY, ENTITY2, LONGEST_ENTITY_WITHOUT_SEMICOLON, REPLACEMENT};
 
 /// Codes as in `rules::TRANSFORMS`.
 pub const URL_DECODE_UNI: u8 = 0;
 pub const HTML_ENTITY_DECODE: u8 = 1;
+pub const JS_DECODE: u8 = 2;
+pub const CSS_DECODE: u8 = 3;
 pub const LOWERCASE: u8 = 4;
 pub const REMOVE_NULLS: u8 = 5;
+pub const REMOVE_WHITESPACE: u8 = 6;
 pub const COMPRESS_WHITESPACE: u8 = 7;
+pub const CMD_LINE: u8 = 8;
 pub const NORMALIZE_PATH: u8 = 9;
+pub const UTF8_TO_UNICODE: u8 = 10;
+pub const BASE64_DECODE: u8 = 11;
+// Added for CRS (W06-S-01), at the end so that existing codes keep their
+// meaning in bundles already built.
+pub const URL_DECODE: u8 = 12;
+pub const NORMALIZE_PATH_WIN: u8 = 13;
+pub const REPLACE_COMMENTS: u8 = 14;
+pub const REMOVE_COMMENTS_CHAR: u8 = 15;
 
 /// Applies one transformation; `None` when this engine does not implement
 /// it yet (the condition using it is then skipped).
@@ -32,6 +51,16 @@ pub fn apply(code: u8, input: &[u8]) -> Option<Cow<'_, [u8]>> {
         REMOVE_NULLS => remove_nulls(input),
         COMPRESS_WHITESPACE => compress_whitespace(input),
         NORMALIZE_PATH => normalize_path(input),
+        JS_DECODE => js_decode(input),
+        CSS_DECODE => css_decode(input),
+        REMOVE_WHITESPACE => remove_whitespace(input),
+        CMD_LINE => cmd_line(input),
+        UTF8_TO_UNICODE => utf8_to_unicode(input),
+        BASE64_DECODE => base64_decode(input),
+        URL_DECODE => url_decode(input),
+        NORMALIZE_PATH_WIN => normalize_path_win(input),
+        REPLACE_COMMENTS => replace_comments(input),
+        REMOVE_COMMENTS_CHAR => remove_comments_char(input),
         _ => return None,
     })
 }
@@ -49,18 +78,10 @@ pub fn apply_chain<'a>(codes: &[u8], input: &'a [u8]) -> Option<Cow<'a, [u8]>> {
 }
 
 pub fn is_implemented(code: u8) -> bool {
-    matches!(
-        code,
-        URL_DECODE_UNI
-            | HTML_ENTITY_DECODE
-            | LOWERCASE
-            | REMOVE_NULLS
-            | COMPRESS_WHITESPACE
-            | NORMALIZE_PATH
-    )
+    code <= REMOVE_COMMENTS_CHAR
 }
 
-fn hex(c: u8) -> Option<u8> {
+pub(crate) fn hex(c: u8) -> Option<u8> {
     (c as char).to_digit(16).map(|d| d as u8)
 }
 
@@ -267,7 +288,7 @@ pub fn html_entity_decode(input: &[u8]) -> Cow<'_, [u8]> {
 
 /// Decodes one UTF-8 sequence like Go's `utf8.DecodeRune`: invalid input
 /// gives (U+FFFD, 1).
-fn decode_rune(b: &[u8]) -> (u32, usize) {
+pub(crate) fn decode_rune(b: &[u8]) -> (u32, usize) {
     let len = match b[0] {
         0x00..=0x7F => return (u32::from(b[0]), 1),
         0xC2..=0xDF => 2,
@@ -468,7 +489,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(&*out, b"/b/c");
-        assert!(apply_chain(&[URL_DECODE_UNI, 2 /* js_decode */], b"x").is_none());
+        // a code past the table: not implemented, the condition is skipped
+        assert!(apply_chain(&[URL_DECODE_UNI, REMOVE_COMMENTS_CHAR + 1], b"x").is_none());
     }
 
     #[test]
