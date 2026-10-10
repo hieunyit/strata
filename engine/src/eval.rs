@@ -4,7 +4,8 @@
 //! string, form-decoded), request_headers[_names], request_cookies[_names],
 //! remote_addr, protocol. Operators: the Hyperscan ones (rx, pm, contains,
 //! begins_with, ends_with, streq) and the numeric ones (eq ... le, on a
-//! value or on the count of values). A rule using an operator or a
+//! value or on the count of values), and detect_sqli / detect_xss (the
+//! libinjection port, on each transformed value). A rule using an operator or a
 //! transformation this engine does not implement yet is skipped.
 //!
 //! Each distinct (value, transformation chain) is scanned once with the
@@ -18,6 +19,7 @@ use std::collections::HashMap;
 use strata_hs::MappedDb;
 
 use crate::detectors::Violation;
+use crate::detectors::injection::{detect_sqli, detect_xss};
 use crate::rules::{
     CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS, ValueView, code,
 };
@@ -207,7 +209,10 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
         .unwrap_or("");
     let numeric = matches!(op, "eq" | "ne" | "gt" | "ge" | "lt" | "le");
     let pattern = HS_OPERATORS.contains(&c.op);
-    if !(numeric || pattern) || !c.transforms.iter().all(|&t| transform::is_implemented(t)) {
+    let detect = matches!(op, "detect_sqli" | "detect_xss");
+    if !(numeric || pattern || detect)
+        || !c.transforms.iter().all(|&t| transform::is_implemented(t))
+    {
         return Outcome::Unsupported;
     }
     if pattern && ctx.hs.is_none() {
@@ -240,6 +245,16 @@ fn condition(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, ci: u32, c: &CondView<'_>) -> 
                         .is_some_and(|x| compare(op, x, y))
                 });
             }
+        } else if detect {
+            any |= vals.iter().any(|v| {
+                transform::apply_chain(c.transforms, v).is_some_and(|tv| {
+                    if op == "detect_sqli" {
+                        detect_sqli(&tv).is_some()
+                    } else {
+                        detect_xss(&tv)
+                    }
+                })
+            });
         } else {
             for v in vals {
                 if matched(ctx, v, c.transforms).contains(&ci) {

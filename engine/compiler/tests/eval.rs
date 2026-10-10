@@ -51,6 +51,14 @@ rules:
       match: { all: [ { targets: [ { var: args } ], transforms: [url_decode_uni, lowercase],
                         operator: { type: contains, value: select } } ] },
       metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800111, name: sqli in a header, layer: managed, stage: request_headers, score: 50, severity: critical,
+      match: { all: [ { targets: [ { var: request_headers, key: X-Probe } ], transforms: [url_decode_uni],
+                        operator: { type: detect_sqli } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800112, name: xss in a header, layer: managed, stage: request_headers, score: 50, severity: critical,
+      match: { all: [ { targets: [ { var: request_headers, key: X-Probe } ], transforms: [url_decode_uni],
+                        operator: { type: detect_xss } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
 "#;
 
 fn engine() -> Arc<Engine> {
@@ -256,4 +264,13 @@ fn scores_reach_the_block_threshold() {
         "",
     );
     assert_ne!(v.action, ACTION_BLOCK);
+}
+
+#[test]
+fn libinjection_operators_after_transformations() {
+    let e = engine();
+    let probe = |v: &str| rules(&run(&e, "POST", "/", &[("X-Probe", v)], ""));
+    assert_eq!(probe("1%27%20OR%20%271%27%3D%271"), [800111]);
+    assert_eq!(probe("%3Cscript%3Ealert(1)%3C/script%3E"), [800112]);
+    assert_eq!(probe("O%27Reilly%20%26%20Sons"), Vec::<u32>::new());
 }
