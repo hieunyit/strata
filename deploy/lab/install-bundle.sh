@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Installs a deployed bundle on the lab nodes: install-bundle.sh <object key>
-# <sha256> <version>. It downloads the bundle from MinIO, checks its hash,
-# writes it next to the others under a new name, and points the control
-# file at it (in place, seqlock generation +2), so every NGINX worker loads
-# it within a second. Until the agent fetches bundles itself (W05-G1-01),
-# this script plays its part.
+# Puts the lab's first bundle in a node's bundle directory before NGINX and
+# the agent start: install-bundle.sh <object key> <sha256> <version>, with
+# BUNDLE_DIR (default /bundles). It downloads the bundle from MinIO, checks
+# its hash, writes it under its name and creates or updates the control
+# file (in place, seqlock). Every later bundle is installed by the agent.
 set -euo pipefail
 key=$1 sum=$2 version=$3
-dir=/bundles
+dir=${BUNDLE_DIR:-/bundles}
 name=bundle-$version.sbn
 tmp=$(mktemp "$dir/.download.XXXXXX")
 trap 'rm -f "$tmp"' EXIT

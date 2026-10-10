@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"math/rand/v2"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -33,12 +34,19 @@ type Options struct {
 	// Identity, when set, is renewed in time; without it the certificate
 	// comes from files the agent does not manage.
 	Identity *identity.Identity
+	// OnBundle receives each BundleAvailable (bundles.Manager.Offer).
+	OnBundle func(context.Context, *fleetv1.BundleAvailable)
 }
 
 // Controller runs the control stream and the renewal.
 type Controller struct {
 	client fleetv1.FleetServiceClient
 	opts   Options
+	runCtx context.Context
+
+	statuses chan *fleetv1.BundleStatus
+	mu       sync.Mutex
+	last     *fleetv1.BundleStatus // sent again after a reconnect
 }
 
 // New returns a controller.
@@ -55,11 +63,25 @@ func New(client fleetv1.FleetServiceClient, opts Options) *Controller {
 	if opts.BundleVersion == nil {
 		opts.BundleVersion = func() uint64 { return 0 }
 	}
-	return &Controller{client: client, opts: opts}
+	return &Controller{client: client, opts: opts, statuses: make(chan *fleetv1.BundleStatus, 64), runCtx: context.Background()}
+}
+
+// Report queues a bundle status for the control plane. The latest one is
+// also sent after every reconnect, so a status reported while the stream
+// was down is not lost.
+func (c *Controller) Report(bs *fleetv1.BundleStatus) {
+	c.mu.Lock()
+	c.last = bs
+	c.mu.Unlock()
+	select {
+	case c.statuses <- bs:
+	default: // full: the latest one goes out after the next Hello
+	}
 }
 
 // Run returns when ctx is done.
 func (c *Controller) Run(ctx context.Context) error {
+	c.runCtx = ctx
 	done := make(chan struct{})
 	if c.opts.Identity != nil {
 		go func() { defer close(done); c.renewLoop(ctx) }()
@@ -129,6 +151,14 @@ func (c *Controller) stream(ctx context.Context) error {
 		return recvErr(st, err)
 	}
 	slog.Info("control stream open")
+	c.mu.Lock()
+	last := c.last
+	c.mu.Unlock()
+	if last != nil {
+		if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_BundleStatus{BundleStatus: last}}); err != nil {
+			return recvErr(st, err)
+		}
+	}
 	recv := make(chan error, 1)
 	go func() {
 		for {
@@ -137,8 +167,17 @@ func (c *Controller) stream(ctx context.Context) error {
 				recv <- err
 				return
 			}
-			// BundleAvailable and commands are handled from W05-G1-01.
-			slog.Info("control message", "type", typeName(m))
+			switch msg := m.GetMsg().(type) {
+			case *fleetv1.ControlMessage_BundleAvailable:
+				slog.Info("bundle available", "version", msg.BundleAvailable.GetVersion())
+				if c.opts.OnBundle != nil {
+					// The agent's context: an install outlives a stream.
+					c.opts.OnBundle(c.runCtx, msg.BundleAvailable)
+				}
+			default:
+				// Commands (force shadow, diagnostics) come with W12.
+				slog.Info("control message", "type", typeName(m))
+			}
 		}
 	}()
 	tick := time.NewTicker(c.opts.Heartbeat)
@@ -149,6 +188,10 @@ func (c *Controller) stream(ctx context.Context) error {
 			return ctx.Err()
 		case err := <-recv:
 			return err
+		case bs := <-c.statuses:
+			if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_BundleStatus{BundleStatus: bs}}); err != nil {
+				return recvErr(st, err)
+			}
 		case <-tick.C:
 			hb := &fleetv1.Heartbeat{ActiveBundleVersion: c.opts.BundleVersion()}
 			if c.opts.Counters != nil {

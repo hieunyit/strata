@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,7 +20,9 @@ import (
 	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/batch"
+	"github.com/strata/strata/agent/internal/bundles"
 	"github.com/strata/strata/agent/internal/control"
+	"github.com/strata/strata/agent/internal/enroll"
 	"github.com/strata/strata/agent/internal/eventsock"
 	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/pusher"
@@ -40,7 +43,13 @@ type Config struct {
 	NodeID        string
 	// IdentityDir, when set, replaces CAFile, CertFile, KeyFile and NodeID
 	// with the enrolled identity, renewed in time.
-	IdentityDir  string
+	IdentityDir string
+	// BundleDir and ControlFile, when set, make the agent install the
+	// bundles the control plane rolls out; BundlePubKey verifies them
+	// (default: bundle.pub of the identity directory).
+	BundleDir    string
+	ControlFile  string
+	BundlePubKey string
 	AgentVersion string
 	MetricsFile  string // written by the NGINX module; empty: not exported
 	MetricsAddr  string // host:port for /metrics; empty: no exporter
@@ -57,6 +66,8 @@ type Agent struct {
 	Pusher *pusher.Pusher
 	// Control keeps the Connect stream and renews the certificate.
 	Control *control.Controller
+	// Bundles installs rolled-out bundles; nil without BundleDir.
+	Bundles *bundles.Manager
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -108,14 +119,45 @@ func New(cfg Config) (*Agent, error) {
 		batch:    batch.New(sp, cfg.Batch),
 		cfg:      cfg,
 	}
-	a.Control = control.New(client, control.Options{
+	var bm *bundles.Manager
+	ctrl := &control.Controller{}
+	if cfg.BundleDir != "" {
+		pubFile := cfg.BundlePubKey
+		if pubFile == "" && cfg.IdentityDir != "" {
+			pubFile = filepath.Join(cfg.IdentityDir, enroll.BundleKeyFile)
+		}
+		pub, err := os.ReadFile(pubFile)
+		if err != nil {
+			conn.Close()
+			sp.Close()
+			sock.Close()
+			return nil, fmt.Errorf("agent: bundle public key: %w", err)
+		}
+		bm, err = bundles.New(client, bundles.Options{
+			Dir: cfg.BundleDir, ControlFile: cfg.ControlFile, PubKey: pub, MetricsFile: cfg.MetricsFile,
+		}, func(bs *fleetv1.BundleStatus) { ctrl.Report(bs) })
+		if err != nil {
+			conn.Close()
+			sp.Close()
+			sock.Close()
+			return nil, err
+		}
+	}
+	copts := control.Options{
 		Identity: id,
 		Node:     &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
 			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
 		},
-	})
+	}
+	if bm != nil {
+		copts.BundleVersion = bm.Active
+		copts.OnBundle = bm.Offer
+	}
+	*ctrl = *control.New(client, copts)
+	a.Control = ctrl
+	a.Bundles = bm
 	a.Registry.MustRegister(collector{a})
 	if cfg.MetricsFile != "" {
 		a.Registry.MustRegister(shmmetrics.NewCollector(cfg.MetricsFile))

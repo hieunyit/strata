@@ -40,6 +40,8 @@ services:
     volumes:
       - state:/state
       - bundles:/bundles
+      - bundles-node-1:/node-1
+      - bundles-node-2:/node-2
 
   nginx-stable:
     <<: *nginx
@@ -47,7 +49,7 @@ services:
     ports: ["127.0.0.1:18080:8080"]
     volumes:
       - ./nginx/nginx.conf:/etc/strata/nginx.conf.in:ro
-      - bundles:/var/lib/strata/bundles:ro
+      - bundles-node-1:/var/lib/strata/bundles:ro
       - run-node-1:/run/strata
       - shm-node-1:/dev/shm/strata
     depends_on:
@@ -60,7 +62,7 @@ services:
     ports: ["127.0.0.1:18081:8080"]
     volumes:
       - ./nginx/nginx.conf:/etc/strata/nginx.conf.in:ro
-      - bundles:/var/lib/strata/bundles:ro
+      - bundles-node-2:/var/lib/strata/bundles:ro
       - run-node-2:/run/strata
       - shm-node-2:/dev/shm/strata
     depends_on:
@@ -83,9 +85,11 @@ services:
         exec strata-agent run --event-socket=unix:/run/strata/events.sock \
           --spool-dir=/var/lib/strata/spool --server=control-plane:8443 --server-name=cp.example.test \
           --identity-dir=/var/lib/strata/identity \
+          --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
           --metrics-file=/dev/shm/strata/metrics --metrics-addr=0.0.0.0:9469
     volumes:
       - identity-node-1:/var/lib/strata/identity
+      - bundles-node-1:/var/lib/strata/bundles
       - state:/state:ro
       - run-node-1:/run/strata
       - shm-node-1:/dev/shm/strata
@@ -109,9 +113,11 @@ services:
         exec strata-agent run --event-socket=unix:/run/strata/events.sock \
           --spool-dir=/var/lib/strata/spool --server=control-plane:8443 --server-name=cp.example.test \
           --identity-dir=/var/lib/strata/identity \
+          --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
           --metrics-file=/dev/shm/strata/metrics --metrics-addr=0.0.0.0:9469
     volumes:
       - identity-node-2:/var/lib/strata/identity
+      - bundles-node-2:/var/lib/strata/bundles
       - state:/state:ro
       - run-node-2:/run/strata
       - shm-node-2:/dev/shm/strata
@@ -184,6 +190,8 @@ services:
     volumes:
       - state:/state
       - bundles:/bundles
+      - bundles-node-1:/node-1
+      - bundles-node-2:/node-2
     depends_on:
       control-plane: { condition: service_healthy }
 
@@ -332,6 +340,10 @@ volumes:
   spool-node-2:
   identity-node-1:
   identity-node-2:
+  # each node's bundles and control file: written by its agent, read by
+  # its NGINX
+  bundles-node-1:
+  bundles-node-2:
   clickhouse:
   postgres:
   minio:

@@ -41,6 +41,6 @@ docker compose -f deploy/lab/compose.yaml exec agent-1 strata-emit -n 5
 
 Mọi route `/v1/` của control plane cần access token của realm `strata` (`aud` = `strata-api`); token phát cho `127.0.0.1:18180`, control plane đọc metadata qua `keycloak:8080` (`-oidc-discovery-url`).
 
-Bundle: mọi bundle của lab đều do control plane biên dịch, ký và lưu trên MinIO (`POST /v1/policies/{id}:deploy`); `fleet-init` deploy hai policy `example-api` (enforce) và `example-web` (shadow) lần đầu. `install-bundle.sh` tải bundle từ MinIO, kiểm sha256 và cập nhật control file tại chỗ, thay cho agent tới W05-G1-01. `make e2e-lab` (`tests/e2e/lab-chain.sh`) đổi `example-web` sang enforce qua API, deploy, và kiểm cả hai NGINX chặn request thử rồi trả về shadow.
+Bundle: mọi bundle của lab đều do control plane biên dịch, ký và lưu trên MinIO (`POST /v1/policies/{id}:deploy`). `fleet-init` deploy hai policy `example-api` (enforce) và `example-web` (shadow) lần đầu và đặt bundle đó vào thư mục bundle của từng node (`install-bundle.sh`) để NGINX khởi động có bundle. Từ đó mỗi deploy tạo một rollout theo đợt (`GET /v1/rollouts/{id}`): agent của node nhận `BundleAvailable`, tải bằng `FetchBundle`, kiểm sha256 và chữ ký, ghi file mới rồi cập nhật control file tại chỗ; NGINX dùng bundle mới trong khoảng 1 giây. `make e2e-lab` (`tests/e2e/lab-chain.sh`) đổi `example-web` sang enforce qua API, deploy, chờ rollout xong và kiểm cả hai NGINX chặn request thử rồi trả về shadow.
 
 Chưa có: agent tải bundle từ control plane (bundle v1 do `lab-init` ký sẵn).

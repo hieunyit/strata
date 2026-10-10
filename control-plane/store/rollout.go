@@ -75,6 +75,18 @@ func WavePlan(n int, plan []float64) []int {
 	return waves
 }
 
+// revertDesired gives the nodes of an aborted rollout that do not run its
+// bundle their running version back as desired, so they stop fetching it.
+func revertDesired(ctx context.Context, tx pgx.Tx, where string, args ...any) error {
+	_, err := tx.Exec(ctx, `UPDATE nodes n SET desired_bundle_version = n.bundle_version
+		FROM rollout_nodes rn JOIN rollouts r ON r.id = rn.rollout_id
+		WHERE rn.node_id = n.id AND rn.state <> 'ACTIVE' AND n.desired_bundle_version = r.bundle_version AND `+where, args...)
+	if err != nil {
+		return fmt.Errorf("store: revert desired versions: %w", err)
+	}
+	return nil
+}
+
 // CreateRollout starts a rollout of version over nodes (in wave order) and
 // aborts the rollouts still running or paused. The nodes of the first wave
 // get the version as desired; their ids are returned for notification.
@@ -84,8 +96,11 @@ func (s *Store) CreateRollout(ctx context.Context, version uint64, nodes []strin
 	var r Rollout
 	var first []string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := revertDesired(ctx, tx, `r.state IN ('RUNNING', 'PAUSED', 'FAILED')`); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `UPDATE rollouts SET state = 'ABORTED', reason = $1, updated_at = now()
-			WHERE state IN ('RUNNING', 'PAUSED')`, fmt.Sprintf("superseded by bundle %d", version)); err != nil {
+			WHERE state IN ('RUNNING', 'PAUSED', 'FAILED')`, fmt.Sprintf("superseded by bundle %d", version)); err != nil {
 			return fmt.Errorf("store: supersede: %w", err)
 		}
 		state := RolloutRunning
@@ -288,6 +303,11 @@ func (s *Store) SetRolloutState(ctx context.Context, id int64, to, reason string
 		}
 		if !ok {
 			return ErrRolloutState
+		}
+		if to == RolloutAborted {
+			if err := revertDesired(ctx, tx, `r.id = $1`, id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(ctx, `UPDATE rollouts SET state = $2, reason = $3, updated_at = now() WHERE id = $1`, id, to, reason); err != nil {
 			return err

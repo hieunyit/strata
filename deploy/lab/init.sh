@@ -49,6 +49,8 @@ cp "$sign/bundle.pub" "$bundles/bundle.pub"
 
 # The CA key and the signing key stay root-only; the services (uid 1001)
 # read certificates, their keys and the bundles.
+# each node's bundle directory: its agent writes it, its NGINX reads it
+chown 1001:1001 /node-1 /node-2 && chmod 0755 /node-1 /node-2
 chown -R 1001:1001 "$pki" "$bundles" /state/enroll
 chmod 0700 /state/enroll
 chown root:root "$pki/ca-key.pem"

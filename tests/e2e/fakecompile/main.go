@@ -42,7 +42,11 @@ func main() {
 	if err != nil || len(seed) != ed25519.SeedSize {
 		fail(fmt.Errorf("key: %v (%d bytes)", err, len(seed)))
 	}
-	b := make([]byte, 4096)
+	size := 4096
+	if pad, err := strconv.Atoi(os.Getenv("FAKECOMPILE_SIZE")); err == nil && pad > size {
+		size = pad // large bundles for the download tests
+	}
+	b := make([]byte, size)
 	copy(b, "STRBNDL\x00")
 	binary.LittleEndian.PutUint16(b[8:], 1)
 	binary.LittleEndian.PutUint32(b[12:], uint32(len(doc.Policies)))

@@ -69,6 +69,9 @@ func newRunCmd() *cobra.Command {
 	f.StringVar(&cfg.KeyFile, "tls-key", "", "client certificate key")
 	f.StringVar(&cfg.NodeID, "node-id", "", "node id stamped on every event")
 	f.StringVar(&cfg.IdentityDir, "identity-dir", "", "enrolled identity (strata-agent enroll); replaces --tls-ca, --tls-cert, --tls-key and --node-id")
+	f.StringVar(&cfg.BundleDir, "bundle-dir", "", "install rolled-out bundles here (strata_bundle_dir); empty: do not install bundles")
+	f.StringVar(&cfg.ControlFile, "control-file", "/run/strata/control", "control file the NGINX workers read (strata_control_file)")
+	f.StringVar(&cfg.BundlePubKey, "bundle-pubkey", "", "Ed25519 key that signs bundles (default: bundle.pub of --identity-dir)")
 	f.StringVar(&cfg.MetricsFile, "metrics-file", "/dev/shm/strata/metrics", "counters written by the NGINX workers")
 	f.StringVar(&cfg.MetricsAddr, "metrics-addr", "127.0.0.1:9469", "address of the Prometheus endpoint /metrics")
 	return cmd
