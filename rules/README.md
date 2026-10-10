@@ -8,7 +8,7 @@ Rule của Strata và rule nhập từ nguồn ngoài (docs/plan/plan.md › Lu�
   Rule nào cũng có `metadata.source` và `metadata.license`; rule nhập từ
   CRS, Sigma, ET, crawler-user-agents thêm `upstream_id`, `upstream_version`,
   `author`. Tên file bắt đầu bằng Rule ID: `800001-admin-path-....yaml`.
-- `samples/`: 10 rule mẫu, mỗi dải nguồn một ví dụ.
+- `samples/`: rule mẫu của các nguồn khác CRS (Strata, Sigma, crawler-user-agents, tổ chức).
 - Bộ rule do importer sinh (ví dụ `crs/`) là tài liệu IR nhiều rule
   (`ir_version`, `ruleset`, `rules`); test của chúng là go-ftw của upstream.
 

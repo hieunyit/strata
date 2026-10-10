@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw rules-tools test-rules
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import rules-tools test-rules
 
 all: lib nginx
 
@@ -163,6 +163,10 @@ test-rules: rules-tools
 # go-ftw tests of the pinned CRS, converted (W04-S-01).
 crs-ftw:
 	cd tools/strata-import-crs && go run . ftw --crs "$$(./fetch-crs.sh)" --out ../../corpus/crs-ftw --report ../../docs/crs-ftw-unconverted.md
+
+# rules/crs/ and docs/crs-import-report.md (W05-S-01, W06-S-01); CI checks that they are current.
+crs-import: rules-tools
+	cd tools/strata-import-crs && go run . import --crs "$$(./fetch-crs.sh)" --out ../../rules/crs --report ../../docs/crs-import-report.md --compile ../../target/release/strata-compile
 
 # CRS release pinned in tools/strata-import-crs/crs.lock, into build/crs/.
 crs-fetch:

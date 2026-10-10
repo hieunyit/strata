@@ -255,7 +255,12 @@ func (r *Result) Report(w io.Writer, version string) {
 	for k := range byReason {
 		reasons = append(reasons, k)
 	}
-	sort.Slice(reasons, func(i, j int) bool { return byReason[reasons[i]] > byReason[reasons[j]] })
+	sort.Slice(reasons, func(i, j int) bool {
+		if byReason[reasons[i]] != byReason[reasons[j]] {
+			return byReason[reasons[i]] > byReason[reasons[j]]
+		}
+		return reasons[i] < reasons[j]
+	})
 	fmt.Fprintf(w, "| Reason | Tests |\n| --- | ---: |\n")
 	for _, k := range reasons {
 		fmt.Fprintf(w, "| %s | %d |\n", k, byReason[k])

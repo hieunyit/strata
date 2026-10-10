@@ -104,6 +104,13 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
+      - name: rules/crs, the CRS inventory and go-ftw tests are generated from the pinned CRS
+        run: |
+          deploy/dev/run.sh sh -c 'make crs-import crs-inventory crs-ftw'
+          git diff --exit-code -- rules/crs docs/crs-import-report.md docs/crs-inventory.csv corpus/crs-ftw docs/crs-ftw-unconverted.md
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: FP and recall, compared with the base branch
         if: github.event_name == 'pull_request'
         run: |
