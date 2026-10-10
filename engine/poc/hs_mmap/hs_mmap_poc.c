@@ -9,6 +9,10 @@
  *                                           compare with a private copy
  *   hs_mmap_poc bench   <dir> <nprocs> <none|private|shared>
  *                                           memory per worker (RSS/PSS)
+ *   hs_mmap_poc robust  <dir>               tampered header / bytecode:
+ *                                           error code or crash?
+ *   hs_mmap_poc platform <dir> <npatterns>  native vs generic target:
+ *                                           size and scan throughput
  *
  * db.img is the in-memory form produced by hs_deserialize_database_at()
  * into a page-aligned buffer, i.e. what a 4 KB-aligned bundle section would
@@ -590,6 +594,246 @@ cmd_bench(const char *dir, unsigned nprocs, const char *mode)
     return 0;
 }
 
+/*
+ * Runs one scan in a child so a crash is observed, not suffered. Scratch is
+ * allocated for `scratch_db` (which validates its CRC), then `db` is scanned:
+ * passing an intact database there models corruption after load.
+ */
+static const char *
+scan_in_child2(const hs_database_t *scratch_db, const hs_database_t *db,
+               const unsigned char *c, size_t len)
+{
+    int     status;
+    pid_t   pid;
+
+    fflush(stdout);
+    pid = fork();
+    if (pid < 0) {
+        die("fork");
+    }
+    if (pid == 0) {
+        hs_scratch_t  *s = NULL;
+        uint64_t       hits = 0;
+        hs_error_t     rc;
+
+        rc = hs_alloc_scratch(scratch_db, &s);
+        if (rc != HS_SUCCESS) {
+            _exit(100 + (-rc));
+        }
+        rc = hs_scan(db, (const char *) c, len, 0, s, on_match, &hits);
+        _exit(rc == HS_SUCCESS ? 0 : 100 + (-rc));
+    }
+    if (waitpid(pid, &status, 0) < 0) {
+        die("waitpid");
+    }
+    if (WIFSIGNALED(status)) {
+        static char buf[64];
+        snprintf(buf, sizeof(buf), "CRASH (signal %d)", WTERMSIG(status));
+        return buf;
+    }
+    switch (WEXITSTATUS(status)) {
+    case 0:   return "scan ok";
+    case 101: return "HS_INVALID";
+    case 102: return "HS_NOMEM";
+    case 105: return "HS_DB_VERSION_ERROR";
+    case 106: return "HS_DB_PLATFORM_ERROR";
+    case 107: return "HS_DB_MODE_ERROR";
+    case 108: return "HS_BAD_ALIGN";
+    default: {
+        static char buf[64];
+        snprintf(buf, sizeof(buf), "error %d", 100 - WEXITSTATUS(status));
+        return buf;
+    }
+    }
+}
+
+static const char *
+scan_in_child(const hs_database_t *db, const unsigned char *c, size_t len)
+{
+    return scan_in_child2(db, db, c, len);
+}
+
+static int
+cmd_robust(const char *dir)
+{
+    int             trial, crashes = 0, errors = 0, oks = 0;
+    char           *img;
+    void           *buf;
+    size_t          len, clen, off;
+    uint32_t        u32;
+    uint64_t        u64;
+    unsigned char  *corpus;
+
+    img = read_file(dir, "block.img", &len);
+    corpus = read_file(dir, "corpus", &clen);
+    if (posix_memalign(&buf, 4096, len) != 0) {
+        die("posix_memalign");
+    }
+
+    /* header layout of Hyperscan 5.x: magic, version, length, platform... */
+    memcpy(&u32, img, 4);
+    printf("header: magic=0x%08x", u32);
+    memcpy(&u32, img + 4, 4);
+    printf(" version=0x%08x", u32);
+    memcpy(&u32, img + 8, 4);
+    printf(" length=%u", u32);
+    memcpy(&u64, img + 16, 8);
+    printf(" platform=0x%016" PRIx64 "\n", u64);
+
+    memcpy(buf, img, len);
+    printf("%-40s %s\n", "intact copy", scan_in_child(buf, corpus, clen));
+
+    memcpy(buf, img, len);
+    ((unsigned char *) buf)[0] ^= 0xff;
+    printf("%-40s %s\n", "magic changed", scan_in_child(buf, corpus, clen));
+
+    memcpy(buf, img, len);
+    ((unsigned char *) buf)[5] ^= 0x01;          /* minor version */
+    printf("%-40s %s\n", "version changed", scan_in_child(buf, corpus, clen));
+
+    memcpy(buf, img, len);
+    u64 = ~(uint64_t) 0;
+    memcpy((char *) buf + 16, &u64, 8);
+    printf("%-40s %s\n", "platform set to all features", scan_in_child(buf, corpus, clen));
+
+    /* bytecode corruption: the CRC is only checked by hs_deserialize_*() */
+    rng = 0x1234567;
+    for (trial = 0; trial < 200; trial++) {
+        const char *r;
+        int         k;
+
+        memcpy(buf, img, len);
+        for (k = 0; k < 16; k++) {
+            off = 4096 + rnd() % (len - 4096);
+            ((unsigned char *) buf)[off] = (unsigned char) rnd();
+        }
+        r = scan_in_child(buf, corpus, clen);
+        if (strncmp(r, "CRASH", 5) == 0) {
+            crashes++;
+        } else if (strcmp(r, "scan ok") == 0) {
+            oks++;
+        } else {
+            if (errors++ == 0) {
+                printf("%-40s first error: %s\n", "", r);
+            }
+        }
+    }
+    printf("%-40s %d crash, %d error code, %d scan ok (of 200)\n",
+           "16 random bytes of bytecode changed", crashes, errors, oks);
+
+    /* same corruption, but after scratch was allocated on the intact db */
+    crashes = errors = oks = 0;
+    for (trial = 0; trial < 200; trial++) {
+        const char *r;
+        int         k;
+
+        memcpy(buf, img, len);
+        for (k = 0; k < 16; k++) {
+            off = 4096 + rnd() % (len - 4096);
+            ((unsigned char *) buf)[off] = (unsigned char) rnd();
+        }
+        r = scan_in_child2((const hs_database_t *) img, buf, corpus, clen);
+        if (strncmp(r, "CRASH", 5) == 0) {
+            crashes++;
+        } else if (strcmp(r, "scan ok") == 0) {
+            oks++;
+        } else {
+            errors++;
+        }
+    }
+    printf("%-40s %d crash, %d error code, %d scan ok (of 200)\n",
+           "same, corrupted after scratch alloc", crashes, errors, oks);
+
+    free(buf);
+    free(img);
+    free(corpus);
+    return 0;
+}
+
+static double
+throughput(const hs_database_t *db, const unsigned char *c, size_t len)
+{
+    int            i;
+    double         t;
+    hs_scratch_t  *s = NULL;
+
+    if (hs_alloc_scratch(db, &s) != HS_SUCCESS) {
+        die("scratch");
+    }
+    scan_block(db, s, c, len);                       /* warm up */
+    t = now();
+    for (i = 0; i < 10; i++) {
+        scan_block(db, s, c, len);
+    }
+    t = now() - t;
+    hs_free_scratch(s);
+    return 10.0 * len / t / (1024 * 1024);
+}
+
+static int
+cmd_platform(const char *dir, unsigned n)
+{
+    size_t               clen, size;
+    unsigned             i;
+    char               **pats;
+    unsigned            *ids, *flags;
+    unsigned char       *corpus;
+    hs_database_t       *db[2];
+    hs_platform_info_t   native, generic;
+    hs_compile_error_t  *err;
+    static const char   *names[2] = { "native", "generic" };
+
+    corpus = read_file(dir, "corpus", &clen);
+
+    if (hs_populate_platform(&native) != HS_SUCCESS) {
+        die("hs_populate_platform");
+    }
+    memset(&generic, 0, sizeof(generic));
+    generic.tune = HS_TUNE_FAMILY_GENERIC;
+    generic.cpu_features = 0;
+
+    rng = 0x9e3779b97f4a7c15ULL;
+    pats = calloc(n, sizeof(char *));
+    ids = calloc(n, sizeof(unsigned));
+    flags = calloc(n, sizeof(unsigned));
+    if (pats == NULL || ids == NULL || flags == NULL) {
+        die("calloc");
+    }
+    for (i = 0; i < n; i++) {
+        pats[i] = make_pattern(i);
+        ids[i] = i;
+        flags[i] = HS_FLAG_SINGLEMATCH;
+    }
+
+    for (i = 0; i < 2; i++) {
+        double t = now();
+        if (hs_compile_multi((const char *const *) pats, flags, ids, n, HS_MODE_BLOCK,
+                             i == 0 ? &native : &generic, &db[i], &err)
+            != HS_SUCCESS)
+        {
+            fprintf(stderr, "compile failed: %s\n", err->message);
+            return 1;
+        }
+        t = now() - t;
+        hs_database_size(db[i], &size);
+        printf("%-8s cpu_features=0x%llx compile %.1f s, size %zu bytes, "
+               "block scan %.0f MB/s\n",
+               names[i], (unsigned long long) (i == 0 ? native.cpu_features : 0),
+               t, size, throughput(db[i], corpus, clen));
+    }
+
+    for (i = 0; i < n; i++) {
+        free(pats[i]);
+    }
+    free(pats);
+    free(ids);
+    free(flags);
+    hs_free_database(db[0]);
+    hs_free_database(db[1]);
+    free(corpus);
+    return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -602,7 +846,14 @@ main(int argc, char **argv)
     if (argc == 5 && strcmp(argv[1], "bench") == 0) {
         return cmd_bench(argv[2], (unsigned) atoi(argv[3]), argv[4]);
     }
+    if (argc == 3 && strcmp(argv[1], "robust") == 0) {
+        return cmd_robust(argv[2]);
+    }
+    if (argc == 4 && strcmp(argv[1], "platform") == 0) {
+        return cmd_platform(argv[2], (unsigned) atoi(argv[3]));
+    }
     fprintf(stderr, "usage: %s compile <dir> <npatterns> | check <dir> <nprocs> | "
-                    "bench <dir> <nprocs> <none|private|shared>\n", argv[0]);
+                    "bench <dir> <nprocs> <none|private|shared> | robust <dir> | "
+                    "platform <dir> <npatterns>\n", argv[0]);
     return 2;
 }

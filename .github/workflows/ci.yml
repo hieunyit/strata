@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 2 * * *"   # nightly: adds the Valgrind run
 
 permissions:
   contents: read
@@ -88,6 +90,52 @@ jobs:
         with:
           name: nginx-${{ matrix.nginx }}-servroot
           path: connectors/nginx/t/servroot/logs/
+
+  sanitizers:
+    name: nginx ${{ matrix.nginx }} ASan+UBSan${{ github.event_name == 'schedule' && ' + Valgrind' || '' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        nginx: [1.30.5, 1.31.6]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+
+      - name: Test::Nginx under ASan + UBSan
+        run: |
+          deploy/dev/run.sh make nginx-asan NGINX_VERSION=${{ matrix.nginx }}
+          deploy/dev/run.sh make test-nginx-asan NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: Test::Nginx under Valgrind (nightly)
+        if: github.event_name == 'schedule'
+        timeout-minutes: 45
+        run: |
+          deploy/dev/run.sh make nginx NGINX_VERSION=${{ matrix.nginx }}
+          deploy/dev/run.sh make test-nginx-valgrind NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizers-${{ matrix.nginx }}
+          path: |
+            build/asan/
+            build/valgrind.log
+            connectors/nginx/t/servroot/logs/
 
   poc:
     name: Hyperscan mmap PoC (check only)

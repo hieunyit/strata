@@ -15,7 +15,12 @@ build="$(mkdir -p "${2:-$root/build}" && cd "${2:-$root/build}" && pwd)"
 if [ "${STRATA_SANITIZE:-}" = 1 ]; then
     src="$build/nginx-$version-asan"
     # _FORTIFY_SOURCE is left out: it hides overflows from ASan.
-    san="-fsanitize=address,undefined -fno-sanitize-recover=undefined"
+    # Excluded UBSan checks, both triggered by NGINX core by design and
+    # stopping the server before any module code runs:
+    #   nonnull-attribute  memcpy(dst, NULL, 0) in ngx_cpystrn and friends
+    #   alignment          unaligned uint32 stores in the HTTP/2 framing code
+    san="-fsanitize=address,undefined -fno-sanitize=nonnull-attribute,alignment"
+    san="$san -fno-sanitize-recover=undefined"
     cc_opt="-O1 -g -fno-omit-frame-pointer $san -Wall -Wextra -Werror -fstack-protector-strong"
     ld_opt="$san -Wl,-z,relro -Wl,-z,now"
 else

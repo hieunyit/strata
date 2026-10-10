@@ -1,0 +1,20 @@
+# Known NGINX core allocations that are never freed in master_process off
+# mode (the process exits without destroying the cycle). Not module code.
+{
+   nginx-core-set-environment
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:ngx_alloc
+   fun:ngx_set_environment
+   ...
+}
+{
+   nginx-core-event-process-init
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:ngx_alloc
+   fun:ngx_event_process_init
+   ...
+}

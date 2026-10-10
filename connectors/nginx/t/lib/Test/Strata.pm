@@ -49,6 +49,13 @@ add_block_preprocessor(sub {
         $block->set_value("config", $block->config . $Backend);
     }
 
+    # Under Valgrind, Test::Nginx restarts nginx asynchronously and retries
+    # socket requests, but not the curl requests of "--- http2" blocks.
+    # The module's HTTP/2 paths stay covered there by the raw-frame tests.
+    if ($ENV{TEST_NGINX_USE_VALGRIND} && defined $block->http2) {
+        $block->set_value("SKIP", 1);
+    }
+
     if (!defined $block->request && !defined $block->raw_request
         && !defined $block->must_die)
     {

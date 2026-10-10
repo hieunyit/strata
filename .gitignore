@@ -4,3 +4,4 @@
 *:Zone.Identifier
 connectors/nginx/t/servroot*/
 engine/poc/**/out/
+connectors/nginx/vgcore.*

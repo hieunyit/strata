@@ -16,6 +16,8 @@ run: $(OUT)/hs_mmap_poc
 	$(OUT)/hs_mmap_poc bench $(OUT) $(PROCS) none
 	$(OUT)/hs_mmap_poc bench $(OUT) $(PROCS) private
 	$(OUT)/hs_mmap_poc bench $(OUT) $(PROCS) shared
+	$(OUT)/hs_mmap_poc robust $(OUT)
+	$(OUT)/hs_mmap_poc platform $(OUT) $(PATTERNS)
 
 clean:
 	rm -rf $(OUT)
