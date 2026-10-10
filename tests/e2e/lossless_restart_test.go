@@ -294,15 +294,16 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 	sockPath := filepath.Join(baseDir, "events.sock")
 
 	agentArgs := []string{
-		"-event-socket", sockPath,
-		"-spool-dir", spoolDir,
-		"-spool-max-bytes", "2147483648",
-		"-server", srv.Addr(),
-		"-server-name", "cp.example.test",
-		"-tls-ca", certs.CA,
-		"-tls-cert", certs.ClientCert,
-		"-tls-key", certs.ClientKey,
-		"-node-id", "node-lossless-1",
+		"run",
+		"--event-socket", sockPath,
+		"--spool-dir", spoolDir,
+		"--spool-max-bytes", "2147483648",
+		"--server", srv.Addr(),
+		"--server-name", "cp.example.test",
+		"--tls-ca", certs.CA,
+		"--tls-cert", certs.ClientCert,
+		"--tls-key", certs.ClientKey,
+		"--node-id", "node-lossless-1",
 	}
 
 	const (

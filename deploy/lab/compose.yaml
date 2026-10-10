@@ -71,16 +71,17 @@ services:
     <<: *agent
     command:
       - strata-agent
-      - -event-socket=unix:/run/strata/events.sock
-      - -spool-dir=/var/lib/strata/spool
-      - -server=control-plane:8443
-      - -server-name=cp.example.test
-      - -tls-ca=/state/pki/ca.pem
-      - -tls-cert=/state/pki/node-1.pem
-      - -tls-key=/state/pki/node-1-key.pem
-      - -node-id=node-1
-      - -metrics-file=/dev/shm/strata/metrics
-      - -metrics-addr=0.0.0.0:9469
+      - run
+      - --event-socket=unix:/run/strata/events.sock
+      - --spool-dir=/var/lib/strata/spool
+      - --server=control-plane:8443
+      - --server-name=cp.example.test
+      - --tls-ca=/state/pki/ca.pem
+      - --tls-cert=/state/pki/node-1.pem
+      - --tls-key=/state/pki/node-1-key.pem
+      - --node-id=node-1
+      - --metrics-file=/dev/shm/strata/metrics
+      - --metrics-addr=0.0.0.0:9469
     volumes:
       - state:/state:ro
       - run-node-1:/run/strata
@@ -93,16 +94,17 @@ services:
     <<: *agent
     command:
       - strata-agent
-      - -event-socket=unix:/run/strata/events.sock
-      - -spool-dir=/var/lib/strata/spool
-      - -server=control-plane:8443
-      - -server-name=cp.example.test
-      - -tls-ca=/state/pki/ca.pem
-      - -tls-cert=/state/pki/node-2.pem
-      - -tls-key=/state/pki/node-2-key.pem
-      - -node-id=node-2
-      - -metrics-file=/dev/shm/strata/metrics
-      - -metrics-addr=0.0.0.0:9469
+      - run
+      - --event-socket=unix:/run/strata/events.sock
+      - --spool-dir=/var/lib/strata/spool
+      - --server=control-plane:8443
+      - --server-name=cp.example.test
+      - --tls-ca=/state/pki/ca.pem
+      - --tls-cert=/state/pki/node-2.pem
+      - --tls-key=/state/pki/node-2-key.pem
+      - --node-id=node-2
+      - --metrics-file=/dev/shm/strata/metrics
+      - --metrics-addr=0.0.0.0:9469
     volumes:
       - state:/state:ro
       - run-node-2:/run/strata

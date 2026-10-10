@@ -19,16 +19,30 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	FleetService_PushEvents_FullMethodName = "/strata.fleet.v1.FleetService/PushEvents"
+	FleetService_Enroll_FullMethodName           = "/strata.fleet.v1.FleetService/Enroll"
+	FleetService_RenewCertificate_FullMethodName = "/strata.fleet.v1.FleetService/RenewCertificate"
+	FleetService_Connect_FullMethodName          = "/strata.fleet.v1.FleetService/Connect"
+	FleetService_FetchBundle_FullMethodName      = "/strata.fleet.v1.FleetService/FetchBundle"
+	FleetService_PushEvents_FullMethodName       = "/strata.fleet.v1.FleetService/PushEvents"
 )
 
 // FleetServiceClient is the client API for FleetService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Only PushEvents for now; the other RPCs of nginx-module.md ›
-// "Giao thức gRPC agent ↔ control plane" are added by later tasks.
+// FleetService is the only API strata-agent calls (nginx-module.md ›
+// "Giao thức gRPC agent ↔ control plane"). Every RPC but Enroll needs the
+// node's mTLS client certificate (spiffe://strata/node/<node_id>); Enroll
+// is authenticated by its one-time token.
 type FleetServiceClient interface {
+	// Lần đầu: đổi enrollment token lấy chứng chỉ client
+	Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error)
+	// Gia hạn chứng chỉ khi còn 1/3 thời hạn, bằng CSR của khóa mới
+	RenewCertificate(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error)
+	// Kênh điều khiển dài hạn, hai chiều
+	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentMessage, ControlMessage], error)
+	// Tải bundle theo chunk, tiếp tục được từ offset
+	FetchBundle(ctx context.Context, in *FetchBundleRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BundleChunk], error)
 	// Gửi sự kiện theo lô, control plane xác nhận theo seq
 	PushEvents(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventBatch, EventAck], error)
 }
@@ -41,9 +55,61 @@ func NewFleetServiceClient(cc grpc.ClientConnInterface) FleetServiceClient {
 	return &fleetServiceClient{cc}
 }
 
+func (c *fleetServiceClient) Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnrollResponse)
+	err := c.cc.Invoke(ctx, FleetService_Enroll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) RenewCertificate(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenewResponse)
+	err := c.cc.Invoke(ctx, FleetService_RenewCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentMessage, ControlMessage], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &FleetService_ServiceDesc.Streams[0], FleetService_Connect_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AgentMessage, ControlMessage]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_ConnectClient = grpc.BidiStreamingClient[AgentMessage, ControlMessage]
+
+func (c *fleetServiceClient) FetchBundle(ctx context.Context, in *FetchBundleRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BundleChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &FleetService_ServiceDesc.Streams[1], FleetService_FetchBundle_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FetchBundleRequest, BundleChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_FetchBundleClient = grpc.ServerStreamingClient[BundleChunk]
+
 func (c *fleetServiceClient) PushEvents(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventBatch, EventAck], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &FleetService_ServiceDesc.Streams[0], FleetService_PushEvents_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &FleetService_ServiceDesc.Streams[2], FleetService_PushEvents_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +124,19 @@ type FleetService_PushEventsClient = grpc.BidiStreamingClient[EventBatch, EventA
 // All implementations must embed UnimplementedFleetServiceServer
 // for forward compatibility.
 //
-// Only PushEvents for now; the other RPCs of nginx-module.md ›
-// "Giao thức gRPC agent ↔ control plane" are added by later tasks.
+// FleetService is the only API strata-agent calls (nginx-module.md ›
+// "Giao thức gRPC agent ↔ control plane"). Every RPC but Enroll needs the
+// node's mTLS client certificate (spiffe://strata/node/<node_id>); Enroll
+// is authenticated by its one-time token.
 type FleetServiceServer interface {
+	// Lần đầu: đổi enrollment token lấy chứng chỉ client
+	Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error)
+	// Gia hạn chứng chỉ khi còn 1/3 thời hạn, bằng CSR của khóa mới
+	RenewCertificate(context.Context, *RenewRequest) (*RenewResponse, error)
+	// Kênh điều khiển dài hạn, hai chiều
+	Connect(grpc.BidiStreamingServer[AgentMessage, ControlMessage]) error
+	// Tải bundle theo chunk, tiếp tục được từ offset
+	FetchBundle(*FetchBundleRequest, grpc.ServerStreamingServer[BundleChunk]) error
 	// Gửi sự kiện theo lô, control plane xác nhận theo seq
 	PushEvents(grpc.BidiStreamingServer[EventBatch, EventAck]) error
 	mustEmbedUnimplementedFleetServiceServer()
@@ -73,6 +149,18 @@ type FleetServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedFleetServiceServer struct{}
 
+func (UnimplementedFleetServiceServer) Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Enroll not implemented")
+}
+func (UnimplementedFleetServiceServer) RenewCertificate(context.Context, *RenewRequest) (*RenewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RenewCertificate not implemented")
+}
+func (UnimplementedFleetServiceServer) Connect(grpc.BidiStreamingServer[AgentMessage, ControlMessage]) error {
+	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedFleetServiceServer) FetchBundle(*FetchBundleRequest, grpc.ServerStreamingServer[BundleChunk]) error {
+	return status.Errorf(codes.Unimplemented, "method FetchBundle not implemented")
+}
 func (UnimplementedFleetServiceServer) PushEvents(grpc.BidiStreamingServer[EventBatch, EventAck]) error {
 	return status.Errorf(codes.Unimplemented, "method PushEvents not implemented")
 }
@@ -97,6 +185,60 @@ func RegisterFleetServiceServer(s grpc.ServiceRegistrar, srv FleetServiceServer)
 	s.RegisterService(&FleetService_ServiceDesc, srv)
 }
 
+func _FleetService_Enroll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).Enroll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_Enroll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).Enroll(ctx, req.(*EnrollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_RenewCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).RenewCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_RenewCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).RenewCertificate(ctx, req.(*RenewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(FleetServiceServer).Connect(&grpc.GenericServerStream[AgentMessage, ControlMessage]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_ConnectServer = grpc.BidiStreamingServer[AgentMessage, ControlMessage]
+
+func _FleetService_FetchBundle_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FetchBundleRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(FleetServiceServer).FetchBundle(m, &grpc.GenericServerStream[FetchBundleRequest, BundleChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_FetchBundleServer = grpc.ServerStreamingServer[BundleChunk]
+
 func _FleetService_PushEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(FleetServiceServer).PushEvents(&grpc.GenericServerStream[EventBatch, EventAck]{ServerStream: stream})
 }
@@ -110,8 +252,28 @@ type FleetService_PushEventsServer = grpc.BidiStreamingServer[EventBatch, EventA
 var FleetService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "strata.fleet.v1.FleetService",
 	HandlerType: (*FleetServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Enroll",
+			Handler:    _FleetService_Enroll_Handler,
+		},
+		{
+			MethodName: "RenewCertificate",
+			Handler:    _FleetService_RenewCertificate_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Connect",
+			Handler:       _FleetService_Connect_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "FetchBundle",
+			Handler:       _FleetService_FetchBundle_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "PushEvents",
 			Handler:       _FleetService_PushEvents_Handler,

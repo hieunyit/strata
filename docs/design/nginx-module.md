@@ -502,7 +502,10 @@ message Heartbeat {
 }
 message BundleStatus {
   uint64 version = 1;
-  enum State { DOWNLOADING = 0; VERIFIED = 1; ACTIVE = 2; FAILED = 3; }
+  enum State {               // buf lint: 0 là UNSPECIFIED, tên có tiền tố
+    STATE_UNSPECIFIED = 0; STATE_DOWNLOADING = 1; STATE_VERIFIED = 2;
+    STATE_ACTIVE = 3; STATE_FAILED = 4;
+  }
   State  state = 2;
   string error = 3;
 }
@@ -542,7 +545,7 @@ message EventAck { uint64 acked_seq = 1; }
 **Đăng ký node (enrollment)**
 
 1. Admin tạo enrollment token trên UI, gắn với một connector group, dùng một lần, hết hạn sau 24 giờ.
-2. Chạy `strata-agent enroll --server cp.example.vn:8443 --token <token>`; agent tự sinh khóa riêng, gửi CSR.
+2. Chạy `strata-agent enroll --server cp.example.vn:8443 --tls-ca ca.pem --token-file <file>` (hoặc `--token`, `STRATA_ENROLL_TOKEN`); agent tự sinh khóa P-256 riêng (file 0600, không rời node), gửi CSR. `--dry-run` chỉ sinh khóa và CSR. Bản đầy đủ của message phụ (`WorkerState`, `NodeCounters`, `CommandResult`, `ForceShadow`, `RenewRequest`) nằm trong `proto/strata/fleet/v1/fleet.proto`.
 3. Control plane kiểm token, cấp chứng chỉ client có định danh node (`spiffe://strata/node/<node_id>`), hạn 24 giờ; agent tự gia hạn khi còn 1/3 thời hạn.
 4. Thu hồi node trên UI: chứng chỉ bị đưa vào danh sách thu hồi, stream bị cắt ngay.
 

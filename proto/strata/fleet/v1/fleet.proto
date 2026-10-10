@@ -4,11 +4,152 @@ package strata.fleet.v1;
 
 import "strata/event/v1/event.proto";
 
-// Only PushEvents for now; the other RPCs of nginx-module.md ›
-// "Giao thức gRPC agent ↔ control plane" are added by later tasks.
+// FleetService is the only API strata-agent calls (nginx-module.md ›
+// "Giao thức gRPC agent ↔ control plane"). Every RPC but Enroll needs the
+// node's mTLS client certificate (spiffe://strata/node/<node_id>); Enroll
+// is authenticated by its one-time token.
 service FleetService {
+  // Lần đầu: đổi enrollment token lấy chứng chỉ client
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Gia hạn chứng chỉ khi còn 1/3 thời hạn, bằng CSR của khóa mới
+  rpc RenewCertificate(RenewRequest) returns (RenewResponse);
+
+  // Kênh điều khiển dài hạn, hai chiều
+  rpc Connect(stream AgentMessage) returns (stream ControlMessage);
+
+  // Tải bundle theo chunk, tiếp tục được từ offset
+  rpc FetchBundle(FetchBundleRequest) returns (stream BundleChunk);
+
   // Gửi sự kiện theo lô, control plane xác nhận theo seq
   rpc PushEvents(stream EventBatch) returns (stream EventAck);
+}
+
+message EnrollRequest {
+  string token = 1; // enrollment token dùng một lần
+  bytes csr = 2; // CSR (DER) do agent tự sinh khóa
+  NodeInfo node = 3;
+}
+
+message EnrollResponse {
+  string node_id = 1;
+  bytes certificate = 2; // PEM, hạn 24 giờ, tự gia hạn
+  bytes ca_bundle = 3; // PEM: CA tin cậy cho control plane
+  bytes bundle_pubkey = 4; // khóa công khai Ed25519 kiểm chữ ký bundle
+}
+
+message RenewRequest {
+  bytes csr = 1; // CSR (DER) của khóa mới
+}
+
+message RenewResponse {
+  bytes certificate = 1; // PEM
+  bytes ca_bundle = 2; // PEM
+}
+
+message NodeInfo {
+  string hostname = 1;
+  string agent_version = 2;
+  Connector connector = 3;
+  map<string, string> labels = 4;
+}
+
+message Connector {
+  string type = 1; // nginx | apache | haproxy | envoy | kong
+  string proxy_version = 2; // ví dụ 1.30.5
+  string module_version = 3;
+  uint32 abi_version = 4; // STRATA_ABI_VERSION of the module
+}
+
+message AgentMessage {
+  oneof msg {
+    Hello hello = 1; // gửi đầu tiên khi mở stream
+    Heartbeat heartbeat = 2; // mỗi 15 giây
+    BundleStatus bundle_status = 3;
+    CommandResult command_result = 4;
+  }
+}
+
+message Hello {
+  NodeInfo node = 1;
+  uint64 active_bundle_version = 2;
+}
+
+message Heartbeat {
+  uint64 active_bundle_version = 1;
+  repeated WorkerState workers = 2; // phiên bản engine từng worker
+  NodeCounters counters = 3; // request, block, fail mode, dropped events
+}
+
+message WorkerState {
+  uint32 pid = 1;
+  uint64 bundle_version = 2;
+  uint64 engine_generation = 3;
+}
+
+message NodeCounters {
+  uint64 requests = 1;
+  uint64 blocked = 2;
+  uint64 fail_open = 3; // requests passed because of a fail mode
+  uint64 dropped_events = 4; // event socket or spool overflow
+}
+
+message BundleStatus {
+  uint64 version = 1;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_DOWNLOADING = 1;
+    STATE_VERIFIED = 2;
+    STATE_ACTIVE = 3;
+    STATE_FAILED = 4;
+  }
+  State state = 2;
+  string error = 3;
+}
+
+message CommandResult {
+  string command_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message ControlMessage {
+  oneof msg {
+    BundleAvailable bundle_available = 1;
+    Command command = 2;
+  }
+}
+
+message BundleAvailable {
+  uint64 version = 1;
+  bytes sha256 = 2;
+  uint64 size_bytes = 3;
+  bool rollback = 4; // cho phép phiên bản thấp hơn bản đang chạy
+}
+
+message Command {
+  string id = 1;
+  oneof action {
+    ForceShadow force_shadow = 2; // ép shadow khẩn cấp cho policy/route
+    CollectDiagnostics diagnostics = 3;
+  }
+}
+
+message ForceShadow {
+  string policy_id = 1; // empty: every policy of the node
+  string route = 2; // empty: every route of the policy
+  uint32 duration_seconds = 3; // 0: until cleared
+}
+
+message CollectDiagnostics {}
+
+message FetchBundleRequest {
+  uint64 version = 1;
+  uint64 offset = 2;
+}
+
+message BundleChunk {
+  uint64 offset = 1;
+  bytes data = 2; // chunk 1 MB
 }
 
 message EventBatch {
