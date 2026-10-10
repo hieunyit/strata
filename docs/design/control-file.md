@@ -49,3 +49,39 @@ libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm bi
 - Đổi engine trong event loop. Request đang chạy giữ tham chiếu tới bundle cũ; bundle cũ được `strata_engine_release` + `munmap` (trong thread pool) khi tham chiếu cuối được trả.
 - Control file chưa có lúc worker khởi động: worker thử mở lại ở mỗi chu kỳ timer (trong thread pool) và chạy theo `strata_fail_mode` cho tới khi có bundle.
 - Master đọc control file khi đọc cấu hình và mmap bundle hiện hành; worker thừa hưởng qua `fork`. Chữ ký sai → `nginx -t` lỗi; chưa có control file hoặc bundle → cảnh báo, chạy theo fail mode.
+
+## Metrics file (mặc định `/dev/shm/strata/metrics`)
+
+Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiện" trong `nginx-module.md`. `strata-agent` không attach được vào shared memory zone của NGINX (zone tạo bằng anonymous mmap), nên bộ đếm nằm trong một file trên tmpfs mà module tạo và agent chỉ đọc. Phần module ghi file thuộc W07-N-01; W06-G1-01 cài đặt phía agent theo layout này.
+
+**Header 64 byte**
+
+| Offset | Kiểu | Trường |
+| --- | --- | --- |
+| 0 | `u8[8]` | magic `STRMET1\0` |
+| 8 | `u32` | phiên bản layout = 1 |
+| 12 | `u32` | số slot = số worker, 1..1.024 |
+| 16 | `u32` | kích thước slot (byte), bội số của 64, ≥ 8 × số bộ đếm |
+| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 |
+| 24 | `u64` | thời điểm tạo file (ms); đổi khi file được tạo lại |
+| 32 | — | dự phòng, 0 |
+
+Slot của worker `i` (`ngx_worker`) nằm ở offset `64 + i × kích thước slot`. Kích thước file đúng bằng `64 + số slot × kích thước slot`, tối đa 16 MB. Mỗi bộ đếm là `u64` căn 8 byte. **Chỉ worker sở hữu slot ghi slot đó**, bằng một lệnh ghi 64 bit, nên không cần khóa; agent đọc từng bộ đếm bằng atomic load. Worker được respawn dùng lại slot cũ và đếm tiếp.
+
+| Chỉ số | Bộ đếm |
+| --- | --- |
+| 0 | pid của worker (0 = slot chưa dùng) |
+| 1 | phiên bản bundle đang chạy (gauge) |
+| 2..5 | số request theo action: allow, log, challenge, block |
+| 6 | byte body đã inspect |
+| 7, 8 | số lần áp fail mode: open (cho qua), closed (503) |
+| 9 | số sự kiện bị bỏ vì event socket đầy (`strata_events_dropped`) |
+| 10 | số lần vượt CPU budget (`strata_budget_exceeded`) |
+| 11 | tổng thời gian engine (ns) |
+| 12..20 | histogram thời gian engine, mỗi bucket đếm riêng (không cộng dồn), cận trên: 50 µs, 100 µs, 200 µs, 500 µs, 1 ms, 2 ms, 5 ms, 10 ms, +Inf |
+
+Bộ đếm mới chỉ được thêm vào cuối slot (tăng số bộ đếm, không đổi phiên bản layout); agent bỏ qua bộ đếm nó không biết.
+
+**Tạo file**: master tạo file khi đọc cấu hình: ghi file tạm, `ftruncate`, ghi header, `rename` sang tên chính thức, rồi mmap `MAP_SHARED`. Worker thừa hưởng vùng map qua `fork`. Khi reload, master tạo file mới theo cùng cách. Worker cũ vẫn ghi vào inode cũ cho tới khi thoát, và bộ đếm bắt đầu lại từ 0; Prometheus coi đó là counter reset. Khác với control file, ở đây được dùng `rename`, vì agent mở lại file theo đường dẫn ở mỗi lần scrape.
+
+**Agent đọc**: mỗi lần scrape, agent mở file, `fstat`, kiểm magic, phiên bản, số slot, kích thước slot, số bộ đếm và kích thước file, rồi mmap `PROT_READ` và cộng các slot có pid khác 0. File sai layout được coi là không có dữ liệu (`strata_metrics_file_up 0`); agent không bao giờ tin các giá trị trong file là đúng định dạng.

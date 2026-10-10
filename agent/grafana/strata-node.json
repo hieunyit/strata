@@ -1,0 +1,71 @@
+{
+  "title": "Strata node",
+  "uid": "strata-node",
+  "schemaVersion": 39,
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "datasource", "type": "datasource", "query": "prometheus" },
+      {
+        "name": "instance", "type": "query", "datasource": { "uid": "${datasource}" },
+        "query": "label_values(strata_metrics_file_up, instance)", "multi": true, "includeAll": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Requests by action",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "targets": [{ "expr": "sum by (action) (rate(strata_requests_total{instance=~\"$instance\"}[5m]))", "legendFormat": "{{action}}" }]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Engine time p50 / p99",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum by (le) (rate(strata_engine_seconds_bucket{instance=~\"$instance\"}[5m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(strata_engine_seconds_bucket{instance=~\"$instance\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Fail mode and budget",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "targets": [
+        { "expr": "sum by (mode) (rate(strata_fail_mode_total{instance=~\"$instance\"}[5m]))", "legendFormat": "fail {{mode}}" },
+        { "expr": "sum (rate(strata_budget_exceeded_total{instance=~\"$instance\"}[5m]))", "legendFormat": "budget exceeded" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Events lost",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "targets": [
+        { "expr": "sum (rate(strata_events_dropped_total{instance=~\"$instance\"}[5m]))", "legendFormat": "dropped by worker (socket full)" },
+        { "expr": "sum (rate(strata_agent_spool_dropped_events_total{instance=~\"$instance\"}[5m]))", "legendFormat": "dropped by agent (spool full)" },
+        { "expr": "sum (rate(strata_agent_events_invalid_total{instance=~\"$instance\"}[5m]) + rate(strata_agent_events_truncated_total{instance=~\"$instance\"}[5m]))", "legendFormat": "invalid datagrams" }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Spool",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "strata_agent_spool_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}}" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Unacked batches",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "uid": "${datasource}" },
+      "targets": [{ "expr": "strata_agent_spool_unacked_batches{instance=~\"$instance\"}", "legendFormat": "{{instance}}" }]
+    },
+    {
+      "id": 7, "type": "table", "title": "Bundle version per worker",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 6 },
+      "datasource": { "uid": "${datasource}" },
+      "targets": [{ "expr": "strata_bundle_version{instance=~\"$instance\"}", "format": "table", "instant": true }]
+    }
+  ]
+}

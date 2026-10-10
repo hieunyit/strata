@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/strata/strata/agent/internal/batch"
 	"github.com/strata/strata/agent/internal/eventsock"
 	"github.com/strata/strata/agent/internal/pusher"
+	"github.com/strata/strata/agent/internal/shmmetrics"
 	"github.com/strata/strata/agent/internal/spool"
 )
 
@@ -32,6 +34,8 @@ type Config struct {
 	CertFile      string // client certificate (mTLS)
 	KeyFile       string
 	NodeID        string
+	MetricsFile   string // written by the NGINX module; empty: not exported
+	MetricsAddr   string // host:port for /metrics; empty: no exporter
 
 	Batch  batch.Options
 	Push   pusher.Options
@@ -43,8 +47,12 @@ type Agent struct {
 	Socket *eventsock.Listener
 	Spool  *spool.Spool
 	Pusher *pusher.Pusher
-	conn   *grpc.ClientConn
-	batch  *batch.Batcher
+	// Registry holds the agent's metrics and, with MetricsFile, the
+	// workers' counters.
+	Registry *prometheus.Registry
+	conn     *grpc.ClientConn
+	batch    *batch.Batcher
+	cfg      Config
 }
 
 // New opens the spool, binds the event socket and prepares the client.
@@ -69,13 +77,20 @@ func New(cfg Config) (*Agent, error) {
 		return nil, err
 	}
 	cfg.Batch.NodeID = cfg.NodeID
-	return &Agent{
-		Socket: sock,
-		Spool:  sp,
-		Pusher: pusher.New(fleetv1.NewFleetServiceClient(conn), sp, cfg.Push),
-		conn:   conn,
-		batch:  batch.New(sp, cfg.Batch),
-	}, nil
+	a := &Agent{
+		Socket:   sock,
+		Spool:    sp,
+		Pusher:   pusher.New(fleetv1.NewFleetServiceClient(conn), sp, cfg.Push),
+		Registry: prometheus.NewRegistry(),
+		conn:     conn,
+		batch:    batch.New(sp, cfg.Batch),
+		cfg:      cfg,
+	}
+	a.Registry.MustRegister(collector{a})
+	if cfg.MetricsFile != "" {
+		a.Registry.MustRegister(shmmetrics.NewCollector(cfg.MetricsFile))
+	}
+	return a, nil
 }
 
 // Run serves until ctx is done. On the way out it stops reading the
@@ -97,6 +112,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	}()
 	go func() { batchDone <- a.batch.Run(batchCtx) }()
 	go func() { pushDone <- a.Pusher.Run(pushCtx) }()
+	metricsDone := make(chan error, 1)
+	if a.cfg.MetricsAddr != "" {
+		go func() { metricsDone <- shmmetrics.Serve(pushCtx, a.cfg.MetricsAddr, a.Registry) }()
+	}
 
 	var errs []error
 	select {
@@ -107,6 +126,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		errs, batchDone = append(errs, err), nil
 	case err := <-pushDone:
 		errs, pushDone = append(errs, err), nil
+	case err := <-metricsDone:
+		errs = append(errs, err)
 	}
 	stopSock()
 	if sockDone != nil {
