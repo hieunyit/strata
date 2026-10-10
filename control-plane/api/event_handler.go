@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -33,6 +34,46 @@ func writeError(w http.ResponseWriter, status int, message string, blockID strin
 	})
 }
 
+func maskIP(ip string) string {
+	if strings.Contains(ip, ".") {
+		parts := strings.Split(ip, ".")
+		if len(parts) == 4 {
+			return parts[0] + "." + parts[1] + "." + parts[2] + ".0/24"
+		}
+	} else if strings.Contains(ip, ":") {
+		parts := strings.Split(ip, ":")
+		if len(parts) >= 3 {
+			return parts[0] + ":" + parts[1] + ":" + parts[2] + "::/48"
+		}
+	}
+	return "[REDACTED]"
+}
+
+// sanitizeEventForRole masks sensitive fields (full IP and violation snippets)
+// for viewer role and unauthenticated callers per AGENTS.md section 6.
+func sanitizeEventForRole(e ingest.Event, role string) ingest.Event {
+	// Privileged roles allowed full access to raw IPs and violation snippets
+	if role == "admin" || role == "operator" || role == "approver" {
+		return e
+	}
+
+	e.ClientIP = maskIP(e.ClientIP)
+	maskedViolations := make([]ingest.Violation, len(e.Violations))
+	for i, v := range e.Violations {
+		v.Snippet = "[REDACTED]"
+		maskedViolations[i] = v
+	}
+	e.Violations = maskedViolations
+	return e
+}
+
+// callerRole returns the role of an authenticated caller. There is no
+// authentication yet (W03-G2-01), so every caller is a viewer. Never read the
+// role from a request header: the client chooses its value.
+func callerRole(_ *http.Request) string {
+	return "viewer"
+}
+
 // HandleGetEvent handles GET /v1/events/{block_id}.
 func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -60,12 +101,15 @@ func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "event not found", blockID)
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to query event: "+err.Error(), blockID)
+		log.Printf("[ERROR] failed to query event %s: %v", blockID, err)
+		writeError(w, http.StatusInternalServerError, "internal server error", blockID)
 		return
 	}
 
+	sanitized := sanitizeEventForRole(*event, callerRole(r))
+
 	writeJSON(w, http.StatusOK, GetEventResponse{
-		Event: *event,
+		Event: sanitized,
 	})
 }
 
@@ -75,6 +119,9 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
 		return
 	}
+
+	// Protect against unbounded request body
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
 
 	var req SearchEventsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -116,7 +163,8 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 
 	res, err := h.store.SearchEvents(r.Context(), filter)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to search events: "+err.Error(), "")
+		log.Printf("[ERROR] failed to search events: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal server error", "")
 		return
 	}
 
@@ -125,38 +173,16 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		nextToken = EncodePageToken(offset + len(res.Events))
 	}
 
-	events := res.Events
-	if events == nil {
-		events = []ingest.Event{}
+	role := callerRole(r)
+	events := make([]ingest.Event, len(res.Events))
+	for i, e := range res.Events {
+		events[i] = sanitizeEventForRole(e, role)
 	}
 
 	writeJSON(w, http.StatusOK, SearchEventsResponse{
 		Events:        events,
 		NextPageToken: nextToken,
 		TotalMatched:  res.Total,
-	})
-}
-
-// HandleIngestEvents handles POST /v1/events:ingest
-func (h *EventHandler) HandleIngestEvents(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
-		return
-	}
-
-	var events []ingest.Event
-	if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json request body: "+err.Error(), "")
-		return
-	}
-
-	if err := h.store.SaveEvents(r.Context(), events); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to save events: "+err.Error(), "")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"saved": len(events),
 	})
 }
 

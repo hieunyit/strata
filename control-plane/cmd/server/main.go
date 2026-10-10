@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
@@ -51,31 +50,25 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}, store)
 
-	// Wrap with basic CORS middleware for local UI development
+	// Wrap with restricted CORS middleware for lab UI origins
+	allowedOrigins := map[string]bool{
+		"http://localhost:3000": true,
+		"http://127.0.0.1:3000": true,
+		"http://localhost:5173": true,
+		"http://127.0.0.1:5173": true,
+		"http://localhost:8080": true,
+		"http://127.0.0.1:8080": true,
+	}
+
 	handlerWithCORS := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
-			return
-		}
-		if r.URL.Path == "/v1/events:ingest" {
-			if r.Method != http.MethodPost {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			var events []ingest.Event
-			if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			if err := store.SaveEvents(r.Context(), events); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
 			return
 		}
 		srv.Handler().ServeHTTP(w, r)

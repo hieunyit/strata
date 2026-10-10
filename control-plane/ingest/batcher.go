@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,13 +29,19 @@ func DefaultBatcherConfig() BatcherConfig {
 	}
 }
 
+type batchSubmission struct {
+	events []Event
+	done   chan error
+}
+
 // Batcher aggregates events into batches and flushes them to an EventStore.
 type Batcher struct {
 	cfg        BatcherConfig
 	store      EventStore
-	eventChan  chan Event
+	subChan    chan batchSubmission
 	flushReq   chan chan error
 	stopChan   chan struct{}
+	exited     chan struct{} // closed when runLoop returns
 	wg         sync.WaitGroup
 	isClosed   atomic.Bool
 
@@ -60,11 +65,12 @@ func NewBatcher(cfg BatcherConfig, store EventStore) *Batcher {
 	}
 
 	b := &Batcher{
-		cfg:       cfg,
-		store:     store,
-		eventChan: make(chan Event, cfg.BufferSize),
-		flushReq:  make(chan chan error),
-		stopChan:  make(chan struct{}),
+		cfg:      cfg,
+		store:    store,
+		subChan:  make(chan batchSubmission, cfg.BufferSize),
+		flushReq: make(chan chan error),
+		stopChan: make(chan struct{}),
+		exited:   make(chan struct{}),
 	}
 
 	b.wg.Add(1)
@@ -73,7 +79,7 @@ func NewBatcher(cfg BatcherConfig, store EventStore) *Batcher {
 	return b
 }
 
-// Submit enqueues an event for batching.
+// Submit enqueues an event for batching without waiting for persistence.
 // Returns ErrBufferFull if buffer is saturated (backpressure), or ErrBatcherClosed.
 func (b *Batcher) Submit(evt Event) error {
 	if b.isClosed.Load() {
@@ -81,7 +87,7 @@ func (b *Batcher) Submit(evt Event) error {
 	}
 
 	select {
-	case b.eventChan <- evt:
+	case b.subChan <- batchSubmission{events: []Event{evt}}:
 		b.eventsReceived.Add(1)
 		return nil
 	default:
@@ -89,17 +95,61 @@ func (b *Batcher) Submit(evt Event) error {
 	}
 }
 
-// SubmitBatch enqueues multiple events atomically or returns error on full.
+// SubmitBatch enqueues multiple events for batching.
 func (b *Batcher) SubmitBatch(events []Event) error {
 	if b.isClosed.Load() {
 		return ErrBatcherClosed
 	}
-	for i, evt := range events {
-		if err := b.Submit(evt); err != nil {
-			return fmt.Errorf("submitting event %d of %d: %w", i, len(events), err)
-		}
+	if len(events) == 0 {
+		return nil
 	}
-	return nil
+
+	select {
+	case b.subChan <- batchSubmission{events: events}:
+		b.eventsReceived.Add(uint64(len(events)))
+		return nil
+	default:
+		return ErrBufferFull
+	}
+}
+
+// SubmitAndAwait enqueues events and waits until they are successfully persisted to EventStore.
+// Returns error if store fails, context cancelled, buffer is full, or batcher is closed.
+func (b *Batcher) SubmitAndAwait(ctx context.Context, events []Event) error {
+	if b.isClosed.Load() {
+		return ErrBatcherClosed
+	}
+	if len(events) == 0 {
+		return nil
+	}
+
+	done := make(chan error, 1)
+	sub := batchSubmission{
+		events: events,
+		done:   done,
+	}
+
+	select {
+	case b.subChan <- sub:
+		b.eventsReceived.Add(uint64(len(events)))
+	default:
+		return ErrBufferFull
+	}
+
+	select {
+	case err := <-done:
+		return err
+	case <-b.exited:
+		// The loop may have flushed us on its way out.
+		select {
+		case err := <-done:
+			return err
+		default:
+			return ErrBatcherClosed
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Flush synchronously flushes all currently buffered events.
@@ -146,11 +196,13 @@ func (b *Batcher) Close(ctx context.Context) error {
 // runLoop is the internal aggregation loop.
 func (b *Batcher) runLoop() {
 	defer b.wg.Done()
+	defer close(b.exited)
 
 	ticker := time.NewTicker(b.cfg.FlushInterval)
 	defer ticker.Stop()
 
 	currentBatch := make([]Event, 0, b.cfg.MaxBatchSize)
+	var currentNotifiers []chan error
 
 	flushCurrent := func() error {
 		if len(currentBatch) == 0 {
@@ -161,8 +213,20 @@ func (b *Batcher) runLoop() {
 		err := b.store.SaveEvents(ctx, currentBatch)
 		cancel()
 
+		// Notify waiting callers
+		for _, ch := range currentNotifiers {
+			select {
+			case ch <- err:
+			default:
+			}
+		}
+		currentNotifiers = nil
+
 		if err != nil {
+			// Waiting callers got the error and do not ack, so the agent
+			// resends the batch. Keeping it here would write it twice.
 			b.flushErrors.Add(1)
+			currentBatch = make([]Event, 0, b.cfg.MaxBatchSize)
 			return err
 		}
 
@@ -174,8 +238,11 @@ func (b *Batcher) runLoop() {
 
 	for {
 		select {
-		case evt := <-b.eventChan:
-			currentBatch = append(currentBatch, evt)
+		case sub := <-b.subChan:
+			currentBatch = append(currentBatch, sub.events...)
+			if sub.done != nil {
+				currentNotifiers = append(currentNotifiers, sub.done)
+			}
 			if len(currentBatch) >= b.cfg.MaxBatchSize {
 				_ = flushCurrent()
 			}
@@ -186,31 +253,40 @@ func (b *Batcher) runLoop() {
 			}
 
 		case respChan := <-b.flushReq:
-			// Drain all currently available in channel
+			// Drain all currently available submissions in channel
+			var flushErr error
 			drained := true
 			for drained {
 				select {
-				case evt := <-b.eventChan:
-					currentBatch = append(currentBatch, evt)
+				case sub := <-b.subChan:
+					currentBatch = append(currentBatch, sub.events...)
+					if sub.done != nil {
+						currentNotifiers = append(currentNotifiers, sub.done)
+					}
 					if len(currentBatch) >= b.cfg.MaxBatchSize {
-						if err := flushCurrent(); err != nil {
-							respChan <- err
-							continue
+						if err := flushCurrent(); err != nil && flushErr == nil {
+							flushErr = err
 						}
 					}
 				default:
 					drained = false
 				}
 			}
-			err := flushCurrent()
-			respChan <- err
+			if err := flushCurrent(); err != nil && flushErr == nil {
+				flushErr = err
+			}
+			// Send response to flushReq exactly once
+			respChan <- flushErr
 
 		case <-b.stopChan:
 			// Drain all remaining events from the channel before exiting
 			for {
 				select {
-				case evt := <-b.eventChan:
-					currentBatch = append(currentBatch, evt)
+				case sub := <-b.subChan:
+					currentBatch = append(currentBatch, sub.events...)
+					if sub.done != nil {
+						currentNotifiers = append(currentNotifiers, sub.done)
+					}
 					if len(currentBatch) >= b.cfg.MaxBatchSize {
 						_ = flushCurrent()
 					}
@@ -229,5 +305,5 @@ func (b *Batcher) Stats() (received, flushed, batches, errors uint64, queueLen i
 		b.eventsFlushed.Load(),
 		b.batchesFlushed.Load(),
 		b.flushErrors.Load(),
-		len(b.eventChan)
+		len(b.subChan)
 }

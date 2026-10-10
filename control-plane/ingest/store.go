@@ -41,6 +41,8 @@ type EventStore interface {
 	SaveEvents(ctx context.Context, events []Event) error
 	GetEvent(ctx context.Context, blockID string) (*Event, error)
 	SearchEvents(ctx context.Context, filter SearchFilter) (*SearchResult, error)
+	GetNodeSeq(ctx context.Context, nodeID string) (uint64, error)
+	SetNodeSeq(ctx context.Context, nodeID string, seq uint64) error
 	Close() error
 }
 
@@ -220,8 +222,8 @@ func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event,
 		&e.ReceivedAt,
 	)
 	if err != nil {
-		var chErr *clickhouse.Exception
-		if errors.Is(err, sql.ErrNoRows) || errors.As(err, &chErr) || err.Error() == "sql: no rows in result set" {
+		// Any other error, ClickHouse exceptions included, is a real failure.
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrEventNotFound
 		}
 		return nil, fmt.Errorf("scanning event row: %w", err)
@@ -383,6 +385,30 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 	}, nil
 }
 
+// GetNodeSeq returns the last committed sequence number for nodeID from ClickHouse.
+func (s *ClickHouseStore) GetNodeSeq(ctx context.Context, nodeID string) (uint64, error) {
+	query := `SELECT last_seq FROM node_seq WHERE node_id = ? ORDER BY updated_at DESC LIMIT 1`
+	var seq uint64
+	err := s.conn.QueryRow(ctx, query, nodeID).Scan(&seq)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("getting node seq: %w", err)
+	}
+	return seq, nil
+}
+
+// SetNodeSeq persists the sequence watermark for nodeID to ClickHouse.
+func (s *ClickHouseStore) SetNodeSeq(ctx context.Context, nodeID string, seq uint64) error {
+	query := `INSERT INTO node_seq (node_id, last_seq, updated_at) VALUES (?, ?, now64(3))`
+	err := s.conn.Exec(ctx, query, nodeID, seq)
+	if err != nil {
+		return fmt.Errorf("setting node seq: %w", err)
+	}
+	return nil
+}
+
 // Close closes the underlying ClickHouse connection.
 func (s *ClickHouseStore) Close() error {
 	return s.conn.Close()
@@ -393,6 +419,7 @@ type MockEventStore struct {
 	mu           sync.RWMutex
 	eventsByID   map[string]Event
 	eventsList   []Event
+	nodeSeqs     map[string]uint64
 	saveErr      error
 	saveCount    int
 	onSaveEvents func(events []Event)
@@ -403,7 +430,21 @@ func NewMockEventStore() *MockEventStore {
 	return &MockEventStore{
 		eventsByID: make(map[string]Event),
 		eventsList: make([]Event, 0),
+		nodeSeqs:   make(map[string]uint64),
 	}
+}
+
+func (m *MockEventStore) GetNodeSeq(ctx context.Context, nodeID string) (uint64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.nodeSeqs[nodeID], nil
+}
+
+func (m *MockEventStore) SetNodeSeq(ctx context.Context, nodeID string, seq uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nodeSeqs[nodeID] = seq
+	return nil
 }
 
 func (m *MockEventStore) SetSaveError(err error) {

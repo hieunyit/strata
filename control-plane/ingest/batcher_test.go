@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -156,5 +157,76 @@ func TestBatcher_BufferFull(t *testing.T) {
 
 	if !gotBufferFull {
 		t.Errorf("expected ErrBufferFull when submitting to saturated queue")
+	}
+}
+
+func TestBatcher_StoreErrorBoundedAndFlushNoHang(t *testing.T) {
+	mockStore := NewMockEventStore()
+	mockStore.SetSaveError(fmt.Errorf("persistent clickhouse outage"))
+
+	cfg := BatcherConfig{
+		MaxBatchSize:  5,
+		FlushInterval: 20 * time.Millisecond,
+		BufferSize:    50,
+	}
+	batcher := NewBatcher(cfg, mockStore)
+	ctx := context.Background()
+	defer batcher.Close(ctx)
+
+	// Submit events > MaxBatchSize * 3
+	for i := 0; i < 20; i++ {
+		_ = batcher.Submit(sampleEvent(i))
+	}
+
+	// Flush calls return promptly. A failed batch is dropped, not retried
+	// (the sender is told and resends), so the buffer never grows.
+	// Whether Flush or the ticker hits the error first is timing-dependent.
+	for attempt := 0; attempt < 3; attempt++ {
+		flushCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		err := batcher.Flush(flushCtx)
+		cancel()
+		if errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("attempt %d: Flush hung", attempt)
+		}
+	}
+	if _, _, _, _, qLen := batcher.Stats(); qLen != 0 {
+		t.Errorf("queue length = %d after flushes, want 0", qLen)
+	}
+	if mockStore.Count() != 0 {
+		t.Errorf("store has %d events during outage", mockStore.Count())
+	}
+
+	_, _, _, flushErrors, _ := batcher.Stats()
+	if flushErrors == 0 {
+		t.Errorf("expected flushErrors > 0, got %d", flushErrors)
+	}
+}
+
+func TestBatcher_SubmitAndAwait(t *testing.T) {
+	mockStore := NewMockEventStore()
+	cfg := BatcherConfig{
+		MaxBatchSize:  5,
+		FlushInterval: 50 * time.Millisecond,
+		BufferSize:    50,
+	}
+	batcher := NewBatcher(cfg, mockStore)
+	ctx := context.Background()
+	defer batcher.Close(ctx)
+
+	// 1. Success case: SubmitAndAwait waits and returns nil once saved
+	events := []Event{sampleEvent(1), sampleEvent(2)}
+	err := batcher.SubmitAndAwait(ctx, events)
+	if err != nil {
+		t.Fatalf("SubmitAndAwait failed: %v", err)
+	}
+	if mockStore.Count() != 2 {
+		t.Fatalf("expected 2 events in store, got %d", mockStore.Count())
+	}
+
+	// 2. Error case: When store fails, SubmitAndAwait receives the store error
+	mockStore.SetSaveError(fmt.Errorf("clickhouse timeout"))
+	err = batcher.SubmitAndAwait(ctx, []Event{sampleEvent(3)})
+	if err == nil {
+		t.Fatalf("expected SubmitAndAwait to return error when store fails")
 	}
 }

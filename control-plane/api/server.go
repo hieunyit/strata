@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -65,16 +64,11 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/events:search", s.handler.HandleSearchEvents)
-	s.mux.HandleFunc("/v1/events:ingest", s.handler.HandleIngestEvents)
 
 	// Handles /v1/events/{block_id}
 	s.mux.HandleFunc("/v1/events/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ":search") {
 			s.handler.HandleSearchEvents(w, r)
-			return
-		}
-		if strings.HasSuffix(r.URL.Path, ":ingest") {
-			s.handler.HandleIngestEvents(w, r)
 			return
 		}
 		s.handler.HandleGetEvent(w, r)
@@ -85,7 +79,7 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				writeError(w, http.StatusInternalServerError, fmt.Sprintf("internal server panic: %v", rec), "")
+				writeError(w, http.StatusInternalServerError, "internal server error", "")
 			}
 		}()
 

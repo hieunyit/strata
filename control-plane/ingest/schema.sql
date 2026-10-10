@@ -40,9 +40,19 @@ CREATE TABLE IF NOT EXISTS events (
     INDEX idx_action action TYPE set(10) GRANULARITY 1,
     INDEX idx_rules matched_rules TYPE set(100) GRANULARITY 2
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(received_at)
 PARTITION BY toYYYYMMDD(timestamp)
 PRIMARY KEY block_id
 ORDER BY (block_id, timestamp)
 TTL timestamp + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS node_seq (
+    node_id    LowCardinality(String),
+    last_seq   UInt64,
+    updated_at DateTime64(3, 'UTC') DEFAULT now64(3)
+)
+ENGINE = ReplacingMergeTree(updated_at)
+PRIMARY KEY node_id
+ORDER BY node_id;
+
