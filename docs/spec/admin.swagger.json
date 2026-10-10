@@ -1,0 +1,852 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "strata/admin/v1/fleet.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "FleetAdminService"
+    },
+    {
+      "name": "PolicyService"
+    },
+    {
+      "name": "VersionService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/groups": {
+      "get": {
+        "summary": "REST: GET /v1/groups",
+        "operationId": "FleetAdminService_ListGroups",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListGroupsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "FleetAdminService"
+        ]
+      },
+      "post": {
+        "summary": "REST: POST /v1/groups",
+        "operationId": "FleetAdminService_CreateGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateGroupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "description": "id and name",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Group"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/groups/{group_id}/enrollmentTokens": {
+      "post": {
+        "summary": "REST: POST /v1/groups/{group_id}/enrollmentTokens",
+        "operationId": "FleetAdminService_CreateEnrollmentToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateEnrollmentTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceCreateEnrollmentTokenBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/nodes": {
+      "get": {
+        "summary": "REST: GET /v1/nodes",
+        "operationId": "FleetAdminService_ListNodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListNodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/nodes/{node_id}": {
+      "delete": {
+        "summary": "REST: DELETE /v1/nodes/{node_id}. The node's streams are cut and its\ncertificates refused from then on.",
+        "operationId": "FleetAdminService_RevokeNode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RevokeNodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/policies": {
+      "get": {
+        "summary": "REST: GET /v1/policies",
+        "operationId": "PolicyService_ListPolicies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPoliciesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PolicyService"
+        ]
+      },
+      "post": {
+        "summary": "REST: POST /v1/policies",
+        "operationId": "PolicyService_CreatePolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreatePolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy",
+            "description": "id, name, spec",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Policy"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy.id}": {
+      "patch": {
+        "summary": "REST: PATCH /v1/policies/{policy.id}",
+        "operationId": "PolicyService_UpdatePolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdatePolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy.id",
+            "description": "[a-z0-9][a-z0-9-]{0,62}; set at creation.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "policy",
+            "description": "id, spec, and the etag it was read with",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name in the bundle and in strata_policy: [a-z0-9._-]{1,55}."
+                },
+                "spec": {
+                  "$ref": "#/definitions/v1PolicySpec"
+                },
+                "version": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "etag": {
+                  "type": "string"
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "create_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "update_time": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "title": "id, spec, and the etag it was read with"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}": {
+      "get": {
+        "summary": "REST: GET /v1/policies/{policy_id}",
+        "operationId": "PolicyService_GetPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}/versions": {
+      "get": {
+        "summary": "REST: GET /v1/policies/{policy_id}/versions",
+        "operationId": "PolicyService_ListPolicyVersions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPolicyVersionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}/versions/{version}": {
+      "get": {
+        "summary": "REST: GET /v1/policies/{policy_id}/versions/{version}",
+        "operationId": "PolicyService_GetPolicyVersion",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPolicyVersionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}:deploy": {
+      "post": {
+        "summary": "REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the\ncurrent version of every policy, signs it and stores it in object\nstorage.",
+        "operationId": "PolicyService_DeployPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeployPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PolicyServiceDeployPolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/version": {
+      "get": {
+        "summary": "REST: GET /v1/version",
+        "operationId": "VersionService_GetVersion",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetVersionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "VersionService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "FleetAdminServiceCreateEnrollmentTokenBody": {
+      "type": "object",
+      "properties": {
+        "ttl_seconds": {
+          "type": "integer",
+          "format": "int64",
+          "description": "At most and by default 86400 (24 hours)."
+        }
+      }
+    },
+    "PolicyServiceDeployPolicyBody": {
+      "type": "object"
+    },
+    "PolicySpecMode": {
+      "type": "string",
+      "enum": [
+        "MODE_UNSPECIFIED",
+        "MODE_SHADOW",
+        "MODE_ENFORCE"
+      ],
+      "default": "MODE_UNSPECIFIED"
+    },
+    "PolicySpecOversize": {
+      "type": "string",
+      "enum": [
+        "OVERSIZE_UNSPECIFIED",
+        "OVERSIZE_PASS",
+        "OVERSIZE_BLOCK"
+      ],
+      "default": "OVERSIZE_UNSPECIFIED",
+      "title": "- OVERSIZE_UNSPECIFIED: pass"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1Bundle": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "sha256": {
+          "type": "string",
+          "title": "hex"
+        },
+        "object_key": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "contents": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": "policy id -\u003e version built into the bundle"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1CreateEnrollmentTokenResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string",
+          "description": "Shown once; only its SHA-256 is stored. Single use."
+        },
+        "expire_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1CreateGroupResponse": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/v1Group"
+        }
+      }
+    },
+    "v1CreatePolicyResponse": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "$ref": "#/definitions/v1Policy"
+        }
+      }
+    },
+    "v1DeployPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "bundle": {
+          "$ref": "#/definitions/v1Bundle"
+        }
+      }
+    },
+    "v1GetPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "$ref": "#/definitions/v1Policy"
+        }
+      }
+    },
+    "v1GetPolicyVersionResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/v1PolicyVersion"
+        }
+      }
+    },
+    "v1GetVersionResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Control plane build version, e.g. 0.1.0 or a git describe string."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Git commit the build came from; empty for local builds."
+        },
+        "api_version": {
+          "type": "string",
+          "description": "Admin API version in the path, \"v1\"."
+        }
+      }
+    },
+    "v1Group": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "[a-z0-9][a-z0-9-]{0,62}"
+        },
+        "name": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1ListGroupsResponse": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Group"
+          }
+        }
+      }
+    },
+    "v1ListNodesResponse": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Node"
+          }
+        }
+      }
+    },
+    "v1ListPoliciesResponse": {
+      "type": "object",
+      "properties": {
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Policy"
+          }
+        }
+      }
+    },
+    "v1ListPolicyVersionsResponse": {
+      "type": "object",
+      "properties": {
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyVersion"
+          }
+        }
+      }
+    },
+    "v1Node": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "proxy_version": {
+          "type": "string"
+        },
+        "module_version": {
+          "type": "string"
+        },
+        "bundle_version": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "bundle_state": {
+          "type": "string",
+          "title": "NONE, VERIFIED, ACTIVE, FAILED"
+        },
+        "online": {
+          "type": "boolean",
+          "description": "A stream is open, or a heartbeat came within the last 30 seconds."
+        },
+        "last_seen_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cert_expire_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1Policy": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "[a-z0-9][a-z0-9-]{0,62}; set at creation."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name in the bundle and in strata_policy: [a-z0-9._-]{1,55}."
+        },
+        "spec": {
+          "$ref": "#/definitions/v1PolicySpec"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "etag": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1PolicySpec": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/definitions/PolicySpecMode"
+        },
+        "oversize": {
+          "$ref": "#/definitions/PolicySpecOversize"
+        },
+        "response": {
+          "$ref": "#/definitions/v1ResponseLayer"
+        }
+      },
+      "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
+    },
+    "v1PolicyVersion": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "spec": {
+          "$ref": "#/definitions/v1PolicySpec"
+        },
+        "state": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1ResponseLayer": {
+      "type": "object",
+      "properties": {
+        "allowed_codes_check": {
+          "type": "boolean"
+        },
+        "db_errors": {
+          "type": "boolean"
+        },
+        "data_guard": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "cccd, jwt"
+        }
+      }
+    },
+    "v1RevokeNodeResponse": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/v1Node"
+        }
+      }
+    },
+    "v1UpdatePolicyResponse": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "$ref": "#/definitions/v1Policy"
+        }
+      }
+    }
+  }
+}

@@ -121,5 +121,62 @@
     "loading": "Đang kiểm tra phiên đăng nhập…",
     "error": "Không kết nối được máy chủ đăng nhập: {{error}}",
     "retry": "Thử lại"
+  },
+  "errors": {
+    "apiUnreachable": "Không thể kết nối tới Strata Event API. Vui lòng kiểm tra dịch vụ.",
+    "blockIdNotFound": "Không tìm thấy sự kiện với Block ID: {{id}}",
+    "blockIdLookup": "Lỗi tra cứu Block ID: {{error}}",
+    "blockIdConnection": "Lỗi kết nối khi tra cứu Block ID {{id}}",
+    "close": "Đóng"
+  },
+  "policies": {
+    "title": "Policy",
+    "subtitle": "Policy đang có và lịch sử phiên bản (chỉ đọc)",
+    "empty": "Chưa có policy nào.",
+    "loading": "Đang tải policy…",
+    "col": {
+      "name": "Tên",
+      "mode": "Chế độ",
+      "oversize": "Body vượt giới hạn",
+      "version": "Phiên bản",
+      "updated": "Cập nhật",
+      "by": "Người tạo"
+    },
+    "versions": "Lịch sử phiên bản của {{name}}",
+    "mode": {
+      "MODE_SHADOW": "Shadow",
+      "MODE_ENFORCE": "Enforce",
+      "MODE_UNSPECIFIED": "—"
+    },
+    "oversize": {
+      "OVERSIZE_BLOCK": "Chặn",
+      "OVERSIZE_PASS": "Cho qua",
+      "OVERSIZE_UNSPECIFIED": "Cho qua"
+    }
+  },
+  "fleet": {
+    "title": "Fleet",
+    "subtitle": "Node đã đăng ký và trạng thái kết nối, tự làm mới mỗi 5 giây",
+    "empty": "Chưa có node nào đăng ký.",
+    "loading": "Đang tải node…",
+    "summary": "{{online}}/{{total}} node online · {{groups}} connector group",
+    "col": {
+      "status": "Trạng thái",
+      "node": "Node",
+      "group": "Group",
+      "versions": "NGINX / module",
+      "bundle": "Bundle",
+      "lastSeen": "Lần cuối thấy",
+      "cert": "Chứng chỉ hết hạn"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "revoked": "Đã thu hồi"
+    }
+  },
+  "common": {
+    "refreshError": "Không tải được dữ liệu: {{error}}",
+    "never": "chưa bao giờ"
   }
 }

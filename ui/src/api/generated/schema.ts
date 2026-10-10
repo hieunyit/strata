@@ -19,13 +19,6 @@ export interface paths {
      */
     post: operations["searchEvents"];
   };
-  "/v1/version": {
-    /**
-     * Control plane version
-     * @description Served by strata.admin.v1.VersionService (gRPC and this REST route). Every role may call it.
-     */
-    get: operations["getVersion"];
-  };
 }
 
 export type webhooks = Record<string, never>;
@@ -138,13 +131,6 @@ export interface components {
       block_id?: string;
       code?: number;
     };
-    GetVersionResponse: {
-      /** @example 0.1.0 */
-      version: string;
-      commit: string;
-      /** @example v1 */
-      api_version: string;
-    };
   };
   responses: {
     /** @description No valid access token. */
@@ -243,22 +229,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-    };
-  };
-  /**
-   * Control plane version
-   * @description Served by strata.admin.v1.VersionService (gRPC and this REST route). Every role may call it.
-   */
-  getVersion: {
-    responses: {
-      /** @description Version of the running control plane. */
-      200: {
-        content: {
-          "application/json": components["schemas"]["GetVersionResponse"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
     };
   };
 }

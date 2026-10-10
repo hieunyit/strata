@@ -232,6 +232,35 @@ test.describe('Strata WAF - Security Events Management', () => {
     await expect(page.getByText('EVT-7X2W-5M1Q-9H8K-L0P4')).toBeVisible();
   });
 
+  test('fleet and policies pages show the API data', async ({ page }) => {
+    await page.route('**/v1/nodes', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ nodes: [
+        { id: 'node-a', hostname: 'edge-01', group_id: 'lab', online: true },
+        { id: 'node-b', hostname: 'edge-02', group_id: 'lab', online: false },
+      ] }) }),
+    );
+    await page.route('**/v1/groups', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ groups: [{ id: 'lab', name: 'Lab' }] }) }),
+    );
+    await page.route('**/v1/policies', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ policies: [
+        { id: 'example-api', name: 'example-api', version: 2, spec: { mode: 'MODE_ENFORCE' } },
+      ] }) }),
+    );
+    await page.getByTestId('nav-fleet').click();
+    await expect(page.getByTestId('node-row')).toHaveCount(2);
+    await expect(page.getByTestId('node-status').first()).toHaveText('Online');
+    await page.getByTestId('nav-policies').click();
+    await expect(page.getByTestId('policy-row')).toHaveCount(1);
+    await expect(page.getByTestId('policy-version').first()).toHaveText('2');
+
+    // The Block ID search on another page opens the trace on Events.
+    await page.getByTestId('block-id-search-input').fill('STR-8F3K-Q2VD-7XNM-A1PC');
+    await page.getByTestId('block-id-search-btn').click();
+    await expect(page.getByTestId('decision-trace-modal')).toBeVisible();
+    await expect(page.getByTestId('nav-events')).toHaveAttribute('aria-current', 'page');
+  });
+
   test('switches language between Vietnamese and English', async ({ page }) => {
     const langBtn = page.getByTestId('language-toggle-btn');
 

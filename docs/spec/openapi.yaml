@@ -2,8 +2,9 @@ openapi: 3.0.3
 info:
   title: Strata Control Plane API
   version: 1.0.0
-  description: 'Control plane admin and security event API for Strata WAF. Every route needs an OIDC access token
-    (audience strata-api) in Authorization: Bearer; roles come from realm_access.roles.'
+  description: 'Security event API of the Strata control plane (plain HTTP handlers). The admin API (version, fleet,
+    policies) is generated from the protos into admin.swagger.json. Every route needs an OIDC access token (audience
+    strata-api) in Authorization: Bearer; roles come from realm_access.roles.'
 paths:
   /v1/events/{block_id}:
     get:
@@ -77,22 +78,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /v1/version:
-    get:
-      summary: Control plane version
-      operationId: getVersion
-      description: Served by strata.admin.v1.VersionService (gRPC and this REST route). Every role may call it.
-      responses:
-        '200':
-          description: Version of the running control plane.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GetVersionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -275,21 +260,6 @@ components:
           type: string
         code:
           type: integer
-    GetVersionResponse:
-      type: object
-      required:
-      - version
-      - commit
-      - api_version
-      properties:
-        version:
-          type: string
-          example: 0.1.0
-        commit:
-          type: string
-        api_version:
-          type: string
-          example: v1
   securitySchemes:
     bearerAuth:
       type: http

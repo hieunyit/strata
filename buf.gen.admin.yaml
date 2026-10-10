@@ -1,5 +1,7 @@
 # Admin API (strata.admin.v1) -> control-plane/gen: gRPC and the
-# grpc-gateway REST handlers, routes from admin_http.yaml.
+# grpc-gateway REST handlers, routes from admin_http.yaml; and its OpenAPI
+# document, docs/spec/admin.swagger.json, from which the UI's client types
+# are generated.
 version: v2
 managed:
   enabled: true
@@ -22,3 +24,12 @@ plugins:
     opt:
       - paths=source_relative
       - grpc_api_configuration=proto/strata/admin/v1/admin_http.yaml
+  - local: protoc-gen-openapiv2
+    out: docs/spec
+    opt:
+      - grpc_api_configuration=proto/strata/admin/v1/admin_http.yaml
+      - allow_merge=true
+      - merge_file_name=admin
+      - json_names_for_fields=false
+      - output_format=json
+      - disable_default_errors=false

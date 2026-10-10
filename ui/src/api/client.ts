@@ -1,11 +1,16 @@
 import { components } from './generated/schema';
+import { components as admin } from './generated/admin';
 
 export type Event = components['schemas']['Event'];
 export type Violation = components['schemas']['Violation'];
 export type SearchEventsRequest = components['schemas']['SearchEventsRequest'];
 export type SearchEventsResponse = components['schemas']['SearchEventsResponse'];
 export type GetEventResponse = components['schemas']['GetEventResponse'];
-export type GetVersionResponse = components['schemas']['GetVersionResponse'];
+export type GetVersionResponse = admin['schemas']['v1GetVersionResponse'];
+export type Policy = admin['schemas']['v1Policy'];
+export type PolicyVersion = admin['schemas']['v1PolicyVersion'];
+export type Group = admin['schemas']['v1Group'];
+export type FleetNode = admin['schemas']['v1Node'];
 export type ErrorResponse = components['schemas']['ErrorResponse'];
 
 export class ApiError extends Error {
@@ -73,5 +78,30 @@ export const apiClient = {
   /** GET /v1/version */
   getVersion(): Promise<GetVersionResponse> {
     return call('/version', { method: 'GET' }, 'Failed to get version');
+  },
+
+  /** GET /v1/policies */
+  async listPolicies(): Promise<Policy[]> {
+    const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET' }, 'Failed to list policies');
+    return r.policies ?? [];
+  },
+
+  /** GET /v1/policies/{id}/versions, newest first */
+  async listPolicyVersions(policyId: string): Promise<PolicyVersion[]> {
+    const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
+      `/policies/${encodeURIComponent(policyId)}/versions`, { method: 'GET' }, 'Failed to list versions');
+    return r.versions ?? [];
+  },
+
+  /** GET /v1/groups */
+  async listGroups(): Promise<Group[]> {
+    const r = await call<admin['schemas']['v1ListGroupsResponse']>('/groups', { method: 'GET' }, 'Failed to list groups');
+    return r.groups ?? [];
+  },
+
+  /** GET /v1/nodes */
+  async listNodes(): Promise<FleetNode[]> {
+    const r = await call<admin['schemas']['v1ListNodesResponse']>('/nodes', { method: 'GET' }, 'Failed to list nodes');
+    return r.nodes ?? [];
   },
 };

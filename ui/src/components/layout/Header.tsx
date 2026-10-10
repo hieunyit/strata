@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next';
 import { Shield, Search, Globe, UserCheck, Moon, Sun, AlertCircle, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
+import { Page, href } from '../../router';
 
 interface HeaderProps {
   onSearchBlockId: (blockId: string) => void;
   isSearchingBlockId?: boolean;
+  active?: Page;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBlockId = false }) => {
+const pages: Page[] = ['events', 'policies', 'fleet'];
+
+export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBlockId = false, active = 'events' }) => {
   const { t, i18n } = useTranslation();
   const { role, username, logout } = useAuth();
   const [version, setVersion] = useState<string>('');
@@ -21,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
     let alive = true;
     apiClient
       .getVersion()
-      .then((v) => alive && setVersion(v.version))
+      .then((v) => alive && setVersion(v.version ?? ''))
       .catch(() => {});
     return () => {
       alive = false;
@@ -165,6 +169,23 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
           </button>
         </div>
       </div>
+      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 text-sm" aria-label="main">
+        {pages.map((p) => (
+          <a
+            key={p}
+            href={href({ page: p })}
+            data-testid={`nav-${p}`}
+            aria-current={p === active ? 'page' : undefined}
+            className={
+              p === active
+                ? 'px-3 py-2 border-b-2 border-sky-600 text-sky-700 dark:text-sky-300 font-medium'
+                : 'px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }
+          >
+            {t(`nav.${p}`)}
+          </a>
+        ))}
+      </nav>
     </header>
   );
 };

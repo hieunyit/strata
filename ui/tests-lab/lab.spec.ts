@@ -72,3 +72,29 @@ test('viewer sees the trace with the IP and snippet masked by the API', async ({
   await expect(page.getByTestId('violation-snippet').first()).not.toHaveText('/%2e%2e/');
   await expect(page.getByTestId('viewer-notice')).toBeVisible();
 });
+
+// W04-F-01 on the lab: the Fleet page shows both enrolled agents online,
+// and the Policies page shows a policy created through the API with its
+// version history.
+test('fleet and policies pages show the lab data', async ({ page, request }) => {
+  const tokenRes = await request.post('http://127.0.0.1:18180/realms/strata/protocol/openid-connect/token', {
+    form: { grant_type: 'password', client_id: 'strata-lab-cli', client_secret: env.LAB_CLI_SECRET, username: 'lab-operator', password: env.LAB_OPERATOR_PASSWORD },
+  });
+  const token = (await tokenRes.json()).access_token as string;
+  const id = `ui-${Date.now()}`;
+  const headers = { Authorization: `Bearer ${token}` };
+  const created = await request.post('http://127.0.0.1:18090/v1/policies', { headers, data: { id, name: id, spec: { mode: 'MODE_SHADOW' } } });
+  expect(created.status()).toBe(200);
+  const etag = (await created.json()).policy.etag as string;
+  expect((await request.patch(`http://127.0.0.1:18090/v1/policies/${id}`, { headers, data: { etag, spec: { mode: 'MODE_ENFORCE' } } })).status()).toBe(200);
+
+  await signIn(page, 'lab-viewer');
+  await page.getByTestId('nav-fleet').click();
+  await expect(page.locator('[data-testid="node-row"][data-status="online"]')).toHaveCount(2, { timeout: 15_000 });
+
+  await page.getByTestId('nav-policies').click();
+  const row = page.getByTestId('policy-row').filter({ hasText: id });
+  await expect(row).toContainText('Enforce');
+  await row.click();
+  await expect(page.getByTestId('policy-version-row')).toHaveCount(2);
+});

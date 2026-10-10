@@ -7,7 +7,7 @@ import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
 import { apiClient, Event, SearchEventsRequest, ApiError } from '../api/client';
 import { AlertCircle } from 'lucide-react';
 
-export const EventsPage: React.FC = () => {
+export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlockId }) => {
   const { t } = useTranslation();
 
   // Query state
@@ -61,13 +61,13 @@ export const EventsPage: React.FC = () => {
       if (err instanceof ApiError) {
         setErrorMessage(`${err.message} (HTTP ${err.code})`);
       } else {
-        setErrorMessage('Không thể kết nối tới Strata Event API. Vui lòng kiểm tra dịch vụ.');
+        setErrorMessage(t('errors.apiUnreachable'));
       }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filters, pageTokens, currentPageIndex]);
+  }, [filters, pageTokens, currentPageIndex, t]);
 
   // Initial and reactive fetch
   useEffect(() => {
@@ -97,18 +97,24 @@ export const EventsPage: React.FC = () => {
       setSelectedEvent(null);
       if (err instanceof ApiError) {
         if (err.code === 404) {
-          setErrorMessage(`Không tìm thấy sự kiện với Block ID: ${blockId}`);
+          setErrorMessage(t('errors.blockIdNotFound', { id: blockId }));
         } else {
-          setErrorMessage(`Lỗi tra cứu Block ID: ${err.message}`);
+          setErrorMessage(t('errors.blockIdLookup', { error: err.message }));
         }
       } else {
-        setErrorMessage(`Lỗi kết nối khi tra cứu Block ID ${blockId}`);
+        setErrorMessage(t('errors.blockIdConnection', { id: blockId }));
       }
     } finally {
       setIsSearchingBlockId(false);
       setIsModalLoading(false);
     }
   };
+
+  // A Block ID in the route (#/events/STR-...), e.g. searched from another page.
+  useEffect(() => {
+    if (initialBlockId) void handleGlobalBlockIdSearch(initialBlockId);
+    // Only when the Block ID changes, not on every render.
+  }, [initialBlockId]);
 
   // Open modal for table row click
   const handleSelectEvent = async (event: Event) => {
@@ -182,6 +188,7 @@ export const EventsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors">
       <Header
+        active="events"
         onSearchBlockId={handleGlobalBlockIdSearch}
         isSearchingBlockId={isSearchingBlockId}
       />
@@ -211,7 +218,7 @@ export const EventsPage: React.FC = () => {
               onClick={() => setErrorMessage(null)}
               className="text-xs text-rose-500 hover:underline"
             >
-              Đóng
+              {t('errors.close')}
             </button>
           </div>
         )}

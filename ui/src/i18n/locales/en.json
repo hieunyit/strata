@@ -121,5 +121,62 @@
     "loading": "Checking your session…",
     "error": "Cannot reach the sign-in server: {{error}}",
     "retry": "Retry"
+  },
+  "errors": {
+    "apiUnreachable": "Cannot reach the Strata Event API. Check the service.",
+    "blockIdNotFound": "No event with Block ID {{id}}",
+    "blockIdLookup": "Block ID lookup failed: {{error}}",
+    "blockIdConnection": "Connection error while looking up Block ID {{id}}",
+    "close": "Close"
+  },
+  "policies": {
+    "title": "Policies",
+    "subtitle": "Policies and their version history (read only)",
+    "empty": "No policies yet.",
+    "loading": "Loading policies…",
+    "col": {
+      "name": "Name",
+      "mode": "Mode",
+      "oversize": "Oversize body",
+      "version": "Version",
+      "updated": "Updated",
+      "by": "Created by"
+    },
+    "versions": "Version history of {{name}}",
+    "mode": {
+      "MODE_SHADOW": "Shadow",
+      "MODE_ENFORCE": "Enforce",
+      "MODE_UNSPECIFIED": "—"
+    },
+    "oversize": {
+      "OVERSIZE_BLOCK": "Block",
+      "OVERSIZE_PASS": "Pass",
+      "OVERSIZE_UNSPECIFIED": "Pass"
+    }
+  },
+  "fleet": {
+    "title": "Fleet",
+    "subtitle": "Enrolled nodes and their connection, refreshed every 5 seconds",
+    "empty": "No node has enrolled yet.",
+    "loading": "Loading nodes…",
+    "summary": "{{online}}/{{total}} nodes online · {{groups}} connector groups",
+    "col": {
+      "status": "Status",
+      "node": "Node",
+      "group": "Group",
+      "versions": "NGINX / module",
+      "bundle": "Bundle",
+      "lastSeen": "Last seen",
+      "cert": "Certificate expires"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "revoked": "Revoked"
+    }
+  },
+  "common": {
+    "refreshError": "Could not load: {{error}}",
+    "never": "never"
   }
 }
