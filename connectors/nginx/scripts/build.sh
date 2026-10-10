@@ -39,7 +39,7 @@ fi
 
 cd "$src"
 
-stamp="$cc_opt|$ld_opt|$root"
+stamp="$cc_opt|$ld_opt|$root|$(cksum < "$root/connectors/nginx/config")"
 if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$stamp" ]; then
     ./configure \
         --with-compat --with-threads --with-debug \

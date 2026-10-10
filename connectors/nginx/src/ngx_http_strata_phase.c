@@ -272,6 +272,8 @@ ngx_http_strata_create_ctx(ngx_http_request_t *r,
     ctx->body_limit = slcf->body_limit;
     ctx->fail_closed = (slcf->fail_mode == NGX_HTTP_STRATA_FAIL_CLOSED);
     ctx->stream = (slcf->body_mode == NGX_HTTP_STRATA_BODY_STREAM);
+    ctx->resp_inspect = slcf->response_inspect ? 1 : 0;
+    ctx->resp_limit = slcf->response_body_limit;
 
     ngx_http_set_ctx(r, ctx, ngx_http_strata_module);
 
@@ -362,36 +364,12 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 static ngx_int_t
 ngx_http_strata_send_headers(ngx_http_request_t *r, strata_tx_t *tx)
 {
-    ngx_uint_t        i, n;
-    ngx_list_part_t  *part;
-    ngx_table_elt_t  *h;
+    size_t            n;
     strata_header_t  *hdrs;
 
-    n = 0;
-
-    for (part = &r->headers_in.headers.part; part; part = part->next) {
-        n += part->nelts;
-    }
-
-    hdrs = NULL;
-
-    if (n) {
-        hdrs = ngx_palloc(r->pool, n * sizeof(strata_header_t));
-        if (hdrs == NULL) {
-            return NGX_ERROR;
-        }
-    }
-
-    n = 0;
-
-    for (part = &r->headers_in.headers.part; part; part = part->next) {
-        h = part->elts;
-
-        for (i = 0; i < part->nelts; i++) {
-            hdrs[n].key = ngx_http_strata_str(&h[i].key);
-            hdrs[n].val = ngx_http_strata_str(&h[i].value);
-            n++;
-        }
+    hdrs = ngx_http_strata_headers(r, &r->headers_in.headers, &n);
+    if (hdrs == NULL && n) {
+        return NGX_ERROR;
     }
 
     /* an engine error is sticky in the tx and handled with the verdict */
@@ -399,6 +377,51 @@ ngx_http_strata_send_headers(ngx_http_request_t *r, strata_tx_t *tx)
     (void) strata_tx_request_headers(tx, hdrs, n);
 
     return NGX_OK;
+}
+
+
+/* borrowed views of a header list; NULL with *n != 0 on allocation error */
+
+strata_header_t *
+ngx_http_strata_headers(ngx_http_request_t *r, ngx_list_t *list, size_t *n)
+{
+    ngx_uint_t        i;
+    ngx_list_part_t  *part;
+    ngx_table_elt_t  *h;
+    strata_header_t  *hdrs;
+
+    *n = 0;
+
+    for (part = &list->part; part; part = part->next) {
+        *n += part->nelts;
+    }
+
+    if (*n == 0) {
+        return NULL;
+    }
+
+    hdrs = ngx_palloc(r->pool, *n * sizeof(strata_header_t));
+    if (hdrs == NULL) {
+        return NULL;
+    }
+
+    *n = 0;
+
+    for (part = &list->part; part; part = part->next) {
+        h = part->elts;
+
+        for (i = 0; i < part->nelts; i++) {
+            if (h[i].hash == 0) {
+                continue;               /* deleted (response headers) */
+            }
+
+            hdrs[*n].key = ngx_http_strata_str(&h[i].key);
+            hdrs[*n].val = ngx_http_strata_str(&h[i].value);
+            (*n)++;
+        }
+    }
+
+    return hdrs;
 }
 
 

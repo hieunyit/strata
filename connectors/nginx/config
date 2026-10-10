@@ -20,6 +20,7 @@ STRATA_SRCS="                                                         \
     $ngx_addon_dir/src/ngx_http_strata_block.c                        \
     $ngx_addon_dir/src/ngx_http_strata_bundle.c                       \
     $ngx_addon_dir/src/ngx_http_strata_vars.c                         \
+    $ngx_addon_dir/src/ngx_http_strata_response.c                     \
     "
 
 STRATA_DEPS="                                                         \
@@ -27,11 +28,16 @@ STRATA_DEPS="                                                         \
     $ngx_addon_dir/src/ngx_http_strata_module.h                       \
     "
 
-ngx_module_type=HTTP
-ngx_module_name=ngx_http_strata_module
+# Two modules in one .so: the module itself, and its response filters,
+# placed right before the copy filter, so that their body filter runs after
+# the copy filter (file buffers in memory) and before gzip, sub_filter and
+# SSI. ngx_module_order lists the filter only: the main module is appended.
+ngx_module_type=HTTP_FILTER
+ngx_module_name="ngx_http_strata_module ngx_http_strata_filter_module"
 ngx_module_incs="$ngx_addon_dir/include $ngx_addon_dir/src"
 ngx_module_deps="$STRATA_DEPS"
 ngx_module_srcs="$STRATA_SRCS"
 ngx_module_libs="$STRATA_LIB -lstdc++ -lpthread -ldl -lm"
+ngx_module_order="ngx_http_strata_filter_module ngx_http_copy_filter_module"
 
 . auto/module

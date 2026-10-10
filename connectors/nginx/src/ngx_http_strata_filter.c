@@ -9,7 +9,7 @@
  * that is not in memory is never skipped silently: the transaction is
  * failed (STRATA_E_INCOMPLETE) and strata_fail_mode applies.
  *
- * TODO(response): header and body filters for response inspection.
+ * Response filters: ngx_http_strata_response.c.
  */
 
 #include "ngx_http_strata_module.h"

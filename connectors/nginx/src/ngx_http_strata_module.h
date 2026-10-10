@@ -135,6 +135,10 @@ typedef struct {
     size_t                      body_limit;
     size_t                      body_inspected;
     uint64_t                    body_skipped;   /* over body_limit */
+    size_t                      resp_limit;
+    size_t                      resp_inspected;
+    ngx_chain_t                *resp_free;      /* our copies, reusable */
+    ngx_chain_t                *resp_busy;      /* our copies, in flight */
     strata_verdict_t            verdict;
 
     unsigned                    body_state:2;
@@ -147,15 +151,22 @@ typedef struct {
     unsigned                    body_seen:1;    /* the filter got the body */
     unsigned                    body_unread:1;  /* a part could not be
                                                    passed (not in memory) */
+    unsigned                    resp_inspect:1; /* strata_response_inspect */
+    unsigned                    resp_active:1;  /* body goes to libstrata */
+    unsigned                    resp_done:1;    /* limit or end reached */
+    unsigned                    own_response:1; /* our block page */
 } ngx_http_strata_ctx_t;
 
 
 extern ngx_module_t  ngx_http_strata_module;
+extern ngx_module_t  ngx_http_strata_filter_module;
 
 
 /* ngx_http_strata_phase.c */
 ngx_int_t ngx_http_strata_preaccess_handler(ngx_http_request_t *r);
 ngx_http_strata_ctx_t *ngx_http_strata_get_ctx(ngx_http_request_t *r);
+strata_header_t *ngx_http_strata_headers(ngx_http_request_t *r,
+    ngx_list_t *list, size_t *n);
 
 /* ngx_http_strata_filter.c */
 ngx_int_t ngx_http_strata_filter_init(ngx_conf_t *cf);
