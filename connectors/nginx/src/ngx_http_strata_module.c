@@ -380,7 +380,9 @@ ngx_http_strata_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_strata_loc_conf_t *prev = parent;
     ngx_http_strata_loc_conf_t *conf = child;
 
-    ngx_http_strata_main_conf_t  *smcf;
+    ngx_http_core_loc_conf_t      *clcf;
+    ngx_http_strata_main_conf_t   *smcf;
+    ngx_http_strata_stream_loc_t  *sl;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_str_value(conf->policy, prev->policy, "");
@@ -399,15 +401,39 @@ ngx_http_strata_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(conf->block_page, prev->block_page, NULL);
     ngx_conf_merge_msec_value(conf->cpu_budget, prev->cpu_budget, 2);
 
+    if (!conf->enable) {
+        return NGX_CONF_OK;
+    }
+
+    smcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_strata_module);
+    smcf->enabled = 1;
+
     /*
-     * TODO(bundle): "strata_request_body_mode stream" on a location whose
-     * policy enforces must fail "nginx -t"; this needs policy modes from the
-     * bundle, which the stub does not have yet.
+     * "stream" is shadow only: remember the location so that its policy's
+     * signed mode is checked once the bundle is mapped ("nginx -t" fails if
+     * it enforces).
      */
 
-    if (conf->enable) {
-        smcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_strata_module);
-        smcf->enabled = 1;
+    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
+
+    if (conf->body_mode == NGX_HTTP_STRATA_BODY_STREAM
+        && conf->policy.len && clcf->name.len)
+    {
+        if (smcf->stream_locs == NULL) {
+            smcf->stream_locs = ngx_array_create(cf->pool, 4,
+                                         sizeof(ngx_http_strata_stream_loc_t));
+            if (smcf->stream_locs == NULL) {
+                return NGX_CONF_ERROR;
+            }
+        }
+
+        sl = ngx_array_push(smcf->stream_locs);
+        if (sl == NULL) {
+            return NGX_CONF_ERROR;
+        }
+
+        sl->policy = conf->policy;
+        sl->location = clcf->name;
     }
 
     return NGX_CONF_OK;

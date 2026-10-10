@@ -42,7 +42,8 @@ sub bundle {
     my ($version, %o) = @_;
     my $name = $o{name} // "bundle-$version.sbn";
     run($mk, "build", "--key", "$fixtures/" . ($o{key} // "test.key"),
-        "--version", $version, "--policy", "example-api",
+        "--version", $version,
+        "--policy", "example-api:" . ($o{mode} // "shadow"),
         ($o{rollback} ? ("--rollback") : ()), "--out", "$root/bundles/$name");
     return $name;
 }
@@ -128,6 +129,14 @@ http {
         location /t {
             strata on;
             add_header X-Bundle \$strata_bundle_version always;
+            add_header X-Action \$strata_action always;
+            proxy_pass http://127.0.0.1:$port/backend/;
+        }
+
+        location /stream {
+            strata on;
+            strata_policy example-api;
+            strata_request_body_mode stream;
             add_header X-Action \$strata_action always;
             proxy_pass http://127.0.0.1:$port/backend/;
         }
@@ -294,17 +303,40 @@ is(get("/t?STRATA-TEST-BLOCK")->{status}, 403, "and still blocking");
     wait_log(qr/bundle version 16 active/, $workers, "last bundle is active");
 }
 
+# the policy of a "stream" location becomes enforce: warn, stay in shadow
+publish(bundle(17, mode => "enforce"));
+wait_log(qr/location "\/stream" uses "strata_request_body_mode stream".*the location stays in shadow/,
+         $workers, "every worker warns about the stream location");
+{
+    my $r = $http->request("POST", "http://127.0.0.1:$port/stream",
+                           { content => "x=STRATA-TEST-BLOCK" });
+    is($r->{status}, 200, "stream location is not blocked by an enforce policy");
+    is($r->{headers}{'x-action'}, "log", "it only logs");
+}
+
 my $log = errlog();
 unlike($log, qr/\[(alert|crit|emerg)\]/, "no alert in the error log");
 unlike($log, qr/exited on signal/, "no worker crashed");
 
-# nginx -s reload: the new workers start from the bundle the control file names
+# nginx -s reload is refused while the current bundle enforces the policy of
+# a "stream" location; the running workers keep serving
 {
     write_conf("# reloaded");
     kill "HUP", $pid;
+    wait_log(qr/\[emerg\].*location "\/stream" uses "strata_request_body_mode stream"/, 1,
+             "reload with a stream location under an enforce policy is refused");
+    is(versions_seen(), "17", "old workers keep serving v17");
+}
+
+# with a shadow policy again, the reload goes through and the new workers
+# start from the bundle the control file names
+{
+    publish(bundle(18));
+    wait_log(qr/bundle version 18 active/, $workers, "v18 active");
+    kill "HUP", $pid;
     wait_log(qr/start worker process/, 2 * $workers, "workers restarted");
     sleep 0.5;
-    is(versions_seen(), "16", "reload maps the current bundle again");
+    is(versions_seen(), "18", "reload maps the current bundle again");
 }
 
 # no control file at start: fail mode, then the control file appears

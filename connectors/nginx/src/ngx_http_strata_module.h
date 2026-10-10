@@ -75,6 +75,13 @@ typedef struct {
 } ngx_http_strata_bundle_t;
 
 
+/* a location with "strata_request_body_mode stream" (shadow only) */
+typedef struct {
+    ngx_str_t                   policy;
+    ngx_str_t                   location;
+} ngx_http_strata_stream_loc_t;
+
+
 typedef struct {
     ngx_str_t                   control_file;
     ngx_str_t                   bundle_dir;
@@ -90,6 +97,7 @@ typedef struct {
                                                    of that bundle */
     u_char                      pubkey[STRATA_PUBKEY_LEN];
     ngx_http_strata_page_t     *default_page;
+    ngx_array_t                *stream_locs;    /* ngx_http_strata_stream_loc_t */
 #if (NGX_THREADS)
     ngx_thread_pool_t          *thread_pool;
 #endif
@@ -156,6 +164,8 @@ ngx_int_t ngx_http_strata_bundle_init(ngx_conf_t *cf,
 ngx_int_t ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle);
 void ngx_http_strata_bundle_exit_process(ngx_cycle_t *cycle);
 ngx_http_strata_bundle_t *ngx_http_strata_bundle_acquire(void);
+ngx_uint_t ngx_http_strata_check_stream(ngx_log_t *log, ngx_uint_t level,
+    ngx_http_strata_main_conf_t *smcf, strata_engine_t *engine);
 void ngx_http_strata_bundle_release(ngx_http_strata_bundle_t *bundle);
 
 /* ngx_http_strata_vars.c */

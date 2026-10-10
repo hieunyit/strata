@@ -191,3 +191,59 @@ invalid value "sometimes"
 --- must_die
 --- error_log
 "strata_block_page" directive is duplicate
+
+
+
+=== TEST 13: stream body mode with a policy the bundle enforces fails the configuration
+--- config
+    location /upload {
+        strata on;
+        strata_policy example-api;
+        strata_request_body_mode stream;
+    }
+--- must_die
+--- error_log
+location "/upload" uses "strata_request_body_mode stream", which only runs in shadow, but its policy "example-api" enforces
+
+
+
+=== TEST 14: inherited stream mode and policy are checked per location
+--- config
+    strata_policy example-api;
+    strata_request_body_mode stream;
+    location /inner {
+        strata on;
+    }
+--- must_die
+--- error_log
+location "/inner" uses "strata_request_body_mode stream"
+
+
+
+=== TEST 15: stream body mode with a shadow policy is fine
+--- config
+    location /t {
+        strata on;
+        strata_policy example-api-upload;
+        strata_request_body_mode stream;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- request
+GET /t
+--- response_body_like: ^backend
+--- no_error_log
+[emerg]
+
+
+
+=== TEST 16: stream body mode with a policy the bundle does not have: nothing to check
+--- config
+    location /t {
+        strata on;
+        strata_policy example-unknown;
+        strata_request_body_mode stream;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- request
+GET /t
+--- response_body_like: ^backend

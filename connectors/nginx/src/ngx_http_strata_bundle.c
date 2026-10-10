@@ -195,7 +195,60 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
     smcf->bundle = bundle;
     smcf->generation = gen;
 
+    if (ngx_http_strata_check_stream(cf->log, NGX_LOG_EMERG, smcf,
+                                     bundle->engine))
+    {
+        return NGX_ERROR;
+    }
+
     return NGX_OK;
+}
+
+
+/*
+ * "strata_request_body_mode stream" only runs in shadow: a location using it
+ * with a policy the bundle signs as enforce is a configuration error at
+ * start-up, and a warning after a hot reload (the location stays in shadow).
+ * Returns the number of such locations.
+ */
+
+ngx_uint_t
+ngx_http_strata_check_stream(ngx_log_t *log, ngx_uint_t level,
+    ngx_http_strata_main_conf_t *smcf, strata_engine_t *engine)
+{
+    ngx_uint_t                     i, n;
+    strata_policy_info_t           info;
+    ngx_http_strata_stream_loc_t  *sl;
+
+    if (smcf->stream_locs == NULL) {
+        return 0;
+    }
+
+    n = 0;
+    sl = smcf->stream_locs->elts;
+
+    for (i = 0; i < smcf->stream_locs->nelts; i++) {
+        if (strata_engine_policy(engine,
+                                 (strata_str_t) { sl[i].policy.data,
+                                                  sl[i].policy.len },
+                                 &info)
+            != STRATA_OK
+            || info.mode != STRATA_POLICY_ENFORCE)
+        {
+            continue;
+        }
+
+        ngx_log_error(level, log, 0,
+                      "strata: location \"%V\" uses "
+                      "\"strata_request_body_mode stream\", which only runs "
+                      "in shadow, but its policy \"%V\" enforces%s",
+                      &sl[i].location, &sl[i].policy,
+                      level == NGX_LOG_EMERG ? "" : "; the location stays in "
+                                                    "shadow");
+        n++;
+    }
+
+    return n;
 }
 
 
@@ -689,6 +742,9 @@ ngx_http_strata_load_done(void *data)
                   "strata: bundle version %uL active (generation %uL)%s",
                   bundle->version, ld->generation,
                   (ld->info.flags & STRATA_BUNDLE_ROLLBACK) ? ", rollback" : "");
+
+    (void) ngx_http_strata_check_stream(log, NGX_LOG_WARN,
+                                        ngx_http_strata_smcf, bundle->engine);
 
     ngx_http_strata_bundle_release(old);
 
