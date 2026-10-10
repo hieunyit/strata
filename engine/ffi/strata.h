@@ -357,6 +357,21 @@ strata_rc_t strata_engine_policy(const strata_engine_t *e,
                                  strata_policy_info_t *out);
 
 /**
+ * Default block page of the engine's bundle: `html` (template with
+ * `{{block_id}}`, `{{time}}`, `{{support_contact}}`) and `contact` point
+ * into the bundle mapping and stay valid while the caller holds a reference
+ * to the engine. Returns `STRATA_E_NOT_FOUND` when the bundle has none,
+ * `STRATA_E_INVALID` for NULL arguments.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle; `html`, `contact` NULL or
+ * writable.
+ */
+strata_rc_t strata_engine_block_page(const strata_engine_t *e,
+                                     strata_str_t *html,
+                                     strata_str_t *contact);
+
+/**
  * Adds a reference to the engine.
  *
  * # Safety
@@ -459,6 +474,15 @@ strata_rc_t strata_tx_response_body_chunk(strata_tx_t *tx,
  * `tx` must be NULL or live; `out` must be NULL or writable.
  */
 void strata_tx_verdict(const strata_tx_t *tx, strata_verdict_t *out);
+
+/**
+ * Engine time spent on the transaction so far, in microseconds (measured
+ * around every transaction call). 0 for a NULL `tx`.
+ *
+ * # Safety
+ * `tx` must be NULL or live.
+ */
+uint64_t strata_tx_time_us(const strata_tx_t *tx);
 
 /**
  * Serializes the transaction's event into `dst` (up to `cap` bytes) and

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 /*
  * C-side ABI test for libstrata: layout, version, NULL/idempotency rules,
  * stub behaviour and Block ID format, exercised through strata.h exactly as
@@ -131,6 +132,7 @@ main(int argc, char **argv)
     strata_engine_t       *e;
     strata_engine_info_t   info;
     strata_policy_info_t   pol;
+    strata_str_t           html, contact;
     strata_tx_t      *tx;
     strata_verdict_t  v;
     strata_buf_t      buf;
@@ -189,6 +191,14 @@ main(int argc, char **argv)
     CHECK(strata_engine_policy(e, S(""), &pol) == STRATA_E_NOT_FOUND);
     CHECK(strata_engine_policy(NULL, S("example-api"), &pol) == STRATA_E_INVALID);
     CHECK(strata_engine_policy(e, S("example-api"), NULL) == STRATA_E_INVALID);
+
+    /* default block page, read in place from the bundle */
+    CHECK(strata_engine_block_page(e, &html, &contact) == STRATA_OK);
+    CHECK(html.len > 0 && memmem(html.ptr, html.len, "{{block_id}}", 12) != NULL);
+    CHECK(html.ptr >= bundle && html.ptr + html.len <= bundle + bundle_len);
+    CHECK(contact.len > 0 && contact.ptr >= bundle);
+    CHECK(strata_engine_block_page(NULL, &html, &contact) == STRATA_E_INVALID);
+    CHECK(strata_engine_block_page(e, NULL, &contact) == STRATA_E_INVALID);
     strata_engine_retain(e);
     strata_engine_release(e);
 
@@ -248,6 +258,8 @@ main(int argc, char **argv)
     tx = start(e, 0, S("/search?q=STRATA-TEST-BLOCK"));
     strata_tx_verdict(tx, &v);
     CHECK(v.action == STRATA_ACTION_BLOCK && v.status == 403);
+    CHECK(strata_tx_time_us(tx) < 1000000);
+    CHECK(strata_tx_time_us(NULL) == 0);
     CHECK(v.n_rules == 1 && v.score > 0);
     CHECK(id_ok(v.block_id, "STR-"));
     printf("block id: %s\n", v.block_id);

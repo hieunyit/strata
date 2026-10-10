@@ -6,6 +6,7 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+use std::time::Instant;
 use std::{ptr, slice};
 
 use libstrata::engine::Engine;
@@ -103,8 +104,10 @@ unsafe fn with_tx(
     }
     // SAFETY: non-NULL and live per the contract above.
     let tx = unsafe { &mut *tx.cast::<Tx>() };
+    let start = Instant::now();
     let rc = catch_unwind(AssertUnwindSafe(|| f(tx).unwrap_or_else(|rc| rc)))
         .unwrap_or(STRATA_E_INTERNAL);
+    tx.add_time(start.elapsed());
     // Any failed call leaves the inspection incomplete: mark the transaction
     // broken so the verdict carries the error and the connector applies its
     // fail mode, even if it ignored this return code.
@@ -231,6 +234,47 @@ pub unsafe extern "C" fn strata_engine_policy(
                         index,
                     }
                 };
+                STRATA_OK
+            }
+            None => STRATA_E_NOT_FOUND,
+        }
+    })
+}
+
+/// Default block page of the engine's bundle: `html` (template with
+/// `{{block_id}}`, `{{time}}`, `{{support_contact}}`) and `contact` point
+/// into the bundle mapping and stay valid while the caller holds a reference
+/// to the engine. Returns `STRATA_E_NOT_FOUND` when the bundle has none,
+/// `STRATA_E_INVALID` for NULL arguments.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle; `html`, `contact` NULL or
+/// writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_block_page(
+    e: *const EngineHandle,
+    html: *mut strata_str_t,
+    contact: *mut strata_str_t,
+) -> strata_rc_t {
+    if e.is_null() || html.is_null() || contact.is_null() {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        // SAFETY: live handle per contract.
+        let engine = unsafe { &*e.cast::<Engine>() };
+        match engine.block_page() {
+            Some((h, c)) => {
+                // SAFETY: both out pointers are non-NULL and writable.
+                unsafe {
+                    *html = strata_str_t {
+                        ptr: h.as_ptr(),
+                        len: h.len(),
+                    };
+                    *contact = strata_str_t {
+                        ptr: c.as_ptr(),
+                        len: c.len(),
+                    };
+                }
                 STRATA_OK
             }
             None => STRATA_E_NOT_FOUND,
@@ -458,6 +502,20 @@ pub unsafe extern "C" fn strata_tx_verdict(tx: *const TxHandle, out: *mut strata
     };
     // SAFETY: out is non-NULL and writable.
     unsafe { *out = v };
+}
+
+/// Engine time spent on the transaction so far, in microseconds (measured
+/// around every transaction call). 0 for a NULL `tx`.
+///
+/// # Safety
+/// `tx` must be NULL or live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_time_us(tx: *const TxHandle) -> u64 {
+    if tx.is_null() {
+        return 0;
+    }
+    // SAFETY: live per contract.
+    unsafe { &*tx.cast::<Tx>() }.time_us()
 }
 
 /// Serializes the transaction's event into `dst` (up to `cap` bytes) and

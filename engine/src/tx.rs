@@ -54,6 +54,8 @@ pub struct Tx {
     #[cfg(feature = "test-hooks")]
     echo: Option<(String, bool)>,
     id: Option<[u8; block_id::ID_LEN]>,
+    /// engine time spent on this request, in nanoseconds
+    elapsed_ns: u64,
     tail: [u8; TAIL],
     tail_len: usize,
 }
@@ -90,6 +92,7 @@ impl Tx {
             #[cfg(feature = "test-hooks")]
             echo: None,
             id: None,
+            elapsed_ns: 0,
             tail: [0; TAIL],
             tail_len: 0,
         };
@@ -97,6 +100,18 @@ impl Tx {
             tx.fail(E_BUNDLE);
         }
         tx
+    }
+
+    /// Adds engine time measured by the caller around one call.
+    pub fn add_time(&mut self, d: std::time::Duration) {
+        self.elapsed_ns = self
+            .elapsed_ns
+            .saturating_add(d.as_nanos().min(u64::MAX as u128) as u64);
+    }
+
+    /// Engine time spent on this request so far, in microseconds.
+    pub fn time_us(&self) -> u64 {
+        self.elapsed_ns / 1000
     }
 
     /// Marks the transaction broken; the first error wins.
