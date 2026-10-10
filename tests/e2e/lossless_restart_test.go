@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -24,12 +25,22 @@ import (
 // losslessWorker pumps events over Unix datagram socket with automatic retry.
 type losslessWorker struct {
 	socketPath string
+	localPath  string
 	conn       *net.UnixConn
 	mu         sync.Mutex
 }
 
-func newLosslessWorker(socketPath string) *losslessWorker {
-	return &losslessWorker{socketPath: socketPath}
+func newLosslessWorker(socketPath string) (*losslessWorker, error) {
+	localPath := filepath.Join(os.TempDir(), fmt.Sprintf("lossless-worker-%d-%d.sock", os.Getpid(), time.Now().UnixNano()))
+	c, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: localPath, Net: "unixgram"})
+	if err != nil {
+		return nil, fmt.Errorf("listen unixgram: %w", err)
+	}
+	return &losslessWorker{
+		socketPath: socketPath,
+		localPath:  localPath,
+		conn:       c,
+	}, nil
 }
 
 func (w *losslessWorker) send(ev *eventv1.Event) error {
@@ -38,30 +49,12 @@ func (w *losslessWorker) send(ev *eventv1.Event) error {
 		return fmt.Errorf("marshal event: %w", err)
 	}
 
+	addr := &net.UnixAddr{Name: w.socketPath, Net: "unixgram"}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		w.mu.Lock()
-		if w.conn == nil {
-			c, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: w.socketPath, Net: "unixgram"})
-			if err == nil {
-				w.conn = c
-			}
-		}
-		conn := w.conn
-		w.mu.Unlock()
-
-		if conn != nil {
-			_, err := conn.Write(b)
-			if err == nil {
-				return nil
-			}
-			// Connection broken or socket closed during restart
-			w.mu.Lock()
-			if w.conn == conn {
-				_ = w.conn.Close()
-				w.conn = nil
-			}
-			w.mu.Unlock()
+		_, err := w.conn.WriteTo(b, addr)
+		if err == nil {
+			return nil
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -74,6 +67,7 @@ func (w *losslessWorker) Close() error {
 	if w.conn != nil {
 		err := w.conn.Close()
 		w.conn = nil
+		_ = os.Remove(w.localPath)
 		return err
 	}
 	return nil
@@ -257,10 +251,21 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema.sql: %v", err)
 	}
-	if err := store.Conn().Exec(ctx, string(schemaBytes)); err != nil {
-		t.Fatalf("execute schema.sql: %v", err)
+	// ClickHouse takes one statement per query.
+	for _, stmt := range strings.Split(string(schemaBytes), ";") {
+		if strings.TrimSpace(stmt) == "" {
+			continue
+		}
+		if err := store.Conn().Exec(ctx, stmt); err != nil {
+			t.Fatalf("execute schema.sql: %v", err)
+		}
 	}
-	_ = store.Conn().Exec(ctx, "TRUNCATE TABLE IF EXISTS events")
+	// node_seq too: a watermark left by an earlier run would drop this run's batches.
+	for _, table := range []string{"events", "node_seq"} {
+		if err := store.Conn().Exec(ctx, "TRUNCATE TABLE IF EXISTS "+table); err != nil {
+			t.Fatalf("truncate %s: %v", table, err)
+		}
+	}
 
 	// Set up IngestService with short flush interval
 	batcherCfg := ingest.BatcherConfig{
@@ -313,7 +318,10 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 		t.Fatalf("agent socket not ready: %v, logs: %s", err, p1.logBuf.String())
 	}
 
-	worker := newLosslessWorker(sockPath)
+	worker, err := newLosslessWorker(sockPath)
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
 	defer worker.Close()
 
 	var (
