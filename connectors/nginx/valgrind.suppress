@@ -18,3 +18,17 @@
    fun:ngx_event_process_init
    ...
 }
+{
+   glibc-dlopen-dependency-list
+   # 56 bytes for the dependency list of the module (libstdc++ since
+   # Hyperscan is linked in), allocated by the dynamic loader inside dlopen
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:malloc
+   fun:_dl_map_object_deps
+   ...
+   fun:dlopen*
+   fun:ngx_load_module
+   ...
+}
