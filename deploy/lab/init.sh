@@ -6,7 +6,8 @@
 #   /state/enroll   enrollment tokens, written by fleet-init.sh
 #   /state/signing  bundle signing key (never leaves the volume; read by the
 #                   control plane, which signs bundles at deploy)
-#   /bundles        bundle-1.sbn, bundle.pub and the control file
+#   /bundles        bundle.pub; the bundles and the control file come from
+#                   the control plane (fleet-init.sh, install-bundle.sh)
 # Everything is created once and kept across lab restarts.
 set -euo pipefail
 umask 077
@@ -44,14 +45,7 @@ if [ ! -f "$sign/bundle.key" ]; then
         --key-out "$sign/bundle.key" --pub-out "$sign/bundle.pub"
 fi
 
-if [ ! -f "$bundles/control" ]; then
-    cd /opt/strata
-    strata-compile --rules rules.yaml --policies policies.yaml --version 1 \
-        --key "$sign/bundle.key" --out "$bundles/bundle-1.sbn"
-    cp "$sign/bundle.pub" "$bundles/bundle.pub"
-    mkbundle control --out "$bundles/control" --generation 2 --version 1 \
-        --name bundle-1.sbn --bundle "$bundles/bundle-1.sbn"
-fi
+cp "$sign/bundle.pub" "$bundles/bundle.pub"
 
 # The CA key and the signing key stay root-only; the services (uid 1001)
 # read certificates, their keys and the bundles.

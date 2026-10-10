@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e lint-rules crs-fetch crs-inventory
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory
 
 all: lib nginx
 
@@ -187,8 +187,16 @@ lab-status:
 lab-smoke:
 	$(LAB)/smoke.sh
 
-e2e:
-	cd tests/e2e && go test -v -timeout 5m ./...
+# End to end (W04-Q-01). e2e-go needs docker only (PostgreSQL, MinIO,
+# ClickHouse in containers); e2e-lab needs a running lab; e2e does both,
+# starting the lab first.
+e2e-go:
+	cd tests/e2e && go test -count=1 -timeout 15m ./...
+
+e2e-lab:
+	tests/e2e/lab-chain.sh
+
+e2e: e2e-go lab-up e2e-lab
 
 # Rust port of libinjection vs the original C library (W06-R-01)
 libinjection-diff:

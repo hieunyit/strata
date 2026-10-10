@@ -28,6 +28,6 @@ done
 cp "$CARGO_TARGET_DIR/release/mkbundle" "$CARGO_TARGET_DIR/release/strata-compile" "$dist/bin/"
 (cd agent && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/" ./cmd/strata-agent ./cmd/strata-emit)
 (cd control-plane && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/strata-control-plane" ./cmd/server)
-cp engine/compiler/examples/rules.yaml deploy/lab/policies.yaml deploy/lab/block.html deploy/lab/init.sh deploy/lab/fleet-init.sh "$dist/"
+cp engine/compiler/examples/rules.yaml deploy/lab/policies.yaml deploy/lab/block.html deploy/lab/init.sh deploy/lab/fleet-init.sh deploy/lab/install-bundle.sh "$dist/"
 cp deploy/lab/runtime.Dockerfile "$dist/Dockerfile"
 ls -l "$dist" "$dist/bin"

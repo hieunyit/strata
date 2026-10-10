@@ -31,3 +31,20 @@ for node in node-1 node-2; do
     mv "$f.tmp" "$f"
     echo "fleet-init: enrollment token for $node"
 done
+
+# The first bundle comes from the control plane too, so that its versions
+# are the only ones the nodes see: the lab policies, deployed and installed.
+if [ ! -f /bundles/control ]; then
+    ensure() { # id mode oversize
+        code=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$cp/v1/policies/$1")
+        [ "$code" = 200 ] && return 0
+        curl -fsS -o /dev/null "${auth[@]}" -X POST "$cp/v1/policies" \
+            -d "{\"id\":\"$1\",\"name\":\"$1\",\"spec\":{\"mode\":\"$2\",\"oversize\":\"$3\"}}"
+        echo "fleet-init: policy $1 created"
+    }
+    ensure example-api MODE_ENFORCE OVERSIZE_BLOCK
+    ensure example-web MODE_SHADOW OVERSIZE_PASS
+    out=$(curl -fsS "${auth[@]}" -X POST "$cp/v1/policies/example-api:deploy" -d '{}')
+    field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" <<<"$out"; }
+    /opt/strata/install-bundle.sh "$(field object_key)" "$(field sha256)" "$(field version)"
+fi

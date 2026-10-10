@@ -51,7 +51,7 @@ services:
       - run-node-1:/run/strata
       - shm-node-1:/dev/shm/strata
     depends_on:
-      lab-init: { condition: service_completed_successfully }
+      fleet-init: { condition: service_completed_successfully }
       agent-1: { condition: service_started }
 
   nginx-mainline:
@@ -64,7 +64,7 @@ services:
       - run-node-2:/run/strata
       - shm-node-2:/dev/shm/strata
     depends_on:
-      lab-init: { condition: service_completed_successfully }
+      fleet-init: { condition: service_completed_successfully }
       agent-2: { condition: service_started }
 
   agent-1:
@@ -180,8 +180,10 @@ services:
     environment:
       LAB_CLI_SECRET: ${LAB_CLI_SECRET}
       LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - state:/state
+      - bundles:/bundles
     depends_on:
       control-plane: { condition: service_healthy }
 
