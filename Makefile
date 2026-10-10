@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e
+	proto check-proto test-agent e2e lint-rules
 
 all: lib nginx
 
@@ -143,6 +143,12 @@ test-agent:
 test-go: test-agent
 	cd control-plane && go vet ./... && go test -race ./... && golangci-lint run ./...
 	cd tests/e2e && go vet ./... && golangci-lint run ./... && go test -count=1 -run '^$$' ./...
+	cd tools/strata-rules && go vet ./... && go test -race ./... && golangci-lint run ./...
+	$(MAKE) lint-rules
+
+# Rule files under rules/ (W03-S-01): schema, ids, RE2 regexes, licenses.
+lint-rules:
+	cd tools/strata-rules && go run . lint --repo ../..
 
 # Lab (deploy/lab, W03-Q-01). Run on the host: these targets use docker and
 # run the build inside the dev image themselves.

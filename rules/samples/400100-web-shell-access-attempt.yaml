@@ -1,0 +1,34 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 400100
+  name: Web shell access attempt
+  layer: managed
+  stage: request_headers
+  match:
+    any:
+    - targets:
+      - var: path
+      transforms:
+      - lowercase
+      operator:
+        type: ends_with
+        value: /cmd.php
+    - targets:
+      - var: args_names
+      operator:
+        type: streq
+        value: c99shell
+  score: 50
+  severity: error
+  metadata:
+    source: sigma
+    upstream_id: 0f3b7c1e-example
+    upstream_version: r2026-09
+    license: DRL-1.1
+    author: Example Sigma Author
+    attack_type: rce
+tests:
+  match:
+  - uri: /uploads/cmd.php
+  no_match:
+  - uri: /uploads/photo.png

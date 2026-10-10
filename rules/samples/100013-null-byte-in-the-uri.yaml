@@ -1,0 +1,24 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 100013
+  name: Null byte in the URI
+  layer: protocol
+  stage: request_headers
+  match:
+    any:
+    - targets:
+      - var: uri_raw
+      operator:
+        type: contains
+        value: '%00'
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - uri: /files/report.pdf%00.txt
+  no_match:
+  - uri: /files/report.pdf

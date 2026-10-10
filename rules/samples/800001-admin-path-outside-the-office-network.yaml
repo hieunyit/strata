@@ -1,0 +1,34 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 800001
+  name: Admin path outside the office network
+  layer: custom-post
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: path
+      operator:
+        type: begins_with
+        value: /admin
+    - targets:
+      - var: remote_addr
+      operator:
+        type: ip_match
+        value:
+        - 10.0.0.0/8
+        - 192.0.2.0/24
+        negate: true
+  score: 100
+  severity: error
+  metadata:
+    source: organization
+    license: Apache-2.0
+    author: example-secops
+tests:
+  match:
+  - uri: /admin/settings
+    remote_addr: 198.51.100.7
+  no_match:
+  - uri: /admin/settings
+    remote_addr: 10.1.2.3

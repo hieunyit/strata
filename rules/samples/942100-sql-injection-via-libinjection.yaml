@@ -1,0 +1,36 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 942100
+  name: SQL Injection Attack Detected via libinjection
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets:
+      - var: args
+      - var: args_names
+      - var: request_cookies
+        exclude:
+        - __utm
+      transforms:
+      - url_decode_uni
+      - remove_nulls
+      operator:
+        type: detect_sqli
+  score: 5
+  severity: critical
+  paranoia_level: 1
+  labels:
+  - attack-sqli
+  metadata:
+    source: crs
+    upstream_id: '942100'
+    upstream_version: 4.25.0
+    license: Apache-2.0
+    author: OWASP CRS project
+    attack_type: sql-injection
+tests:
+  match:
+  - uri: /v1/users?id=1'%20OR%201=1--
+  no_match:
+  - uri: /v1/users?id=42

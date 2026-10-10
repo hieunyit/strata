@@ -1,0 +1,38 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 500100
+  name: Known scanner user agent
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        key: User-Agent
+      transforms:
+      - lowercase
+      operator:
+        type: pm
+        value:
+        - sqlmap
+        - nikto
+        - nuclei
+        - masscan
+  score: 20
+  severity: warning
+  metadata:
+    source: crawler-user-agents
+    upstream_id: scanners
+    upstream_version: '2026-09-01'
+    license: MIT
+    author: crawler-user-agents contributors
+    attack_type: scanner
+tests:
+  match:
+  - uri: /
+    headers:
+      User-Agent: sqlmap/1.8#stable (https://sqlmap.org)
+  no_match:
+  - uri: /
+    headers:
+      User-Agent: Mozilla/5.0 (X11; Linux x86_64)

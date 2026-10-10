@@ -1,0 +1,38 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 920170
+  name: GET or HEAD Request with Body Content
+  layer: protocol
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: method
+      operator:
+        type: rx
+        value: ^(?:GET|HEAD)$
+    - targets:
+      - var: request_headers
+        key: Content-Length
+      operator:
+        type: ne
+        value: 0
+  score: 5
+  severity: critical
+  paranoia_level: 1
+  metadata:
+    source: crs
+    upstream_id: '920170'
+    upstream_version: 4.25.0
+    license: Apache-2.0
+    author: OWASP CRS project
+tests:
+  match:
+  - method: GET
+    uri: /v1/items
+    headers:
+      Content-Length: '12'
+    body: hello=world!
+  no_match:
+  - method: GET
+    uri: /v1/items

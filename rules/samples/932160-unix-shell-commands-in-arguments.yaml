@@ -1,0 +1,35 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 932160
+  name: Unix shell commands in arguments
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets:
+      - var: args
+      transforms:
+      - cmd_line
+      - normalize_path
+      operator:
+        type: pm
+        value:
+        - /bin/sh
+        - /bin/bash
+        - /etc/passwd
+        - /usr/bin/id
+  score: 5
+  severity: critical
+  paranoia_level: 1
+  metadata:
+    source: crs
+    upstream_id: '932160'
+    upstream_version: 4.25.0
+    license: Apache-2.0
+    author: OWASP CRS project
+    attack_type: command-injection
+tests:
+  match:
+  - uri: /run?cmd=;cat%20/etc/passwd
+  no_match:
+  - uri: /run?cmd=report

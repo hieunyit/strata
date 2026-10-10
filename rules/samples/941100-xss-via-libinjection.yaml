@@ -1,0 +1,34 @@
+# Sample rule (W03-S-01); format: rules/schema/rule.schema.json.
+rule:
+  id: 941100
+  name: XSS Attack Detected via libinjection
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets:
+      - var: args
+      - var: request_headers
+        key: Referer
+      transforms:
+      - url_decode_uni
+      - html_entity_decode
+      - js_decode
+      - css_decode
+      operator:
+        type: detect_xss
+  score: 5
+  severity: critical
+  paranoia_level: 1
+  metadata:
+    source: crs
+    upstream_id: '941100'
+    upstream_version: 4.25.0
+    license: Apache-2.0
+    author: OWASP CRS project
+    attack_type: xss
+tests:
+  match:
+  - uri: /search?q=%3Cscript%3Ealert(1)%3C/script%3E
+  no_match:
+  - uri: /search?q=winter+jackets
