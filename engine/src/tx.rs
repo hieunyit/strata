@@ -50,6 +50,9 @@ pub struct Tx {
     n_rules: usize,
     score: i32,
     headers: protocol::Headers,
+    /// test-hooks only: what the connector passed, for integration tests
+    #[cfg(feature = "test-hooks")]
+    echo: Option<(String, bool)>,
     id: Option<[u8; block_id::ID_LEN]>,
     tail: [u8; TAIL],
     tail_len: usize,
@@ -84,6 +87,8 @@ impl Tx {
             n_rules: 0,
             score: 0,
             headers: protocol::Headers::default(),
+            #[cfg(feature = "test-hooks")]
+            echo: None,
             id: None,
             tail: [0; TAIL],
             tail_len: 0,
@@ -172,6 +177,21 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
+        #[cfg(feature = "test-hooks")]
+        {
+            let e = |b: &[u8]| b.escape_ascii().to_string();
+            self.echo = Some((
+                format!(
+                    "strata-test-echo method=\"{}\" raw=\"{}\" norm=\"{}\" args=\"{}\" proto=\"{}\" headers=",
+                    e(_method),
+                    e(raw_uri),
+                    e(norm_uri),
+                    e(args),
+                    e(_proto)
+                ),
+                false,
+            ));
+        }
         protocol::check_uri(raw_uri, &mut |v| self.add(v));
         for part in [raw_uri, norm_uri, args] {
             self.scan(part);
@@ -184,6 +204,11 @@ impl Tx {
             return rc;
         }
         self.headers.header(key, val);
+        #[cfg(feature = "test-hooks")]
+        if let Some((line, on)) = &mut self.echo {
+            line.push_str(&format!("[{}: {}]", key.escape_ascii(), val.escape_ascii()));
+            *on |= key.eq_ignore_ascii_case(b"x-strata-test-echo");
+        }
         if key.eq_ignore_ascii_case(b"accept")
             && contains_ignore_case(val, b"json")
             && !contains_ignore_case(val, b"text/html")
@@ -198,6 +223,12 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Headers;
+        // Test hook: print what libstrata received (stderr is the NGINX
+        // error log). Compiled only with the test-hooks feature.
+        #[cfg(feature = "test-hooks")]
+        if let Some((line, true)) = self.echo.take() {
+            eprintln!("{line}");
+        }
         let headers = std::mem::take(&mut self.headers);
         headers.finish(&mut |v| self.add(v));
         OK
