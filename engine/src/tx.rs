@@ -1,13 +1,17 @@
-//! Transaction state and the stub detection logic.
+//! Transaction state: runs the detectors and turns violations into a verdict.
 //!
-//! Stub rule: block when the raw URI, normalized URI, query or request body
-//! contains `STRATA-TEST-BLOCK`. Body matching works across chunk boundaries
-//! by keeping only the last `NEEDLE.len() - 1` bytes of the previous chunk.
+//! Every violation adds its rule id and score; the request is blocked when a
+//! violation blocks alone (ambiguous requests) or the total score reaches
+//! `BLOCK_THRESHOLD`. Detectors: the protocol layer, and the stub rule that
+//! fires when the URI, query or body contains `STRATA-TEST-BLOCK` (body
+//! matching works across chunks by keeping the last `NEEDLE.len() - 1`
+//! bytes of the previous chunk).
 #![forbid(unsafe_code)]
 
 use std::sync::Arc;
 
 use crate::block_id::{self, Kind};
+use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
 use crate::verdict::*;
 
@@ -15,6 +19,9 @@ pub(crate) const NEEDLE: &[u8] = b"STRATA-TEST-BLOCK";
 /// Rule id reported by the stub rule (organization range 800000–899999).
 pub(crate) const STUB_RULE_ID: u32 = 899_001;
 const STUB_SCORE: i32 = 100;
+/// Total score that blocks. Provisional: policies will carry per-route
+/// thresholds.
+pub const BLOCK_THRESHOLD: i32 = 100;
 const TAIL: usize = NEEDLE.len() - 1;
 
 #[cfg(feature = "test-hooks")]
@@ -37,7 +44,12 @@ pub struct Tx {
     json: bool,
     stage: Stage,
     error: Rc,
+    /// blocked (or would be, in shadow)
     matched: bool,
+    rules: [u32; MAX_RULES],
+    n_rules: usize,
+    score: i32,
+    headers: protocol::Headers,
     id: Option<[u8; block_id::ID_LEN]>,
     tail: [u8; TAIL],
     tail_len: usize,
@@ -68,6 +80,10 @@ impl Tx {
             stage: Stage::New,
             error: OK,
             matched: false,
+            rules: [0; MAX_RULES],
+            n_rules: 0,
+            score: 0,
+            headers: protocol::Headers::default(),
             id: None,
             tail: [0; TAIL],
             tail_len: 0,
@@ -110,13 +126,37 @@ impl Tx {
         }
     }
 
+    /// Records a violation once; decides when it blocks alone or the
+    /// total reaches the threshold.
+    fn add(&mut self, v: Violation) {
+        if self.rules[..self.n_rules].contains(&v.rule) {
+            return;
+        }
+        if self.n_rules < MAX_RULES {
+            self.rules[self.n_rules] = v.rule;
+            self.n_rules += 1;
+        }
+        self.score = self.score.saturating_add(v.score);
+        if v.block_alone || self.score >= BLOCK_THRESHOLD {
+            self.hit();
+        }
+    }
+
+    fn stub_rule(&mut self) {
+        self.add(Violation {
+            rule: STUB_RULE_ID,
+            score: STUB_SCORE,
+            block_alone: false,
+        });
+    }
+
     fn scan(&mut self, data: &[u8]) {
         #[cfg(feature = "test-hooks")]
         if contains(data, PANIC_NEEDLE) {
             panic!("test hook: deliberate panic");
         }
         if !self.matched && contains(data, NEEDLE) {
-            self.hit();
+            self.stub_rule();
         }
     }
 
@@ -132,6 +172,7 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
+        protocol::check_uri(raw_uri, &mut |v| self.add(v));
         for part in [raw_uri, norm_uri, args] {
             self.scan(part);
         }
@@ -142,6 +183,7 @@ impl Tx {
         if let Err(rc) = self.check(Stage::Line, Stage::Headers) {
             return rc;
         }
+        self.headers.header(key, val);
         if key.eq_ignore_ascii_case(b"accept")
             && contains_ignore_case(val, b"json")
             && !contains_ignore_case(val, b"text/html")
@@ -156,6 +198,8 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Headers;
+        let headers = std::mem::take(&mut self.headers);
+        headers.finish(&mut |v| self.add(v));
         OK
     }
 
@@ -174,7 +218,7 @@ impl Tx {
             window[..self.tail_len].copy_from_slice(&self.tail[..self.tail_len]);
             window[self.tail_len..self.tail_len + head.len()].copy_from_slice(head);
             if contains(&window[..self.tail_len + head.len()], NEEDLE) || contains(data, NEEDLE) {
-                self.hit();
+                self.stub_rule();
             }
             // Keep the last TAIL bytes of (tail + data).
             let total = self.tail_len + data.len();
@@ -217,10 +261,10 @@ impl Tx {
         let mut v = Verdict::allow();
         v.error = self.error;
         v.json = self.json;
+        v.score = self.score;
+        v.n_rules = self.n_rules as u32;
+        v.rules = self.rules;
         if self.matched {
-            v.score = STUB_SCORE;
-            v.n_rules = 1;
-            v.rules[0] = STUB_RULE_ID;
             if self.shadow {
                 v.action = ACTION_LOG;
             } else {
@@ -362,5 +406,118 @@ mod tests {
         t.request_header(b"accept", b"text/html,application/json");
         t.request_headers_done();
         assert!(!t.verdict().json);
+    }
+
+    fn headers(t: &mut Tx, h: &[(&[u8], &[u8])]) {
+        for (k, v) in h {
+            assert_eq!(t.request_header(k, v), OK);
+        }
+        assert_eq!(t.request_headers_done(), OK);
+    }
+
+    fn rules(v: &Verdict) -> Vec<u32> {
+        v.rules[..v.n_rules as usize].to_vec()
+    }
+
+    #[test]
+    fn protocol_cl_te_blocks_before_the_body() {
+        let mut t = tx();
+        t.request_line(b"POST", b"/upload", b"/upload", b"", b"HTTP/1.1");
+        headers(
+            &mut t,
+            &[
+                (b"Content-Length", b"10"),
+                (b"Transfer-Encoding", b"chunked"),
+            ],
+        );
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(rules(&v), [protocol::CL_TE_CONFLICT]);
+        assert!(!v.need_body);
+        assert!(id_str(&v).starts_with("STR-"));
+    }
+
+    #[test]
+    fn protocol_below_threshold_is_reported_but_allowed() {
+        let mut t = tx();
+        t.request_line(
+            b"GET",
+            b"/app;jsessionid=1/x",
+            b"/app;jsessionid=1/x",
+            b"",
+            b"HTTP/1.1",
+        );
+        headers(&mut t, &[]);
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_ALLOW);
+        assert_eq!(rules(&v), [protocol::MATRIX_PARAMETER]);
+        assert_eq!(v.score, 20);
+        assert!(v.need_body);
+        assert_eq!(id_str(&v), "");
+    }
+
+    #[test]
+    fn protocol_scores_add_up_to_the_threshold() {
+        let mut t = tx();
+        // 50 (double encoding) + 50 (control character) = 100
+        t.request_line(b"GET", b"/a/%2541\x01", b"/a", b"", b"HTTP/1.1");
+        headers(&mut t, &[]);
+        let v = t.verdict();
+        assert_eq!(v.score, 100);
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(
+            rules(&v),
+            [protocol::DOUBLE_ENCODING, protocol::CONTROL_CHAR]
+        );
+    }
+
+    #[test]
+    fn protocol_encoded_traversal_blocks() {
+        let mut t = tx();
+        t.request_line(b"GET", b"/a/%2e%2e/b?x=1", b"/b", b"x=1", b"HTTP/1.1");
+        headers(&mut t, &[]);
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(rules(&v), [protocol::ENCODED_DOT_SEGMENT]);
+    }
+
+    #[test]
+    fn protocol_same_rule_from_uri_and_header_counts_once() {
+        let mut t = tx();
+        t.request_line(b"GET", b"/a%00", b"/a", b"", b"HTTP/1.1");
+        headers(&mut t, &[(b"X-A", b"\x00")]);
+        let v = t.verdict();
+        assert_eq!(rules(&v), [protocol::NULL_BYTE]);
+        assert_eq!(v.score, 100);
+    }
+
+    #[test]
+    fn protocol_in_shadow_logs() {
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_FORCE_SHADOW);
+        t.request_line(b"POST", b"/", b"/", b"", b"HTTP/1.1");
+        headers(
+            &mut t,
+            &[(b"Content-Length", b"1"), (b"Content-Length", b"2")],
+        );
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_LOG);
+        assert_eq!(rules(&v), [protocol::CL_INVALID]);
+        assert!(id_str(&v).starts_with("EVT-"));
+    }
+
+    #[test]
+    fn protocol_and_stub_rule_together() {
+        let mut t = tx();
+        t.request_line(
+            b"GET",
+            b"/x;y?STRATA-TEST-BLOCK",
+            b"/x;y",
+            b"STRATA-TEST-BLOCK",
+            b"HTTP/1.1",
+        );
+        headers(&mut t, &[]);
+        let v = t.verdict();
+        assert_eq!(rules(&v), [protocol::MATRIX_PARAMETER, STUB_RULE_ID]);
+        assert_eq!(v.score, 120);
     }
 }
