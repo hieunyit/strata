@@ -55,6 +55,13 @@ for u in viewer operator approver admin; do
 done
 check "control plane API (search as viewer)" curl -fsS -X POST -H 'Content-Type: application/json' -H "$(auth viewer)" -d '{}' http://127.0.0.1:18090/v1/events:search
 
+echo "fleet: enrolled agents (W04-G1-01)"
+nodes() { curl -fsS -H "$(auth viewer)" http://127.0.0.1:18090/v1/nodes; }
+online2() { [ "$(nodes | grep -o '"online":true' | wc -l)" -ge 2 ]; }
+if retry 30 online2; then ok "both agents enrolled and online"; else bad "both agents enrolled and online"; fi
+[ "$(status http://127.0.0.1:18090/v1/groups -X POST -H "$(auth operator)" -H 'Content-Type: application/json' -d '{"id":"x","name":"x"}')" = 403 ] \
+    && ok "operator may not create groups: 403" || bad "operator may not create groups: 403"
+
 echo "nginx + ngx_http_strata_module"
 for port in 18080 18081; do
     check "$port pass" curl -fsS -H 'Host: api.example.test' "http://127.0.0.1:$port/v1/items"

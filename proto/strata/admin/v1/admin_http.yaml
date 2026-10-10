@@ -6,3 +6,15 @@ http:
   rules:
     - selector: strata.admin.v1.VersionService.GetVersion
       get: /v1/version
+    - selector: strata.admin.v1.FleetAdminService.ListGroups
+      get: /v1/groups
+    - selector: strata.admin.v1.FleetAdminService.CreateGroup
+      post: /v1/groups
+      body: group
+    - selector: strata.admin.v1.FleetAdminService.CreateEnrollmentToken
+      post: /v1/groups/{group_id}/enrollmentTokens
+      body: "*"
+    - selector: strata.admin.v1.FleetAdminService.ListNodes
+      get: /v1/nodes
+    - selector: strata.admin.v1.FleetAdminService.RevokeNode
+      delete: /v1/nodes/{node_id}

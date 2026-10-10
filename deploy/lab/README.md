@@ -23,7 +23,7 @@ make lab-clean   # xóa cả volume và deploy/lab/.state
 | MinIO API / console | http://127.0.0.1:19000 / :19001, user `strata` |
 | ClickHouse HTTP | http://127.0.0.1:18123, user `strata` |
 
-Mật khẩu nằm trong `deploy/lab/.state/env`, gồm cả 4 user lab `lab-viewer`, `lab-operator`, `lab-approver`, `lab-admin` (mỗi user một vai trò) và secret của client `strata-lab-cli` (tạo ngẫu nhiên lần đầu, không commit). CA của lab, chứng chỉ node (`spiffe://strata/node/node-{1,2}`) và khóa ký bundle nằm trong volume `state`, do `lab-init` tạo một lần.
+Mật khẩu nằm trong `deploy/lab/.state/env`, gồm cả 4 user lab `lab-viewer`, `lab-operator`, `lab-approver`, `lab-admin` (mỗi user một vai trò) và secret của client `strata-lab-cli` (tạo ngẫu nhiên lần đầu, không commit). CA của lab, node CA và khóa ký bundle nằm trong volume `state`, do `lab-init` tạo một lần. `fleet-init` (sau khi control plane chạy) đăng nhập bằng `lab-admin`, tạo connector group `lab` và một enrollment token cho mỗi agent; agent `enroll` ở lần chạy đầu (khóa riêng trong volume `identity-node-N`, chứng chỉ 24 giờ, tự gia hạn) rồi `run --identity-dir`. `GET /v1/nodes` cho thấy hai node online.
 
 Thử tay:
 

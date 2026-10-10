@@ -37,7 +37,7 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := admin.New(ctx, v, admin.BuildInfo{Version: "0.1.0-test", Commit: "abc123"})
+	a, err := admin.New(ctx, v, admin.BuildInfo{Version: "0.1.0-test", Commit: "abc123"}, admin.Deps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,10 +123,12 @@ func TestVersion_GRPC(t *testing.T) {
 
 // Every method the server registers has a permission.
 func TestEveryMethodHasPermission(t *testing.T) {
-	for _, m := range adminv1.VersionService_ServiceDesc.Methods {
-		full := "/" + adminv1.VersionService_ServiceDesc.ServiceName + "/" + m.MethodName
-		if _, ok := admin.Permissions[full]; !ok {
-			t.Errorf("%s has no permission", full)
+	for _, sd := range []grpc.ServiceDesc{adminv1.VersionService_ServiceDesc, adminv1.FleetAdminService_ServiceDesc} {
+		for _, m := range sd.Methods {
+			full := "/" + sd.ServiceName + "/" + m.MethodName
+			if _, ok := admin.Permissions[full]; !ok {
+				t.Errorf("%s has no permission", full)
+			}
 		}
 	}
 }

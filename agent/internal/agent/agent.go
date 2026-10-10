@@ -9,15 +9,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/batch"
+	"github.com/strata/strata/agent/internal/control"
 	"github.com/strata/strata/agent/internal/eventsock"
+	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/pusher"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 	"github.com/strata/strata/agent/internal/spool"
@@ -34,8 +38,12 @@ type Config struct {
 	CertFile      string // client certificate (mTLS)
 	KeyFile       string
 	NodeID        string
-	MetricsFile   string // written by the NGINX module; empty: not exported
-	MetricsAddr   string // host:port for /metrics; empty: no exporter
+	// IdentityDir, when set, replaces CAFile, CertFile, KeyFile and NodeID
+	// with the enrolled identity, renewed in time.
+	IdentityDir  string
+	AgentVersion string
+	MetricsFile  string // written by the NGINX module; empty: not exported
+	MetricsAddr  string // host:port for /metrics; empty: no exporter
 
 	Batch  batch.Options
 	Push   pusher.Options
@@ -47,6 +55,8 @@ type Agent struct {
 	Socket *eventsock.Listener
 	Spool  *spool.Spool
 	Pusher *pusher.Pusher
+	// Control keeps the Connect stream and renews the certificate.
+	Control *control.Controller
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -57,7 +67,15 @@ type Agent struct {
 
 // New opens the spool, binds the event socket and prepares the client.
 func New(cfg Config) (*Agent, error) {
-	creds, err := clientTLS(cfg)
+	var id *identity.Identity
+	if cfg.IdentityDir != "" {
+		var err error
+		if id, err = identity.Load(cfg.IdentityDir); err != nil {
+			return nil, err
+		}
+		cfg.NodeID = id.NodeID
+	}
+	creds, err := clientTLS(cfg, id)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +83,9 @@ func New(cfg Config) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.NewClient(cfg.Server, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(cfg.Server, grpc.WithTransportCredentials(creds),
+		// The control plane pings every 10 s; answer, and ping too.
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 20 * time.Second, Timeout: 10 * time.Second, PermitWithoutStream: true}))
 	if err != nil {
 		sp.Close()
 		return nil, fmt.Errorf("agent: dial %s: %w", cfg.Server, err)
@@ -77,15 +97,25 @@ func New(cfg Config) (*Agent, error) {
 		return nil, err
 	}
 	cfg.Batch.NodeID = cfg.NodeID
+	host, _ := os.Hostname()
+	client := fleetv1.NewFleetServiceClient(conn)
 	a := &Agent{
 		Socket:   sock,
 		Spool:    sp,
-		Pusher:   pusher.New(fleetv1.NewFleetServiceClient(conn), sp, cfg.Push),
+		Pusher:   pusher.New(client, sp, cfg.Push),
 		Registry: prometheus.NewRegistry(),
 		conn:     conn,
 		batch:    batch.New(sp, cfg.Batch),
 		cfg:      cfg,
 	}
+	a.Control = control.New(client, control.Options{
+		Identity: id,
+		Node:     &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
+		Counters: func() *fleetv1.NodeCounters {
+			st := sp.Stats()
+			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+		},
+	})
 	a.Registry.MustRegister(collector{a})
 	if cfg.MetricsFile != "" {
 		a.Registry.MustRegister(shmmetrics.NewCollector(cfg.MetricsFile))
@@ -112,6 +142,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	}()
 	go func() { batchDone <- a.batch.Run(batchCtx) }()
 	go func() { pushDone <- a.Pusher.Run(pushCtx) }()
+	controlDone := make(chan error, 1)
+	go func() { controlDone <- a.Control.Run(pushCtx) }()
 	metricsDone := make(chan error, 1)
 	if a.cfg.MetricsAddr != "" {
 		go func() { metricsDone <- shmmetrics.Serve(pushCtx, a.cfg.MetricsAddr, a.Registry) }()
@@ -141,6 +173,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if pushDone != nil {
 		errs = append(errs, <-pushDone)
 	}
+	errs = append(errs, <-controlDone)
 	return errors.Join(errs...)
 }
 
@@ -149,7 +182,15 @@ func (a *Agent) Close() error {
 	return errors.Join(a.Socket.Close(), a.conn.Close(), a.Spool.Close())
 }
 
-func clientTLS(cfg Config) (credentials.TransportCredentials, error) {
+func clientTLS(cfg Config, id *identity.Identity) (credentials.TransportCredentials, error) {
+	if id != nil {
+		return credentials.NewTLS(&tls.Config{
+			GetClientCertificate: id.GetClientCertificate,
+			RootCAs:              id.CAPool,
+			ServerName:           cfg.ServerName,
+			MinVersion:           tls.VersionTLS13,
+		}), nil
+	}
 	if cfg.CAFile == "" || cfg.CertFile == "" || cfg.KeyFile == "" {
 		return nil, errors.New("agent: mTLS needs a CA, a client certificate and its key")
 	}

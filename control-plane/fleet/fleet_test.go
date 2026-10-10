@@ -56,6 +56,9 @@ func issue(t *testing.T, tmpl, parent *x509.Certificate, parentKey *ecdsa.Privat
 	sn, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
 	tmpl.SerialNumber = sn
 	tmpl.NotBefore, tmpl.NotAfter = time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	if tmpl.IsCA {
+		tmpl.NotAfter = time.Now().Add(72 * time.Hour) // outlives a 24 h node certificate
+	}
 	if parent == nil {
 		parent, parentKey = tmpl, key
 	}
@@ -85,14 +88,25 @@ func (p *pki) nodeCert(t *testing.T, id string) tls.Certificate {
 
 func serve(t *testing.T, p *pki, in Ingester) string {
 	t.Helper()
+	return serveConfig(t, p, Config{Ingest: in}, nil)
+}
+
+// serveConfig serves srv, or a new server for cfg when srv is nil.
+func serveConfig(t *testing.T, p *pki, cfg Config, given *Server) string {
+	t.Helper()
 	srv := p.pair(t, &x509.Certificate{
 		Subject: pkix.Name{CommonName: "cp.example.test"}, DNSNames: []string{"cp.example.test"},
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	})
 	gs := NewGRPCServer(&tls.Config{
 		Certificates: []tls.Certificate{srv}, ClientCAs: p.pool,
-		ClientAuth: tls.RequireAndVerifyClientCert, MinVersion: tls.VersionTLS13,
-	}, in)
+		ClientAuth: tls.VerifyClientCertIfGiven, MinVersion: tls.VersionTLS13,
+	}, func() *Server {
+		if given != nil {
+			return given
+		}
+		return NewServer(cfg)
+	}())
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

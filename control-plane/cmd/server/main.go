@@ -26,6 +26,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/store"
 )
 
 // Set at build time: -ldflags "-X main.version=... -X main.commit=...".
@@ -52,11 +53,18 @@ func main() {
 	oidcDiscovery := flag.String("oidc-discovery-url", "", "Where to read the issuer's metadata when it is reached under another name")
 	oidcAudience := flag.String("oidc-audience", "strata-api", "Audience access tokens must carry")
 	oidcRoles := flag.String("oidc-roles-claim", "realm_access.roles", "Dotted path of the roles list in the token")
+	nodeCACert := flag.String("node-ca-cert", "", "CA certificate that signs node certificates at enrollment (with -node-ca-key)")
+	nodeCAKey := flag.String("node-ca-key", "", "Key of -node-ca-cert")
+	trustBundle := flag.String("fleet-trust-bundle", "", "CA bundle enrolled agents trust for FleetService (default: -tls-ca)")
+	bundlePub := flag.String("bundle-pubkey", "", "Public key that verifies bundle signatures, sent to enrolled agents")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+
+	presence := fleet.NewPresence()
+	var pg *store.Store
 
 	// PostgreSQL: the DSN carries a password, so it comes from the
 	// environment, not from a flag visible in ps.
@@ -77,6 +85,7 @@ func main() {
 			log.Fatalf("[FATAL] migrations: %v", err)
 		}
 		log.Printf("[INFO] PostgreSQL schema at version %d", latest)
+		pg = store.New(pool)
 	} else {
 		log.Println("[WARN] STRATA_POSTGRES_DSN is not set: no database (policies, nodes and audit are unavailable)")
 	}
@@ -127,7 +136,11 @@ func main() {
 			Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS13,
 		})))
 	}
-	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, adminOpts...)
+	deps := admin.Deps{Presence: presence}
+	if pg != nil {
+		deps.Fleet = pg
+	}
+	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
 	if err != nil {
 		log.Fatalf("[FATAL] %v", err)
 	}
@@ -200,7 +213,30 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
-		gs = fleet.NewGRPCServer(tlsCfg, ingestSvc)
+		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence}
+		if *nodeCACert != "" {
+			if pg == nil {
+				log.Fatal("[FATAL] enrollment (-node-ca-cert) needs PostgreSQL (STRATA_POSTGRES_DSN)")
+			}
+			ca, err := fleet.LoadCA(*nodeCACert, *nodeCAKey)
+			if err != nil {
+				log.Fatalf("[FATAL] %v", err)
+			}
+			fcfg.Registry, fcfg.CA = pg, ca
+			tb := *trustBundle
+			if tb == "" {
+				tb = *tlsCA
+			}
+			if fcfg.TrustBundle, err = os.ReadFile(tb); err != nil {
+				log.Fatalf("[FATAL] fleet trust bundle: %v", err)
+			}
+			if *bundlePub != "" {
+				if fcfg.BundlePubKey, err = os.ReadFile(*bundlePub); err != nil {
+					log.Fatalf("[FATAL] bundle public key: %v", err)
+				}
+			}
+		}
+		gs = fleet.NewGRPCServer(tlsCfg, fleet.NewServer(fcfg))
 		go func() {
 			log.Printf("[INFO] FleetService (mTLS) listening on %s\n", *grpcAddr)
 			if err := gs.Serve(ln); err != nil {

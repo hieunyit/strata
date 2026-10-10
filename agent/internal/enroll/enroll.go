@@ -62,6 +62,15 @@ func NewIdentity(hostname string) (*Identity, error) {
 	return &Identity{Key: key, CSRDER: csr}, nil
 }
 
+// KeyPEM returns the private key as PKCS#8 PEM.
+func (id *Identity) KeyPEM() ([]byte, error) {
+	der, err := x509.MarshalPKCS8PrivateKey(id.Key)
+	if err != nil {
+		return nil, fmt.Errorf("enroll: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
+}
+
 // CSRPEM returns the CSR as PEM.
 func (id *Identity) CSRPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: id.CSRDER})
@@ -81,19 +90,19 @@ func (id *Identity) Save(dir string, overwrite bool) error {
 			return fmt.Errorf("%w in %s (use --force to replace it)", ErrExists, dir)
 		}
 	}
-	der, err := x509.MarshalPKCS8PrivateKey(id.Key)
+	keyPEM, err := id.KeyPEM()
 	if err != nil {
-		return fmt.Errorf("enroll: %w", err)
-	}
-	if err := writeFile(dir, KeyFile, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 		return err
 	}
-	return writeFile(dir, CSRFile, id.CSRPEM(), 0o644)
+	if err := WriteFile(dir, KeyFile, keyPEM, 0o600); err != nil {
+		return err
+	}
+	return WriteFile(dir, CSRFile, id.CSRPEM(), 0o644)
 }
 
-// writeFile replaces dir/name atomically: a temporary file, fsync, rename,
+// WriteFile replaces dir/name atomically: a temporary file, fsync, rename,
 // fsync of the directory.
-func writeFile(dir, name string, data []byte, mode os.FileMode) error {
+func WriteFile(dir, name string, data []byte, mode os.FileMode) error {
 	tmp, err := os.CreateTemp(dir, "."+name+".*")
 	if err != nil {
 		return fmt.Errorf("enroll: %w", err)
@@ -178,7 +187,7 @@ func Enroll(ctx context.Context, dir string, id *Identity, opt Options) (*fleetv
 		{BundleKeyFile, resp.GetBundlePubkey()},
 		{NodeIDFile, []byte(resp.GetNodeId() + "\n")},
 	} {
-		if err := writeFile(dir, f.name, f.data, 0o644); err != nil {
+		if err := WriteFile(dir, f.name, f.data, 0o644); err != nil {
 			return nil, err
 		}
 	}

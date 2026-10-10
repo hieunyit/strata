@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -23,7 +24,20 @@ import (
 // Permissions lists every admin method. A method missing here is refused
 // by the interceptors.
 var Permissions = auth.MethodPermissions{
-	adminv1.VersionService_GetVersion_FullMethodName: auth.PermVersionRead,
+	adminv1.VersionService_GetVersion_FullMethodName:               auth.PermVersionRead,
+	adminv1.FleetAdminService_ListGroups_FullMethodName:            auth.PermNodesRead,
+	adminv1.FleetAdminService_CreateGroup_FullMethodName:           auth.PermNodesWrite,
+	adminv1.FleetAdminService_CreateEnrollmentToken_FullMethodName: auth.PermNodesWrite,
+	adminv1.FleetAdminService_ListNodes_FullMethodName:             auth.PermNodesRead,
+	adminv1.FleetAdminService_RevokeNode_FullMethodName:            auth.PermNodesWrite,
+}
+
+// Deps are the services behind the admin API. A nil field leaves its
+// service unregistered (its routes answer Unimplemented).
+type Deps struct {
+	Fleet    FleetStore
+	Presence NodePresence
+	Now      func() time.Time
 }
 
 // BuildInfo is reported by VersionService.
@@ -42,13 +56,19 @@ type Server struct {
 }
 
 // New builds the admin API. opts are extra gRPC server options (TLS).
-func New(ctx context.Context, a auth.Authenticator, info BuildInfo, opts ...grpc.ServerOption) (*Server, error) {
+func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, opts ...grpc.ServerOption) (*Server, error) {
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	opts = append(opts,
 		grpc.ChainUnaryInterceptor(auth.UnaryInterceptor(a, Permissions)),
 		grpc.ChainStreamInterceptor(auth.StreamInterceptor(a, Permissions)),
 	)
 	gs := grpc.NewServer(opts...)
 	adminv1.RegisterVersionServiceServer(gs, &versionServer{info: info})
+	if deps.Fleet != nil && deps.Presence != nil {
+		adminv1.RegisterFleetAdminServiceServer(gs, &fleetAdmin{store: deps.Fleet, presence: deps.Presence, now: deps.Now})
+	}
 
 	lis := bufconn.Listen(1 << 20)
 	go func() { _ = gs.Serve(lis) }()
@@ -68,10 +88,15 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, opts ...grpc
 		MarshalOptions:   protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true},
 		UnmarshalOptions: protojson.UnmarshalOptions{DiscardUnknown: false},
 	}))
-	if err := adminv1.RegisterVersionServiceHandler(ctx, mux, conn); err != nil {
-		_ = conn.Close()
-		gs.Stop()
-		return nil, fmt.Errorf("admin: gateway: %w", err)
+	for _, register := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
+		adminv1.RegisterVersionServiceHandler,
+		adminv1.RegisterFleetAdminServiceHandler,
+	} {
+		if err := register(ctx, mux, conn); err != nil {
+			_ = conn.Close()
+			gs.Stop()
+			return nil, fmt.Errorf("admin: gateway: %w", err)
+		}
 	}
 	return &Server{GRPC: gs, Gateway: mux, lis: lis, conn: conn}, nil
 }

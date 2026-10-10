@@ -54,6 +54,7 @@ func newRunCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg.EventSocket = strings.TrimPrefix(cfg.EventSocket, "unix:")
+			cfg.AgentVersion = version
 			return run(cmd.Context(), cfg)
 		},
 	}
@@ -67,14 +68,15 @@ func newRunCmd() *cobra.Command {
 	f.StringVar(&cfg.CertFile, "tls-cert", "", "client certificate")
 	f.StringVar(&cfg.KeyFile, "tls-key", "", "client certificate key")
 	f.StringVar(&cfg.NodeID, "node-id", "", "node id stamped on every event")
+	f.StringVar(&cfg.IdentityDir, "identity-dir", "", "enrolled identity (strata-agent enroll); replaces --tls-ca, --tls-cert, --tls-key and --node-id")
 	f.StringVar(&cfg.MetricsFile, "metrics-file", "/dev/shm/strata/metrics", "counters written by the NGINX workers")
 	f.StringVar(&cfg.MetricsAddr, "metrics-addr", "127.0.0.1:9469", "address of the Prometheus endpoint /metrics")
 	return cmd
 }
 
 func run(ctx context.Context, cfg agent.Config) error {
-	if cfg.Server == "" || cfg.NodeID == "" {
-		return errors.New("--server and --node-id are required")
+	if cfg.Server == "" || (cfg.NodeID == "" && cfg.IdentityDir == "") {
+		return errors.New("--server and either --identity-dir or --node-id are required")
 	}
 	if ctx == nil {
 		ctx = context.Background()
