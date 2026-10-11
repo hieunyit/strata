@@ -63,7 +63,7 @@ fn golden_blocked_scenario() {
     let matches = [MatchData {
         rule_id: 899001,
         layer: "managed",
-        field: "URI",
+        field: "REQUEST_URI",
         snippet: b"STRATA-TEST-BLOCK",
     }];
     let ev = EventData {
@@ -95,7 +95,7 @@ fn golden_shadow_scenario() {
     let matches = [MatchData {
         rule_id: 899001,
         layer: "managed",
-        field: "URI",
+        field: "REQUEST_URI",
         snippet: b"STRATA-TEST-BLOCK",
     }];
     let ev = EventData {
