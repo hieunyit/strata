@@ -330,35 +330,65 @@ fn var(name: &str) -> u8 {
     code(VARS, name).unwrap_or(u8::MAX)
 }
 
+#[derive(Clone, Copy)]
+pub struct TargetVal<'d> {
+    pub name: Option<&'d [u8]>,
+    pub val: &'d [u8],
+}
+
 /// Values of one target (key and exclude filters applied).
 fn values<'d>(
     d: &'d Data<'d>,
     t: &TargetView<'_>,
     excluded: &dyn Fn(&[u8]) -> bool,
-) -> Vec<&'d [u8]> {
+) -> Vec<TargetVal<'d>> {
     let r = d.req;
     let keyed = |name: &[u8]| t.key.is_none_or(|k| k.eq_ignore_ascii_case(name)) && !excluded(name);
     let v = t.var;
     if v == var("method") {
-        vec![r.method]
+        vec![TargetVal {
+            name: None,
+            val: r.method,
+        }]
     } else if v == var("uri_raw") {
-        vec![r.raw_uri]
+        vec![TargetVal {
+            name: None,
+            val: r.raw_uri,
+        }]
     } else if v == var("uri") {
-        vec![&d.full_uri]
+        vec![TargetVal {
+            name: None,
+            val: &d.full_uri,
+        }]
     } else if v == var("path") {
-        vec![r.uri]
+        vec![TargetVal {
+            name: None,
+            val: r.uri,
+        }]
     } else if v == var("protocol") {
-        vec![r.proto]
+        vec![TargetVal {
+            name: None,
+            val: r.proto,
+        }]
     } else if v == var("request_line") {
-        vec![&d.request_line]
+        vec![TargetVal {
+            name: None,
+            val: &d.request_line,
+        }]
     } else if v == var("query_string") {
         if r.args.is_empty() {
             vec![]
         } else {
-            vec![r.args]
+            vec![TargetVal {
+                name: None,
+                val: r.args,
+            }]
         }
     } else if v == var("remote_addr") {
-        vec![r.client_addr]
+        vec![TargetVal {
+            name: None,
+            val: r.client_addr,
+        }]
     } else if v == var("args") || v == var("args_get") || v == var("args_post") {
         let fields = if v == var("args_get") {
             &d.args[..d.n_get]
@@ -370,64 +400,93 @@ fn values<'d>(
         fields
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(_, v)| &**v)
+            .map(|(n, val)| TargetVal {
+                name: Some(&**n),
+                val,
+            })
             .collect()
     } else if v == var("request_body") {
         if r.body.is_empty() {
             vec![]
         } else {
-            vec![r.body]
+            vec![TargetVal {
+                name: None,
+                val: r.body,
+            }]
         }
     } else if v == var("args_names") {
         d.args
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| &**n)
+            .map(|(n, _)| TargetVal { name: None, val: n })
             .collect()
     } else if v == var("request_headers") {
         r.headers
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(_, v)| *v)
+            .map(|(n, val)| TargetVal {
+                name: Some(*n),
+                val,
+            })
             .collect()
     } else if v == var("request_headers_names") {
         r.headers
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| *n)
+            .map(|(n, _)| TargetVal { name: None, val: n })
             .collect()
     } else if v == var("request_cookies") {
         d.cookies
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(_, v)| &**v)
+            .map(|(n, val)| TargetVal {
+                name: Some(&**n),
+                val,
+            })
             .collect()
     } else if v == var("request_cookies_names") {
         d.cookies
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| &**n)
+            .map(|(n, _)| TargetVal { name: None, val: n })
             .collect()
     } else if v == var("body_processor") {
-        vec![d.processor]
+        vec![TargetVal {
+            name: None,
+            val: d.processor,
+        }]
     } else if v == var("xml") {
-        d.xml.iter().map(|x| &x.text[..]).collect()
+        d.xml
+            .iter()
+            .map(|x| TargetVal {
+                name: None,
+                val: &x.text[..],
+            })
+            .collect()
     } else if v == var("xml_attributes") {
         d.xml
             .iter()
-            .flat_map(|x| x.attrs.iter().map(|a| &a[..]))
+            .flat_map(|x| {
+                x.attrs.iter().map(|a| TargetVal {
+                    name: None,
+                    val: &a[..],
+                })
+            })
             .collect()
     } else if v == var("files") {
         d.files
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(_, f)| *f)
+            .map(|(n, f)| TargetVal {
+                name: Some(*n),
+                val: f,
+            })
             .collect()
     } else if v == var("files_names") {
         d.files
             .iter()
             .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| *n)
+            .map(|(n, _)| TargetVal { name: None, val: n })
             .collect()
     } else {
         vec![] // response variables: later
@@ -440,8 +499,55 @@ pub struct MatchDetail {
     pub snippet: Vec<u8>,
 }
 
+#[derive(Clone, Debug)]
+pub enum Candidate {
+    Value {
+        var: u8,
+        name: Option<Vec<u8>>,
+        window: Vec<u8>,
+    },
+    Count {
+        var: u8,
+        count: usize,
+    },
+}
+
+impl Candidate {
+    pub fn is_boilerplate(&self) -> bool {
+        match self {
+            Candidate::Value { var, .. } | Candidate::Count { var, .. } => {
+                let name = crate::rules::var_to_field_name(*var);
+                name == "REQUEST_METHOD" || name == "REQUEST_PROTOCOL"
+            }
+        }
+    }
+
+    pub fn to_match_detail(&self) -> MatchDetail {
+        match self {
+            Candidate::Value { var, name, window } => {
+                let base = crate::rules::var_to_field_name(*var);
+                let field = match name {
+                    Some(n) => format!("{}:{}", base, String::from_utf8_lossy(n)),
+                    None => base.to_string(),
+                };
+                MatchDetail {
+                    field,
+                    snippet: window.clone(),
+                }
+            }
+            Candidate::Count { var, count } => {
+                let field = crate::rules::var_to_field_name(*var).to_string();
+                MatchDetail {
+                    field,
+                    snippet: count.to_string().into_bytes(),
+                }
+            }
+        }
+    }
+}
+
 enum Outcome {
-    Match(bool, Option<MatchDetail>),
+    Match(bool, Option<Candidate>),
     Unsupported,
 }
 
@@ -503,7 +609,8 @@ fn condition(
     // target without values never matches, negated or not.
     let neg = c.negate;
     let mut any = false;
-    let mut match_detail = None;
+    let mut match_candidate: Option<Candidate> = None;
+
     for ti in c.target_first..c.target_first + c.target_count {
         let Some(t) = ctx.tables.target(ti) else {
             return Outcome::Unsupported;
@@ -516,8 +623,13 @@ fn condition(
         // values of matched_vars are owned by the previous condition: their
         // addresses are not stable keys for the scan cache
         let from_prev = t.var == var("matched_vars");
-        let vals: Vec<&[u8]> = if from_prev {
-            prev.iter().map(|v| &v[..]).collect()
+        let vals = if from_prev {
+            prev.iter()
+                .map(|v| TargetVal {
+                    name: None,
+                    val: &v[..],
+                })
+                .collect()
         } else {
             values(d, &t, &excluded)
         };
@@ -525,13 +637,10 @@ fn condition(
             // a count always has a value
             if compare(op, vals.len() as i64, y) != neg {
                 if !any {
-                    let var_name = crate::rules::VARS
-                        .get(t.var as usize)
-                        .copied()
-                        .unwrap_or("");
-                    let field = var_name.to_ascii_uppercase();
-                    let snippet = vals.len().to_string().into_bytes();
-                    match_detail = Some(MatchDetail { field, snippet });
+                    match_candidate = Some(Candidate::Count {
+                        var: t.var,
+                        count: vals.len(),
+                    });
                 }
                 any = true;
             }
@@ -546,7 +655,7 @@ fn condition(
         'values: for v in vals {
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
-                let tv = || transform::apply_chain(chain, v);
+                let tv = || transform::apply_chain(chain, v.val);
                 let hit = if numeric {
                     // on the transformed value; one that is not a number
                     // counts as 0, as atoi does
@@ -574,30 +683,30 @@ fn condition(
                         _ => false,
                     })
                 } else if let Some(re) = fallback {
-                    tv().is_some_and(|tv| re.is_match(&tv))
+                    tv().is_some_and(|val| re.is_match(&val))
                 } else if from_prev {
                     scan(ctx, &tv()).contains(&ci)
                 } else {
-                    matched(ctx, v, chain).contains(&ci)
+                    matched(ctx, v.val, chain).contains(&ci)
                 };
                 if hit != neg {
                     if !any {
-                        let var_name = crate::rules::VARS
-                            .get(t.var as usize)
-                            .copied()
-                            .unwrap_or("");
-                        let field = match t.key {
-                            Some(k) => format!(
-                                "{}:{}",
-                                var_name.to_ascii_uppercase(),
-                                String::from_utf8_lossy(k)
-                            ),
-                            None => var_name.to_ascii_uppercase(),
+                        let window = match tv() {
+                            Some(b) => {
+                                let len = b.len().min(crate::event::MASK_WINDOW);
+                                b[..len].to_vec()
+                            }
+                            None => Vec::new(),
                         };
-                        let snippet = tv()
-                            .map(|s| crate::event::prepare_snippet(&field, &s))
-                            .unwrap_or_default();
-                        match_detail = Some(MatchDetail { field, snippet });
+                        let key_name = match t.key {
+                            Some(k) => Some(k.to_vec()),
+                            None => v.name.map(|n| n.to_vec()),
+                        };
+                        match_candidate = Some(Candidate::Value {
+                            var: t.var,
+                            name: key_name,
+                            window,
+                        });
                     }
                     any = true;
                     match collect.as_deref_mut() {
@@ -616,7 +725,7 @@ fn condition(
             break;
         }
     }
-    Outcome::Match(any, match_detail)
+    Outcome::Match(any, match_candidate)
 }
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
@@ -656,7 +765,8 @@ fn rule_matches(
 ) -> Option<(bool, Option<MatchDetail>)> {
     let mut results = Vec::with_capacity(r.cond_count as usize);
     let mut prev = Matched::new();
-    let mut match_detail = None;
+    let mut best_candidate: Option<Candidate> = None;
+
     let end = r.cond_first + r.cond_count;
     for ci in r.cond_first..end {
         let c = ctx.tables.cond(ci)?;
@@ -674,16 +784,13 @@ fn rule_matches(
         let collect = if next_reads { Some(&mut kept) } else { None };
         match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
-            Outcome::Match(m, det) => {
-                if m {
-                    match det {
-                        Some(d)
-                            if (d.field != "REQUEST_METHOD" && d.field != "SERVER_PROTOCOL")
-                                || match_detail.is_none() =>
-                        {
-                            match_detail = Some(d);
-                        }
-                        _ => {}
+            Outcome::Match(m, cand) => {
+                if let (true, Some(cand)) = (m, cand) {
+                    let should_replace = best_candidate.is_none()
+                        || best_candidate.as_ref().is_some_and(|b| b.is_boilerplate())
+                        || !cand.is_boilerplate();
+                    if should_replace {
+                        best_candidate = Some(cand);
                     }
                 }
                 results.push(m);
@@ -696,7 +803,12 @@ fn rule_matches(
     } else {
         !results.is_empty() && results.iter().all(|&m| m)
     };
-    Some((matched, if matched { match_detail } else { None }))
+    let detail = if matched {
+        best_candidate.map(|c| c.to_match_detail())
+    } else {
+        None
+    };
+    Some((matched, detail))
 }
 
 /// Evaluates every rule of `stage` against the request.
