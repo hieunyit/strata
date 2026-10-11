@@ -5,7 +5,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 ## 0. Tiến độ hiện tại
 
 > **Tuần hiện tại: 6** · Khối `A2` (tuần 6–7) · Giai đoạn A (tới shadow, Gate A cuối tuần 10)
-> Cập nhật lần cuối: 2026-10-10
+> Cập nhật lần cuối: 2026-10-11
 
 **Quy tắc dùng mục này**
 
@@ -23,12 +23,14 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W06-N-01 | Response path (header/body filter, data guard, trước gzip) | Claude Code | — | ✅ Done |
 | W06-R-01 | Lớp response + port tokenizer SQLi/XSS | Antigravity | — | ✅ Done |
 | W06-G1-01 | Sự kiện từ worker tới control plane (PushEvents, spool, metrics) | Claude Code | — | ✅ Done |
-| W06-S-01 | Nhập nhóm injection của CRS | Antigravity | W06-R-01 | ⏳ Chưa bắt đầu |
+| W06-S-01 | Nhập nhóm injection của CRS | Claude Code | W06-R-01 | ✅ Done (go-ftw ≥ 94% mỗi nhóm, `docs/crs-ftw-report.md`) |
 | W06-G2-01 | Event ingest → ClickHouse + API sự kiện | Antigravity | — | ✅ Done |
-| W06-F-01 | Trang Sự kiện nối API thật | Antigravity | W06-G2-01 | ✅ Done |
+| W06-F-01 | Trang Sự kiện nối API thật | Antigravity | W06-G2-01 | ✅ Done (sự kiện chặn thật từ NGINX chờ W07-N-01; lab dùng `strata-emit`) |
 | W06-Q-01 | Kiểm tra mất sự kiện khi khởi động lại agent | Antigravity | W06-G1-01, W06-G2-01 | ✅ Done |
 
-**Các tuần đã qua**: tuần 3–5 coi là xong. Nhiệm vụ nào của tuần 3–5 chưa merge thì PO thêm vào bảng trên với trạng thái hiện tại.
+**Các tuần đã qua**: tuần 3–5 xong và đã merge vào `main` (W05-S-01: 136 rule CRS PL1 trong `rules/crs`, pack protocol 40 rule trong `rules/protocol`, 0 FP trên corpus benign).
+
+> **Tạm thời (từ 2026-10-11)**: sau đợt gộp nhánh, mọi nhiệm vụ do Claude Code làm cho tới khi PO phân vai lại; cột "Công cụ" và mục 3 là phân công dự kiến. Rule trong `rules/protocol/` và `rules/crs/` (sinh tự động) vẫn chờ người luồng S duyệt.
 
 **Lộ trình tuần 3–22** (chi tiết từng nhiệm vụ trong `docs/plan/plan.md`)
 
