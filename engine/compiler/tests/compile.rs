@@ -292,8 +292,13 @@ fn operator_validation_in_compiler() {
       severity: warning
       metadata: { source: organization, license: Apache-2.0 }
     ";
+    // the IR schema refuses a value on validate_url_encoding (not: required value)
     let err = ir(bad_url_encoding).unwrap_err();
-    assert!(err.contains("rule 800106: validate_url_encoding takes no value"));
+    assert!(
+        err.contains("rule IR does not follow its schema")
+            && err.contains("/rules/0/match/all/0/operator"),
+        "{err}"
+    );
 
     let good_utf8_encoding = "
     - id: 800107
@@ -323,6 +328,11 @@ fn operator_validation_in_compiler() {
       severity: warning
       metadata: { source: organization, license: Apache-2.0 }
     ";
+    // the IR schema refuses a value on validate_utf8_encoding (not: required value)
     let err = ir(bad_utf8_encoding).unwrap_err();
-    assert!(err.contains("rule 800108: validate_utf8_encoding takes no value"));
+    assert!(
+        err.contains("rule IR does not follow its schema")
+            && err.contains("/rules/0/match/all/0/operator"),
+        "{err}"
+    );
 }
