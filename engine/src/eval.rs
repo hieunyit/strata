@@ -785,7 +785,21 @@ fn rule_matches(
         match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m, cand) => {
-                if let (true, Some(cand)) = (m, cand) {
+                if let (true, Some(mut cand)) = (m, cand) {
+                    // matched_vars holds values the previous condition matched:
+                    // they keep that condition's name, so a password matched
+                    // through a chain stays recognized as one
+                    if let (
+                        Candidate::Value { var: v, name, .. },
+                        Some(Candidate::Value {
+                            name: prev_name, ..
+                        }),
+                    ) = (&mut cand, &best_candidate)
+                        && *v == var("matched_vars")
+                        && name.is_none()
+                    {
+                        name.clone_from(prev_name);
+                    }
                     let should_replace = best_candidate.is_none()
                         || best_candidate.as_ref().is_some_and(|b| b.is_boilerplate())
                         || !cand.is_boilerplate();
