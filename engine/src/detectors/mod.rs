@@ -5,11 +5,14 @@ pub mod injection;
 pub mod protocol;
 pub mod response;
 
-/// One rule firing: its fixed id, the score it adds, and whether it blocks
-/// on its own (ambiguous requests are blocked without scoring).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One rule firing: its fixed id, the score it adds, whether it blocks
+/// on its own, and the match details for event reporting.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Violation {
     pub rule: u32,
     pub score: i32,
     pub block_alone: bool,
+    pub layer: &'static str,
+    pub field: String,
+    pub snippet: Vec<u8>,
 }

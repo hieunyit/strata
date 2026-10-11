@@ -340,8 +340,8 @@ pub unsafe extern "C" fn strata_tx_new(
                 Some(Arc::from_raw(engine.cast_const().cast::<Engine>()))
             }
         };
-        let (node, flags, client) = if conn.is_null() {
-            (&[][..], 0, &[][..])
+        let (node, flags, client, identity, request_id) = if conn.is_null() {
+            (&[][..], 0, &[][..], &[][..], &[][..])
         } else {
             // SAFETY: conn is non-NULL and valid for the call.
             let c = unsafe { &*conn };
@@ -349,10 +349,14 @@ pub unsafe extern "C" fn strata_tx_new(
                 unsafe { bytes(c.node_id) }.unwrap_or(&[]),
                 c.flags,
                 unsafe { bytes(c.client_addr) }.unwrap_or(&[]),
+                unsafe { bytes(c.identity) }.unwrap_or(&[]),
+                unsafe { bytes(c.request_id) }.unwrap_or(&[]),
             )
         };
         let mut tx = Tx::new(engine, node, flags);
         tx.set_client_addr(client);
+        tx.set_identity(identity);
+        tx.set_request_id(request_id);
         // SAFETY: policy is valid for the call.
         tx.set_policy(unsafe { bytes(policy) }.unwrap_or(&[]));
         Box::into_raw(Box::new(tx)).cast::<TxHandle>()
@@ -617,14 +621,35 @@ pub unsafe extern "C" fn strata_tx_time_us(tx: *const TxHandle) -> u64 {
 
 /// Serializes the transaction's event into `dst` (up to `cap` bytes) and
 /// returns the full event size; nothing is written when it exceeds `cap`.
-/// Returns 0 when there is no event. The stub never produces events.
+/// Returns 0 when there is no event (clean requests without findings).
+/// An event is produced when a request is blocked (carrying a Block ID `STR-…`),
+/// in shadow mode when it would be blocked (`EVT-…`), on engine errors (`EVT-…`),
+/// or on response findings. The serialized event never exceeds 8 KB.
+/// Pass `dst == NULL && cap == 0` to query the event size.
 ///
 /// # Safety
-/// `tx` must be NULL or live; `dst` must point to `cap` writable bytes.
+/// `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or NULL if cap is 0).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_tx_event(tx: *const TxHandle, dst: *mut u8, cap: usize) -> usize {
-    let _ = (tx, dst, cap);
-    0
+    if tx.is_null() {
+        return 0;
+    }
+    // SAFETY: live handle per contract.
+    let t = unsafe { &*tx.cast::<Tx>() };
+    guard(0, || {
+        let Some(ev_bytes) = t.encode_event() else {
+            return 0;
+        };
+        let len = ev_bytes.len();
+        if dst.is_null() || cap < len {
+            return len;
+        }
+        // SAFETY: cap >= len and dst is non-NULL and writable per contract.
+        unsafe {
+            std::ptr::copy_nonoverlapping(ev_bytes.as_ptr(), dst, len);
+        }
+        len
+    })
 }
 
 /// Frees a transaction. NULL is ignored; set your pointer to NULL afterwards.
