@@ -66,6 +66,15 @@ add_block_preprocessor(sub {
         $block->set_value("error_log", undef);
     }
 
+    # A short timeout on a stream that never ends ("--- abort") is how long
+    # the test reads before it stops; under Valgrind the first bytes alone
+    # take longer than that.
+    if ($ENV{TEST_NGINX_USE_VALGRIND} && defined $block->abort
+        && defined $block->timeout && $block->timeout < 5)
+    {
+        $block->set_value("timeout", 5);
+    }
+
     if (!defined $block->request && !defined $block->raw_request
         && !defined $block->must_die)
     {
