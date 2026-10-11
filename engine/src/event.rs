@@ -13,6 +13,7 @@ pub const MAX_DATAGRAM: usize = 8192;
 
 /// Max snippet length in a single Match (128 bytes).
 pub const MAX_SNIPPET_LEN: usize = 128;
+pub const MASK_WINDOW: usize = 8192;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -66,19 +67,9 @@ pub struct EventData<'a> {
     pub matches: &'a [MatchData<'a>],
 }
 
-/// Checks if a field name (e.g. `ARGS:password`, `REQUEST_HEADERS:X-Api-Key`, `REQUEST_COOKIES:session`)
-/// targets a sensitive parameter, header, or cookie by exact match on the key name after ':'.
-pub fn is_sensitive_target(field: &str) -> bool {
-    let upper = field.to_ascii_uppercase();
-    if upper.starts_with("REQUEST_COOKIES") {
-        return true;
-    }
-    let key = match field.split_once(':') {
-        Some((_, k)) => k.trim(),
-        None => field.trim(),
-    };
+fn is_sensitive_word(word: &str) -> bool {
     matches!(
-        key.to_ascii_lowercase().as_str(),
+        word.to_ascii_lowercase().as_str(),
         "password"
             | "passwd"
             | "pwd"
@@ -98,6 +89,24 @@ pub fn is_sensitive_target(field: &str) -> bool {
             | "x-api-key"
             | "x-auth-token"
     )
+}
+
+/// Checks if a field name (e.g. `ARGS:password`, `REQUEST_HEADERS:X-Api-Key`, `REQUEST_COOKIES:session`)
+/// targets a sensitive parameter, header, or cookie by exact match on the key name after ':'.
+pub fn is_sensitive_target(field: &str) -> bool {
+    let upper = field.to_ascii_uppercase();
+    if upper.starts_with("REQUEST_COOKIES") {
+        return true;
+    }
+    let key = match field.split_once(':') {
+        Some((_, k)) => k.trim(),
+        None => field.trim(),
+    };
+    if is_sensitive_word(key) {
+        return true;
+    }
+    key.rsplit_once('.')
+        .is_some_and(|(_, last)| is_sensitive_word(last.trim()))
 }
 
 /// Masks CCCD (12 digits) and JWT tokens across the entire snippet, preserving length.
@@ -125,12 +134,14 @@ pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
 }
 
 /// Sanitizes and masks a candidate snippet for a given field name.
-/// Performs full-content masking before truncation to prevent token leakage.
+/// Performs bounded-window masking before truncation to prevent token leakage.
 pub fn prepare_snippet(field: &str, raw_snippet: &[u8]) -> Vec<u8> {
     if is_sensitive_target(field) {
         return Vec::new();
     }
-    let masked = mask_snippet(raw_snippet);
+    let window_len = raw_snippet.len().min(MASK_WINDOW);
+    let window = &raw_snippet[..window_len];
+    let masked = mask_snippet(window);
     masked[..masked.len().min(MAX_SNIPPET_LEN)].to_vec()
 }
 
@@ -249,6 +260,17 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
     }
 }
 
+fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Pure encoding function taking borrowed `EventData` and returning serialized wire format
 /// capped at `MAX_DATAGRAM` (8192 bytes).
 pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
@@ -271,9 +293,14 @@ pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
         return buf;
     }
 
-    // Step 2: Progressively truncate path
+    // Step 2: Progressively truncate path at character boundaries
     while buf.len() > MAX_DATAGRAM && cur.path.len() > 16 {
-        cur.path = &cur.path[..cur.path.len().saturating_sub(64).max(16)];
+        let target = cur.path.len().saturating_sub(64).max(16);
+        let new_path = truncate_str(cur.path, target);
+        if new_path.len() == cur.path.len() {
+            break;
+        }
+        cur.path = new_path;
         buf.clear();
         encode_raw(&cur, &mut buf);
     }
@@ -283,17 +310,17 @@ pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
 
     // Step 3: Progressively truncate host / identity / request_id if hostile
     if cur.host.len() > 32 {
-        cur.host = &cur.host[..32];
+        cur.host = truncate_str(cur.host, 32);
         buf.clear();
         encode_raw(&cur, &mut buf);
     }
     if buf.len() > MAX_DATAGRAM && cur.identity.len() > 32 {
-        cur.identity = &cur.identity[..32];
+        cur.identity = truncate_str(cur.identity, 32);
         buf.clear();
         encode_raw(&cur, &mut buf);
     }
     if buf.len() > MAX_DATAGRAM && cur.request_id.len() > 32 {
-        cur.request_id = &cur.request_id[..32];
+        cur.request_id = truncate_str(cur.request_id, 32);
         buf.clear();
         encode_raw(&cur, &mut buf);
     }
@@ -432,5 +459,73 @@ mod tests {
             "encoded len was {}",
             encoded.len()
         );
+    }
+
+    #[test]
+    fn test_jwt_in_first_8kb_masked_and_8mb_not_copied_in_full() {
+        let mut huge = b"token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U rest".to_vec();
+        huge.resize(8 * 1024 * 1024, b'A');
+        assert_eq!(huge.len(), 8 * 1024 * 1024);
+
+        let snippet = prepare_snippet("ARGS:payload", &huge);
+        assert!(snippet.len() <= MAX_SNIPPET_LEN);
+        // JWT is within first 8KB, so it must be masked
+        assert!(!snippet.windows(3).any(|w| w == b"eyJ"));
+        assert!(snippet.contains(&b'*'));
+    }
+
+    #[test]
+    fn test_json_sensitive_subpaths() {
+        assert!(is_sensitive_target("ARGS:json.user.password"));
+        assert_eq!(
+            prepare_snippet("ARGS:json.user.password", b"secret123"),
+            b""
+        );
+
+        assert!(!is_sensitive_target("ARGS:json.user.passport"));
+        assert_eq!(
+            prepare_snippet("ARGS:json.user.passport", b"pass123"),
+            b"pass123"
+        );
+
+        assert!(is_sensitive_target("ARGS:password"));
+        assert_eq!(prepare_snippet("ARGS:password", b"secret123"), b"");
+    }
+
+    #[test]
+    fn test_vietnamese_path_host_truncation_no_panic() {
+        let matches: Vec<MatchData<'static>> = (0..200)
+            .map(|i| MatchData {
+                rule_id: 100_000 + i as u32,
+                layer: "managed",
+                field: "ARGS:arg",
+                snippet: b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            })
+            .collect();
+
+        // Multi-byte UTF-8 string (Vietnamese)
+        let long_vn_path = "/đường_dẫn_kiểm_thử/tiếng_việt/".repeat(100);
+        let long_vn_host = "máy_chủ_thử_nghiệm.ví_dụ.vn".repeat(10);
+        let ev = EventData {
+            block_id: "STR-1234-5678-ABCD-EF01",
+            time_unix_ms: 1_700_000_000_000,
+            node_id: "web-node-01",
+            request_id: "req-12345",
+            policy_id: "example-policy",
+            bundle_version: 1,
+            client_ip: "192.0.2.1",
+            identity: "user-alice",
+            method: "POST",
+            host: &long_vn_host,
+            path: &long_vn_path,
+            status: 403,
+            action: Action::Block,
+            layer_scores: &[("anomaly", 100), ("protocol", 50)],
+            rule_ids: &[100001, 100002],
+            matches: &matches,
+        };
+
+        let encoded = encode(&ev);
+        assert!(encoded.len() <= MAX_DATAGRAM);
     }
 }
