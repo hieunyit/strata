@@ -52,4 +52,4 @@ Bộ kiểm chứng chung: Rust (fmt, clippy `-D warnings`, test), header, fixtu
 
 ## Valgrind
 
-(điền sau khi chạy xong)
+Chạy lại 11/10/2026 trên `main` (sau đợt gộp nhánh), `make test-nginx-valgrind`: 1.30.5 và 1.31.6, mỗi bản 329 subtest (`t/004-reload.t` và các test HTTP/2 bỏ qua dưới Valgrind theo thiết kế), **0** báo cáo Memcheck, không có vgcore. Lần chạy đầu có TEST 12 của `t/050-response.t` hết giờ (đọc luồng SSE 0,5 giây, quá ngắn dưới Valgrind, không phải lỗi bộ nhớ); `Test::Strata` nay nâng timeout của block `--- abort` lên 5 giây khi chạy Valgrind.

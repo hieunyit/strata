@@ -41,7 +41,12 @@ Thay đổi interface chung, đều là **thêm vào cuối** (mã cũ giữ ngh
 - 941180-7: `document.cookie` trong `REQUEST_FILENAME` khớp, upstream mong không khớp.
 - FP của CRS PL1 trên corpus benign: 930120 với `C:/Program Files`, 942100 với `50% off -- today only` (thư viện libinjection C gốc cho cùng kết quả, `make libinjection-diff`). Xử lý bằng exclusion của policy.
 
-## Còn lại
+## Duyệt và kiểm chứng thêm (11/10, chiều)
 
-- Người luồng S duyệt từng rule trong `rules/protocol/` (AGENTS.md mục 3).
+- Duyệt rule: `rules/reviews/2026-10-11-protocol-and-crs.md`. Sửa 7 rule protocol; sửa importer để rule điều khiển `skip:N` của CRS (920539 tắt 920540 với body JSON) thành điều kiện, qua target mới `body_processor`; runner go-ftw thêm Content-Length như go-ftw (nhóm 920 hết test thất bại).
+- Fuzz 1 giờ hai target mới (`engine/fuzz/run.sh 3600 bodies body_eval`): 0 crash; `bodies` 56,6 triệu lần, `body_eval` 3,83 triệu lần; RSS đỉnh 33–36 MB.
+- Valgrind 1.30.5 và 1.31.6: 0 báo cáo (xem `w06-response-layer-tokenizer.md`). Test::Nginx và ASan + UBSan pass trên cả hai bản với engine mới.
+- Lab dựng lại với engine mới: `lab-smoke`, `e2e-lab` (deploy → rollout → chặn trong 4–5 giây) và `e2e-go` đều pass.
+
+## Còn lại
 - Recall trên corpus tấn công (`make test-rules`): command-injection 95%, path-traversal 86%, SQLi 72%, XSS 53% số payload có rule khớp; phần thiếu chủ yếu thuộc PL2+ (W17).
