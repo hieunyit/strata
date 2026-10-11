@@ -78,6 +78,7 @@ pub const VARS: &[&str] = &[
     "query_string",
     "xml",
     "xml_attributes",
+    "body_processor",
 ];
 pub const TRANSFORMS: &[&str] = &[
     "url_decode_uni",

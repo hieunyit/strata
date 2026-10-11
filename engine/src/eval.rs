@@ -6,7 +6,8 @@
 //! its fields: `json.a.0` for JSON), args_get (query), args_post (body
 //! fields), args_names, files and files_names (uploads of a multipart
 //! body), xml and xml_attributes (an XML body's text and attribute values),
-//! request_body (the raw body as
+//! body_processor (URLENCODED, MULTIPART, JSON, XML or empty, from the
+//! Content-Type, also at stage request_headers), request_body (the raw body as
 //! inspected), request_headers[_names], request_cookies[_names],
 //! remote_addr, protocol, request_line, query_string (raw), and
 //! matched_vars: the values (transformed) for which the previous condition
@@ -156,6 +157,7 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "query_string",
     "xml",
     "xml_attributes",
+    "body_processor",
 ];
 
 /// Operators and transformations this evaluator runs; a rule using
@@ -196,14 +198,21 @@ pub struct Request<'a> {
     pub body: &'a [u8],
 }
 
-/// Whether the body is `application/x-www-form-urlencoded`.
-fn form_body(headers: &[(&[u8], &[u8])]) -> bool {
-    const FORM: &[u8] = b"application/x-www-form-urlencoded";
-    headers.iter().any(|(k, v)| {
-        k.eq_ignore_ascii_case(b"content-type")
-            && trim(v).len() >= FORM.len()
-            && trim(v)[..FORM.len()].eq_ignore_ascii_case(FORM)
-    })
+/// The body processor for a Content-Type, named as ModSecurity's
+/// REQBODY_PROCESSOR: URLENCODED, MULTIPART, JSON, XML, or empty (the body
+/// is only `request_body`).
+pub fn body_processor(ct: &[u8]) -> &'static [u8] {
+    if xml::media_type(ct).eq_ignore_ascii_case(b"application/x-www-form-urlencoded") {
+        b"URLENCODED"
+    } else if json::is_json(ct) {
+        b"JSON"
+    } else if xml::is_xml(ct) {
+        b"XML"
+    } else if multipart::boundary(ct).is_some() {
+        b"MULTIPART"
+    } else {
+        b""
+    }
 }
 
 /// The request's Content-Type (empty without one).
@@ -283,6 +292,8 @@ fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
 struct Data<'a> {
     req: &'a Request<'a>,
     full_uri: Cow<'a, [u8]>,
+    /// how the body is parsed (ModSecurity's REQBODY_PROCESSOR)
+    processor: &'static [u8],
     /// method, raw URI and protocol, as on the wire
     request_line: Vec<u8>,
     /// query fields, then body fields: args_get is args[..n_get]
@@ -385,6 +396,8 @@ fn values<'d>(
             .filter(|(n, _)| keyed(n))
             .map(|(n, _)| &**n)
             .collect()
+    } else if v == var("body_processor") {
+        vec![d.processor]
     } else if v == var("xml") {
         d.xml.iter().map(|x| &x.text[..]).collect()
     } else if v == var("xml_attributes") {
@@ -632,31 +645,34 @@ pub fn evaluate(
     let mut xml_body = None;
     let room = MAX_ARGS.saturating_sub(n_get);
     let ct = content_type(req.headers);
-    if req.body.is_empty() {
-    } else if form_body(req.headers) {
-        args.extend(parse_query(req.body).into_iter().take(room));
-    } else if json::is_json(ct) {
-        args.extend(
-            json::args(req.body, room)
-                .into_iter()
-                .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))),
-        );
-    } else if xml::is_xml(ct) {
-        xml_body = Some(xml::parse(req.body));
-    } else if let Some(b) = multipart::boundary(ct) {
-        for p in multipart::parts(req.body, b) {
-            match p.filename {
-                Some(f) => files.push((p.name, f)),
-                None if args.len() < MAX_ARGS => {
-                    args.push((Cow::Borrowed(p.name), Cow::Borrowed(p.content)))
+    let processor = body_processor(ct);
+    if !req.body.is_empty() {
+        match processor {
+            b"URLENCODED" => args.extend(parse_query(req.body).into_iter().take(room)),
+            b"JSON" => args.extend(
+                json::args(req.body, room)
+                    .into_iter()
+                    .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))),
+            ),
+            b"XML" => xml_body = Some(xml::parse(req.body)),
+            b"MULTIPART" => {
+                for p in multipart::parts(req.body, multipart::boundary(ct).unwrap_or(b"")) {
+                    match p.filename {
+                        Some(f) => files.push((p.name, f)),
+                        None if args.len() < MAX_ARGS => {
+                            args.push((Cow::Borrowed(p.name), Cow::Borrowed(p.content)))
+                        }
+                        None => {}
+                    }
                 }
-                None => {}
             }
+            _ => {}
         }
     }
     let d = Data {
         req,
         full_uri,
+        processor,
         request_line: [req.method, b" ", req.raw_uri, b" ", req.proto].concat(),
         args,
         n_get,
@@ -717,6 +733,25 @@ mod tests {
         );
         for v in SUPPORTED_VARS {
             assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
+        }
+    }
+
+    #[test]
+    fn body_processor_by_content_type() {
+        for (ct, want) in [
+            (
+                &b"application/x-www-form-urlencoded; charset=utf-8"[..],
+                &b"URLENCODED"[..],
+            ),
+            (b"application/json", b"JSON"),
+            (b"application/problem+json", b"JSON"),
+            (b"text/xml", b"XML"),
+            (b"multipart/form-data; boundary=x", b"MULTIPART"),
+            (b"multipart/form-data", b""),
+            (b"text/plain", b""),
+            (b"", b""),
+        ] {
+            assert_eq!(body_processor(ct), want, "{}", String::from_utf8_lossy(ct));
         }
     }
 
