@@ -10,6 +10,12 @@ rule:
       - var: request_headers
         key: X-HTTP-Method-Override
         count: true
+      - var: request_headers
+        key: X-HTTP-Method
+        count: true
+      - var: request_headers
+        key: X-Method-Override
+        count: true
       operator:
         type: gt
         value: 0
@@ -28,6 +34,20 @@ tests:
       User-Agent: example-client/1.0
       Accept: application/json
       X-HTTP-Method-Override: DELETE
+  - method: POST
+    uri: /v1/items/7
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-HTTP-Method: DELETE
+  - method: POST
+    uri: /v1/items/7
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Method-Override: PUT
   no_match:
   - method: POST
     uri: /v1/items/7

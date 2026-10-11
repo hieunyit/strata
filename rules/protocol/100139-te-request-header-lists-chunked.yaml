@@ -1,7 +1,7 @@
 # Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
 rule:
   id: 100139
-  name: TE request header other than trailers
+  name: TE request header lists chunked
   layer: protocol
   stage: request_headers
   match:
@@ -11,8 +11,7 @@ rule:
         key: TE
       operator:
         type: rx
-        value: '(?i)^\s*trailers\s*$'
-        negate: true
+        value: '(?i)(?:^|,)\s*chunked\s*(?:[;,]|$)'
   score: 20
   severity: notice
   metadata:
@@ -27,6 +26,12 @@ tests:
       User-Agent: example-client/1.0
       Accept: application/json
       TE: chunked
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      TE: 'trailers, chunked'
   no_match:
   - uri: /
     headers:
@@ -34,6 +39,12 @@ tests:
       User-Agent: example-client/1.0
       Accept: application/json
       TE: trailers
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      TE: 'trailers, deflate;q=0.5'
   - uri: /
     headers:
       Host: api.example.test

@@ -10,6 +10,9 @@ rule:
       - var: request_headers
         key: X-Original-URL
         count: true
+      - var: request_headers
+        key: X-Rewrite-URL
+        count: true
       operator:
         type: gt
         value: 0
@@ -27,6 +30,12 @@ tests:
       User-Agent: example-client/1.0
       Accept: application/json
       X-Original-URL: /admin
+  - uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      X-Rewrite-URL: /admin
   no_match:
   - uri: /
     headers:

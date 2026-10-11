@@ -11,8 +11,8 @@ rule:
       operator:
         type: rx
         value: '(?i)^[^?#]*%2f'
-  score: 30
-  severity: warning
+  score: 20
+  severity: notice
   metadata:
     source: strata
     license: Apache-2.0

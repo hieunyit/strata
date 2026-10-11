@@ -17,7 +17,7 @@ rule:
         key: Content-Type
       operator:
         type: rx
-        value: '(?i)charset\s*=\s*[\"'']?(?:utf-8|us-ascii|iso-8859-1)[\"'']?\s*(?:;|$)'
+        value: '(?i)charset\s*=\s*[\"'']?(?:utf-?8|us-ascii|iso-8859-1)[\"'']?\s*(?:;|$)'
         negate: true
   score: 30
   severity: warning
@@ -51,6 +51,14 @@ tests:
       User-Agent: example-client/1.0
       Accept: application/json
       Content-Type: 'application/json; charset=UTF-8'
+    body: '{}'
+  - method: POST
+    uri: /
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: 'application/json; charset=utf8'
     body: '{}'
   - method: POST
     uri: /
