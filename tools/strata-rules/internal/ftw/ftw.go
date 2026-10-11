@@ -4,7 +4,7 @@
 //
 // Each imported rule is compiled alone into a bundle and its tests are
 // sent through strata-eval: "match" passes when the rule is among the
-// verdict's rules, "no_match" when it is not. A rule alone, because the
+// verdict's rules, "no_match" when it is not. Content-Length is added to a request with a body, as go-ftw does. A rule alone, because the
 // engine stops evaluating once a request is blocked, while go-ftw looks
 // for the rule in the log of a full CRS that blocks at the end of the
 // phase.
@@ -221,7 +221,7 @@ func runRule(tools runner.Tools, rule map[string]any, idx []int, results []Resul
 	defer b.Close()
 	reqs := make([]runner.Request, len(idx))
 	for k, i := range idx {
-		reqs[k] = ruletest.ToRequest(results[i].Name, results[i].Request)
+		reqs[k] = withLength(ruletest.ToRequest(results[i].Name, results[i].Request))
 	}
 	vs, err := tools.Eval(b, reqs)
 	if err != nil {
@@ -246,6 +246,27 @@ func runRule(tools runner.Tools, rule map[string]any, idx []int, results []Resul
 		}
 	}
 	return nil
+}
+
+// withLength adds Content-Length to a request with a body and no
+// Content-Length or Transfer-Encoding, as go-ftw (and any HTTP client)
+// does: the converted tests leave it out.
+func withLength(r runner.Request) runner.Request {
+	if r.Body == "" {
+		return r
+	}
+	for k := range r.Headers {
+		if strings.EqualFold(k, "Content-Length") || strings.EqualFold(k, "Transfer-Encoding") {
+			return r
+		}
+	}
+	h := make(map[string]any, len(r.Headers)+1)
+	for k, v := range r.Headers {
+		h[k] = v
+	}
+	h["Content-Length"] = strconv.Itoa(len(r.Body))
+	r.Headers = h
+	return r
 }
 
 // Groups totals results per group, in name order.

@@ -103,3 +103,17 @@ func TestRunCountsEveryTestOfTheParanoiaLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestWithLength(t *testing.T) {
+	r := withLength(runner.Request{Body: "a=1", Headers: map[string]any{"Host": "x"}})
+	if r.Headers["Content-Length"] != "3" {
+		t.Errorf("%v", r.Headers)
+	}
+	r = withLength(runner.Request{Body: "a=1", Headers: map[string]any{"transfer-encoding": "chunked"}})
+	if _, ok := r.Headers["Content-Length"]; ok {
+		t.Errorf("chunked: %v", r.Headers)
+	}
+	if r := withLength(runner.Request{}); r.Headers != nil {
+		t.Errorf("no body: %v", r.Headers)
+	}
+}

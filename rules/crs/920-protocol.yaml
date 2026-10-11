@@ -512,6 +512,12 @@ rules:
             - var: request_headers
             - var: args
             - var: args_names
+        - operator:
+            negate: true
+            type: streq
+            value: JSON
+          targets:
+            - var: body_processor
     score: 100
     severity: critical
     paranoia_level: 1

@@ -21,7 +21,7 @@ SecRule REQUEST_METHOD "@rx ^(?:GET|HEAD)$" \
         setvar:'tx.inbound_anomaly_score_pl1=+%{tx.critical_anomaly_score}'"
 
 SecRule &REQUEST_HEADERS:Host|ARGS|!ARGS:foo "@eq 0" "id:920280,phase:1,pass,nolog"
-SecRule REQUEST_URI "attack" "id:900100,phase:2,deny"
+SecRule REQUEST_URI "attack" "id:900100,phase:2,deny,skip:2"
 SecAction "id:900990,phase:1,pass,t:none,nolog,setvar:tx.crs_setup_version=4250"
 SecMarker "END-REQUEST-920"
 `
@@ -65,6 +65,9 @@ func TestParseRules(t *testing.T) {
 
 	if got := f.Rules[1].Variables(); !reflect.DeepEqual(got, []string{"&REQUEST_HEADERS:Host", "ARGS", "!ARGS:foo"}) {
 		t.Errorf("negated and counted variables: %v", got)
+	}
+	if f.Rules[2].Skip != 2 || f.Rules[0].Skip != 0 {
+		t.Errorf("skip: %d %d", f.Rules[2].Skip, f.Rules[0].Skip)
 	}
 	if f.Rules[2].Chain[0].Operator != "rx" {
 		t.Errorf("an operator without @name is rx, got %q", f.Rules[2].Chain[0].Operator)

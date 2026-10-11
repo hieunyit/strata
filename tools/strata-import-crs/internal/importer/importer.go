@@ -41,7 +41,13 @@ var vars = map[string]string{
 	"REQUEST_METHOD": "method", "REQUEST_PROTOCOL": "protocol", "REMOTE_ADDR": "remote_addr",
 	"REQUEST_BODY": "request_body", "FILES": "files", "FILES_NAMES": "files_names",
 	"REQUEST_LINE": "request_line", "QUERY_STRING": "query_string", "MATCHED_VARS": "matched_vars",
+	"REQBODY_PROCESSOR": "body_processor",
 }
+
+// Targets with exactly one value: a condition on them can be negated
+// exactly, so a control rule "skip the next rules when X" becomes "not X"
+// on those rules.
+var singleValued = map[string]bool{"body_processor": true, "method": true, "protocol": true}
 
 // XPath selectors of XML the engine reads: the document text and every
 // attribute value; another selector is dropped from the rule (noted),
@@ -258,6 +264,44 @@ func dataFile(p string) ([]string, error) {
 	return out, sc.Err()
 }
 
+// skipGate is the condition under which the rules a skip:N control rule
+// skips still run: its single condition, negated. nil when that cannot be
+// said exactly (a chain, a target with several values).
+func skipGate(r seclang.Rule, dataDir string) map[string]any {
+	if r.Directive != "SecRule" || len(r.Chain) != 1 {
+		return nil
+	}
+	var notes []string
+	c, reason := convertLink(r.Chain[0], dataDir, &notes)
+	if reason != "" || len(notes) > 0 {
+		return nil
+	}
+	for _, t := range c["targets"].([]map[string]any) {
+		if !singleValued[t["var"].(string)] || t["count"] != nil || t["key"] != nil {
+			return nil
+		}
+	}
+	op := c["operator"].(map[string]any)
+	if op["negate"] == true {
+		delete(op, "negate")
+	} else {
+		op["negate"] = true
+	}
+	return c
+}
+
+// copyCond copies a condition so each gated rule has its own.
+func copyCond(c map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range c {
+		if m, ok := v.(map[string]any); ok {
+			v = copyCond(m)
+		}
+		out[k] = v
+	}
+	return out
+}
+
 func hasAction(r seclang.Rule, name string) bool {
 	for _, a := range r.Actions() {
 		if a == name {
@@ -337,16 +381,38 @@ func Import(groups []Group, opts Options) (*Result, error) {
 			return nil, fmt.Errorf("%s: %v", g.File, f.Errors)
 		}
 		im := &Imported{Group: g}
+		// a control rule with skip:N gates the N rules after it: they get
+		// the negation of its condition, or are left out when that cannot
+		// be said exactly
+		var gate map[string]any
+		gateFrom, gateLeft := 0, 0
 		for _, r := range f.Rules {
 			if r.ID == 0 {
 				continue
 			}
 			im.Read++
+			gated, gatedBy := gate, gateFrom
+			if gateLeft > 0 {
+				gateLeft--
+			} else {
+				gatedBy = 0
+			}
+			if r.Skip > 0 && !hasAction(r, "block") && !hasAction(r, "deny") {
+				gate, gateFrom, gateLeft = skipGate(r, filepath.Join(opts.CRSDir, "rules")), r.ID, r.Skip
+			}
 			var notes []string
 			ir, reason := convert(g, r, opts, &notes)
+			if reason == "" && gatedBy != 0 && gated == nil {
+				reason = fmt.Sprintf("skipped by control rule %d under a condition the IR cannot negate", gatedBy)
+			}
 			if reason != "" {
 				res.Skipped = append(res.Skipped, Skip{Group: g.File, Rule: r.ID, Reason: reason})
 				continue
+			}
+			if gatedBy != 0 {
+				m := ir["match"].(map[string]any)
+				m["all"] = append(m["all"].([]any), copyCond(gated))
+				notes = append(notes, fmt.Sprintf("condition added from control rule %d: it skips this rule when it matches", gatedBy))
 			}
 			for _, n := range notes {
 				im.Notes = append(im.Notes, Note{Rule: r.ID, Text: n})

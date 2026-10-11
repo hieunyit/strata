@@ -28,6 +28,11 @@ SecRule ARGS "@rx a" "id:942106,phase:2,block,t:sqlHexDecode,severity:'CRITICAL'
 SecRule ARGS:/^id/ "@rx a" "id:942107,phase:2,block,severity:'CRITICAL'"
 SecRule &REQUEST_HEADERS:Host "@eq 0" "id:920280,phase:1,block,severity:'WARNING'"
 SecRule ARGS|XML:/*|XML://@*|XML:/a/b "@rx evil" "id:941100,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule REQBODY_PROCESSOR "@streq JSON" "id:920539,phase:2,pass,nolog,skip:1"
+SecRule ARGS "@rx (?i)\x5cu[0-9a-f]{4}" "id:920540,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule ARGS "@rx a" "id:920541,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule ARGS "@rx skip" "id:920542,phase:2,pass,nolog,skip:1"
+SecRule ARGS "@rx b" "id:920543,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
 SecRule ARGS "@pm java.lang" "id:944120,phase:2,block,t:none,t:lowercase,severity:'CRITICAL',tag:'paranoia-level/1',chain"
     SecRule MATCHED_VARS "@rx (?:runtime|processbuilder)" "t:none"
 `
@@ -140,6 +145,21 @@ func TestXMLSelectors(t *testing.T) {
 	}
 }
 
+func TestSkipGateBecomesACondition(t *testing.T) {
+	res := importConf(t)
+	c := conds(rule(t, res, 920540))
+	want := map[string]any{
+		"targets":  []map[string]any{{"var": "body_processor"}},
+		"operator": map[string]any{"type": "streq", "value": "JSON", "negate": true},
+	}
+	if len(c) != 2 || !reflect.DeepEqual(c[1], want) {
+		t.Errorf("920540: %+v", c)
+	}
+	if c := conds(rule(t, res, 920541)); len(c) != 1 {
+		t.Errorf("skip:1 gates one rule only: %+v", c)
+	}
+}
+
 func TestChainOnMatchedVars(t *testing.T) {
 	c := conds(rule(t, importConf(t), 944120))
 	if len(c) != 2 || !reflect.DeepEqual(c[1].(map[string]any)["targets"], []map[string]any{{"var": "matched_vars"}}) {
@@ -157,6 +177,9 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 		942105: "macro in the operator argument",
 		942106: "transformation sqlHexDecode",
 		942107: "pattern selector ARGS:/^id/",
+		920539: "does not block or score",
+		920542: "does not block or score",
+		920543: "skipped by control rule 920542",
 	}
 	got := map[int]string{}
 	for _, s := range res.Sorted() {
@@ -167,7 +190,7 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 			t.Errorf("%d: reason %q, want %q", id, got[id], w)
 		}
 	}
-	if len(got) != len(want) || res.Groups[0].Read != len(want)+6 || len(res.Groups[0].Rules) != 6 {
+	if len(got) != len(want) || res.Groups[0].Read != len(want)+8 || len(res.Groups[0].Rules) != 8 {
 		t.Errorf("read %d, imported %d, skipped %v", res.Groups[0].Read, len(res.Groups[0].Rules), got)
 	}
 }

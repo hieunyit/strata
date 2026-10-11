@@ -303,3 +303,4 @@ Of the 392 rules, 233 are CRS plumbing (paranoia level checks, initialization: n
 
 | Rule | Change |
 | --- | --- |
+| 920540 | condition added from control rule 920539: it skips this rule when it matches |

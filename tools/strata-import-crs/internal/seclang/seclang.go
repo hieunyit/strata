@@ -35,6 +35,7 @@ type Rule struct {
 	Severity  string
 	Msg       string
 	Tags      []string
+	Skip      int    // skip:N, the number of rules skipped when the rule matches
 	Chain     []Link // len >= 1 for SecRule; [0] for SecAction holds its actions
 }
 
@@ -226,6 +227,8 @@ func fillMeta(r *Rule, acts parser.IActionsContext) {
 			r.Msg = actionValue(a)
 		case "tag":
 			r.Tags = append(r.Tags, actionValue(a))
+		case "skip":
+			r.Skip, _ = strconv.Atoi(actionValue(a))
 		}
 	}
 }
