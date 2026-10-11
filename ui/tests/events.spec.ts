@@ -232,6 +232,25 @@ test.describe('Strata WAF - Security Events Management', () => {
     await expect(page.getByText('EVT-7X2W-5M1Q-9H8K-L0P4')).toBeVisible();
   });
 
+  test('filters events by client IP and time window', async ({ page }) => {
+    const searches: Array<Record<string, unknown>> = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/v1/events:search')) searches.push(r.postDataJSON() || {});
+    });
+    await page.getByTestId('client-ip-filter-input').fill('203.0.113');
+    await page.getByTestId('time-preset-select').selectOption('1h');
+    const before = Date.now();
+    await page.getByTestId('apply-filters-btn').click();
+
+    await expect(page.getByTestId('event-row')).toHaveCount(1);
+    await expect(page.getByText('STR-3B9Y-K8P2-WM4C-9D0R')).toBeVisible();
+    const last = searches[searches.length - 1];
+    expect(last.client_ip).toBe('203.0.113');
+    const span = Date.parse(String(last.to)) - Date.parse(String(last.from));
+    expect(span).toBe(60 * 60 * 1000);
+    expect(Math.abs(Date.parse(String(last.to)) - before)).toBeLessThan(60 * 1000);
+  });
+
   test('fleet and policies pages show the API data', async ({ page }) => {
     await page.route('**/v1/nodes', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({ nodes: [
