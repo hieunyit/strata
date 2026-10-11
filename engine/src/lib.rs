@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod block_id;
+pub mod budget;
 pub mod bundle;
 pub mod detectors;
 pub mod engine;

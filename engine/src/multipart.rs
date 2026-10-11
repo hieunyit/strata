@@ -20,6 +20,40 @@ pub struct Part<'a> {
     pub content: &'a [u8],
 }
 
+fn position_8k<F>(slice: &[u8], mut pred: F) -> Option<usize>
+where
+    F: FnMut(u8) -> bool,
+{
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if let Some(i) = slice[curr..end].iter().position(|&c| pred(c)) {
+            return Some(curr + i);
+        }
+        curr = end;
+    }
+    None
+}
+
+fn find_8k(
+    finder: &memchr::memmem::Finder<'_>,
+    haystack: &[u8],
+    needle_len: usize,
+) -> Option<usize> {
+    let mut curr = 0;
+    while curr < haystack.len() {
+        let end = (curr + 8192 + needle_len.saturating_sub(1)).min(haystack.len());
+        if end < curr + needle_len {
+            break;
+        }
+        if let Some(pos) = finder.find(&haystack[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr += 8192;
+    }
+    None
+}
+
 /// The boundary of a `multipart/form-data` Content-Type, if it is one.
 pub fn boundary(content_type: &[u8]) -> Option<&[u8]> {
     let mut params = content_type.split(|&c| c == b';');
@@ -29,7 +63,7 @@ pub fn boundary(content_type: &[u8]) -> Option<&[u8]> {
     }
     for p in params {
         let p = trim(p);
-        let Some(eq) = p.iter().position(|&c| c == b'=') else {
+        let Some(eq) = position_8k(p, |c| c == b'=') else {
             continue;
         };
         if !trim(&p[..eq]).eq_ignore_ascii_case(b"boundary") {
@@ -55,7 +89,7 @@ pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
         0
     } else {
         // after a preamble
-        match next_delim.find(body) {
+        match find_8k(&next_delim, body, line_delim.len()) {
             Some(i) => i + 1,
             None => return out,
         }
@@ -67,12 +101,14 @@ pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
             break; // close delimiter
         }
         // the rest of the delimiter line (transport padding), then CRLF
-        let Some(eol) = rest.iter().position(|&c| c == b'\n') else {
+        let Some(eol) = position_8k(rest, |c| c == b'\n') else {
             break;
         };
         let part_start = at + eol + 1;
         // content ends at the CRLF (or LF) of the next delimiter's line
-        let Some(next) = next_delim.find(&body[part_start..]).map(|i| part_start + i) else {
+        let Some(next) =
+            find_8k(&next_delim, &body[part_start..], line_delim.len()).map(|i| part_start + i)
+        else {
             break;
         };
         let mut end = next;
@@ -94,7 +130,7 @@ fn part(p: &[u8]) -> Option<Part<'_>> {
     let mut filename = None;
     for line in head.split(|&c| c == b'\n') {
         let line = strip_cr(line);
-        let Some(colon) = line.iter().position(|&c| c == b':') else {
+        let Some(colon) = position_8k(line, |c| c == b':') else {
             continue;
         };
         if !trim(&line[..colon]).eq_ignore_ascii_case(b"content-disposition") {

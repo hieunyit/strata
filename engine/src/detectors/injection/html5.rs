@@ -91,6 +91,19 @@ fn is_white(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r' | 0)
 }
 
+#[inline(always)]
+fn skip_non_delims(s: &[u8], mut pos: usize) -> usize {
+    while pos + 8 <= s.len() {
+        let v = u64::from_le_bytes(s[pos..pos + 8].try_into().unwrap());
+        let sub = v.wrapping_sub(0x3f3f3f3f3f3f3f3f);
+        if (sub & !v & 0x8080808080808080) != 0 {
+            break;
+        }
+        pos += 8;
+    }
+    pos
+}
+
 pub struct Html5<'a> {
     s: &'a [u8],
     pos: usize,
@@ -162,10 +175,7 @@ impl<'a> Html5<'a> {
     }
 
     fn find(&self, from: usize, c: u8) -> Option<usize> {
-        self.s[from..]
-            .iter()
-            .position(|&x| x == c)
-            .map(|i| from + i)
+        memchr::memchr(c, &self.s[from..]).map(|i| from + i)
     }
 
     fn run(&mut self, st: St) -> Step {
@@ -280,8 +290,13 @@ impl<'a> Html5<'a> {
     }
 
     fn tag_name(&mut self) -> Step {
+        let max_pos = (self.pos + 4096).min(self.len());
         let mut pos = self.pos;
-        while pos < self.len() {
+        while pos < max_pos {
+            pos = skip_non_delims(&self.s[..max_pos], pos);
+            if pos >= max_pos {
+                break;
+            }
             let ch = self.s[pos];
             if ch == 0 {
                 // nulls in tag names: allowed and ignored by old browsers
@@ -314,8 +329,9 @@ impl<'a> Html5<'a> {
                 pos += 1;
             }
         }
-        self.emit(self.pos, self.len() - self.pos, TokenType::TagNameOpen);
+        self.emit(self.pos, pos - self.pos, TokenType::TagNameOpen);
         self.state = St::Eof;
+        self.pos = self.len();
         Step::Token
     }
 
@@ -338,8 +354,13 @@ impl<'a> Html5<'a> {
     }
 
     fn attribute_name(&mut self) -> Step {
+        let max_pos = (self.pos + 4096).min(self.len());
         let mut pos = self.pos + 1;
-        while pos < self.len() {
+        while pos < max_pos {
+            pos = skip_non_delims(&self.s[..max_pos], pos);
+            if pos >= max_pos {
+                break;
+            }
             let ch = self.s[pos];
             let next = if is_white(ch) {
                 Some((St::AfterAttributeName, pos + 1))
@@ -360,7 +381,7 @@ impl<'a> Html5<'a> {
             }
             pos += 1;
         }
-        self.emit(self.pos, self.len() - self.pos, TokenType::AttrName);
+        self.emit(self.pos, pos - self.pos, TokenType::AttrName);
         self.state = St::Eof;
         self.pos = self.len();
         Step::Token
@@ -425,6 +446,10 @@ impl<'a> Html5<'a> {
     fn attribute_value_no_quote(&mut self) -> Step {
         let mut pos = self.pos;
         while pos < self.len() {
+            pos = skip_non_delims(self.s, pos);
+            if pos >= self.len() {
+                break;
+            }
             let ch = self.s[pos];
             if is_white(ch) {
                 self.emit(self.pos, pos - self.pos, TokenType::AttrValue);

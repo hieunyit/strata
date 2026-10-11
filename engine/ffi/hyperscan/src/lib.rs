@@ -22,6 +22,10 @@ struct HsDatabase {
 struct HsScratch {
     _p: [u8; 0],
 }
+#[repr(C)]
+struct HsStream {
+    _p: [u8; 0],
+}
 type MatchFn = extern "C" fn(c_uint, c_ulonglong, c_ulonglong, c_uint, *mut c_void) -> c_int;
 
 const HS_SUCCESS: hs_error_t = 0;
@@ -39,6 +43,33 @@ unsafe extern "C" {
         flags: c_uint,
         scratch: *mut HsScratch,
         on_event: MatchFn,
+        context: *mut c_void,
+    ) -> hs_error_t;
+    fn hs_open_stream(
+        db: *const HsDatabase,
+        flags: c_uint,
+        stream: *mut *mut HsStream,
+    ) -> hs_error_t;
+    fn hs_scan_stream(
+        id: *mut HsStream,
+        data: *const c_char,
+        length: c_uint,
+        flags: c_uint,
+        scratch: *mut HsScratch,
+        on_event: MatchFn,
+        context: *mut c_void,
+    ) -> hs_error_t;
+    fn hs_reset_stream(
+        id: *mut HsStream,
+        flags: c_uint,
+        scratch: *mut HsScratch,
+        on_event: Option<MatchFn>,
+        context: *mut c_void,
+    ) -> hs_error_t;
+    fn hs_close_stream(
+        id: *mut HsStream,
+        scratch: *mut HsScratch,
+        on_event: Option<MatchFn>,
         context: *mut c_void,
     ) -> hs_error_t;
 }
@@ -84,10 +115,15 @@ struct Scratch {
     ptr: *mut HsScratch,
     /// database the scratch was last sized for
     db: *const HsDatabase,
+    stream: *mut HsStream,
 }
 
 impl Drop for Scratch {
     fn drop(&mut self) {
+        if !self.stream.is_null() {
+            // SAFETY: allocated by hs_open_stream, closed once on thread exit.
+            unsafe { hs_close_stream(self.stream, self.ptr, None, std::ptr::null_mut()) };
+        }
         if !self.ptr.is_null() {
             // SAFETY: allocated by hs_alloc_scratch, freed once.
             unsafe { hs_free_scratch(self.ptr) };
@@ -97,7 +133,11 @@ impl Drop for Scratch {
 
 thread_local! {
     static SCRATCH: RefCell<Scratch> = const {
-        RefCell::new(Scratch { ptr: std::ptr::null_mut(), db: std::ptr::null() })
+        RefCell::new(Scratch {
+            ptr: std::ptr::null_mut(),
+            db: std::ptr::null(),
+            stream: std::ptr::null_mut(),
+        })
     };
 }
 
@@ -175,6 +215,158 @@ impl<'a> MappedDb<'a> {
             match rc {
                 HS_SUCCESS | HS_SCAN_TERMINATED => Ok(()),
                 rc => Err(Error::Scan(rc)),
+            }
+        })
+    }
+
+    /// Warms up thread-local scratch and stream state for this database.
+    pub fn warm_thread(&self) -> Result<(), Error> {
+        let db = self.bytes.as_ptr().cast::<HsDatabase>();
+        SCRATCH.with(|cell| {
+            let mut s = cell.borrow_mut();
+            if s.db != db {
+                if !s.stream.is_null() {
+                    unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
+                    s.stream = std::ptr::null_mut();
+                }
+                let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
+                if rc != HS_SUCCESS {
+                    return Err(Error::Invalid(rc));
+                }
+                s.db = db;
+            }
+            if s.stream.is_null() {
+                let rc = unsafe { hs_open_stream(db, 0, &mut s.stream) };
+                if rc != HS_SUCCESS {
+                    return Err(Error::Invalid(rc));
+                }
+            }
+            Ok(())
+        })
+    }
+
+    /// Scans `data` in streaming mode chunk by chunk.
+    /// `chunk_size` is typically 8192.
+    /// Between chunks, `check_budget()` is called. Returns `Ok(false)` if stopped early (budget or match).
+    pub fn scan_stream_chunks(
+        &self,
+        data: &[u8],
+        chunk_size: usize,
+        mut check_budget: impl FnMut() -> bool,
+        on_match: &mut dyn FnMut(u32) -> bool,
+    ) -> Result<bool, Error> {
+        let db = self.bytes.as_ptr().cast::<HsDatabase>();
+        SCRATCH.with(|cell| {
+            let mut s = cell.borrow_mut();
+            if s.db != db {
+                if !s.stream.is_null() {
+                    unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
+                    s.stream = std::ptr::null_mut();
+                }
+                let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
+                if rc != HS_SUCCESS {
+                    return Err(Error::Invalid(rc));
+                }
+                s.db = db;
+            }
+            if s.stream.is_null() {
+                let rc = unsafe { hs_open_stream(db, 0, &mut s.stream) };
+                if rc != HS_SUCCESS {
+                    return Err(Error::Invalid(rc));
+                }
+            }
+            let stream = s.stream;
+            let scratch = s.ptr;
+
+            let mut ctx = Ctx {
+                f: on_match,
+                panicked: false,
+            };
+
+            if data.is_empty() {
+                let rc = unsafe {
+                    hs_scan_stream(
+                        stream,
+                        std::ptr::null(),
+                        0,
+                        0,
+                        scratch,
+                        on_event,
+                        (&mut ctx as *mut Ctx<'_>).cast(),
+                    )
+                };
+                if ctx.panicked {
+                    let _ =
+                        unsafe { hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut()) };
+                    return Err(Error::Scan(-1));
+                }
+                if rc == HS_SCAN_TERMINATED {
+                    let _ =
+                        unsafe { hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut()) };
+                    return Ok(false);
+                } else if rc != HS_SUCCESS {
+                    let _ =
+                        unsafe { hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut()) };
+                    return Err(Error::Scan(rc));
+                }
+            } else {
+                for (chunk_idx, chunk) in data.chunks(chunk_size).enumerate() {
+                    if chunk_idx > 0 && !check_budget() {
+                        let _ = unsafe {
+                            hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut())
+                        };
+                        return Ok(false);
+                    }
+                    let len = c_uint::try_from(chunk.len()).map_err(|_| Error::Scan(-1))?;
+                    let rc = unsafe {
+                        hs_scan_stream(
+                            stream,
+                            chunk.as_ptr().cast(),
+                            len,
+                            0,
+                            scratch,
+                            on_event,
+                            (&mut ctx as *mut Ctx<'_>).cast(),
+                        )
+                    };
+                    if ctx.panicked {
+                        let _ = unsafe {
+                            hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut())
+                        };
+                        return Err(Error::Scan(-1));
+                    }
+                    if rc == HS_SCAN_TERMINATED {
+                        let _ = unsafe {
+                            hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut())
+                        };
+                        return Ok(false);
+                    } else if rc != HS_SUCCESS {
+                        let _ = unsafe {
+                            hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut())
+                        };
+                        return Err(Error::Scan(rc));
+                    }
+                }
+            }
+
+            let rc = unsafe {
+                hs_reset_stream(
+                    stream,
+                    0,
+                    scratch,
+                    Some(on_event),
+                    (&mut ctx as *mut Ctx<'_>).cast(),
+                )
+            };
+            if ctx.panicked {
+                return Err(Error::Scan(-1));
+            }
+            if rc == HS_SCAN_TERMINATED {
+                Ok(false)
+            } else if rc != HS_SUCCESS {
+                Err(Error::Scan(rc))
+            } else {
+                Ok(true)
             }
         })
     }

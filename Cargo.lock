@@ -428,6 +428,7 @@ dependencies = [
  "jsonschema",
  "memchr",
  "regex",
+ "regex-automata",
  "serde_json",
  "strata-hs",
 ]

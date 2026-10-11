@@ -23,6 +23,33 @@ enum Frame {
     Array(usize, usize),
 }
 
+fn memchr2_8k(c1: u8, c2: u8, slice: &[u8]) -> Option<usize> {
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if let Some(i) = memchr::memchr2(c1, c2, &slice[curr..end]) {
+            return Some(curr + i);
+        }
+        curr = end;
+    }
+    None
+}
+
+fn position_8k<F>(slice: &[u8], mut pred: F) -> Option<usize>
+where
+    F: FnMut(u8) -> bool,
+{
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if let Some(i) = slice[curr..end].iter().position(|&c| pred(c)) {
+            return Some(curr + i);
+        }
+        curr = end;
+    }
+    None
+}
+
 /// (name, value) of every scalar, at most `max`.
 pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
     let mut out = vec![];
@@ -69,10 +96,10 @@ pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
                 i = n;
             }
             _ => {
-                let end = b[i..]
-                    .iter()
-                    .position(|&c| matches!(c, b',' | b'}' | b']') || c.is_ascii_whitespace())
-                    .map_or(b.len(), |e| i + e);
+                let end = position_8k(&b[i..], |c| {
+                    matches!(c, b',' | b'}' | b']') || c.is_ascii_whitespace()
+                })
+                .map_or(b.len(), |e| i + e);
                 if end == i {
                     break;
                 }
@@ -138,7 +165,7 @@ fn string(b: &[u8], i: usize) -> Option<(Vec<u8>, usize)> {
     let mut out = vec![];
     let mut j = i + 1;
     loop {
-        let rel = b[j..].iter().position(|&c| c == b'"' || c == b'\\')?;
+        let rel = memchr2_8k(b'"', b'\\', &b[j..])?;
         out.extend_from_slice(&b[j..j + rel]);
         j += rel;
         if b[j] == b'"' {
@@ -177,8 +204,12 @@ fn hex4(b: &[u8], j: usize) -> Option<u32> {
 }
 
 fn skip_ws(b: &[u8], mut i: usize) -> usize {
-    while i < b.len() && b[i].is_ascii_whitespace() {
-        i += 1;
+    while i < b.len() {
+        let end = (i + 8192).min(b.len());
+        match b[i..end].iter().position(|&c| !c.is_ascii_whitespace()) {
+            Some(pos) => return i + pos,
+            None => i = end,
+        }
     }
     i
 }

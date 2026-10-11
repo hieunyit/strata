@@ -18,3 +18,7 @@ libstrata = { path = ".." }
 # Test-only triggers (e.g. a deliberate panic) used by the ABI and NGINX
 # integration suites. Never enabled in release packages.
 test-hooks = ["libstrata/test-hooks"]
+
+[[test]]
+name = "panic_isolation"
+required-features = ["test-hooks"]

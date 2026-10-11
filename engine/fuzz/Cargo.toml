@@ -57,3 +57,9 @@ name = "event_encode"
 path = "fuzz_targets/event_encode.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "budget_eval"
+path = "fuzz_targets/budget_eval.rs"
+test = false
+doc = false

@@ -226,6 +226,18 @@ fn is_black_url(mut s: &[u8]) -> bool {
         .any(|p| htmlencode_startswith(p, s))
 }
 
+fn contains_8k(slice: &[u8], needle: u8) -> bool {
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if memchr::memchr(needle, &slice[curr..end]).is_some() {
+            return true;
+        }
+        curr = end;
+    }
+    false
+}
+
 /// `libinjection_is_xss` in one starting context.
 pub fn is_xss_in(s: &[u8], flags: Flags) -> bool {
     let mut h5 = Html5::new(s, flags);
@@ -262,7 +274,7 @@ pub fn is_xss_in(s: &[u8], flags: Flags) -> bool {
             }
             TokenType::TagComment => {
                 // IE: '`' ends a tag
-                if t.contains(&b'`') {
+                if contains_8k(t, b'`') {
                     return true;
                 }
                 // IE conditional comments, XML
@@ -288,6 +300,7 @@ pub fn is_xss_in(s: &[u8], flags: Flags) -> bool {
 
 /// `libinjection_xss`: XSS in any of the five contexts.
 pub fn detect(s: &[u8]) -> bool {
+    let s = if s.len() > 65536 { &s[..65536] } else { s };
     [
         Flags::DataState,
         Flags::ValueNoQuote,

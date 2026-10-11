@@ -57,7 +57,7 @@ rust-check:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cargo test --workspace --all-features
 	# slow tests, optimized build (10 million Block IDs, ...)
-	cargo test --release -p libstrata -- --ignored
+	cargo test --release -p libstrata -- --ignored -- --test-threads=1
 
 abi-test: lib
 	@mkdir -p $(BUILD)
