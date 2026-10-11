@@ -263,4 +263,66 @@ fn operator_validation_in_compiler() {
     ";
     let err = ir(bad_ip_match).unwrap_err();
     assert!(err.contains("rule 800104: ip_match: invalid IPv4 address"));
+
+    let good_url_encoding = "
+    - id: 800105
+      name: test url encoding
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_url_encoding }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    assert!(ir(good_url_encoding).is_ok());
+
+    let bad_url_encoding = "
+    - id: 800106
+      name: test bad url encoding
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_url_encoding, value: 'extra' }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    let err = ir(bad_url_encoding).unwrap_err();
+    assert!(err.contains("rule 800106: validate_url_encoding takes no value"));
+
+    let good_utf8_encoding = "
+    - id: 800107
+      name: test utf8 encoding
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_utf8_encoding }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    assert!(ir(good_utf8_encoding).is_ok());
+
+    let bad_utf8_encoding = "
+    - id: 800108
+      name: test bad utf8 encoding
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_utf8_encoding, value: 'extra' }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    let err = ir(bad_utf8_encoding).unwrap_err();
+    assert!(err.contains("rule 800108: validate_utf8_encoding takes no value"));
 }

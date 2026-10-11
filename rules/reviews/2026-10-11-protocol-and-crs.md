@@ -61,7 +61,7 @@ Kết quả go-ftw mọi nhóm (test của rule PL1): 913 100%, 920 100% của t
 | Test / rule | Lý do |
 | --- | --- |
 | 944100/944110/944120, 24 test `no_match` XML | `request_body` của Strata luôn là body thô (ModSecurity bỏ REQUEST_BODY khi có body processor). Giữ để rule của tổ chức thấy body XML/JSON |
-| 930100-3, 930120-1..3, 933170-5 | `%00` bị kiểm tra dựng sẵn 100013 chặn trước |
+| 920270-1..3, 920270-8, 930100-3, 930120-1..3, 933170-5 | `%00` bị kiểm tra dựng sẵn 100013 chặn trước |
 | 921140-1 | Header có CR trần: NGINX trả 400 trước khi tới module, test không xảy ra được trên NGINX |
 | 941180-7 | `document.cookie` trong path khớp; chấp nhận (dấu hiệu thật) |
 | 943110 | So host của Referer với Host qua nhóm bắt và macro: IR không biểu diễn được |
