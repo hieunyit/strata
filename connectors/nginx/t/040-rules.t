@@ -117,3 +117,26 @@ user=alice&pass=1'%20OR%20'1'='1
 Content-Type: text/plain
 --- response_headers
 X-Rules:
+
+
+
+=== TEST 9: and on the scalars of a JSON body
+--- request
+POST /t/search
+{"filter": {"name": "x", "id": "1' OR '1'='1"}}
+--- more_headers
+Content-Type: application/json
+--- response_headers
+X-Rules: 942100
+X-Score: 5
+
+
+
+=== TEST 10: and on the fields of a multipart body
+--- request eval
+"POST /t/profile\r\n--b0\r\nContent-Disposition: form-data; name=\"bio\"\r\n\r\n1' OR '1'='1\r\n--b0--\r\n"
+--- more_headers
+Content-Type: multipart/form-data; boundary=b0
+--- response_headers
+X-Rules: 942100
+X-Score: 5
