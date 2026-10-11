@@ -161,6 +161,7 @@ pub const MAX_TRANSFORMS: usize = 16;
 /// begins_with, ends_with, streq.
 pub const HS_OPERATORS: std::ops::RangeInclusive<u8> = 0..=5;
 pub const HS_MAGIC: &[u8; 4] = b"SHS1";
+pub const HS_MAGIC_V2: &[u8; 4] = b"SHS2";
 const HS_HEADER_LEN: usize = 56;
 pub const HS_VERSION_LEN: usize = 32;
 const RULE_LEN: usize = 32;
@@ -340,12 +341,22 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
     out
 }
 
-/// HYPERSCAN section from a compiled image (see the module docs).
+/// HYPERSCAN section from a compiled image (see the module docs). Defaults to SHS2.
 pub fn encode_hyperscan(hs_version: &str, cond_index: &[u32], image: &[u8]) -> Vec<u8> {
+    encode_hyperscan_mode(HS_MAGIC_V2, hs_version, cond_index, image)
+}
+
+/// HYPERSCAN section with specific magic (HS_MAGIC or HS_MAGIC_V2).
+pub fn encode_hyperscan_mode(
+    magic: &[u8; 4],
+    hs_version: &str,
+    cond_index: &[u32],
+    image: &[u8],
+) -> Vec<u8> {
     let table_end = HS_HEADER_LEN + cond_index.len() * 4;
     let db_off = table_end.div_ceil(4096) * 4096;
     let mut s = Vec::with_capacity(db_off + image.len());
-    s.extend_from_slice(HS_MAGIC);
+    s.extend_from_slice(magic);
     put_u32(&mut s, cond_index.len() as u32);
     let mut v = [0u8; HS_VERSION_LEN];
     let n = hs_version.len().min(HS_VERSION_LEN - 1);
@@ -419,6 +430,7 @@ pub struct Hyperscan<'a> {
     pub version: &'a [u8],
     cond_index: &'a [u8],
     pub image: &'a [u8],
+    pub is_stream: bool,
 }
 
 impl Hyperscan<'_> {
@@ -440,9 +452,14 @@ fn parse_hyperscan<'a>(sec: &'a [u8], conds: &[u8]) -> Result<Option<Hyperscan<'
         return Ok(None);
     }
     let bad = Error::BadLayout("bad hyperscan section");
-    if sec.len() < HS_HEADER_LEN || &sec[..4] != HS_MAGIC {
+    if sec.len() < HS_HEADER_LEN {
         return Err(bad);
     }
+    let magic = &sec[..4];
+    if magic != HS_MAGIC && magic != HS_MAGIC_V2 {
+        return Err(bad);
+    }
+    let is_stream = magic == HS_MAGIC_V2;
     let n = u32_at(sec, 4) as usize;
     let (db_off, db_len) = (u32_at(sec, 40) as usize, u32_at(sec, 44) as usize);
     let table_end = n.checked_mul(4).and_then(|t| t.checked_add(HS_HEADER_LEN));
@@ -471,6 +488,7 @@ fn parse_hyperscan<'a>(sec: &'a [u8], conds: &[u8]) -> Result<Option<Hyperscan<'
         version,
         cond_index,
         image: &sec[db_off..db_off + db_len],
+        is_stream,
     }))
 }
 

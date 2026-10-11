@@ -125,14 +125,31 @@ pub struct Tx {
     layer_scores: [i32; 6],
     protocol_score: i32,
     matches: Vec<MatchEntry>,
+    budget: Option<crate::budget::TxBudget>,
+    degraded: bool,
+    has_body_rules: bool,
+    buffer_body: bool,
+    tail_has_s: bool,
 }
 
 /// Body bytes the request_body rules see at most; the connector's
 /// strata_request_body_limit (1 MB by default) is normally lower.
 const MAX_BODY_KEEP: usize = 8 << 20;
 
-fn contains(hay: &[u8], needle: &[u8]) -> bool {
-    hay.len() >= needle.len() && hay.windows(needle.len()).any(|w| w == needle)
+static NEEDLE_FINDER: std::sync::LazyLock<memchr::memmem::Finder<'static>> =
+    std::sync::LazyLock::new(|| memchr::memmem::Finder::new(NEEDLE));
+
+#[cfg(feature = "test-hooks")]
+static PANIC_FINDER: std::sync::LazyLock<memchr::memmem::Finder<'static>> =
+    std::sync::LazyLock::new(|| memchr::memmem::Finder::new(PANIC_NEEDLE));
+
+fn contains_needle(hay: &[u8]) -> bool {
+    hay.len() >= NEEDLE.len() && NEEDLE_FINDER.find(hay).is_some()
+}
+
+#[cfg(feature = "test-hooks")]
+fn contains_panic(hay: &[u8]) -> bool {
+    hay.len() >= PANIC_NEEDLE.len() && PANIC_FINDER.find(hay).is_some()
 }
 
 fn contains_ignore_case(hay: &[u8], needle: &[u8]) -> bool {
@@ -149,6 +166,7 @@ impl Tx {
     pub fn new(engine: Option<Arc<Engine>>, node_id: &[u8], flags: u32) -> Tx {
         let missing = engine.is_none();
         let version = engine.as_ref().map_or(0, |e| e.info().version);
+        let has_body_rules = engine.as_ref().is_some_and(|e| e.has_body_rules());
         let node_id_bounded = &node_id[..node_id.len().min(64)];
         let mut node_buf = [0u8; 64];
         node_buf[..node_id_bounded.len()].copy_from_slice(node_id_bounded);
@@ -198,11 +216,121 @@ impl Tx {
             layer_scores: [0; 6],
             protocol_score: 0,
             matches: Vec::new(),
+            budget: None,
+            degraded: false,
+            has_body_rules,
+            buffer_body: has_body_rules,
+            tail_has_s: false,
         };
         if missing {
             tx.fail(E_BUNDLE);
         }
         tx
+    }
+
+    pub fn set_budget(&mut self, cpu_budget_us: u64) {
+        if cpu_budget_us > 0 {
+            let factor = if std::env::var_os("ASAN_OPTIONS").is_some() {
+                5
+            } else {
+                1
+            };
+            self.budget = Some(crate::budget::TxBudget::new(
+                cpu_budget_us.saturating_mul(factor),
+            ));
+        }
+    }
+
+    /// Warms up thread-local engine resources (Hyperscan scratch, etc.)
+    pub fn warm_engine(&self) {
+        if let Some(e) = self.engine.as_ref() {
+            e.warm_thread();
+        }
+    }
+
+    pub fn set_degraded(&mut self, degraded: bool) {
+        self.degraded = degraded;
+    }
+
+    pub fn budget_enter(&mut self) -> Result<(), crate::budget::BudgetExceeded> {
+        if let Some(bgt) = self.budget.as_mut() {
+            match bgt.enter() {
+                Ok(()) => {}
+                Err(e) => {
+                    self.set_budget_exceeded();
+                    return Err(e);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn budget_enter_lazy(&mut self) -> Result<(), crate::budget::BudgetExceeded> {
+        if let Some(bgt) = self.budget.as_mut() {
+            match bgt.enter_lazy() {
+                Ok(()) => {}
+                Err(e) => {
+                    self.set_budget_exceeded();
+                    return Err(e);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn budget_enter_at(
+        &mut self,
+        now: std::time::Instant,
+    ) -> Result<(), crate::budget::BudgetExceeded> {
+        if let Some(bgt) = self.budget.as_mut() {
+            match bgt.enter_at(now) {
+                Ok(()) => {}
+                Err(e) => {
+                    self.set_budget_exceeded();
+                    return Err(e);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn budget_exit(&mut self) {
+        if let Some(bgt) = self.budget.as_mut() {
+            bgt.exit();
+            if bgt.is_exceeded() {
+                self.set_budget_exceeded();
+            }
+        }
+    }
+
+    pub fn budget_exit_with_ns(&mut self, nanos: u64) {
+        if let Some(bgt) = self.budget.as_mut() {
+            bgt.exit_with_ns(nanos);
+            if bgt.is_exceeded() {
+                self.set_budget_exceeded();
+            }
+        }
+    }
+
+    pub fn budget_exit_with(&mut self, elapsed: std::time::Duration) {
+        if let Some(bgt) = self.budget.as_mut() {
+            bgt.exit_with(elapsed);
+            if bgt.is_exceeded() {
+                self.set_budget_exceeded();
+            }
+        }
+    }
+
+    pub fn set_budget_exceeded(&mut self) {
+        if self.matched {
+            return;
+        }
+        if self.error == OK {
+            self.error = E_BUDGET;
+        }
+        if self.id.is_none() {
+            self.id = Some(block_id::generate(Kind::Event, self.node));
+        }
     }
 
     /// Applies the policy's settings: its signed mode (a shadow policy
@@ -275,13 +403,26 @@ impl Tx {
             .saturating_add(d.as_nanos().min(u64::MAX as u128) as u64);
     }
 
+    pub fn add_time_ns(&mut self, nanos: u64) {
+        self.elapsed_ns = self.elapsed_ns.saturating_add(nanos);
+    }
+
     /// Engine time spent on this request so far, in microseconds.
     pub fn time_us(&self) -> u64 {
         self.elapsed_ns / 1000
     }
 
-    /// Marks the transaction broken; the first error wins.
+    /// Whether this request has already matched a blocking or logging rule.
+    pub fn is_matched(&self) -> bool {
+        self.matched
+    }
+
+    /// Marks the transaction broken; the first error wins. A request already
+    /// matched by security rules retains its block decision.
     pub fn fail(&mut self, rc: Rc) {
+        if self.matched {
+            return;
+        }
         if self.error == OK {
             self.error = rc;
         }
@@ -393,10 +534,10 @@ impl Tx {
 
     fn scan(&mut self, data: &[u8], field: &str) {
         #[cfg(feature = "test-hooks")]
-        if contains(data, PANIC_NEEDLE) {
+        if contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
-        if !self.matched && contains(data, NEEDLE) {
+        if !self.matched && contains_needle(data) {
             self.stub_rule(field, data);
         }
     }
@@ -481,6 +622,10 @@ impl Tx {
         }
         self.headers.header(key, val);
         #[cfg(feature = "test-hooks")]
+        if contains_panic(key) || contains_panic(val) {
+            panic!("test hook: deliberate panic");
+        }
+        #[cfg(feature = "test-hooks")]
         if let Some((line, on)) = &mut self.echo {
             line.push_str(&format!("[{}: {}]", key.escape_ascii(), val.escape_ascii()));
             *on |= key.eq_ignore_ascii_case(b"x-strata-test-echo");
@@ -536,19 +681,31 @@ impl Tx {
             };
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
-            eval::evaluate(
+            let res = eval::evaluate_with_budget(
                 &engine.tables(),
                 engine.hyperscan(),
                 engine.regexes(),
                 engine.operators(),
                 &req,
                 stage,
+                self.degraded,
+                self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
+            if res.is_err() {
+                self.set_budget_exceeded();
+                return E_BUDGET;
+            }
             for v in found {
                 self.add(v);
             }
-            if engine.has_body_rules() {
+            let ct = eval::content_type(headers);
+            let proc = eval::body_processor(ct);
+            self.buffer_body =
+                engine.has_raw_body_rules() || (engine.has_parsed_body_rules() && !proc.is_empty());
+            self.has_body_rules = engine.has_body_rules();
+
+            if self.has_body_rules {
                 self.kept_headers = headers
                     .iter()
                     .map(|(k, v)| (k.to_vec(), v.to_vec()))
@@ -581,18 +738,24 @@ impl Tx {
         };
         let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
         let mut found = vec![];
-        eval::evaluate(
+        let res = eval::evaluate_with_budget(
             &engine.tables(),
             engine.hyperscan(),
             engine.regexes(),
             engine.operators(),
             &req,
             stage,
+            self.degraded,
+            self.budget.as_mut(),
             &mut |v| found.push(v),
         );
         drop(headers);
-        for v in found {
-            self.add(v);
+        if res.is_err() {
+            self.set_budget_exceeded();
+        } else {
+            for v in found {
+                self.add(v);
+            }
         }
         self.body = Vec::new();
         self.kept_headers = Vec::new();
@@ -602,17 +765,30 @@ impl Tx {
         if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
             return rc;
         }
+        if self.matched {
+            if last {
+                self.stage = Stage::BodyDone;
+            }
+            return OK;
+        }
+        let has_s = memchr::memchr(b'S', data).is_some();
         #[cfg(feature = "test-hooks")]
-        if contains(data, PANIC_NEEDLE) {
+        if has_s && contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
         if !self.matched {
-            // Match spanning the previous chunk and this one.
             let head = &data[..data.len().min(TAIL)];
-            let mut window = [0u8; 2 * TAIL];
-            window[..self.tail_len].copy_from_slice(&self.tail[..self.tail_len]);
-            window[self.tail_len..self.tail_len + head.len()].copy_from_slice(head);
-            if contains(&window[..self.tail_len + head.len()], NEEDLE) || contains(data, NEEDLE) {
+            let head_has_s = has_s && memchr::memchr(b'S', head).is_some();
+            if self.tail_has_s || head_has_s {
+                let tail = &self.tail[..self.tail_len];
+                let mut window = [0u8; 2 * TAIL];
+                window[..self.tail_len].copy_from_slice(tail);
+                window[self.tail_len..self.tail_len + head.len()].copy_from_slice(head);
+                if contains_needle(&window[..self.tail_len + head.len()]) {
+                    self.stub_rule("REQUEST_BODY", data);
+                }
+            }
+            if has_s && data.len() > TAIL && contains_needle(data) {
                 self.stub_rule("REQUEST_BODY", data);
             }
             // Keep the last TAIL bytes of (tail + data).
@@ -620,23 +796,28 @@ impl Tx {
             if data.len() >= TAIL {
                 self.tail.copy_from_slice(&data[data.len() - TAIL..]);
                 self.tail_len = TAIL;
+                self.tail_has_s = has_s && memchr::memchr(b'S', &self.tail).is_some();
             } else {
                 let keep_old = TAIL.min(total) - data.len();
                 self.tail
                     .copy_within(self.tail_len - keep_old..self.tail_len, 0);
                 self.tail[keep_old..keep_old + data.len()].copy_from_slice(data);
                 self.tail_len = keep_old + data.len();
+                self.tail_has_s = memchr::memchr(b'S', &self.tail[..self.tail_len]).is_some();
             }
         }
-        let body_rules = self.engine.as_ref().is_some_and(|e| e.has_body_rules());
-        if body_rules && !self.matched && self.body.len() < MAX_BODY_KEEP {
+        if self.buffer_body && !self.matched && self.body.len() < MAX_BODY_KEEP {
             let room = MAX_BODY_KEEP - self.body.len();
-            self.body.extend_from_slice(&data[..data.len().min(room)]);
+            let to_take = data.len().min(room);
+            self.body.extend_from_slice(&data[..to_take]);
         }
         if last {
             self.stage = Stage::BodyDone;
-            if body_rules && !self.matched {
+            if self.has_body_rules && !self.matched {
                 self.evaluate_body();
+                if self.error == E_BUDGET {
+                    return E_BUDGET;
+                }
             }
         }
         OK
@@ -666,8 +847,17 @@ impl Tx {
 
     pub fn response_headers(&mut self, status: u16) -> Rc {
         self.status = status as u32;
-        if let Err(rc) = self.check(Stage::Headers, Stage::Response) {
-            return rc;
+        if self.error == E_BUDGET {
+            if self.stage >= Stage::Response {
+                return E_STATE;
+            }
+        } else {
+            if self.stage < Stage::Headers || self.stage >= Stage::Response {
+                return E_STATE;
+            }
+            if self.error != OK {
+                return self.error;
+            }
         }
         self.stage = Stage::Response;
         if self.response.has(Response::STATUS) && !response::status_allowed(status) {
@@ -696,11 +886,15 @@ impl Tx {
     }
 
     fn response_feed(&mut self, data: &[u8], feed: Feed) -> (Rc, Option<Vec<u8>>) {
-        if self.error != OK {
+        if self.error != OK && self.error != E_BUDGET {
             return (self.error, None);
         }
         if self.stage != Stage::Response {
             return (E_STATE, None);
+        }
+        #[cfg(feature = "test-hooks")]
+        if contains_panic(data) {
+            panic!("test hook: deliberate panic");
         }
         let Some(g) = self.guard.as_mut() else {
             return (OK, None);
@@ -737,7 +931,7 @@ impl Tx {
         }
         // the connector inspects the response only when something can be
         // found or rewritten in it
-        v.need_response = self.error == OK && self.wants_body();
+        v.need_response = (self.error == OK || self.error == E_BUDGET) && self.wants_body();
         v.id = self.id;
         v
     }

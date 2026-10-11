@@ -22,6 +22,8 @@ pub struct Engine {
     /// some rule runs at stage request_body: transactions keep the request
     /// line, the headers and the body for it
     body_rules: bool,
+    raw_body_rules: bool,
+    parsed_body_rules: bool,
     /// rx patterns Hyperscan does not take, for the `regex` crate
     regexes: crate::eval::Regexes,
     /// byte ranges and ip match sets evaluated per bundle
@@ -61,8 +63,51 @@ impl Engine {
             MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
         }
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
-        let body_rules =
-            (0..tables.n_rules()).any(|i| tables.rule(i).is_some_and(|r| r.stage == body));
+        let var_req_body =
+            crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
+        let var_args = crate::rules::code(crate::rules::VARS, "args").unwrap_or(u8::MAX);
+        let var_args_post = crate::rules::code(crate::rules::VARS, "args_post").unwrap_or(u8::MAX);
+        let var_args_names =
+            crate::rules::code(crate::rules::VARS, "args_names").unwrap_or(u8::MAX);
+        let var_files = crate::rules::code(crate::rules::VARS, "files").unwrap_or(u8::MAX);
+        let var_files_names =
+            crate::rules::code(crate::rules::VARS, "files_names").unwrap_or(u8::MAX);
+        let var_xml = crate::rules::code(crate::rules::VARS, "xml").unwrap_or(u8::MAX);
+        let var_xml_attr =
+            crate::rules::code(crate::rules::VARS, "xml_attributes").unwrap_or(u8::MAX);
+
+        let mut body_rules = false;
+        let mut raw_body_rules = false;
+        let mut parsed_body_rules = false;
+
+        for i in 0..tables.n_rules() {
+            if let Some(r) = tables.rule(i)
+                && r.stage == body
+            {
+                body_rules = true;
+                for ci in r.cond_first..r.cond_first + r.cond_count {
+                    if let Some(c) = tables.cond(ci) {
+                        for ti in c.target_first..c.target_first + c.target_count {
+                            if let Some(t) = tables.target(ti) {
+                                if t.var == var_req_body {
+                                    raw_body_rules = true;
+                                } else if t.var == var_args
+                                    || t.var == var_args_post
+                                    || t.var == var_args_names
+                                    || t.var == var_files
+                                    || t.var == var_files_names
+                                    || t.var == var_xml
+                                    || t.var == var_xml_attr
+                                {
+                                    parsed_body_rules = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // the signature vouches for the compiler, which checked these
         // patterns; a refusal here is a bundle this build cannot run
         let regexes = crate::eval::Regexes::build(&tables).map_err(|_| {
@@ -77,6 +122,8 @@ impl Engine {
             bytes: bundle,
             info,
             body_rules,
+            raw_body_rules,
+            parsed_body_rules,
             regexes,
             operators,
         })
@@ -97,6 +144,16 @@ impl Engine {
         self.body_rules
     }
 
+    /// Whether some rule runs at stage request_body and inspects the raw body directly.
+    pub fn has_raw_body_rules(&self) -> bool {
+        self.raw_body_rules
+    }
+
+    /// Whether some rule runs at stage request_body and inspects parsed body fields (args, xml, files).
+    pub fn has_parsed_body_rules(&self) -> bool {
+        self.parsed_body_rules
+    }
+
     pub fn info(&self) -> &Info {
         &self.info
     }
@@ -106,6 +163,13 @@ impl Engine {
         self.tables()
             .hyperscan()
             .map(|h| MappedDb::assume_valid(h.image))
+    }
+
+    /// Warms up thread-local Hyperscan scratch and stream state.
+    pub fn warm_thread(&self) {
+        if let Some(db) = self.hyperscan() {
+            let _ = db.warm_thread();
+        }
     }
 
     pub fn tables(&self) -> Tables<'_> {

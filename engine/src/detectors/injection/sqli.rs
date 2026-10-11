@@ -133,13 +133,27 @@ fn in_set(set: &[u8], c: u8) -> bool {
 }
 
 fn strlenspn(s: &[u8], accept: &[u8]) -> usize {
-    s.iter()
-        .position(|&c| !in_set(accept, c))
-        .unwrap_or(s.len())
+    let mut curr = 0;
+    while curr < s.len() {
+        let end = (curr + 8192).min(s.len());
+        if let Some(pos) = s[curr..end].iter().position(|&c| !in_set(accept, c)) {
+            return curr + pos;
+        }
+        curr = end;
+    }
+    s.len()
 }
 
 fn strlencspn(s: &[u8], reject: &[u8]) -> usize {
-    s.iter().position(|&c| in_set(reject, c)).unwrap_or(s.len())
+    let mut curr = 0;
+    while curr < s.len() {
+        let end = (curr + 8192).min(s.len());
+        if let Some(pos) = s[curr..end].iter().position(|&c| in_set(reject, c)) {
+            return curr + pos;
+        }
+        curr = end;
+    }
+    s.len()
 }
 
 fn char_is_white(c: u8) -> bool {
@@ -152,18 +166,51 @@ fn is_digit(c: u8) -> bool {
 
 /// First index of the pair (c0, c1).
 fn memchr2(h: &[u8], c0: u8, c1: u8) -> Option<usize> {
-    h.windows(2).position(|w| w[0] == c0 && w[1] == c1)
+    let needle = [c0, c1];
+    let finder = memchr::memmem::Finder::new(&needle);
+    let mut curr = 0;
+    while curr < h.len() {
+        let end = (curr + 8192 + 1).min(h.len());
+        if end < curr + 2 {
+            break;
+        }
+        if let Some(pos) = finder.find(&h[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr += 8192;
+    }
+    None
 }
 
 fn memchr(h: &[u8], c: u8) -> Option<usize> {
-    h.iter().position(|&x| x == c)
+    let mut curr = 0;
+    while curr < h.len() {
+        let end = (curr + 8192).min(h.len());
+        if let Some(pos) = memchr::memchr(c, &h[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr = end;
+    }
+    None
 }
 
 fn memmem(h: &[u8], needle: &[u8]) -> Option<usize> {
     if h.len() < needle.len() {
         return None;
     }
-    h.windows(needle.len()).position(|w| w == needle)
+    let finder = memchr::memmem::Finder::new(needle);
+    let mut curr = 0;
+    while curr < h.len() {
+        let end = (curr + 8192 + needle.len() - 1).min(h.len());
+        if end < curr + needle.len() {
+            break;
+        }
+        if let Some(pos) = finder.find(&h[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr += 8192;
+    }
+    None
 }
 
 /// libinjection's `cstrcasecmp`: `a` is an upper-case C string, `b` any
@@ -1378,7 +1425,7 @@ impl<'a> State<'a> {
                 return true;
             }
         }
-        if self.s.contains(&CHAR_SINGLE) {
+        if memchr::memchr(CHAR_SINGLE, self.s).is_some() {
             self.fingerprint(FLAG_QUOTE_SINGLE | FLAG_SQL_ANSI);
             if self.check_fingerprint() {
                 return true;
@@ -1389,7 +1436,7 @@ impl<'a> State<'a> {
                 }
             }
         }
-        if self.s.contains(&CHAR_DOUBLE) {
+        if memchr::memchr(CHAR_DOUBLE, self.s).is_some() {
             self.fingerprint(FLAG_QUOTE_DOUBLE | FLAG_SQL_MYSQL);
             if self.check_fingerprint() {
                 return true;

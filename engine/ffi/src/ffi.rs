@@ -91,6 +91,32 @@ unsafe fn bytes<'a>(s: strata_str_t) -> Result<&'a [u8], strata_rc_t> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct CallTimer(Instant);
+
+impl CallTimer {
+    #[inline]
+    fn start() -> Self {
+        Self(Instant::now())
+    }
+
+    #[inline]
+    fn elapsed_ns(&self) -> u64 {
+        self.0.elapsed().as_nanos().min(u64::MAX as u128) as u64
+    }
+}
+
+struct BudgetGuard<'a>(&'a mut Tx, CallTimer, bool);
+impl Drop for BudgetGuard<'_> {
+    fn drop(&mut self) {
+        if self.2 {
+            let nanos = self.1.elapsed_ns();
+            self.0.budget_exit_with_ns(nanos);
+            self.0.add_time_ns(nanos);
+        }
+    }
+}
+
 /// Runs a transaction call: NULL check, panic capture, error stickiness.
 ///
 /// # Safety
@@ -104,15 +130,26 @@ unsafe fn with_tx(
     }
     // SAFETY: non-NULL and live per the contract above.
     let tx = unsafe { &mut *tx.cast::<Tx>() };
-    let start = Instant::now();
-    let rc = catch_unwind(AssertUnwindSafe(|| f(tx).unwrap_or_else(|rc| rc)))
-        .unwrap_or(STRATA_E_INTERNAL);
-    tx.add_time(start.elapsed());
+    let timer = CallTimer::start();
+    let mut guard = BudgetGuard(tx, timer, true);
+    let rc = catch_unwind(AssertUnwindSafe(|| {
+        if !guard.0.is_matched() && guard.0.budget_enter_lazy().is_err() {
+            return STRATA_E_BUDGET;
+        }
+
+        f(&mut *guard.0).unwrap_or_else(|rc| rc)
+    }))
+    .unwrap_or(STRATA_E_INTERNAL);
+    guard.2 = false;
+    let nanos = guard.1.elapsed_ns();
+    guard.0.budget_exit_with_ns(nanos);
+    guard.0.add_time_ns(nanos);
+
     // Any failed call leaves the inspection incomplete: mark the transaction
     // broken so the verdict carries the error and the connector applies its
     // fail mode, even if it ignored this return code.
     if rc != STRATA_OK {
-        tx.fail(rc);
+        guard.0.fail(rc);
     }
     rc
 }
@@ -120,7 +157,7 @@ unsafe fn with_tx(
 /// Returns `(major << 16) | minor`; connectors refuse a different major.
 #[unsafe(no_mangle)]
 pub extern "C" fn strata_abi_version() -> u32 {
-    STRATA_ABI_VERSION
+    guard(0, || STRATA_ABI_VERSION)
 }
 
 /// Builds an engine directly over a read-only mapped bundle after verifying
@@ -185,24 +222,26 @@ pub unsafe extern "C" fn strata_engine_info(
     if out.is_null() {
         return;
     }
-    let info = if e.is_null() {
-        strata_engine_info_t::default()
-    } else {
-        // SAFETY: live handle per contract.
-        let i = unsafe { &*e.cast::<Engine>() }.info();
-        strata_engine_info_t {
-            version: i.version,
-            created_at_ms: i.created_at_ms,
-            flags: if i.flags & libstrata::bundle::FLAG_ROLLBACK != 0 {
-                STRATA_BUNDLE_ROLLBACK
-            } else {
-                0
-            },
-            n_policies: i.n_policies,
-        }
-    };
-    // SAFETY: out is non-NULL and writable.
-    unsafe { *out = info };
+    guard((), || {
+        let info = if e.is_null() {
+            strata_engine_info_t::default()
+        } else {
+            // SAFETY: live handle per contract.
+            let i = unsafe { &*e.cast::<Engine>() }.info();
+            strata_engine_info_t {
+                version: i.version,
+                created_at_ms: i.created_at_ms,
+                flags: if i.flags & libstrata::bundle::FLAG_ROLLBACK != 0 {
+                    STRATA_BUNDLE_ROLLBACK
+                } else {
+                    0
+                },
+                n_policies: i.n_policies,
+            }
+        };
+        // SAFETY: out is non-NULL and writable.
+        unsafe { *out = info };
+    });
 }
 
 /// Looks a policy up in the engine's bundle. Returns `STRATA_OK` and fills
@@ -291,8 +330,10 @@ pub unsafe extern "C" fn strata_engine_block_page(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strata_engine_retain(e: *mut EngineHandle) {
     if !e.is_null() {
-        // SAFETY: e came from Arc::into_raw and is still alive.
-        unsafe { Arc::increment_strong_count(e.cast_const().cast::<Engine>()) };
+        guard((), || {
+            // SAFETY: e came from Arc::into_raw and is still alive.
+            unsafe { Arc::increment_strong_count(e.cast_const().cast::<Engine>()) };
+        });
     }
 }
 
@@ -328,8 +369,6 @@ pub unsafe extern "C" fn strata_tx_new(
     conn: *const strata_conn_t,
     cpu_budget_us: u64,
 ) -> *mut TxHandle {
-    // no budget accounting yet
-    let _ = cpu_budget_us;
     guard(ptr::null_mut(), || {
         let engine = if engine.is_null() {
             None
@@ -354,11 +393,13 @@ pub unsafe extern "C" fn strata_tx_new(
             )
         };
         let mut tx = Tx::new(engine, node, flags);
+        tx.set_budget(cpu_budget_us);
         tx.set_client_addr(client);
         tx.set_identity(identity);
         tx.set_request_id(request_id);
         // SAFETY: policy is valid for the call.
         tx.set_policy(unsafe { bytes(policy) }.unwrap_or(&[]));
+        tx.warm_engine();
         Box::into_raw(Box::new(tx)).cast::<TxHandle>()
     })
 }
@@ -615,8 +656,10 @@ pub unsafe extern "C" fn strata_tx_time_us(tx: *const TxHandle) -> u64 {
     if tx.is_null() {
         return 0;
     }
-    // SAFETY: live per contract.
-    unsafe { &*tx.cast::<Tx>() }.time_us()
+    guard(0, || {
+        // SAFETY: live per contract.
+        unsafe { &*tx.cast::<Tx>() }.time_us()
+    })
 }
 
 /// Serializes the transaction's event into `dst` (up to `cap` bytes) and
@@ -687,7 +730,7 @@ pub unsafe extern "C" fn strata_buf_free(b: *mut strata_buf_t) {
 
 #[cfg(test)]
 mod tests {
-    use super::guard;
+    use super::*;
 
     #[test]
     fn guard_catches_panic() {

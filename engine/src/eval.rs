@@ -40,15 +40,31 @@ use crate::rules::{
 use crate::transform;
 use crate::{json, multipart, xml};
 
-/// The rx patterns of a bundle that are not in its Hyperscan database,
-/// compiled with the `regex` crate when the bundle is mapped.
-#[derive(Default)]
-pub struct Regexes(Vec<(u32, regex::bytes::Regex)>);
+pub struct FallbackRegex {
+    pub ci: u32,
+    pub re: regex::bytes::Regex,
+    pub dfa: regex_automata::hybrid::dfa::DFA,
+}
 
-/// Compiles an rx pattern for the `regex` crate with Hyperscan's meaning
+/// The rx patterns of a bundle that are not in its Hyperscan database,
+/// compiled with the `regex` crate and lazy DFA when the bundle is mapped.
+#[derive(Default)]
+pub struct Regexes(Vec<FallbackRegex>);
+
+/// Compiles an rx pattern for the lazy DFA with Hyperscan's meaning
 /// (the database is built without HS_FLAG_UTF8): on bytes, classes and
-/// case folding are ASCII, and `\x{bc}` is the byte 0xbc (for the `regex`
-/// crate it is a code point, so it is written `\xbc`).
+/// case folding are ASCII, and `\x{bc}` is the byte 0xbc.
+pub fn fallback_dfa(pattern: &[u8]) -> Result<regex_automata::hybrid::dfa::DFA, String> {
+    let s = std::str::from_utf8(pattern).map_err(|_| "pattern is not UTF-8".to_string())?;
+    let syntax = regex_automata::util::syntax::Config::new()
+        .unicode(false)
+        .utf8(false);
+    regex_automata::hybrid::dfa::DFA::builder()
+        .syntax(syntax)
+        .build(&byte_escapes(s))
+        .map_err(|e| e.to_string())
+}
+
 pub fn fallback_regex(pattern: &[u8]) -> Result<regex::bytes::Regex, String> {
     let s = std::str::from_utf8(pattern).map_err(|_| "pattern is not UTF-8".to_string())?;
     regex::bytes::RegexBuilder::new(&byte_escapes(s))
@@ -57,6 +73,73 @@ pub fn fallback_regex(pattern: &[u8]) -> Result<regex::bytes::Regex, String> {
         .dfa_size_limit(16 << 20)
         .build()
         .map_err(|e| e.to_string())
+}
+
+struct DfaCacheSlot {
+    dfa_ptr: *const (),
+    cache: regex_automata::hybrid::dfa::Cache,
+}
+
+thread_local! {
+    static DFA_CACHE: std::cell::RefCell<Option<DfaCacheSlot>> = const { std::cell::RefCell::new(None) };
+}
+
+pub fn dfa_is_match_with_budget(
+    dfa: &regex_automata::hybrid::dfa::DFA,
+    re: &regex::bytes::Regex,
+    haystack: &[u8],
+    budget: &mut Option<&mut crate::budget::TxBudget>,
+) -> Result<bool, crate::budget::BudgetExceeded> {
+    let outcome = DFA_CACHE.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let ptr = dfa as *const regex_automata::hybrid::dfa::DFA as *const ();
+        if slot.as_ref().is_none_or(|s| s.dfa_ptr != ptr) {
+            *slot = Some(DfaCacheSlot {
+                dfa_ptr: ptr,
+                cache: dfa.create_cache(),
+            });
+        }
+        let cache = &mut slot.as_mut().unwrap().cache;
+        let input = regex_automata::Input::new(haystack);
+        let mut state = match dfa.start_state_forward(cache, &input) {
+            Ok(s) => s,
+            Err(_) => return None, // gave up: fallback to Regex::is_match
+        };
+        if state.is_match() {
+            return Some(Ok(true));
+        }
+
+        let mut bytes_since_check = 0;
+        for &b in haystack {
+            bytes_since_check += 1;
+            if bytes_since_check >= 128 {
+                bytes_since_check = 0;
+                if let Some(bgt) = budget.as_mut() {
+                    match bgt.check() {
+                        Ok(()) => {}
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
+            }
+            state = match dfa.next_state(cache, state, b) {
+                Ok(s) => s,
+                Err(_) => return None, // gave up: fallback to Regex::is_match
+            };
+            if state.is_match() {
+                return Some(Ok(true));
+            }
+        }
+        state = match dfa.next_eoi_state(cache, state) {
+            Ok(s) => s,
+            Err(_) => return None, // gave up
+        };
+        Some(Ok(state.is_match()))
+    });
+
+    match outcome {
+        Some(res) => res,
+        None => Ok(re.is_match(haystack)),
+    }
 }
 
 /// `\x{HH}` -> `\xHH` for values up to 0xff; other escapes as written.
@@ -106,19 +189,20 @@ impl Regexes {
                 if let (true, ValueView::Str(p), false) = (c.op == rx, c.value, in_db.contains(&ci))
                 {
                     let re = fallback_regex(p).map_err(|e| format!("rule {}: {e}", r.id))?;
-                    out.push((ci, re));
+                    let dfa = fallback_dfa(p).map_err(|e| format!("rule {}: {e}", r.id))?;
+                    out.push(FallbackRegex { ci, re, dfa });
                 }
             }
         }
-        out.sort_by_key(|(ci, _)| *ci);
+        out.sort_by_key(|fb| fb.ci);
         Ok(Regexes(out))
     }
 
-    fn get(&self, ci: u32) -> Option<&regex::bytes::Regex> {
+    pub fn get(&self, ci: u32) -> Option<&FallbackRegex> {
         self.0
-            .binary_search_by_key(&ci, |(c, _)| *c)
+            .binary_search_by_key(&ci, |fb| fb.ci)
             .ok()
-            .map(|i| &self.0[i].1)
+            .map(|i| &self.0[i])
     }
 
     pub fn len(&self) -> usize {
@@ -227,7 +311,7 @@ pub fn body_processor(ct: &[u8]) -> &'static [u8] {
 }
 
 /// The request's Content-Type (empty without one).
-fn content_type<'a>(headers: &[(&'a [u8], &'a [u8])]) -> &'a [u8] {
+pub(crate) fn content_type<'a>(headers: &[(&'a [u8], &'a [u8])]) -> &'a [u8] {
     headers
         .iter()
         .find(|(k, _)| k.eq_ignore_ascii_case(b"content-type"))
@@ -261,11 +345,23 @@ fn form_decode(s: &[u8]) -> Cow<'_, [u8]> {
 
 type Pair<'a> = (Cow<'a, [u8]>, Cow<'a, [u8]>);
 
+fn position_8k(slice: &[u8], needle: u8) -> Option<usize> {
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if let Some(i) = slice[curr..end].iter().position(|&c| c == needle) {
+            return Some(curr + i);
+        }
+        curr = end;
+    }
+    None
+}
+
 fn parse_query(q: &[u8]) -> Vec<Pair<'_>> {
     q.split(|&c| c == b'&')
         .filter(|p| !p.is_empty())
         .take(MAX_ARGS)
-        .map(|p| match p.iter().position(|&c| c == b'=') {
+        .map(|p| match position_8k(p, b'=') {
             Some(eq) => (form_decode(&p[..eq]), form_decode(&p[eq + 1..])),
             None => (form_decode(p), Cow::Borrowed(&p[..0])),
         })
@@ -292,7 +388,7 @@ fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
         .map(trim)
         .filter(|p| !p.is_empty())
         .take(MAX_COOKIES)
-        .map(|p| match p.iter().position(|&c| c == b'=') {
+        .map(|p| match position_8k(p, b'=') {
             Some(eq) => (Cow::Borrowed(&p[..eq]), Cow::Borrowed(&p[eq + 1..])),
             None => (Cow::Borrowed(p), Cow::Borrowed(&p[..0])),
         })
@@ -317,13 +413,24 @@ struct Data<'a> {
     xml: Option<xml::Xml>,
 }
 
-struct Ctx<'t, 'b> {
+type ScanKey = (usize, usize, [u8; 8], u8);
+
+fn make_scan_key(v: &[u8], chain: &[u8]) -> ScanKey {
+    let mut buf = [0u8; 8];
+    let len = chain.len().min(8);
+    buf[..len].copy_from_slice(&chain[..len]);
+    (v.as_ptr() as usize, v.len(), buf, len as u8)
+}
+
+struct Ctx<'t, 'b, 'a> {
     tables: &'t Tables<'b>,
     regexes: &'t Regexes,
     operators: &'t CompiledOperators,
     hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
-    /// (value address, length, chain) -> conditions matched by the scan
-    scans: HashMap<(usize, usize, Vec<u8>), Vec<u32>>,
+    /// (value address, length, chain, chain_len) -> conditions matched by the scan
+    scans: HashMap<ScanKey, Vec<u32>>,
+    budget: Option<&'a mut crate::budget::TxBudget>,
+    budget_exceeded: bool,
 }
 
 fn var(name: &str) -> u8 {
@@ -570,13 +677,16 @@ type Matched = Vec<Vec<u8>>;
 /// condition of the rule matched; with `collect`, every value this one
 /// matches is kept there (else evaluation stops at the first).
 fn condition(
-    ctx: &mut Ctx<'_, '_>,
+    ctx: &mut Ctx<'_, '_, '_>,
     d: &Data<'_>,
     ci: u32,
     c: &CondView<'_>,
     prev: &Matched,
     mut collect: Option<&mut Matched>,
 ) -> Outcome {
+    if ctx.budget_exceeded {
+        return Outcome::Match(false, None);
+    }
     let op = crate::rules::OPERATORS
         .get(c.op as usize)
         .copied()
@@ -612,6 +722,9 @@ fn condition(
     let mut match_candidate: Option<Candidate> = None;
 
     for ti in c.target_first..c.target_first + c.target_count {
+        if ctx.budget_exceeded {
+            break;
+        }
         let Some(t) = ctx.tables.target(ti) else {
             return Outcome::Unsupported;
         };
@@ -653,6 +766,9 @@ fn condition(
             c.transforms.len()..=c.transforms.len()
         };
         'values: for v in vals {
+            if ctx.budget_exceeded {
+                break;
+            }
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
                 let tv = || transform::apply_chain(chain, v.val);
@@ -682,10 +798,18 @@ fn condition(
                         "ip_match" => ctx.operators.check_ip_match(ci, &tv),
                         _ => false,
                     })
-                } else if let Some(re) = fallback {
-                    tv().is_some_and(|val| re.is_match(&val))
+                } else if let Some(fb) = fallback {
+                    tv().is_some_and(|val| {
+                        match dfa_is_match_with_budget(&fb.dfa, &fb.re, &val, &mut ctx.budget) {
+                            Ok(h) => h,
+                            Err(_) => {
+                                ctx.budget_exceeded = true;
+                                false
+                            }
+                        }
+                    })
                 } else if from_prev {
-                    scan(ctx, &tv()).contains(&ci)
+                    scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv()).contains(&ci)
                 } else {
                     matched(ctx, v.val, chain).contains(&ci)
                 };
@@ -730,28 +854,62 @@ fn condition(
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
 /// (value, chain).
-fn matched<'c>(ctx: &'c mut Ctx<'_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
-    let key = (v.as_ptr() as usize, v.len(), chain.to_vec());
+fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
+    let key = make_scan_key(v, chain);
     if !ctx.scans.contains_key(&key) {
         let hits = match transform::apply_chain(chain, v) {
-            Some(tv) => scan(ctx, &Some(tv)),
+            Some(tv) => scan(
+                &ctx.hs,
+                &mut ctx.budget,
+                &mut ctx.budget_exceeded,
+                &Some(tv),
+            ),
             None => vec![],
         };
-        ctx.scans.insert(key.clone(), hits);
+        ctx.scans.insert(key, hits);
     }
     &ctx.scans[&key]
 }
 
 /// Conditions matched by a transformed value, without the cache.
-fn scan(ctx: &Ctx<'_, '_>, tv: &Option<Cow<'_, [u8]>>) -> Vec<u32> {
+fn scan(
+    hs: &Option<(Hyperscan<'_>, MappedDb<'_>)>,
+    budget: &mut Option<&mut crate::budget::TxBudget>,
+    budget_exceeded: &mut bool,
+    tv: &Option<Cow<'_, [u8]>>,
+) -> Vec<u32> {
     let mut hits = vec![];
-    if let (Some((map, db)), Some(tv)) = (&ctx.hs, tv) {
-        let _ = db.scan(tv, &mut |id| {
-            if let Some(c) = map.condition(id) {
-                hits.push(c);
+    if let (Some((map, db)), Some(tv)) = (hs, tv) {
+        if map.is_stream {
+            let mut on_match = |id: u32| -> bool {
+                if let Some(c) = map.condition(id) {
+                    hits.push(c);
+                }
+                true
+            };
+            let check_budget = || -> bool {
+                if let Some(bgt) = budget.as_mut() {
+                    bgt.check().is_ok()
+                } else {
+                    true
+                }
+            };
+            match db.scan_stream_chunks(tv, 8192, check_budget, &mut on_match) {
+                Ok(true) => {}
+                Ok(false) | Err(_) => {
+                    if budget.as_mut().is_some_and(|bgt| bgt.check().is_err()) {
+                        *budget_exceeded = true;
+                    }
+                }
             }
-            true
-        });
+        } else {
+            let _ = db.scan(tv, &mut |id| {
+                if let Some(c) = map.condition(id) {
+                    hits.push(c);
+                }
+                true
+            });
+        }
     }
     hits.sort_unstable();
     hits.dedup();
@@ -759,7 +917,7 @@ fn scan(ctx: &Ctx<'_, '_>, tv: &Option<Cow<'_, [u8]>>) -> Vec<u32> {
 }
 
 fn rule_matches(
-    ctx: &mut Ctx<'_, '_>,
+    ctx: &mut Ctx<'_, '_, '_>,
     d: &Data<'_>,
     r: &RuleView<'_>,
 ) -> Option<(bool, Option<MatchDetail>)> {
@@ -769,6 +927,9 @@ fn rule_matches(
 
     let end = r.cond_first + r.cond_count;
     for ci in r.cond_first..end {
+        if ctx.budget_exceeded {
+            return Some((false, None));
+        }
         let c = ctx.tables.cond(ci)?;
         // keep what this condition matches when the next one reads it
         let next_reads = !r.any
@@ -835,8 +996,29 @@ pub fn evaluate(
     stage: u8,
     report: &mut impl FnMut(Violation),
 ) {
+    let _ = evaluate_with_budget(
+        tables, db, regexes, operators, req, stage, false, None, report,
+    );
+}
+
+/// Evaluates every rule of `stage` against the request with CPU budget tracking.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_with_budget(
+    tables: &Tables<'_>,
+    db: Option<MappedDb<'_>>,
+    regexes: &Regexes,
+    operators: &CompiledOperators,
+    req: &Request<'_>,
+    stage: u8,
+    degraded: bool,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+    report: &mut impl FnMut(Violation),
+) -> Result<(), crate::budget::BudgetExceeded> {
     if tables.n_rules() == 0 {
-        return;
+        return Ok(());
+    }
+    if let Some(bgt) = budget.as_mut() {
+        bgt.check()?;
     }
     let full_uri = if req.args.is_empty() {
         Cow::Borrowed(req.uri)
@@ -891,11 +1073,39 @@ pub fn evaluate(
         operators,
         hs,
         scans: HashMap::new(),
+        budget,
+        budget_exceeded: false,
     };
     for i in 0..tables.n_rules() {
         let Some(r) = tables.rule(i) else { continue };
         if r.stage != stage {
             continue;
+        }
+        if degraded {
+            let layer_name = crate::rules::LAYERS
+                .get(r.layer as usize)
+                .copied()
+                .unwrap_or("");
+            let is_protocol = layer_name == "protocol";
+            let all_ip_match = r.cond_count > 0
+                && (r.cond_first..r.cond_first + r.cond_count).all(|ci| {
+                    tables.cond(ci).is_some_and(|c| {
+                        let op = crate::rules::OPERATORS
+                            .get(c.op as usize)
+                            .copied()
+                            .unwrap_or("");
+                        op == "ip_match"
+                    })
+                });
+            if !is_protocol && !all_ip_match {
+                continue;
+            }
+        }
+        if let Some(bgt) = ctx.budget.as_mut() {
+            bgt.check()?;
+        }
+        if ctx.budget_exceeded {
+            return Err(crate::budget::BudgetExceeded);
         }
         if let Some((true, detail)) = rule_matches(&mut ctx, &d, &r) {
             let (field, snippet) = detail.map(|d| (d.field, d.snippet)).unwrap_or_default();
@@ -912,7 +1122,11 @@ pub fn evaluate(
                 snippet,
             });
         }
+        if ctx.budget_exceeded {
+            return Err(crate::budget::BudgetExceeded);
+        }
     }
+    Ok(())
 }
 
 #[cfg(test)]

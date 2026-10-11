@@ -31,33 +31,64 @@ pub fn media_type(ct: &[u8]) -> &[u8] {
     trim(&ct[..end])
 }
 
+fn memchr_8k(needle: u8, slice: &[u8]) -> Option<usize> {
+    let mut curr = 0;
+    while curr < slice.len() {
+        let end = (curr + 8192).min(slice.len());
+        if let Some(pos) = memchr::memchr(needle, &slice[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr = end;
+    }
+    None
+}
+
+fn memmem_8k(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    let finder = memchr::memmem::Finder::new(needle);
+    let mut curr = 0;
+    while curr < haystack.len() {
+        let end = (curr + 8192 + needle.len() - 1).min(haystack.len());
+        if end < curr + needle.len() {
+            break;
+        }
+        if let Some(pos) = finder.find(&haystack[curr..end]) {
+            return Some(curr + pos);
+        }
+        curr += 8192;
+    }
+    None
+}
+
 pub fn parse(b: &[u8]) -> Xml {
     let mut x = Xml::default();
     let mut i = 0;
     while i < b.len() {
         if b[i] != b'<' {
-            let end = memchr::memchr(b'<', &b[i..]).map_or(b.len(), |e| i + e);
+            let end = memchr_8k(b'<', &b[i..]).map_or(b.len(), |e| i + e);
             decode_into(&b[i..end], &mut x.text);
             i = end;
             continue;
         }
         let rest = &b[i..];
         let skip_to = |open: usize, close: &[u8]| {
-            memchr::memmem::find(&rest[open..], close).map(|e| i + open + e + close.len())
+            memmem_8k(&rest[open..], close).map(|e| i + open + e + close.len())
         };
         let next = if rest.starts_with(b"<?") {
             skip_to(2, b"?>")
         } else if rest.starts_with(b"<!--") {
             skip_to(4, b"-->")
         } else if rest.starts_with(b"<![CDATA[") {
-            memchr::memmem::find(&rest[9..], b"]]>").map(|e| {
+            memmem_8k(&rest[9..], b"]]>").map(|e| {
                 x.text.extend_from_slice(&rest[9..9 + e]);
                 i + 9 + e + 3
             })
         } else if rest.starts_with(b"<!") {
             doctype_end(rest).map(|e| i + e)
         } else if rest.starts_with(b"</") {
-            memchr::memchr(b'>', rest).map(|e| i + e + 1)
+            memchr_8k(b'>', rest).map(|e| i + e + 1)
         } else {
             start_tag(rest, &mut x.attrs).map(|e| i + e)
         };
@@ -71,9 +102,9 @@ pub fn parse(b: &[u8]) -> Xml {
 
 /// End of `<!DOCTYPE ...>`, with an internal subset `[...]` skipped.
 fn doctype_end(rest: &[u8]) -> Option<usize> {
-    let gt = memchr::memchr(b'>', rest)?;
-    match memchr::memchr(b'[', &rest[..gt]) {
-        Some(open) => memchr::memmem::find(&rest[open..], b"]>").map(|e| open + e + 2),
+    let gt = memchr_8k(b'>', rest)?;
+    match memchr_8k(b'[', &rest[..gt]) {
+        Some(open) => memmem_8k(&rest[open..], b"]>").map(|e| open + e + 2),
         None => Some(gt + 1),
     }
 }
@@ -120,7 +151,7 @@ fn start_tag(rest: &[u8], attrs: &mut Vec<Vec<u8>>) -> Option<usize> {
         if q != b'"' && q != b'\'' {
             return None;
         }
-        let close = memchr::memchr(q, &rest[j + 1..])? + j + 1;
+        let close = memchr_8k(q, &rest[j + 1..])? + j + 1;
         if attrs.len() < MAX_ATTRS {
             let mut v = Vec::with_capacity(close - j - 1);
             decode_into(&rest[j + 1..close], &mut v);
@@ -135,7 +166,7 @@ fn start_tag(rest: &[u8], attrs: &mut Vec<Vec<u8>>) -> Option<usize> {
 fn decode_into(s: &[u8], out: &mut Vec<u8>) {
     let mut i = 0;
     while i < s.len() {
-        let Some(amp) = memchr::memchr(b'&', &s[i..]) else {
+        let Some(amp) = memchr_8k(b'&', &s[i..]) else {
             out.extend_from_slice(&s[i..]);
             return;
         };

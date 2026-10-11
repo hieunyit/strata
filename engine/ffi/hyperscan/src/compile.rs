@@ -23,7 +23,8 @@ pub const DOTALL: u32 = 2;
 pub const MULTILINE: u32 = 4;
 pub const SINGLEMATCH: u32 = 8;
 pub const ALLOWEMPTY: u32 = 16;
-const HS_MODE_BLOCK: c_uint = 1;
+pub const HS_MODE_BLOCK: u32 = 1;
+pub const HS_MODE_STREAM: u32 = 2;
 const HS_TUNE_FAMILY_GENERIC: c_uint = 0;
 
 unsafe extern "C" {
@@ -62,10 +63,15 @@ pub struct Pattern {
     pub id: u32,
 }
 
-/// Compiles patterns (block mode) for a generic x86-64 target and returns
+/// Compiles patterns in streaming mode (`HS_MODE_STREAM`) for a generic x86-64 target and returns
 /// the in-memory image, as produced in a 4 KB-aligned buffer, to be stored
 /// in a bundle section. Err: (index of the pattern, message).
 pub fn compile(patterns: &[Pattern]) -> Result<Vec<u8>, (usize, String)> {
+    compile_mode(patterns, HS_MODE_STREAM)
+}
+
+/// Compiles patterns with a specific mode (`HS_MODE_STREAM` or `HS_MODE_BLOCK`).
+pub fn compile_mode(patterns: &[Pattern], mode: u32) -> Result<Vec<u8>, (usize, String)> {
     let exprs: Vec<CString> = patterns
         .iter()
         .map(|p| CString::new(p.expression.clone()))
@@ -91,7 +97,7 @@ pub fn compile(patterns: &[Pattern]) -> Result<Vec<u8>, (usize, String)> {
             flags.as_ptr(),
             ids.as_ptr(),
             n,
-            HS_MODE_BLOCK,
+            mode as c_uint,
             &platform,
             &mut db,
             &mut err,
@@ -161,25 +167,47 @@ mod tests {
                 id: 9,
             },
         ];
-        let image = compile(&pats).unwrap();
-        let buf = AlignedBuf::from_bytes(&image);
-        let db = MappedDb::validate(buf.as_ref()).unwrap();
+        // 1. Block mode with db.scan
+        let image_block = compile_mode(&pats, HS_MODE_BLOCK).unwrap();
+        let buf_block = AlignedBuf::from_bytes(&image_block);
+        let db_block = MappedDb::validate(buf_block.as_ref()).unwrap();
         let mut hits = vec![];
-        db.scan(b"x UNION  SELECT 1 from /etc/passwd", &mut |id| {
-            hits.push(id);
-            true
-        })
-        .unwrap();
+        db_block
+            .scan(b"x UNION  SELECT 1 from /etc/passwd", &mut |id| {
+                hits.push(id);
+                true
+            })
+            .unwrap();
         hits.sort();
         assert_eq!(hits, [7, 9]);
-        // early stop
+        // early stop in block mode
         let mut n = 0;
-        db.scan(b"union select /etc/passwd", &mut |_| {
-            n += 1;
-            false
-        })
-        .unwrap();
+        db_block
+            .scan(b"union select /etc/passwd", &mut |_| {
+                n += 1;
+                false
+            })
+            .unwrap();
         assert_eq!(n, 1);
+
+        // 2. Stream mode with db.scan_stream_chunks
+        let image_stream = compile(&pats).unwrap();
+        let buf_stream = AlignedBuf::from_bytes(&image_stream);
+        let db_stream = MappedDb::validate(buf_stream.as_ref()).unwrap();
+        let mut stream_hits = vec![];
+        db_stream
+            .scan_stream_chunks(
+                b"x UNION  SELECT 1 from /etc/passwd",
+                8192,
+                || true,
+                &mut |id| {
+                    stream_hits.push(id);
+                    true
+                },
+            )
+            .unwrap();
+        stream_hits.sort();
+        assert_eq!(stream_hits, [7, 9]);
     }
 
     #[test]

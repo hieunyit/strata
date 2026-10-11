@@ -62,34 +62,103 @@ fn pct(b: &[u8], i: usize, hi: u8, lo: u8) -> bool {
 
 /// Checks the raw request URI (path and query).
 pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
-    let path_end = raw.iter().position(|&c| c == b'?').unwrap_or(raw.len());
+    let raw = if raw.len() > 65536 {
+        &raw[..65536]
+    } else {
+        raw
+    };
+    let path_end = memchr::memchr(b'?', raw).unwrap_or(raw.len());
     let path = &raw[..path_end];
 
     let mut double_pos = None;
     let mut null_pos = None;
-    let mut ctl_pos = None;
 
-    for (i, &c) in raw.iter().enumerate() {
-        if c == b'%' {
-            if pct(raw, i, b'2', b'5')
-                && raw.len() >= i + 5
-                && is_hex(raw[i + 3])
-                && is_hex(raw[i + 4])
-                && double_pos.is_none()
-            {
-                double_pos = Some(i);
-            }
-            if pct(raw, i, b'0', b'0') && null_pos.is_none() {
-                null_pos = Some((i, 3));
-            }
-        } else if c == 0 {
-            if null_pos.is_none() {
-                null_pos = Some((i, 1));
-            }
-        } else if ((c > 0 && c < 0x20) || c == 0x7f) && ctl_pos.is_none() {
-            ctl_pos = Some((i, 1));
+    // Fast SIMD scan for '%' (double encoding and %00)
+    let mut search_pct = 0;
+    while let Some(rel) = memchr::memchr(b'%', &raw[search_pct..]) {
+        let i = search_pct + rel;
+        if double_pos.is_none()
+            && pct(raw, i, b'2', b'5')
+            && raw.len() >= i + 5
+            && is_hex(raw[i + 3])
+            && is_hex(raw[i + 4])
+        {
+            double_pos = Some(i);
+        }
+        if null_pos.is_none() && pct(raw, i, b'0', b'0') {
+            null_pos = Some((i, 3));
+        }
+        if double_pos.is_some() && null_pos.is_some() {
+            break;
+        }
+        search_pct = i + 1;
+    }
+
+    // Fast SIMD scan for raw null byte (0x00)
+    if let Some(pos) = memchr::memchr(0, raw) {
+        let is_earlier = match null_pos {
+            None => true,
+            Some((p, _)) => pos < p,
+        };
+        if is_earlier {
+            null_pos = Some((pos, 1));
         }
     }
+
+    // Fast SIMD scan for DEL (0x7f)
+    let first_7f = memchr::memchr(0x7f, raw);
+
+    // Vectorized scan for raw control characters (0x01..=0x1f)
+    let mut first_lt20 = None;
+    let mut pos = 0;
+    while pos + 64 <= raw.len() {
+        let chunk: &[u8; 64] = raw[pos..pos + 64].try_into().unwrap();
+        let w0 = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
+        let w1 = u64::from_le_bytes(chunk[8..16].try_into().unwrap());
+        let w2 = u64::from_le_bytes(chunk[16..24].try_into().unwrap());
+        let w3 = u64::from_le_bytes(chunk[24..32].try_into().unwrap());
+        let w4 = u64::from_le_bytes(chunk[32..40].try_into().unwrap());
+        let w5 = u64::from_le_bytes(chunk[40..48].try_into().unwrap());
+        let w6 = u64::from_le_bytes(chunk[48..56].try_into().unwrap());
+        let w7 = u64::from_le_bytes(chunk[56..64].try_into().unwrap());
+
+        let lt = (w0.wrapping_sub(0x2020202020202020) & !w0)
+            | (w1.wrapping_sub(0x2020202020202020) & !w1)
+            | (w2.wrapping_sub(0x2020202020202020) & !w2)
+            | (w3.wrapping_sub(0x2020202020202020) & !w3)
+            | (w4.wrapping_sub(0x2020202020202020) & !w4)
+            | (w5.wrapping_sub(0x2020202020202020) & !w5)
+            | (w6.wrapping_sub(0x2020202020202020) & !w6)
+            | (w7.wrapping_sub(0x2020202020202020) & !w7);
+
+        if (lt & 0x8080808080808080) != 0 {
+            for (offset, &c) in raw[pos..pos + 64].iter().enumerate() {
+                if c > 0 && c < 0x20 {
+                    first_lt20 = Some(pos + offset);
+                    break;
+                }
+            }
+            if first_lt20.is_some() {
+                break;
+            }
+        }
+        pos += 64;
+    }
+    if first_lt20.is_none() {
+        for (offset, &c) in raw[pos..].iter().enumerate() {
+            if c > 0 && c < 0x20 {
+                first_lt20 = Some(pos + offset);
+                break;
+            }
+        }
+    }
+
+    let ctl_pos = match (first_lt20, first_7f) {
+        (Some(a), Some(b)) => Some((a.min(b), 1)),
+        (Some(a), None) => Some((a, 1)),
+        (None, Some(b)) => Some((b, 1)),
+        (None, None) => None,
+    };
 
     let window = |pos: usize, len: usize| {
         let start = pos.saturating_sub(16);
@@ -119,12 +188,19 @@ pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
 
     let mut dot_seg = None;
     let mut matrix_seg = None;
-    for seg in path.split(|&c| c == b'/') {
-        if seg.contains(&b';') && matrix_seg.is_none() {
-            matrix_seg = Some(seg);
-        }
-        if encoded_dot_segment(seg) && dot_seg.is_none() {
-            dot_seg = Some(seg);
+    let has_semi = memchr::memchr(b';', path).is_some();
+    let has_pct = memchr::memchr(b'%', path).is_some();
+    if has_semi || has_pct {
+        for seg in path.split(|&c| c == b'/') {
+            if has_semi && matrix_seg.is_none() && memchr::memchr(b';', seg).is_some() {
+                matrix_seg = Some(seg);
+            }
+            if has_pct && dot_seg.is_none() && encoded_dot_segment(seg) {
+                dot_seg = Some(seg);
+            }
+            if matrix_seg.is_some() && (!has_pct || dot_seg.is_some()) {
+                break;
+            }
         }
     }
     if let Some(seg) = dot_seg {
