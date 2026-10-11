@@ -55,6 +55,9 @@ fn engine() -> Arc<Engine> {
                 cond(&["matched_vars"], &["remove_whitespace"], "detect_sqli", Value::None, true),
             ]),
             rule(800904, vec![cond(&all, &["length"], "gt", Value::Int(64), false)]),
+            rule(800905, vec![cond(&all, &decode, "validate_byte_range", Value::Str(b"1-255".to_vec()), false)]),
+            rule(800906, vec![cond(&all, &[], "validate_utf8_encoding", Value::None, false)]),
+            rule(800907, vec![cond(&all, &[], "ip_match", Value::List(vec![b"10.0.0.0/8".to_vec(), b"192.168.0.0/16".to_vec(), b"2001:db8::/32".to_vec()]), false)]),
         ];
         let sections = encode(&rules, None);
         let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
@@ -96,5 +99,5 @@ fuzz_target!(|data: &[u8]| {
     }
     let v = t.verdict();
     assert!(v.n_rules as usize <= v.rules.len());
-    assert!(v.rules[..v.n_rules as usize].iter().all(|r| *r < 800000 || (800901..=800904).contains(r)));
+    assert!(v.rules[..v.n_rules as usize].iter().all(|r| *r < 800000 || (800901..=800907).contains(r)));
 });

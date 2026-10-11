@@ -71,6 +71,8 @@ var operators = map[string]string{
 	"rx": "rx", "pm": "pm", "pmFromFile": "pm", "pmf": "pm", "detectSQLi": "detect_sqli", "detectXSS": "detect_xss",
 	"streq": "streq", "contains": "contains", "beginsWith": "begins_with", "endsWith": "ends_with",
 	"eq": "eq", "ne": "ne", "gt": "gt", "ge": "ge", "lt": "lt", "le": "le",
+	"validateByteRange": "validate_byte_range", "validateUrlEncoding": "validate_url_encoding",
+	"validateUtf8Encoding": "validate_utf8_encoding", "ipMatch": "ip_match",
 }
 
 // Group is one CRS file to import.
@@ -189,6 +191,26 @@ func convertLink(l seclang.Link, dataDir string, notes *[]string) (map[string]an
 		}
 		opm["value"] = words
 	case "detectSQLi", "detectXSS":
+	case "validateUrlEncoding", "validateUtf8Encoding":
+	case "validateByteRange":
+		arg = strings.TrimSpace(arg)
+		if arg == "" {
+			return nil, "@validateByteRange without a value"
+		}
+		opm["value"] = arg
+	case "ipMatch":
+		parts := strings.Split(arg, ",")
+		var ips []string
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				ips = append(ips, p)
+			}
+		}
+		if len(ips) == 0 {
+			return nil, "@ipMatch without a value"
+		}
+		opm["value"] = ips
 	case "eq", "ne", "gt", "ge", "lt", "le":
 		n, err := strconv.Atoi(strings.TrimSpace(arg))
 		if err != nil {

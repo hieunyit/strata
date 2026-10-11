@@ -140,6 +140,8 @@ fn condition(c: &Value) -> Result<CondDef> {
         .map(|t| coded(TRANSFORMS, t.as_str().unwrap_or_default()))
         .collect::<Result<_>>()?;
     let op = &c["operator"];
+    let op_type_str = s(op, "type");
+    let op_code = coded(OPERATORS, op_type_str)?;
     let value = match op.get("value") {
         None => RValue::None,
         Some(Value::String(v)) => RValue::Str(v.as_bytes().to_vec()),
@@ -147,10 +149,36 @@ fn condition(c: &Value) -> Result<CondDef> {
         Some(Value::Array(a)) => RValue::List(a.iter().map(value_bytes).collect()),
         Some(other) => return Err(format!("unsupported operator value {other}")),
     };
+    if op_type_str == "validate_byte_range" {
+        match &value {
+            RValue::Str(s) => {
+                let spec = std::str::from_utf8(s)
+                    .map_err(|_| "validate_byte_range: value is not valid utf-8")?;
+                libstrata::operators::validate_byte_range_syntax(spec)
+                    .map_err(|e| format!("validate_byte_range: {e}"))?;
+            }
+            _ => return Err("validate_byte_range requires a string value".into()),
+        }
+    } else if op_type_str == "ip_match" {
+        match &value {
+            RValue::List(items) => {
+                let mut strs = Vec::with_capacity(items.len());
+                for b in items {
+                    strs.push(
+                        std::str::from_utf8(b)
+                            .map_err(|_| "ip_match: entry is not valid utf-8".to_string())?,
+                    );
+                }
+                libstrata::operators::validate_ip_match_syntax(&strs)
+                    .map_err(|e| format!("ip_match: {e}"))?;
+            }
+            _ => return Err("ip_match requires a list value".into()),
+        }
+    }
     Ok(CondDef {
         targets,
         transforms,
-        op: coded(OPERATORS, s(op, "type"))?,
+        op: op_code,
         negate: op["negate"].as_bool().unwrap_or(false),
         multi_match: c["multi_match"].as_bool().unwrap_or(false),
         value,

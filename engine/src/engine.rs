@@ -24,6 +24,8 @@ pub struct Engine {
     body_rules: bool,
     /// rx patterns Hyperscan does not take, for the `regex` crate
     regexes: crate::eval::Regexes,
+    /// byte ranges and ip match sets evaluated per bundle
+    operators: crate::operators::CompiledOperators,
 }
 
 impl std::fmt::Debug for Engine {
@@ -69,17 +71,25 @@ impl Engine {
                 "bundle has an rx pattern this build cannot compile",
             )
         })?;
+        let operators =
+            crate::operators::CompiledOperators::build(&tables).map_err(|e| (E_BUNDLE, e))?;
         Ok(Engine {
             bytes: bundle,
             info,
             body_rules,
             regexes,
+            operators,
         })
     }
 
     /// rx patterns evaluated without Hyperscan.
     pub fn regexes(&self) -> &crate::eval::Regexes {
         &self.regexes
+    }
+
+    /// Pre-compiled operator structures (byte ranges, ip match sets).
+    pub fn operators(&self) -> &crate::operators::CompiledOperators {
+        &self.operators
     }
 
     /// Whether some rule runs at stage request_body.

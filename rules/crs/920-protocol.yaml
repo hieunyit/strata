@@ -207,6 +207,32 @@ rules:
       source: crs
       upstream_id: "920260"
       upstream_version: 4.25.2
+  - id: 920270
+    name: Invalid character in request (null character)
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: validate_byte_range
+            value: 1-255
+          targets:
+            - var: uri_raw
+            - var: request_headers
+            - var: args
+            - var: args_names
+          transforms:
+            - url_decode_uni
+    score: 100
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920270"
+      upstream_version: 4.25.2
   - id: 920280
     name: Request Missing a Host Header
     layer: protocol

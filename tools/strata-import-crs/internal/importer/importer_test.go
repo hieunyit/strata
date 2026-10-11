@@ -208,3 +208,50 @@ func TestMarshalIsSortedIR(t *testing.T) {
 		t.Errorf("rules are in id order")
 	}
 }
+
+func TestBatch2Operators(t *testing.T) {
+	testConf := `
+SecRule ARGS "@validateByteRange 32-126" "id:920270,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule REQUEST_URI "@validateUrlEncoding" "id:920220,phase:1,block,severity:'WARNING',tag:'paranoia-level/1'"
+SecRule ARGS "@validateUtf8Encoding" "id:920250,phase:2,block,severity:'ERROR',tag:'paranoia-level/1'"
+SecRule REMOTE_ADDR "@ipMatch 10.0.0.0/8, 192.168.1.1" "id:920350,phase:1,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+`
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(rules, "ops.conf"), []byte(testConf), 0o644)
+	res, err := Import([]Group{{File: "ops.conf", Out: "ops.yaml", Ruleset: "crs-ops", AttackType: "protocol", Layer: "protocol"}},
+		Options{CRSDir: dir, Version: "4.25.2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Groups[0].Rules) != 4 {
+		t.Fatalf("expected 4 rules, got %d, skipped: %+v", len(res.Groups[0].Rules), res.Skipped)
+	}
+
+	r270 := rule(t, res, 920270)
+	c270 := conds(r270)[0].(map[string]any)
+	if !reflect.DeepEqual(c270["operator"], map[string]any{"type": "validate_byte_range", "value": "32-126"}) {
+		t.Errorf("920270 op: %+v", c270["operator"])
+	}
+
+	r220 := rule(t, res, 920220)
+	c220 := conds(r220)[0].(map[string]any)
+	if !reflect.DeepEqual(c220["operator"], map[string]any{"type": "validate_url_encoding"}) {
+		t.Errorf("920220 op: %+v", c220["operator"])
+	}
+
+	r250 := rule(t, res, 920250)
+	c250 := conds(r250)[0].(map[string]any)
+	if !reflect.DeepEqual(c250["operator"], map[string]any{"type": "validate_utf8_encoding"}) {
+		t.Errorf("920250 op: %+v", c250["operator"])
+	}
+
+	r350 := rule(t, res, 920350)
+	c350 := conds(r350)[0].(map[string]any)
+	if !reflect.DeepEqual(c350["operator"], map[string]any{"type": "ip_match", "value": []string{"10.0.0.0/8", "192.168.1.1"}}) {
+		t.Errorf("920350 op: %+v", c350["operator"])
+	}
+}
