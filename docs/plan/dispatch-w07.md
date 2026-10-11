@@ -366,7 +366,7 @@ Trả về tối đa 10 mục [Cao|TB|Thấp] vấn đề → yêu cầu sửa. 
 Review PR <số> của <MÃ> theo AGENTS.md mục 6b, mức <L2|L3>.
 Đọc nội dung PR (báo cáo), gh pr diff <số>, gh pr checks <số>. L3: checkout nhánh, chạy lại kiểm chứng (sanitizer, -race, prove 2 bản NGINX, fuzz ngắn).
 Lỗi Cao ở L3 sửa được trong khoảng 30 dòng thì tự sửa (commit "review: ..." vào nhánh của PR), còn lại ghi yêu cầu sửa cho Antigravity.
-Đăng kết quả bằng gh pr review. APPROVE và CI xanh thì merge (gh pr merge --squash hoặc --rebase theo quy ước) và xóa nhánh.
+Đăng kết quả bằng gh pr review --comment (cùng tài khoản GitHub với người mở PR nên không dùng --approve được). APPROVE và CI xanh thì merge (gh pr merge --squash hoặc --rebase theo quy ước) và xóa nhánh.
 ```
 
 **Sửa theo review** (Antigravity), **Review lại**, **Claude Code nhận làm**: dùng như mục 0 của `docs/plan/dispatch.md`.
