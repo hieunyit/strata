@@ -183,3 +183,84 @@ fn response_layer_flags() {
         );
     }
 }
+
+#[test]
+fn operator_validation_in_compiler() {
+    let good_byte_range = "
+    - id: 800100
+      name: test byte range
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_byte_range, value: '10,20-30,40' }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    assert!(ir(good_byte_range).is_ok());
+
+    let bad_byte_range = "
+    - id: 800101
+      name: test bad byte range
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_byte_range, value: '30-20' }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    let err = ir(bad_byte_range).unwrap_err();
+    assert!(err.contains("rule 800101: validate_byte_range: byte range inverted 30-20"));
+
+    let bad_byte_range_type = "
+    - id: 800102
+      name: test bad byte range type
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: path }]
+            operator: { type: validate_byte_range, value: 123 }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    let err = ir(bad_byte_range_type).unwrap_err();
+    assert!(err.contains("rule 800102: validate_byte_range requires a string value"));
+
+    let good_ip_match = "
+    - id: 800103
+      name: test ip match
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: remote_addr }]
+            operator: { type: ip_match, value: ['10.0.0.0/8', '2001:db8::/32'] }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    assert!(ir(good_ip_match).is_ok());
+
+    let bad_ip_match = "
+    - id: 800104
+      name: test bad ip match
+      layer: managed
+      stage: request_headers
+      match:
+        all:
+          - targets: [{ var: remote_addr }]
+            operator: { type: ip_match, value: ['10.0.0.999'] }
+      score: 5
+      severity: warning
+      metadata: { source: organization, license: Apache-2.0 }
+    ";
+    let err = ir(bad_ip_match).unwrap_err();
+    assert!(err.contains("rule 800104: ip_match: invalid IPv4 address"));
+}

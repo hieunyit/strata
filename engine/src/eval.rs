@@ -33,6 +33,7 @@ use strata_hs::MappedDb;
 
 use crate::detectors::Violation;
 use crate::detectors::injection::{detect_sqli, detect_xss};
+use crate::operators::{self, CompiledOperators};
 use crate::rules::{
     CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS, ValueView, code,
 };
@@ -171,7 +172,17 @@ pub fn supported() -> (Vec<&'static str>, Vec<&'static str>) {
             HS_OPERATORS.contains(&(*i as u8))
                 || matches!(
                     **name,
-                    "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "detect_sqli" | "detect_xss"
+                    "eq" | "ne"
+                        | "gt"
+                        | "ge"
+                        | "lt"
+                        | "le"
+                        | "detect_sqli"
+                        | "detect_xss"
+                        | "validate_byte_range"
+                        | "validate_url_encoding"
+                        | "validate_utf8_encoding"
+                        | "ip_match"
                 )
         })
         .map(|(_, n)| *n)
@@ -309,6 +320,7 @@ struct Data<'a> {
 struct Ctx<'t, 'b> {
     tables: &'t Tables<'b>,
     regexes: &'t Regexes,
+    operators: &'t CompiledOperators,
     hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
     /// (value address, length, chain) -> conditions matched by the scan
     scans: HashMap<(usize, usize, Vec<u8>), Vec<u32>>,
@@ -460,7 +472,11 @@ fn condition(
     let numeric = matches!(op, "eq" | "ne" | "gt" | "ge" | "lt" | "le");
     let pattern = HS_OPERATORS.contains(&c.op);
     let detect = matches!(op, "detect_sqli" | "detect_xss");
-    if !(numeric || pattern || detect)
+    let operator_v2 = matches!(
+        op,
+        "validate_byte_range" | "validate_url_encoding" | "validate_utf8_encoding" | "ip_match"
+    );
+    if !(numeric || pattern || detect || operator_v2)
         || !c.transforms.iter().all(|&t| transform::is_implemented(t))
     {
         return Outcome::Unsupported;
@@ -532,6 +548,14 @@ fn condition(
                         } else {
                             detect_xss(&tv)
                         }
+                    })
+                } else if operator_v2 {
+                    tv().is_some_and(|tv| match op {
+                        "validate_byte_range" => ctx.operators.check_byte_range(ci, &tv),
+                        "validate_url_encoding" => operators::validate_url_encoding(&tv),
+                        "validate_utf8_encoding" => operators::validate_utf8_encoding(&tv),
+                        "ip_match" => ctx.operators.check_ip_match(ci, &tv),
+                        _ => false,
                     })
                 } else if let Some(re) = fallback {
                     tv().is_some_and(|tv| re.is_match(&tv))
@@ -627,6 +651,7 @@ pub fn evaluate(
     tables: &Tables<'_>,
     db: Option<MappedDb<'_>>,
     regexes: &Regexes,
+    operators: &CompiledOperators,
     req: &Request<'_>,
     stage: u8,
     report: &mut impl FnMut(Violation),
@@ -684,6 +709,7 @@ pub fn evaluate(
     let mut ctx = Ctx {
         tables,
         regexes,
+        operators,
         hs,
         scans: HashMap::new(),
     };
@@ -722,10 +748,19 @@ mod tests {
     #[test]
     fn supported_lists_match_the_evaluator() {
         let (ops, transforms) = supported();
-        for op in ["rx", "pm", "eq", "detect_sqli", "detect_xss"] {
+        for op in [
+            "rx",
+            "pm",
+            "eq",
+            "detect_sqli",
+            "detect_xss",
+            "validate_byte_range",
+            "validate_url_encoding",
+            "validate_utf8_encoding",
+            "ip_match",
+        ] {
             assert!(ops.contains(&op), "{op}");
         }
-        assert!(!ops.contains(&"ip_match"));
         assert_eq!(
             transforms.len(),
             crate::rules::TRANSFORMS.len(),

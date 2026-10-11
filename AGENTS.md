@@ -20,7 +20,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 | Mã | Nhiệm vụ | Công cụ | Review | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- | --- |
-| W07-R-02 | Operator đợt 2 (validateByteRange, validateUrlEncoding, validateUtf8Encoding, ipMatch) | Antigravity | L2 | — | ⏳ Chưa bắt đầu |
+| W07-R-02 | Operator đợt 2 (validateByteRange, validateUrlEncoding, validateUtf8Encoding, ipMatch) | Antigravity | L2 | — | ✅ Done |
 | W07-R-03 | Mã hóa sự kiện trong libstrata (strata_tx_event) | Antigravity | L3 | — | ⏳ Chưa bắt đầu |
 | W07-R-01 | CPU budget hợp tác và cô lập lỗi | Antigravity | L3 | — | ⏳ Chưa bắt đầu |
 | W07-N-01 | Fail mode, event sink, metrics, RST_STREAM | Antigravity | L3 | W07-R-03, W07-R-01 | ⏳ Chưa bắt đầu |

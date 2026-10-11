@@ -36,13 +36,13 @@ rules:
     severity: critical
     metadata: { source: crs, license: Apache-2.0, upstream_id: "942100", upstream_version: 4.25.2, author: OWASP CRS project }
   - id: 942101
-    name: needs ip_match
-    layer: managed
-    stage: request_headers
+    name: needs response_status
+    layer: response
+    stage: response_headers
     match:
       all:
-        - targets: [{ var: remote_addr }]
-          operator: { type: ip_match, value: [192.0.2.0/24] }
+        - targets: [{ var: response_status }]
+          operator: { type: eq, value: 500 }
     score: 100
     severity: critical
     metadata: { source: crs, license: Apache-2.0, upstream_id: "942101", upstream_version: 4.25.2, author: OWASP CRS project }

@@ -43,19 +43,19 @@ tests:
 
 const unsupported = `rule:
   id: 800011
-  name: Needs ip_match
-  layer: managed
-  stage: request_headers
+  name: Needs response_status
+  layer: response
+  stage: response_headers
   match:
     all:
-      - targets: [{ var: remote_addr }]
-        operator: { type: ip_match, value: [192.0.2.0/24] }
+      - targets: [{ var: response_status }]
+        operator: { type: eq, value: 500 }
   score: 10
   severity: warning
   metadata: { source: organization, license: Apache-2.0, author: example-secops }
 tests:
-  match: [{ uri: /run, remote_addr: 192.0.2.1 }]
-  no_match: [{ uri: /run, remote_addr: 198.51.100.1 }]
+  match: [{ uri: /run }]
+  no_match: [{ uri: /run }]
 `
 
 func TestRunReportsPassFailSkip(t *testing.T) {
@@ -78,7 +78,7 @@ func TestRunReportsPassFailSkip(t *testing.T) {
 	if res[0].Status != Fail || len(res[0].Failures) != 1 || !strings.Contains(res[0].Failures[0], "a prefix that also matches") {
 		t.Errorf("800010: %+v", res[0])
 	}
-	if res[1].Status != Skip || !strings.Contains(res[1].Reason, "operator ip_match") {
+	if res[1].Status != Skip || !strings.Contains(res[1].Reason, "target response_status") {
 		t.Errorf("800011: %+v", res[1])
 	}
 }

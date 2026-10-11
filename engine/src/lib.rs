@@ -14,6 +14,7 @@ pub mod eval;
 pub mod guard;
 pub mod json;
 pub mod multipart;
+pub mod operators;
 pub mod rules;
 pub mod transform;
 pub mod tx;
