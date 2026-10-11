@@ -160,6 +160,48 @@ Mỗi phiên chỉ làm một mã nhiệm vụ. Không làm trước nhiệm v�
 - Commit tiếng Anh dạng `area: change`, ví dụ `nginx: force body read in enforce`.
 - PR tối đa khoảng 400 dòng thay đổi (không tính code sinh tự động); lớn hơn thì tách.
 
+## 6a. Chuẩn làm việc (mọi nhiệm vụ do Antigravity làm)
+
+**Môi trường** (máy dev hiện tại)
+- Host không có `make` và `sudo`: chạy mọi lệnh Makefile qua image dev, `deploy/dev/run.sh make <đích> ...`. Image mount repo tại `/src` và **không thấy `/tmp` của host**: file tạm cho công cụ chạy trong image để ở `build/` (đã gitignore).
+- Go trên host là 1.22, module cần 1.25: chạy Go trên host bằng `GOTOOLCHAIN=auto go ...`, hoặc trong image dev.
+- Node/npm (UI) chạy trên host, trong `ui/`.
+- `make test-nginx-asan` **không tự build lại**: luôn chạy `make nginx-asan NGINX_VERSION=<bản>` trước, nếu không sẽ test module cũ và ra lỗi giả. Tương tự `make nginx` trước `make test-nginx-valgrind`.
+- Lab: `deploy/dev/run.sh deploy/lab/build.sh`, rồi `docker compose -f deploy/lab/compose.yaml --env-file deploy/lab/.state/env up -d --wait`; kiểm bằng `deploy/lab/smoke.sh` và `tests/e2e/lab-chain.sh`.
+
+**Cách làm**
+- Test viết trước hoặc cùng lúc với code: mỗi điều kiện "Xong khi" có ít nhất một test tự động chứng minh; mỗi lỗi sửa có test fail trước, pass sau.
+- Test âm bắt buộc: input sai, thiếu, quá giới hạn, thù địch; với C/Rust đi qua FFI thì chạy ASan + UBSan; với Go chạy `-race`.
+- Bằng chứng là output thật của lệnh (dán đoạn cuối có số test pass/fail), không viết "đã kiểm tra" mà không có output.
+- Không sửa test có sẵn cho xanh; test có sẵn fail mà không liên quan thì dừng và báo.
+- Đổi interface chung (mục 5) chỉ khi prompt của nhiệm vụ ghi rõ; khi đó cập nhật tài liệu thiết kế tương ứng trong cùng nhánh.
+- Commit nhỏ, tiếng Anh `area: change`, mỗi commit build được.
+
+**Tự review trước khi báo xong** (ghi kết quả từng dòng vào báo cáo)
+1. Mọi điều kiện "Xong khi" có lệnh và output.
+2. Đường lỗi: mọi giá trị trả về lỗi được xử lý; không `unwrap()`/`panic!` trên dữ liệu từ ngoài; không nuốt lỗi.
+3. Giới hạn: mọi vòng lặp, buffer, danh sách từ input có chặn trên.
+4. Bảo mật: không log khóa/token/PII; quyền RBAC và audit cho endpoint ghi; không tin dữ liệu từ worker/agent.
+5. Không đổi gì ngoài thư mục được giao (trừ test, tài liệu của thành phần đó).
+6. `cargo clippy -D warnings` / `golangci-lint` / `npm run lint` sạch.
+
+**Không có remote GitHub** (trạng thái hiện tại): không mở PR. Làm trên nhánh `<MÃ>-<mô-tả>` trong worktree `../strata-ag` (tạo từ `main`), ghi báo cáo theo mục 9 vào `docs/reports/<mã-chữ-thường>.md` trong cùng nhánh, commit, rồi dừng. Người review đọc `git diff main...<nhánh>`; merge vào `main` bằng fast-forward sau khi review `APPROVE`, rồi xóa nhánh. Khi có remote thì quay lại quy trình PR.
+
+## 6b. Mẫu review (Claude Code)
+
+```
+Review <MÃ> · nhánh <nhánh> · SHA <sha> · Mức <L1|L2|L3>
+Kết luận: APPROVE | CẦN SỬA | APPROVE (đã tự sửa: <commit>)
+
+Lỗi:
+- [Cao|TB|Thấp] <file:dòng> <vấn đề> → <yêu cầu sửa cụ thể, kèm test cần thêm>
+
+"Xong khi": <điều kiện> — đạt / chưa đạt / chưa có bằng chứng
+Đã chạy lại: <lệnh> → <kết quả>   (L3: sanitizer, -race, prove trên 2 bản NGINX)
+```
+
+Cao: sai chức năng, lỗi bảo mật, rò bộ nhớ, crash, đổi interface ngoài phạm vi, thiếu bằng chứng cho "Xong khi". TB: thiếu test âm, xử lý lỗi yếu, hiệu năng rõ ràng kém. Thấp: đặt tên, comment, gọn code.
+
 ## 7. An toàn khi chạy lệnh
 
 - Chỉ làm việc với **lab**. Không kết nối staging hay production, không dùng thông tin đăng nhập thật.

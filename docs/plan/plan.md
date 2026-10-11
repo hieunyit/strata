@@ -299,8 +299,13 @@ Mục tiêu: request thật đi qua module trên 2 route thí điểm ở chế 
   - Xong khi: payload bệnh lý 1 MB → phần vượt budget dưới 100 µs; panic được tiêm → trả `STRATA_E_INTERNAL`, worker không sập.
 - **W07-R-02 · Transformation và operator đợt 2**
   - Thư mục: `engine/`
-  - Làm: `jsDecode`, `cssDecode`, `cmdLine`, `utf8toUnicode`, `base64Decode`; `@validateByteRange`, `@validateUrlEncoding`, `@validateUtf8Encoding`, `@ipMatch`, so sánh số.
+  - Làm: `@validateByteRange`, `@validateUrlEncoding`, `@validateUtf8Encoding`, `@ipMatch` (các transformation đợt 2 và so sánh số đã xong trong W06-S-01).
   - Xong khi: khớp 100% test vector so với Coraza.
+- **W07-R-03 · Mã hóa sự kiện trong libstrata**
+  - Thư mục: `engine/`
+  - Làm: `strata_tx_event` trả sự kiện protobuf `strata.event.v1.Event` (hiện là stub trả 0) cho request bị chặn, shadow đáng lẽ chặn, và lỗi engine/budget; tối đa 8 KB.
+  - Xong khi: agent (`agent/internal/eventsock`) giải mã đúng sự kiện do libstrata tạo (test golden dùng chung hai phía); không có sự kiện cho request cho qua sạch; đoạn input trong sự kiện có giới hạn độ dài.
+  - Cần trước cho phần sự kiện của W07-N-01.
 - **W07-S-01 · Nhập Sigma, ET Open, danh sách bot**
   - Thư mục: `tools/strata-import-sigma/`, `tools/strata-import-et/`, `rules/`
   - Làm: Sigma `rules/web` và ET Open (chỉ SID 2000000–2099999, chỉ rule HTTP) vào dải 400000; crawler-user-agents vào dải 500000; virtual patch dải 700000 cho stack của route thí điểm.
