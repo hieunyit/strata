@@ -675,8 +675,16 @@ fn rule_matches(
         match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m, det) => {
-                if m && match_detail.is_none() {
-                    match_detail = det;
+                if m {
+                    match det {
+                        Some(d)
+                            if (d.field != "REQUEST_METHOD" && d.field != "SERVER_PROTOCOL")
+                                || match_detail.is_none() =>
+                        {
+                            match_detail = Some(d);
+                        }
+                        _ => {}
+                    }
                 }
                 results.push(m);
             }

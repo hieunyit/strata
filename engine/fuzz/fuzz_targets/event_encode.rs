@@ -1,7 +1,7 @@
 //! Fuzz target for event encoding and size bounding (W07-R-03).
 //!
 //! Feeds arbitrary transaction metadata, headers, body chunks, and direct
-//! Event structs to ensure `encode_event` never panics, always yields valid
+//! EventData structs to ensure `encode` never panics, always yields valid
 //! protobuf wire format <= 8192 bytes, and `strata_tx_event` FFI respects
 //! buffer boundaries.
 #![no_main]
@@ -11,7 +11,7 @@ use std::sync::{Arc, OnceLock};
 use libfuzzer_sys::fuzz_target;
 use libstrata::bundle::{Mode, Oversize, PolicySpec, Spec, build, public_key};
 use libstrata::engine::Engine;
-use libstrata::event::{self, MAX_DATAGRAM, Match};
+use libstrata::event::{self, EventData, MatchData, MAX_DATAGRAM};
 use libstrata::tx::Tx;
 
 fn engine() -> Arc<Engine> {
@@ -146,23 +146,28 @@ fuzz_target!(|data: &[u8]| {
     };
 
     let n_matches = (data[0] as usize % 64).min(32);
-    let mut matches = Vec::with_capacity(n_matches);
+    let mut snippets = Vec::with_capacity(n_matches);
     for i in 0..n_matches {
         let snip_len = (data[1] as usize * (i + 1)) % 1024;
         let mut snippet = vec![b'A'; snip_len];
         if i % 2 == 0 {
             snippet.extend_from_slice(b"079099001122");
         }
-        matches.push(Match {
+        let prepared = event::prepare_snippet("ARGS:p", &snippet);
+        snippets.push(prepared);
+    }
+    let mut matches = Vec::with_capacity(n_matches);
+    for (i, snip) in snippets.iter().enumerate() {
+        matches.push(MatchData {
             rule_id: 100_000 + i as u32,
-            layer: "managed".to_string(),
-            field: format!("ARGS:p_{i}"),
-            snippet: event::prepare_snippet(&format!("ARGS:p_{i}"), &snippet),
+            layer: "managed",
+            field: "ARGS:p",
+            snippet: snip,
         });
     }
 
     let path_str = std::str::from_utf8(rest).unwrap_or("/test/default");
-    let ev = event::Event {
+    let ev = EventData {
         block_id,
         time_unix_ms: 1_700_000_000_000,
         node_id: "node-fuzz",
@@ -176,19 +181,19 @@ fuzz_target!(|data: &[u8]| {
         path: path_str,
         status: 403,
         action: event::Action::Block,
-        layer_scores: vec![("managed", 100), ("protocol", 50)],
+        layer_scores: &[("anomaly", 100), ("managed", 100), ("protocol", 50)],
         rule_ids: &[100001, 100002],
-        matches,
+        matches: &matches,
     };
 
-    let encoded = event::encode_event(ev);
+    let encoded = event::encode(&ev);
     assert!(
         encoded.len() <= MAX_DATAGRAM,
-        "event::encode_event produced {} bytes > 8192",
+        "event::encode produced {} bytes > 8192",
         encoded.len()
     );
     assert!(
         validate_protobuf_stream(&encoded),
-        "event::encode_event produced invalid wire protobuf"
+        "event::encode produced invalid wire protobuf"
     );
 });
