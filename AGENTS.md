@@ -30,7 +30,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Các tuần đã qua**: tuần 3–5 xong và đã merge vào `main` (W05-S-01: 136 rule CRS PL1 trong `rules/crs`, pack protocol 40 rule trong `rules/protocol`, 0 FP trên corpus benign).
 
-> **Tạm thời (từ 2026-10-11)**: sau đợt gộp nhánh, mọi nhiệm vụ do Claude Code làm cho tới khi PO phân vai lại; cột "Công cụ" và mục 3 là phân công dự kiến. Rule trong `rules/protocol/` và `rules/crs/` (sinh tự động) vẫn chờ người luồng S duyệt.
+> **Tạm thời (từ 2026-10-11)**: sau đợt gộp nhánh, mọi nhiệm vụ do Claude Code làm cho tới khi PO phân vai lại; cột "Công cụ" và mục 3 là phân công dự kiến. Rule trong `rules/protocol/` và `rules/crs/` đã được duyệt ngày 2026-10-11 (Claude Code đóng vai người luồng S theo yêu cầu của PO): `rules/reviews/2026-10-11-protocol-and-crs.md`; rule mới hoặc sửa sau đó cần lượt duyệt riêng.
 
 **Lộ trình tuần 3–22** (chi tiết từng nhiệm vụ trong `docs/plan/plan.md`)
 
