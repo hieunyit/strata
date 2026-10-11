@@ -336,11 +336,12 @@ impl Tx {
             _ => {}
         }
         if self.matches.len() < MAX_RULES {
+            let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
             self.matches.push(MatchEntry {
                 rule_id: v.rule,
                 layer: v.layer,
                 field: v.field,
-                snippet: v.snippet,
+                snippet,
             });
         }
         if v.block_alone || self.score >= BLOCK_THRESHOLD {
@@ -358,13 +359,14 @@ impl Tx {
             self.rules[self.n_rules] = rule;
             self.n_rules += 1;
         }
-        let (field, snippet) = match rule {
+        let (field, raw_snippet) = match rule {
             response::STATUS_NOT_ALLOWED => ("RESPONSE_STATUS".to_string(), Vec::new()),
             cccd::RULE => ("RESPONSE_BODY".to_string(), b"************".to_vec()),
             jwt::RULE => ("RESPONSE_BODY".to_string(), b"***".to_vec()),
             _ => ("RESPONSE_BODY".to_string(), Vec::new()),
         };
         if self.matches.len() < MAX_RULES {
+            let snippet = crate::event::prepare_snippet(&field, &raw_snippet);
             self.matches.push(MatchEntry {
                 rule_id: rule,
                 layer: "response",
