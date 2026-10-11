@@ -29,19 +29,25 @@ pub const NULL_BYTE: u32 = 100_013;
 pub const CONTROL_CHAR: u32 = 100_014;
 pub const BODY_OVER_LIMIT: u32 = 100_020;
 
-const fn alone(rule: u32) -> Violation {
+fn alone(rule: u32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
         rule,
         score: 0,
         block_alone: true,
+        layer: "protocol",
+        field: field.to_string(),
+        snippet: snippet.to_vec(),
     }
 }
 
-const fn scored(rule: u32, score: i32) -> Violation {
+fn scored(rule: u32, score: i32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
         rule,
         score,
         block_alone: false,
+        layer: "protocol",
+        field: field.to_string(),
+        snippet: snippet.to_vec(),
     }
 }
 
@@ -80,13 +86,13 @@ pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
     }
 
     if double {
-        report(scored(DOUBLE_ENCODING, 50));
+        report(scored(DOUBLE_ENCODING, 50, "URI_RAW", b"%25"));
     }
     if null {
-        report(scored(NULL_BYTE, 100));
+        report(scored(NULL_BYTE, 100, "URI_RAW", b"%00"));
     }
     if ctl {
-        report(scored(CONTROL_CHAR, 50));
+        report(scored(CONTROL_CHAR, 50, "URI_RAW", b""));
     }
 
     let (mut dot, mut matrix) = (false, false);
@@ -99,10 +105,10 @@ pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
         }
     }
     if dot {
-        report(scored(ENCODED_DOT_SEGMENT, 100));
+        report(scored(ENCODED_DOT_SEGMENT, 100, "URI_RAW", b"%2e"));
     }
     if matrix {
-        report(scored(MATRIX_PARAMETER, 20));
+        report(scored(MATRIX_PARAMETER, 20, "URI_RAW", b";"));
     }
 }
 
@@ -176,19 +182,23 @@ impl Headers {
 
     pub fn finish(&self, report: &mut impl FnMut(Violation)) {
         if self.cl_count > 0 && self.te_count > 0 {
-            report(alone(CL_TE_CONFLICT));
+            report(alone(
+                CL_TE_CONFLICT,
+                "REQUEST_HEADERS:Transfer-Encoding",
+                b"chunked",
+            ));
         }
         if self.cl_count > 1 || self.cl_bad {
-            report(alone(CL_INVALID));
+            report(alone(CL_INVALID, "REQUEST_HEADERS:Content-Length", b""));
         }
         if self.te_count > 1 || self.te_bad {
-            report(alone(TE_INVALID));
+            report(alone(TE_INVALID, "REQUEST_HEADERS:Transfer-Encoding", b""));
         }
         if self.null {
-            report(scored(NULL_BYTE, 100));
+            report(scored(NULL_BYTE, 100, "REQUEST_HEADERS", b"\x00"));
         }
         if self.ctl {
-            report(scored(CONTROL_CHAR, 50));
+            report(scored(CONTROL_CHAR, 50, "REQUEST_HEADERS", b""));
         }
     }
 }
@@ -233,7 +243,14 @@ mod tests {
             (b"Content-Length", b"5"),
             (b"Transfer-Encoding", b"chunked"),
         ]);
-        assert_eq!(v, vec![alone(CL_TE_CONFLICT)]);
+        assert_eq!(
+            v,
+            vec![alone(
+                CL_TE_CONFLICT,
+                "REQUEST_HEADERS:Transfer-Encoding",
+                b"chunked"
+            )]
+        );
     }
 
     #[test]

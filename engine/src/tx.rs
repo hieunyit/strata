@@ -8,6 +8,7 @@
 //! bytes of the previous chunk).
 #![forbid(unsafe_code)]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::block_id::{self, Kind};
@@ -16,6 +17,7 @@ use crate::detectors::response::{self, cccd, db_errors, jwt};
 use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
 use crate::eval;
+use crate::event;
 use crate::guard::{self, Feed, Guard};
 use crate::verdict::*;
 
@@ -95,6 +97,17 @@ pub struct Tx {
     elapsed_ns: u64,
     tail: [u8; TAIL],
     tail_len: usize,
+    node_id_str: Vec<u8>,
+    policy_id: Vec<u8>,
+    bundle_version: u64,
+    identity: Vec<u8>,
+    request_id: Vec<u8>,
+    host: Vec<u8>,
+    method: Vec<u8>,
+    path: Vec<u8>,
+    status: u32,
+    layer_scores: HashMap<String, i32>,
+    matches: Vec<crate::event::Match>,
 }
 
 /// Body bytes the request_body rules see at most; the connector's
@@ -118,6 +131,8 @@ impl Tx {
     /// gets an Event ID.
     pub fn new(engine: Option<Arc<Engine>>, node_id: &[u8], flags: u32) -> Tx {
         let missing = engine.is_none();
+        let version = engine.as_ref().map_or(0, |e| e.info().version);
+        let node_id_bounded = &node_id[..node_id.len().min(64)];
         let mut tx = Tx {
             engine,
             client_addr: Vec::new(),
@@ -143,6 +158,17 @@ impl Tx {
             elapsed_ns: 0,
             tail: [0; TAIL],
             tail_len: 0,
+            node_id_str: node_id_bounded.to_vec(),
+            policy_id: Vec::new(),
+            bundle_version: version,
+            identity: Vec::new(),
+            request_id: Vec::new(),
+            host: Vec::new(),
+            method: Vec::new(),
+            path: Vec::new(),
+            status: 0,
+            layer_scores: HashMap::new(),
+            matches: Vec::new(),
         };
         if missing {
             tx.fail(E_BUNDLE);
@@ -154,12 +180,23 @@ impl Tx {
     /// never blocks, whatever the connector asks), oversize handling and
     /// response layer. An unknown policy keeps the defaults.
     pub fn set_policy(&mut self, name: &[u8]) {
+        self.policy_id = name[..name.len().min(55)].to_vec();
         if let Some(p) = self.engine.as_ref().and_then(|e| e.policy(name)) {
             // Only towards shadow: nothing lifts TXF_FORCE_SHADOW.
             self.shadow |= p.mode == crate::bundle::Mode::Shadow;
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
         }
+    }
+
+    /// Client identity for event reporting (at most 128 bytes).
+    pub fn set_identity(&mut self, identity: &[u8]) {
+        self.identity = identity[..identity.len().min(128)].to_vec();
+    }
+
+    /// Request id for event reporting (at most 64 bytes).
+    pub fn set_request_id(&mut self, request_id: &[u8]) {
+        self.request_id = request_id[..request_id.len().min(64)].to_vec();
     }
 
     /// The connector inspected only part of the body: `bytes` were not
@@ -174,17 +211,17 @@ impl Tx {
                 rule: protocol::BODY_OVER_LIMIT,
                 score: 0,
                 block_alone: self.oversize_block,
+                layer: "protocol",
+                field: "REQUEST_BODY".to_string(),
+                snippet: Vec::new(),
             });
         }
         OK
     }
 
-    /// Client address for rules on `remote_addr` (copied only when the
-    /// bundle has rules).
+    /// Client address for rules on `remote_addr` (copied up to 64 bytes).
     pub fn set_client_addr(&mut self, addr: &[u8]) {
-        if self.has_rules() {
-            self.client_addr = addr.to_vec();
-        }
+        self.client_addr = addr[..addr.len().min(64)].to_vec();
     }
 
     fn has_rules(&self) -> bool {
@@ -246,6 +283,15 @@ impl Tx {
             self.n_rules += 1;
         }
         self.score = self.score.saturating_add(v.score);
+        *self.layer_scores.entry(v.layer.to_string()).or_insert(0) += v.score;
+        if self.matches.len() < MAX_RULES {
+            self.matches.push(crate::event::Match {
+                rule_id: v.rule,
+                layer: v.layer.to_string(),
+                field: v.field,
+                snippet: v.snippet,
+            });
+        }
         if v.block_alone || self.score >= BLOCK_THRESHOLD {
             self.hit();
         }
@@ -261,26 +307,44 @@ impl Tx {
             self.rules[self.n_rules] = rule;
             self.n_rules += 1;
         }
+        let (field, snippet) = match rule {
+            response::STATUS_NOT_ALLOWED => ("RESPONSE_STATUS".to_string(), Vec::new()),
+            cccd::RULE => ("RESPONSE_BODY".to_string(), b"************".to_vec()),
+            jwt::RULE => ("RESPONSE_BODY".to_string(), b"***".to_vec()),
+            _ => ("RESPONSE_BODY".to_string(), Vec::new()),
+        };
+        if self.matches.len() < MAX_RULES {
+            self.matches.push(crate::event::Match {
+                rule_id: rule,
+                layer: "response".to_string(),
+                field,
+                snippet,
+            });
+        }
         if self.id.is_none() {
             self.id = Some(block_id::generate(Kind::Event, self.node));
         }
     }
 
-    fn stub_rule(&mut self) {
+    fn stub_rule(&mut self, field: &str, data: &[u8]) {
+        let snippet = event::prepare_snippet(field, data);
         self.add(Violation {
             rule: STUB_RULE_ID,
             score: STUB_SCORE,
             block_alone: false,
+            layer: "managed",
+            field: field.to_string(),
+            snippet,
         });
     }
 
-    fn scan(&mut self, data: &[u8]) {
+    fn scan(&mut self, data: &[u8], field: &str) {
         #[cfg(feature = "test-hooks")]
         if contains(data, PANIC_NEEDLE) {
             panic!("test hook: deliberate panic");
         }
         if !self.matched && contains(data, NEEDLE) {
-            self.stub_rule();
+            self.stub_rule(field, data);
         }
     }
 
@@ -296,6 +360,13 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
+        self.method = _method[.._method.len().min(16)].to_vec();
+        let p = if !norm_uri.is_empty() {
+            norm_uri
+        } else {
+            raw_uri
+        };
+        self.path = p[..p.len().min(1024)].to_vec();
         #[cfg(feature = "test-hooks")]
         {
             let e = |b: &[u8]| b.escape_ascii().to_string();
@@ -330,15 +401,18 @@ impl Tx {
             self.line = Some(line);
         }
         protocol::check_uri(raw_uri, &mut |v| self.add(v));
-        for part in [raw_uri, norm_uri, args] {
-            self.scan(part);
-        }
+        self.scan(raw_uri, "URI_RAW");
+        self.scan(norm_uri, "URI");
+        self.scan(args, "ARGS");
         OK
     }
 
     pub fn request_header(&mut self, key: &[u8], val: &[u8]) -> Rc {
         if let Err(rc) = self.check(Stage::Line, Stage::Headers) {
             return rc;
+        }
+        if key.eq_ignore_ascii_case(b"host") && self.host.is_empty() {
+            self.host = val[..val.len().min(255)].to_vec();
         }
         self.headers.header(key, val);
         #[cfg(feature = "test-hooks")]
@@ -474,7 +548,7 @@ impl Tx {
             window[..self.tail_len].copy_from_slice(&self.tail[..self.tail_len]);
             window[self.tail_len..self.tail_len + head.len()].copy_from_slice(head);
             if contains(&window[..self.tail_len + head.len()], NEEDLE) || contains(data, NEEDLE) {
-                self.stub_rule();
+                self.stub_rule("REQUEST_BODY", data);
             }
             // Keep the last TAIL bytes of (tail + data).
             let total = self.tail_len + data.len();
@@ -526,6 +600,7 @@ impl Tx {
     }
 
     pub fn response_headers(&mut self, status: u16) -> Rc {
+        self.status = status as u32;
         if let Err(rc) = self.check(Stage::Headers, Stage::Response) {
             return rc;
         }
@@ -573,6 +648,11 @@ impl Tx {
         (OK, out)
     }
 
+    /// Sets fixed Block/Event ID for deterministic testing
+    pub fn set_id_for_test(&mut self, id: [u8; block_id::ID_LEN]) {
+        self.id = Some(id);
+    }
+
     pub fn verdict(&self) -> Verdict {
         let mut v = Verdict::allow();
         v.error = self.error;
@@ -595,6 +675,74 @@ impl Tx {
         v.need_response = self.error == OK && self.wants_body();
         v.id = self.id;
         v
+    }
+
+    /// Encodes the event for this transaction into a protobuf datagram (at most 8 KB).
+    /// Returns None when there is no event (clean requests without findings).
+    pub fn encode_event(&self) -> Option<Vec<u8>> {
+        let id = self.id?;
+        if self.error == OK && !self.matched && self.n_rules == 0 {
+            return None;
+        }
+        let (_, bits) = block_id::parse(&id)?;
+        let time_unix_ms = (bits >> 38) as u64;
+
+        let action = if self.matched {
+            if self.shadow {
+                crate::event::Action::Log
+            } else {
+                crate::event::Action::Block
+            }
+        } else if self.error != OK || self.n_rules > 0 {
+            crate::event::Action::Log
+        } else {
+            crate::event::Action::Allow
+        };
+
+        let block_id_str = std::str::from_utf8(&id).unwrap_or("");
+        let node_id_str = std::str::from_utf8(&self.node_id_str).unwrap_or("");
+        let req_id_str = std::str::from_utf8(&self.request_id).unwrap_or("");
+        let policy_id_str = std::str::from_utf8(&self.policy_id).unwrap_or("");
+        let client_ip_str = std::str::from_utf8(&self.client_addr).unwrap_or("");
+        let identity_str = std::str::from_utf8(&self.identity).unwrap_or("");
+        let method_str = std::str::from_utf8(&self.method).unwrap_or("");
+        let host_str = std::str::from_utf8(&self.host).unwrap_or("");
+        let path_str = std::str::from_utf8(&self.path).unwrap_or("");
+
+        let layer_scores: Vec<(&str, i32)> = self
+            .layer_scores
+            .iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect();
+
+        let status = if self.status != 0 {
+            self.status
+        } else if action == crate::event::Action::Block {
+            403
+        } else {
+            0
+        };
+
+        let ev = crate::event::Event {
+            block_id: block_id_str,
+            time_unix_ms,
+            node_id: node_id_str,
+            request_id: req_id_str,
+            policy_id: policy_id_str,
+            bundle_version: self.bundle_version,
+            client_ip: client_ip_str,
+            identity: identity_str,
+            method: method_str,
+            host: host_str,
+            path: path_str,
+            status,
+            action,
+            layer_scores,
+            rule_ids: &self.rules[..self.n_rules],
+            matches: self.matches.clone(),
+        };
+
+        Some(crate::event::encode_event(ev))
     }
 }
 

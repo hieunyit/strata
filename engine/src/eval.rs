@@ -434,8 +434,14 @@ fn values<'d>(
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct MatchDetail {
+    pub field: String,
+    pub snippet: Vec<u8>,
+}
+
 enum Outcome {
-    Match(bool),
+    Match(bool, Option<MatchDetail>),
     Unsupported,
 }
 
@@ -497,6 +503,7 @@ fn condition(
     // target without values never matches, negated or not.
     let neg = c.negate;
     let mut any = false;
+    let mut match_detail = None;
     for ti in c.target_first..c.target_first + c.target_count {
         let Some(t) = ctx.tables.target(ti) else {
             return Outcome::Unsupported;
@@ -517,6 +524,15 @@ fn condition(
         if numeric && t.count {
             // a count always has a value
             if compare(op, vals.len() as i64, y) != neg {
+                if !any {
+                    let var_name = crate::rules::VARS
+                        .get(t.var as usize)
+                        .copied()
+                        .unwrap_or("");
+                    let field = var_name.to_ascii_uppercase();
+                    let snippet = vals.len().to_string().into_bytes();
+                    match_detail = Some(MatchDetail { field, snippet });
+                }
                 any = true;
             }
             continue;
@@ -565,6 +581,24 @@ fn condition(
                     matched(ctx, v, chain).contains(&ci)
                 };
                 if hit != neg {
+                    if !any {
+                        let var_name = crate::rules::VARS
+                            .get(t.var as usize)
+                            .copied()
+                            .unwrap_or("");
+                        let field = match t.key {
+                            Some(k) => format!(
+                                "{}:{}",
+                                var_name.to_ascii_uppercase(),
+                                String::from_utf8_lossy(k)
+                            ),
+                            None => var_name.to_ascii_uppercase(),
+                        };
+                        let snippet = tv()
+                            .map(|s| crate::event::prepare_snippet(&field, &s))
+                            .unwrap_or_default();
+                        match_detail = Some(MatchDetail { field, snippet });
+                    }
                     any = true;
                     match collect.as_deref_mut() {
                         Some(m) => {
@@ -582,7 +616,7 @@ fn condition(
             break;
         }
     }
-    Outcome::Match(any)
+    Outcome::Match(any, match_detail)
 }
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
@@ -615,9 +649,14 @@ fn scan(ctx: &Ctx<'_, '_>, tv: &Option<Cow<'_, [u8]>>) -> Vec<u32> {
     hits
 }
 
-fn rule_matches(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, r: &RuleView<'_>) -> Option<bool> {
+fn rule_matches(
+    ctx: &mut Ctx<'_, '_>,
+    d: &Data<'_>,
+    r: &RuleView<'_>,
+) -> Option<(bool, Option<MatchDetail>)> {
     let mut results = Vec::with_capacity(r.cond_count as usize);
     let mut prev = Matched::new();
+    let mut match_detail = None;
     let end = r.cond_first + r.cond_count;
     for ci in r.cond_first..end {
         let c = ctx.tables.cond(ci)?;
@@ -635,15 +674,21 @@ fn rule_matches(ctx: &mut Ctx<'_, '_>, d: &Data<'_>, r: &RuleView<'_>) -> Option
         let collect = if next_reads { Some(&mut kept) } else { None };
         match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
-            Outcome::Match(m) => results.push(m),
+            Outcome::Match(m, det) => {
+                if m && match_detail.is_none() {
+                    match_detail = det;
+                }
+                results.push(m);
+            }
         }
         prev = kept;
     }
-    Some(if r.any {
+    let matched = if r.any {
         results.iter().any(|&m| m)
     } else {
         !results.is_empty() && results.iter().all(|&m| m)
-    })
+    };
+    Some((matched, if matched { match_detail } else { None }))
 }
 
 /// Evaluates every rule of `stage` against the request.
@@ -718,11 +763,19 @@ pub fn evaluate(
         if r.stage != stage {
             continue;
         }
-        if rule_matches(&mut ctx, &d, &r) == Some(true) {
+        if let Some((true, detail)) = rule_matches(&mut ctx, &d, &r) {
+            let (field, snippet) = detail.map(|d| (d.field, d.snippet)).unwrap_or_default();
+            let layer_name = crate::rules::LAYERS
+                .get(r.layer as usize)
+                .copied()
+                .unwrap_or("managed");
             report(Violation {
                 rule: r.id,
                 score: r.score,
                 block_alone: false,
+                layer: layer_name,
+                field,
+                snippet,
             });
         }
     }

@@ -51,3 +51,9 @@ name = "body_eval"
 path = "fuzz_targets/body_eval.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "event_encode"
+path = "fuzz_targets/event_encode.rs"
+test = false
+doc = false

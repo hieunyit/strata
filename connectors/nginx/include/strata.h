@@ -544,10 +544,14 @@ uint64_t strata_tx_time_us(const strata_tx_t *tx);
 /**
  * Serializes the transaction's event into `dst` (up to `cap` bytes) and
  * returns the full event size; nothing is written when it exceeds `cap`.
- * Returns 0 when there is no event. The stub never produces events.
+ * Returns 0 when there is no event (clean requests without findings).
+ * An event is produced when a request is blocked (carrying a Block ID `STR-…`),
+ * in shadow mode when it would be blocked (`EVT-…`), on engine errors (`EVT-…`),
+ * or on response findings. The serialized event never exceeds 8 KB.
+ * Pass `dst == NULL && cap == 0` to query the event size.
  *
  * # Safety
- * `tx` must be NULL or live; `dst` must point to `cap` writable bytes.
+ * `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or NULL if cap is 0).
  */
 size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
 
