@@ -196,18 +196,24 @@ impl Headers {
                 if self.cl_snippet.is_empty() {
                     self.cl_snippet = value[..value.len().min(128)].to_vec();
                 }
-            } else if self.cl_snippet.is_empty() {
+            } else if self.cl_count > 1 && self.cl_snippet.is_empty() {
                 self.cl_snippet = value[..value.len().min(128)].to_vec();
+            }
+            if self.te_count > 0 && self.te_snippet.is_empty() {
+                self.te_snippet = b"chunked".to_vec();
             }
         } else if name.eq_ignore_ascii_case(b"transfer-encoding") {
             self.te_count += 1;
             if !trim(value).eq_ignore_ascii_case(b"chunked") {
                 self.te_bad = true;
-            }
-            if self.te_snippet.is_empty() {
+                if self.te_snippet.is_empty() {
+                    self.te_snippet = value[..value.len().min(128)].to_vec();
+                }
+            } else if (self.cl_count > 0 || self.te_count > 1) && self.te_snippet.is_empty() {
                 self.te_snippet = value[..value.len().min(128)].to_vec();
             }
         }
+
         if self.null_field.is_empty() {
             if let Some(pos) = name.iter().position(|&c| c == 0) {
                 self.null_field = format!("REQUEST_HEADERS:{}", String::from_utf8_lossy(name));
@@ -485,5 +491,19 @@ mod tests {
         ] {
             let _ = uri(raw);
         }
+    }
+
+    #[test]
+    fn test_clean_headers_no_snippet_allocation() {
+        let mut h = Headers::default();
+        h.header(b"Host", b"example.test");
+        h.header(b"Content-Type", b"application/x-www-form-urlencoded");
+        h.header(b"Content-Length", b"5");
+        assert!(h.cl_snippet.is_empty());
+        assert_eq!(h.cl_snippet.capacity(), 0);
+        assert!(h.te_snippet.is_empty());
+        assert_eq!(h.te_snippet.capacity(), 0);
+        assert!(h.null_field.is_empty());
+        assert!(h.ctl_field.is_empty());
     }
 }
