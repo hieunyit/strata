@@ -185,7 +185,7 @@ Mỗi phiên chỉ làm một mã nhiệm vụ. Không làm trước nhiệm v�
 5. Không đổi gì ngoài thư mục được giao (trừ test, tài liệu của thành phần đó).
 6. `cargo clippy -D warnings` / `golangci-lint` / `npm run lint` sạch.
 
-**Không có remote GitHub** (trạng thái hiện tại): không mở PR. Làm trên nhánh `<MÃ>-<mô-tả>` trong worktree `../strata-ag` (tạo từ `main`), ghi báo cáo theo mục 9 vào `docs/reports/<mã-chữ-thường>.md` trong cùng nhánh, commit, rồi dừng. Người review đọc `git diff main...<nhánh>`; merge vào `main` bằng fast-forward sau khi review `APPROVE`, rồi xóa nhánh. Khi có remote thì quay lại quy trình PR.
+**Nhánh và PR**: repo ở `github.com/hieunyit/strata` (private). Làm trên nhánh `<MÃ>-<mô-tả>` trong worktree `../strata-ag` (tạo từ `origin/main`), ghi báo cáo theo mục 9 vào `docs/reports/<mã-chữ-thường>.md` trong cùng nhánh, push, mở PR bằng `gh pr create --base main` với nội dung là báo cáo, rồi dừng. Không tự merge. Người review đọc `gh pr diff`; merge sau khi review `APPROVE` và CI xanh, rồi xóa nhánh.
 
 ## 6b. Mẫu review (Claude Code)
 

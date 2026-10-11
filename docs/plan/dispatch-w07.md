@@ -4,18 +4,20 @@ Soạn 11/10/2026 từ `docs/plan/plan.md` (tuần 7) và **hiện trạng code 
 
 Phân vai tuần 7: **Antigravity làm toàn bộ**; Claude Code review kế hoạch (L3) và review nhánh (L2, L3) theo AGENTS.md mục 6b.
 
-## 1. PO cần quyết trước khi giao
+## 1. Quyết định của PO
+
+PO duyệt cả 6 đề xuất ngày 11/10/2026. Q1 đã thay đổi: repo nay ở `github.com/hieunyit/strata` (private), nên dùng quy trình PR của AGENTS.md mục 6a thay cho nhánh cục bộ.
 
 | # | Quyết định | Đề xuất | Ảnh hưởng |
 | --- | --- | --- | --- |
-| Q1 | Quy trình khi chưa có remote GitHub | Làm theo AGENTS.md mục 6a: nhánh trong worktree `../strata-ag`, báo cáo `docs/reports/<mã>.md`, review bằng `git diff main...<nhánh>`. Nếu tạo remote thì quay lại PR | Mọi nhiệm vụ |
+| Q1 | Quy trình nhánh và review | **Đã có remote**: nhánh trong `../strata-ag`, báo cáo `docs/reports/<mã>.md`, push và mở PR bằng `gh pr create`; review bằng `gh pr diff`; merge khi APPROVE và CI xanh | Mọi nhiệm vụ |
 | Q2 | Layout cờ force-shadow trong control file | Offset 324 `u32` cờ (bit 0: mọi policy); 328 `u32` số policy bị ép (0..32); 336 `u8[32][56]` tên policy (đệm NUL). Ghi dưới seqlock như các trường khác; worker áp dụng ở lần đọc control file kế tiếp (≤ 1 s). Hết hạn (`duration_seconds`) do agent xóa cờ | W07-N-01 (đọc), W07-G1-01 (ghi). Đổi interface chung: `docs/design/control-file.md` |
 | Q3 | Hyperscan streaming cho CPU budget | Section HYPERSCAN mới, magic `SHS2`, DB biên dịch `HS_MODE_STREAM`; engine đọc cả `SHS1` (bundle cũ, quét một lần) và `SHS2` (quét khối 8 KB, kiểm đồng hồ giữa các khối). Compiler ghi `SHS2` | W07-R-01. Đổi định dạng bundle (thêm, giữ tương thích) |
 | Q4 | W07-S-01: virtual patch dải 700000 | PO cho biết stack của route thí điểm; chưa có thì bỏ phần này khỏi tuần 7, ghi ⛔ | W07-S-01 |
 | Q5 | W07-S-01: "sự kiện của rule Sigma hiển thị tác giả" | Tuần 7 chỉ giữ `author` trong rule IR; hiển thị trên UI cần API danh mục rule (W21) | Dòng "Xong khi" của W07-S-01 |
-| Q6 | W07-Q-01: CodeQL | CodeQL chạy được khi có GitHub; trước đó chạy clang-tidy trong `make` và CI, CodeQL CLI chạy tay một lần, lưu kết quả | W07-Q-01 |
+| Q6 | W07-Q-01: CodeQL | Repo private: code scanning của GitHub cần GitHub Advanced Security. Chạy clang-tidy trong `make` và CI; CodeQL CLI chạy trong job CI hoặc chạy tay, lưu kết quả (không upload SARIF nếu không có GHAS) | W07-Q-01 |
 
-Prompt bên dưới viết theo các đề xuất trên. PO đổi quyết định nào thì sửa dòng tương ứng trong prompt trước khi dán.
+Prompt bên dưới viết theo các quyết định trên.
 
 ## 2. Thứ tự và phụ thuộc
 
@@ -36,14 +38,14 @@ Trước khi giao: cập nhật mục 0 của AGENTS.md cho tuần 7 bằng prom
 ```
 Bạn là agent Antigravity trong dự án Strata. Đọc AGENTS.md (toàn bộ, đặc biệt mục 5, 6, 6a, 9, 10),
 docs/plan/dispatch-w07.md mục 1 (các quyết định của PO) và mục của nhiệm vụ dưới đây.
-Làm trong worktree ../strata-ag (git worktree add ../strata-ag -b <NHÁNH> main nếu chưa có).
-Quy trình: Bước 1 xác nhận nhiệm vụ thuộc tuần 7 và "Cần trước" đã merge vào main (git log main).
+Làm trong worktree ../strata-ag (git fetch origin; git worktree add ../strata-ag -b <NHÁNH> origin/main nếu chưa có).
+Quy trình: Bước 1 xác nhận nhiệm vụ thuộc tuần 7 và "Cần trước" đã merge vào main (git log origin/main).
 Bước 2 viết Implementation Plan gồm: file sẽ sửa/tạo; thiết kế (cấu trúc dữ liệu, luồng, interface);
 bất biến cần giữ; ca biên và đường lỗi; rủi ro bảo mật; danh sách test (tên test, chứng minh điều gì, gồm test âm);
 lệnh kiểm chứng; dependency mới (nếu có, kèm lý do). Rồi DỪNG, chờ tôi trả lời "duyệt".
 Bước 3 (sau "duyệt"): làm đúng kế hoạch; lệch kế hoạch thì dừng và hỏi. Chạy đủ lệnh kiểm chứng, tự review theo mục 6a,
 đổi dòng nhiệm vụ ở mục 0 AGENTS.md thành ✅ Done, viết báo cáo docs/reports/<mã-chữ-thường>.md theo mục 9
-(kèm SHA commit cuối và mức review), commit, rồi DỪNG. Không merge vào main.
+(kèm SHA commit cuối và mức review), commit, push, mở PR bằng gh pr create --base main (nội dung = báo cáo), rồi DỪNG. Không merge.
 ```
 
 ## 4. Prompt từng nhiệm vụ
@@ -361,10 +363,10 @@ Trả về tối đa 10 mục [Cao|TB|Thấp] vấn đề → yêu cầu sửa. 
 
 **Review nhánh** (L2, L3)
 ```
-Review <MÃ> trên nhánh <nhánh> (worktree ../strata-ag) theo AGENTS.md mục 6b, mức <L2|L3>.
-Đọc docs/reports/<mã>.md và git diff main...<nhánh>. L3: chạy lại kiểm chứng (sanitizer, -race, prove 2 bản NGINX, fuzz ngắn) trên nhánh.
-Lỗi Cao ở L3 sửa được trong khoảng 30 dòng thì tự sửa (commit "review: ..."), còn lại ghi yêu cầu sửa cho Antigravity.
-APPROVE thì fast-forward vào main và xóa nhánh.
+Review PR <số> của <MÃ> theo AGENTS.md mục 6b, mức <L2|L3>.
+Đọc nội dung PR (báo cáo), gh pr diff <số>, gh pr checks <số>. L3: checkout nhánh, chạy lại kiểm chứng (sanitizer, -race, prove 2 bản NGINX, fuzz ngắn).
+Lỗi Cao ở L3 sửa được trong khoảng 30 dòng thì tự sửa (commit "review: ..." vào nhánh của PR), còn lại ghi yêu cầu sửa cho Antigravity.
+Đăng kết quả bằng gh pr review. APPROVE và CI xanh thì merge (gh pr merge --squash hoặc --rebase theo quy ước) và xóa nhánh.
 ```
 
-**Sửa theo review** (Antigravity), **Review lại**, **Claude Code nhận làm**: dùng như mục 0 của `docs/plan/dispatch.md`, thay "PR" bằng nhánh và `docs/reports/<mã>.md`.
+**Sửa theo review** (Antigravity), **Review lại**, **Claude Code nhận làm**: dùng như mục 0 của `docs/plan/dispatch.md`.
