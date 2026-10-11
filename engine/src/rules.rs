@@ -80,6 +80,40 @@ pub const VARS: &[&str] = &[
     "xml_attributes",
     "body_processor",
 ];
+
+/// ModSecurity-style field name for each variable in VARS.
+pub fn var_to_field_name(var: u8) -> &'static str {
+    match VARS.get(var as usize).copied() {
+        Some("uri_raw") => "REQUEST_URI_RAW",
+        Some("uri") => "REQUEST_URI",
+        Some("path") => "REQUEST_FILENAME",
+        Some("method") => "REQUEST_METHOD",
+        Some("protocol") => "REQUEST_PROTOCOL",
+        Some("args") => "ARGS",
+        Some("args_get") => "ARGS_GET",
+        Some("args_post") => "ARGS_POST",
+        Some("args_names") => "ARGS_NAMES",
+        Some("request_headers") => "REQUEST_HEADERS",
+        Some("request_headers_names") => "REQUEST_HEADERS_NAMES",
+        Some("request_cookies") => "REQUEST_COOKIES",
+        Some("request_cookies_names") => "REQUEST_COOKIES_NAMES",
+        Some("request_body") => "REQUEST_BODY",
+        Some("files") => "FILES",
+        Some("files_names") => "FILES_NAMES",
+        Some("xml") => "XML",
+        Some("xml_attributes") => "XML:@*",
+        Some("query_string") => "QUERY_STRING",
+        Some("request_line") => "REQUEST_LINE",
+        Some("remote_addr") => "REMOTE_ADDR",
+        Some("matched_vars") => "MATCHED_VARS",
+        Some("body_processor") => "REQBODY_PROCESSOR",
+        Some("response_status") => "RESPONSE_STATUS",
+        Some("response_headers") => "RESPONSE_HEADERS",
+        Some("response_body") => "RESPONSE_BODY",
+        _ => "",
+    }
+}
+
 pub const TRANSFORMS: &[&str] = &[
     "url_decode_uni",
     "html_entity_decode",
