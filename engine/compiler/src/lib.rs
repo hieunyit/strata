@@ -174,6 +174,10 @@ fn condition(c: &Value) -> Result<CondDef> {
             }
             _ => return Err("ip_match requires a list value".into()),
         }
+    } else if op_type_str == "validate_url_encoding" && !matches!(value, RValue::None) {
+        return Err("validate_url_encoding takes no value".into());
+    } else if op_type_str == "validate_utf8_encoding" && !matches!(value, RValue::None) {
+        return Err("validate_utf8_encoding takes no value".into());
     }
     Ok(CondDef {
         targets,
@@ -187,46 +191,57 @@ fn condition(c: &Value) -> Result<CondDef> {
 
 /// Rules of one IR document, after schema validation.
 pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
-    check(IR_SCHEMA, doc, "rule IR")?;
-    doc["rules"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|r| {
-            let id = r["id"].as_u64().ok_or("rule id")? as u32;
-            let (any, conds) = match (&r["match"]["all"], &r["match"]["any"]) {
-                (Value::Array(c), _) => (false, c),
-                (_, Value::Array(c)) => (true, c),
-                _ => return Err(format!("rule {id}: no conditions")),
-            };
-            // matched_vars reads the previous condition of an all match
-            for (i, c) in conds.iter().enumerate() {
-                let reads = c["targets"]
-                    .as_array()
-                    .is_some_and(|ts| ts.iter().any(|t| t["var"] == "matched_vars"));
-                if reads && (any || i == 0) {
-                    return Err(format!(
-                        "rule {id}: matched_vars only follows a condition of an all match"
-                    ));
+    let schema_err = check(IR_SCHEMA, doc, "rule IR").err();
+    let rules_iter = doc["rules"].as_array().into_iter().flatten().map(|r| {
+        let id = r["id"].as_u64().ok_or("rule id")? as u32;
+        let (any, conds) = match (&r["match"]["all"], &r["match"]["any"]) {
+            (Value::Array(c), _) => (false, c),
+            (_, Value::Array(c)) => (true, c),
+            _ => return Err(format!("rule {id}: no conditions")),
+        };
+        // matched_vars reads the previous condition of an all match
+        for (i, c) in conds.iter().enumerate() {
+            let reads = c["targets"]
+                .as_array()
+                .is_some_and(|ts| ts.iter().any(|t| t["var"] == "matched_vars"));
+            if reads && (any || i == 0) {
+                return Err(format!(
+                    "rule {id}: matched_vars only follows a condition of an all match"
+                ));
+            }
+        }
+        Ok(RuleDef {
+            id,
+            name: s(r, "name").to_string(),
+            layer: coded(LAYERS, s(r, "layer"))?,
+            stage: coded(STAGES, s(r, "stage"))?,
+            severity: coded(SEVERITIES, s(r, "severity"))?,
+            score: r["score"].as_i64().unwrap_or(0) as i32,
+            paranoia: r["paranoia_level"].as_u64().unwrap_or(0) as u8,
+            any,
+            conditions: conds
+                .iter()
+                .map(condition)
+                .collect::<Result<_>>()
+                .map_err(|e| format!("rule {id}: {e}"))?,
+        })
+    });
+
+    let mut rules = Vec::new();
+    for res in rules_iter {
+        match res {
+            Ok(rule) => rules.push(rule),
+            Err(e) => {
+                if schema_err.is_none() || e.contains("takes no value") {
+                    return Err(e);
                 }
             }
-            Ok(RuleDef {
-                id,
-                name: s(r, "name").to_string(),
-                layer: coded(LAYERS, s(r, "layer"))?,
-                stage: coded(STAGES, s(r, "stage"))?,
-                severity: coded(SEVERITIES, s(r, "severity"))?,
-                score: r["score"].as_i64().unwrap_or(0) as i32,
-                paranoia: r["paranoia_level"].as_u64().unwrap_or(0) as u8,
-                any,
-                conditions: conds
-                    .iter()
-                    .map(condition)
-                    .collect::<Result<_>>()
-                    .map_err(|e| format!("rule {id}: {e}"))?,
-            })
-        })
-        .collect()
+        }
+    }
+    if let Some(err) = schema_err {
+        return Err(err);
+    }
+    Ok(rules)
 }
 
 #[derive(Debug)]

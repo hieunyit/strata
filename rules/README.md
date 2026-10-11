@@ -36,7 +36,7 @@ Khác biệt đã biết với CRS chạy trên ModSecurity:
   944100/944110/944120 (24 test `no_match` của 944 thất bại vì thế). Giữ như
   vậy để rule của tổ chức trên `request_body` không bị mù với API XML/JSON.
 - Request có byte NUL (`%00`) bị kiểm tra protocol dựng sẵn 100013 chặn trước
-  khi rule CRS ở giai đoạn body chạy (930100-3, 930120-1..3, 933170-5).
+  khi rule CRS ở giai đoạn body chạy (920270-1..3, 920270-8, 930100-3, 930120-1..3, 933170-5).
 - Trên corpus benign, 930120 (`C:/Program Files` trong lfi-os-files.data) và
   942100 (libinjection coi `50% off -- today only` là SQLi, đúng như thư viện
   C gốc) khớp; đó là hành vi của CRS PL1, xử lý bằng exclusion của policy.
