@@ -342,6 +342,11 @@ pub fn find_policy<'a>(bundle: &'a [u8], info: &Info, name: &[u8]) -> Option<Pol
     policies(bundle, info).find(|p| p.name == name)
 }
 
+/// The policy at `index` of a bundle that passed `verify`.
+pub fn policy_by_index<'a>(bundle: &'a [u8], info: &Info, index: u32) -> Option<Policy<'a>> {
+    policies(bundle, info).find(|p| p.index == index)
+}
+
 /// Parameters for `build` (bundle compiler, tools and tests).
 pub struct Spec<'a> {
     pub version: u64,

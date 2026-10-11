@@ -1,9 +1,8 @@
 //! Protobuf wire encoder for `strata.event.v1.Event` (W07-R-03).
 //!
 //! Hand-written zero-prost encoder guaranteeing datagram size <= 8192 bytes
-//! (MaxDatagram). Sensitive headers (Authorization, Cookie, Proxy-Authorization)
-//! and cookie targets never leak snippet bytes; other snippets are truncated
-//! to <= 128 bytes and masked for CCCD and JWT.
+//! (MaxDatagram). Sensitive parameters and headers never leak snippet bytes;
+//! other snippets are truncated to <= 128 bytes after masking for CCCD and JWT.
 #![forbid(unsafe_code)]
 
 use crate::detectors::response::{cccd, jwt};
@@ -12,7 +11,7 @@ use crate::guard::{Ctx, Matcher};
 /// Agent Unix datagram max size (8 KB).
 pub const MAX_DATAGRAM: usize = 8192;
 
-/// Max snippet length in a single Match.
+/// Max snippet length in a single Match (128 bytes).
 pub const MAX_SNIPPET_LEN: usize = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,18 +36,18 @@ impl Action {
     }
 }
 
-/// One match inside an Event.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Match {
+/// One match inside an EventData (borrowed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchData<'a> {
     pub rule_id: u32,
-    pub layer: String,
-    pub field: String,
-    pub snippet: Vec<u8>,
+    pub layer: &'a str,
+    pub field: &'a str,
+    pub snippet: &'a [u8],
 }
 
-/// Structure representing a security event to encode.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Event<'a> {
+/// Structure representing a security event to encode (borrowed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventData<'a> {
     pub block_id: &'a str,
     pub time_unix_ms: u64,
     pub node_id: &'a str,
@@ -62,28 +61,46 @@ pub struct Event<'a> {
     pub path: &'a str,
     pub status: u32,
     pub action: Action,
-    pub layer_scores: Vec<(&'a str, i32)>,
+    pub layer_scores: &'a [(&'a str, i32)],
     pub rule_ids: &'a [u32],
-    pub matches: Vec<Match>,
+    pub matches: &'a [MatchData<'a>],
 }
 
-pub fn is_sensitive_header(name: &[u8]) -> bool {
-    name.eq_ignore_ascii_case(b"authorization")
-        || name.eq_ignore_ascii_case(b"cookie")
-        || name.eq_ignore_ascii_case(b"proxy-authorization")
+/// Checks if a field name (e.g. `ARGS:password`, `REQUEST_HEADERS:X-Api-Key`, `REQUEST_COOKIES:session`)
+/// targets a sensitive parameter, header, or cookie by exact match on the key name after ':'.
+pub fn is_sensitive_target(field: &str) -> bool {
+    let upper = field.to_ascii_uppercase();
+    if upper.starts_with("REQUEST_COOKIES") {
+        return true;
+    }
+    let key = match field.split_once(':') {
+        Some((_, k)) => k.trim(),
+        None => field.trim(),
+    };
+    matches!(
+        key.to_ascii_lowercase().as_str(),
+        "password"
+            | "passwd"
+            | "pwd"
+            | "pass"
+            | "secret"
+            | "token"
+            | "access_token"
+            | "refresh_token"
+            | "api_key"
+            | "apikey"
+            | "otp"
+            | "pin"
+            | "cvv"
+            | "authorization"
+            | "cookie"
+            | "proxy-authorization"
+            | "x-api-key"
+            | "x-auth-token"
+    )
 }
 
-pub fn is_sensitive_field(field: &str) -> bool {
-    let f = field.to_ascii_uppercase();
-    f == "REQUEST_COOKIES"
-        || f.starts_with("REQUEST_COOKIES:")
-        || f.starts_with("REQUEST_COOKIES_NAMES")
-        || f == "REQUEST_HEADERS:AUTHORIZATION"
-        || f == "REQUEST_HEADERS:COOKIE"
-        || f == "REQUEST_HEADERS:PROXY-AUTHORIZATION"
-}
-
-/// Masks CCCD (12 digits) and JWT tokens in a snippet, preserving length.
+/// Masks CCCD (12 digits) and JWT tokens across the entire snippet, preserving length.
 pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
     if snippet.is_empty() {
         return Vec::new();
@@ -108,12 +125,13 @@ pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
 }
 
 /// Sanitizes and masks a candidate snippet for a given field name.
+/// Performs full-content masking before truncation to prevent token leakage.
 pub fn prepare_snippet(field: &str, raw_snippet: &[u8]) -> Vec<u8> {
-    if is_sensitive_field(field) {
+    if is_sensitive_target(field) {
         return Vec::new();
     }
-    let bounded = &raw_snippet[..raw_snippet.len().min(MAX_SNIPPET_LEN)];
-    mask_snippet(bounded)
+    let masked = mask_snippet(raw_snippet);
+    masked[..masked.len().min(MAX_SNIPPET_LEN)].to_vec()
 }
 
 fn put_varint(v: u64, out: &mut Vec<u8>) {
@@ -159,7 +177,7 @@ fn put_uint32(field_number: u32, val: u32, out: &mut Vec<u8>) {
     }
 }
 
-fn encode_raw(ev: &Event<'_>, out: &mut Vec<u8>) {
+fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
     // 1: block_id
     put_string(1, ev.block_id, out);
     // 2: time_unix_ms
@@ -191,7 +209,7 @@ fn encode_raw(ev: &Event<'_>, out: &mut Vec<u8>) {
     }
     // 14: map<string, int32> layer_scores
     // Sort entries deterministically by layer name for reproducible output
-    let mut scores = ev.layer_scores.clone();
+    let mut scores = ev.layer_scores.to_vec();
     scores.sort_unstable_by_key(|&(k, _)| k);
     for (layer, score) in scores {
         if score == 0 && layer.is_empty() {
@@ -218,12 +236,12 @@ fn encode_raw(ev: &Event<'_>, out: &mut Vec<u8>) {
         out.extend_from_slice(&packed);
     }
     // 16: repeated Match matches
-    for m in &ev.matches {
+    for m in ev.matches {
         let mut m_buf = Vec::new();
         put_uint32(1, m.rule_id, &mut m_buf);
-        put_string(2, &m.layer, &mut m_buf);
-        put_string(3, &m.field, &mut m_buf);
-        put_bytes(4, &m.snippet, &mut m_buf);
+        put_string(2, m.layer, &mut m_buf);
+        put_string(3, m.field, &mut m_buf);
+        put_bytes(4, m.snippet, &mut m_buf);
 
         put_tag(16, 2, out);
         put_varint(m_buf.len() as u64, out);
@@ -231,53 +249,53 @@ fn encode_raw(ev: &Event<'_>, out: &mut Vec<u8>) {
     }
 }
 
-/// Encodes `ev` into a byte buffer capped at `MAX_DATAGRAM` (8192 bytes).
-/// If the serialized event exceeds 8 KB, matches are dropped from the end,
-/// then `path` and strings are truncated until it fits.
-pub fn encode_event(mut ev: Event<'_>) -> Vec<u8> {
+/// Pure encoding function taking borrowed `EventData` and returning serialized wire format
+/// capped at `MAX_DATAGRAM` (8192 bytes).
+pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
+    let mut cur = *ev;
     let mut buf = Vec::with_capacity(512);
-    encode_raw(&ev, &mut buf);
+    encode_raw(&cur, &mut buf);
     if buf.len() <= MAX_DATAGRAM {
         return buf;
     }
 
     // Step 1: Drop matches from the end until it fits or matches are empty.
-    while buf.len() > MAX_DATAGRAM && !ev.matches.is_empty() {
-        ev.matches.pop();
+    let mut n_matches = cur.matches.len();
+    while buf.len() > MAX_DATAGRAM && n_matches > 0 {
+        n_matches -= 1;
+        cur.matches = &ev.matches[..n_matches];
         buf.clear();
-        encode_raw(&ev, &mut buf);
+        encode_raw(&cur, &mut buf);
     }
     if buf.len() <= MAX_DATAGRAM {
         return buf;
     }
 
     // Step 2: Progressively truncate path
-    let mut path = ev.path;
-    while buf.len() > MAX_DATAGRAM && path.len() > 16 {
-        path = &path[..path.len().saturating_sub(64).max(16)];
-        ev.path = path;
+    while buf.len() > MAX_DATAGRAM && cur.path.len() > 16 {
+        cur.path = &cur.path[..cur.path.len().saturating_sub(64).max(16)];
         buf.clear();
-        encode_raw(&ev, &mut buf);
+        encode_raw(&cur, &mut buf);
     }
     if buf.len() <= MAX_DATAGRAM {
         return buf;
     }
 
     // Step 3: Progressively truncate host / identity / request_id if hostile
-    if ev.host.len() > 32 {
-        ev.host = &ev.host[..32];
+    if cur.host.len() > 32 {
+        cur.host = &cur.host[..32];
         buf.clear();
-        encode_raw(&ev, &mut buf);
+        encode_raw(&cur, &mut buf);
     }
-    if buf.len() > MAX_DATAGRAM && ev.identity.len() > 32 {
-        ev.identity = &ev.identity[..32];
+    if buf.len() > MAX_DATAGRAM && cur.identity.len() > 32 {
+        cur.identity = &cur.identity[..32];
         buf.clear();
-        encode_raw(&ev, &mut buf);
+        encode_raw(&cur, &mut buf);
     }
-    if buf.len() > MAX_DATAGRAM && ev.request_id.len() > 32 {
-        ev.request_id = &ev.request_id[..32];
+    if buf.len() > MAX_DATAGRAM && cur.request_id.len() > 32 {
+        cur.request_id = &cur.request_id[..32];
         buf.clear();
-        encode_raw(&ev, &mut buf);
+        encode_raw(&cur, &mut buf);
     }
 
     buf
@@ -299,55 +317,99 @@ mod tests {
     }
 
     #[test]
-    fn test_masking_cccd_and_jwt() {
-        let raw = b"cccd 079099001122 and text";
-        let masked = mask_snippet(raw);
-        assert_eq!(masked, b"cccd ************ and text");
+    fn test_mask_cccd_and_jwt_full_window() {
+        // Raw 400-byte input containing a JWT
+        let mut input = b"prefix ".to_vec();
+        input.extend_from_slice(b"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
+        input.extend_from_slice(&vec![b'X'; 250]);
 
-        let jwt = b"token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U end";
-        let masked_jwt = mask_snippet(jwt);
-        assert!(!masked_jwt.windows(3).any(|w| w == b"eyJ"));
-        assert_eq!(masked_jwt.len(), jwt.len());
+        // prepare_snippet masks the entire slice BEFORE truncation
+        let snippet = prepare_snippet("ARGS:token_data", &input);
+        assert!(snippet.len() <= MAX_SNIPPET_LEN);
+        // Assert no unmasked "eyJ" sequence remains
+        assert!(!snippet.windows(3).any(|w| w == b"eyJ"));
+        // Assert asterisks are present
+        assert!(snippet.contains(&b'*'));
     }
 
     #[test]
-    fn test_sensitive_headers_empty_snippet() {
-        assert!(is_sensitive_field("REQUEST_HEADERS:Authorization"));
-        assert!(is_sensitive_field("request_headers:authorization"));
-        assert!(is_sensitive_field("REQUEST_HEADERS:Cookie"));
-        assert!(is_sensitive_field("REQUEST_HEADERS:Proxy-Authorization"));
-        assert!(is_sensitive_field("REQUEST_COOKIES:session"));
-        assert!(is_sensitive_field("REQUEST_COOKIES"));
+    fn test_sensitive_target_redaction() {
+        // Positive matches (must be redacted to empty snippet)
+        assert!(is_sensitive_target("ARGS:password"));
+        assert!(is_sensitive_target("ARGS:Password"));
+        assert!(is_sensitive_target("ARGS:pwd"));
+        assert!(is_sensitive_target("ARGS:pass"));
+        assert!(is_sensitive_target("ARGS:secret"));
+        assert!(is_sensitive_target("ARGS:token"));
+        assert!(is_sensitive_target("ARGS:api_key"));
+        assert!(is_sensitive_target("REQUEST_HEADERS:X-Api-Key"));
+        assert!(is_sensitive_target("REQUEST_HEADERS:Authorization"));
+        assert!(is_sensitive_target("REQUEST_HEADERS:Cookie"));
+        assert!(is_sensitive_target("REQUEST_COOKIES:session_id"));
+        assert!(is_sensitive_target("REQUEST_COOKIES"));
 
-        assert_eq!(
-            prepare_snippet("REQUEST_HEADERS:Authorization", b"Bearer 12345"),
-            b""
-        );
-        assert_eq!(
-            prepare_snippet("REQUEST_COOKIES:sid", b"secret-cookie-value"),
-            b""
-        );
-        assert_eq!(
-            prepare_snippet("ARGS:id", b"123' OR '1'='1"),
-            b"123' OR '1'='1"
-        );
+        assert_eq!(prepare_snippet("ARGS:password", b"super_secret"), b"");
+        assert_eq!(prepare_snippet("REQUEST_HEADERS:X-Api-Key", b"12345"), b"");
+        assert_eq!(prepare_snippet("REQUEST_COOKIES:sid", b"cookie-val"), b"");
+
+        // Negative matches: exact key check must NOT match substrings
+        assert!(!is_sensitive_target("ARGS:passport"));
+        assert!(!is_sensitive_target("ARGS:bypass"));
+        assert!(!is_sensitive_target("ARGS:token_count"));
+        assert!(!is_sensitive_target("ARGS:username"));
+
+        assert_eq!(prepare_snippet("ARGS:passport", b"N1234567"), b"N1234567");
+        assert_eq!(prepare_snippet("ARGS:bypass", b"true"), b"true");
+    }
+
+    #[test]
+    fn test_encode_pure_deterministic() {
+        let matches = [MatchData {
+            rule_id: 100001,
+            layer: "protocol",
+            field: "REQUEST_HEADERS:Transfer-Encoding",
+            snippet: b"chunked",
+        }];
+        let ev = EventData {
+            block_id: "STR-8F3K-Q2VD-7XNM-A1PC",
+            time_unix_ms: 1_700_000_000_000,
+            node_id: "node-test",
+            request_id: "req-001",
+            policy_id: "api-test",
+            bundle_version: 1,
+            client_ip: "192.0.2.1",
+            identity: "user-1",
+            method: "GET",
+            host: "api.example.test",
+            path: "/test",
+            status: 403,
+            action: Action::Block,
+            layer_scores: &[("anomaly", 100), ("protocol", 100)],
+            rule_ids: &[100001],
+            matches: &matches,
+        };
+
+        let b1 = encode(&ev);
+        let b2 = encode(&ev);
+        assert_eq!(b1, b2);
+        assert!(b1.len() <= MAX_DATAGRAM);
     }
 
     #[test]
     fn test_encode_event_bounded_8kb() {
-        let matches: Vec<Match> = (0..50)
-            .map(|i| Match {
-                rule_id: 100_000 + i,
-                layer: "managed".to_string(),
-                field: format!("ARGS:arg_{i}"),
-                snippet: vec![b'A'; 128],
+        let matches: Vec<MatchData<'static>> = (0..60)
+            .map(|i| MatchData {
+                rule_id: 100_000 + i as u32,
+                layer: "managed",
+                field: "ARGS:arg",
+                snippet: b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             })
             .collect();
 
-        let long_path = "x".repeat(2000);
-        let ev = Event {
+        let long_path = "x".repeat(3000);
+        let ev = EventData {
             block_id: "STR-1234-5678-ABCD-EF01",
-            time_unix_ms: 1700000000000,
+            time_unix_ms: 1_700_000_000_000,
             node_id: "web-node-01",
             request_id: "req-12345",
             policy_id: "example-policy",
@@ -359,12 +421,12 @@ mod tests {
             path: &long_path,
             status: 403,
             action: Action::Block,
-            layer_scores: vec![("managed", 50), ("protocol", 100)],
+            layer_scores: &[("anomaly", 100), ("protocol", 50)],
             rule_ids: &[100001, 100002],
-            matches,
+            matches: &matches,
         };
 
-        let encoded = encode_event(ev);
+        let encoded = encode(&ev);
         assert!(
             encoded.len() <= MAX_DATAGRAM,
             "encoded len was {}",

@@ -129,6 +129,11 @@ impl Engine {
     pub fn policy(&self, name: &[u8]) -> Option<Policy<'_>> {
         bundle::find_policy((*self.bytes).as_ref(), &self.info, name)
     }
+
+    /// Read policy by its table index directly from the mapping.
+    pub fn policy_by_index(&self, index: u32) -> Option<Policy<'_>> {
+        bundle::policy_by_index((*self.bytes).as_ref(), &self.info, index)
+    }
 }
 
 #[cfg(test)]

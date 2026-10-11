@@ -65,50 +65,75 @@ pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
     let path_end = raw.iter().position(|&c| c == b'?').unwrap_or(raw.len());
     let path = &raw[..path_end];
 
-    let (mut double, mut null, mut ctl) = (false, false, false);
+    let mut double_pos = None;
+    let mut null_pos = None;
+    let mut ctl_pos = None;
+
     for (i, &c) in raw.iter().enumerate() {
         if c == b'%' {
             if pct(raw, i, b'2', b'5')
                 && raw.len() >= i + 5
                 && is_hex(raw[i + 3])
                 && is_hex(raw[i + 4])
+                && double_pos.is_none()
             {
-                double = true;
+                double_pos = Some(i);
             }
-            if pct(raw, i, b'0', b'0') {
-                null = true;
+            if pct(raw, i, b'0', b'0') && null_pos.is_none() {
+                null_pos = Some((i, 3));
             }
         } else if c == 0 {
-            null = true;
-        } else if c < 0x20 || c == 0x7f {
-            ctl = true;
+            if null_pos.is_none() {
+                null_pos = Some((i, 1));
+            }
+        } else if ((c > 0 && c < 0x20) || c == 0x7f) && ctl_pos.is_none() {
+            ctl_pos = Some((i, 1));
         }
     }
 
-    if double {
-        report(scored(DOUBLE_ENCODING, 50, "URI_RAW", b"%25"));
+    let window = |pos: usize, len: usize| {
+        let start = pos.saturating_sub(16);
+        let end = (pos + len + 16).min(raw.len());
+        &raw[start..end]
+    };
+
+    if let Some(pos) = double_pos {
+        report(scored(
+            DOUBLE_ENCODING,
+            50,
+            "REQUEST_URI_RAW",
+            window(pos, 5),
+        ));
     }
-    if null {
-        report(scored(NULL_BYTE, 100, "URI_RAW", b"%00"));
+    if let Some((pos, len)) = null_pos {
+        report(scored(NULL_BYTE, 100, "REQUEST_URI_RAW", window(pos, len)));
     }
-    if ctl {
-        report(scored(CONTROL_CHAR, 50, "URI_RAW", b""));
+    if let Some((pos, len)) = ctl_pos {
+        report(scored(
+            CONTROL_CHAR,
+            50,
+            "REQUEST_URI_RAW",
+            window(pos, len),
+        ));
     }
 
-    let (mut dot, mut matrix) = (false, false);
+    let mut dot_seg = None;
+    let mut matrix_seg = None;
     for seg in path.split(|&c| c == b'/') {
-        if seg.contains(&b';') {
-            matrix = true;
+        if seg.contains(&b';') && matrix_seg.is_none() {
+            matrix_seg = Some(seg);
         }
-        if encoded_dot_segment(seg) {
-            dot = true;
+        if encoded_dot_segment(seg) && dot_seg.is_none() {
+            dot_seg = Some(seg);
         }
     }
-    if dot {
-        report(scored(ENCODED_DOT_SEGMENT, 100, "URI_RAW", b"%2e"));
+    if let Some(seg) = dot_seg {
+        let snip = if seg.len() > 128 { &seg[..128] } else { seg };
+        report(scored(ENCODED_DOT_SEGMENT, 100, "REQUEST_URI_RAW", snip));
     }
-    if matrix {
-        report(scored(MATRIX_PARAMETER, 20, "URI_RAW", b";"));
+    if let Some(seg) = matrix_seg {
+        let snip = if seg.len() > 128 { &seg[..128] } else { seg };
+        report(scored(MATRIX_PARAMETER, 20, "REQUEST_URI_RAW", snip));
     }
 }
 
@@ -139,10 +164,14 @@ fn encoded_dot_segment(seg: &[u8]) -> bool {
 pub struct Headers {
     cl_count: u32,
     cl_bad: bool,
+    cl_snippet: Vec<u8>,
     te_count: u32,
     te_bad: bool,
-    null: bool,
-    ctl: bool,
+    te_snippet: Vec<u8>,
+    null_field: String,
+    null_snippet: Vec<u8>,
+    ctl_field: String,
+    ctl_snippet: Vec<u8>,
 }
 
 fn trim(v: &[u8]) -> &[u8] {
@@ -164,18 +193,46 @@ impl Headers {
             let v = trim(value);
             if v.is_empty() || !v.iter().all(u8::is_ascii_digit) {
                 self.cl_bad = true;
+                if self.cl_snippet.is_empty() {
+                    self.cl_snippet = value[..value.len().min(128)].to_vec();
+                }
+            } else if self.cl_snippet.is_empty() {
+                self.cl_snippet = value[..value.len().min(128)].to_vec();
             }
         } else if name.eq_ignore_ascii_case(b"transfer-encoding") {
             self.te_count += 1;
             if !trim(value).eq_ignore_ascii_case(b"chunked") {
                 self.te_bad = true;
             }
+            if self.te_snippet.is_empty() {
+                self.te_snippet = value[..value.len().min(128)].to_vec();
+            }
         }
-        for &c in name.iter().chain(value) {
-            if c == 0 {
-                self.null = true;
-            } else if (c < 0x20 && c != b'\t') || c == 0x7f {
-                self.ctl = true;
+        if self.null_field.is_empty() {
+            if let Some(pos) = name.iter().position(|&c| c == 0) {
+                self.null_field = format!("REQUEST_HEADERS:{}", String::from_utf8_lossy(name));
+                let start = pos.saturating_sub(16);
+                let end = (pos + 17).min(name.len());
+                self.null_snippet = name[start..end].to_vec();
+            } else if let Some(pos) = value.iter().position(|&c| c == 0) {
+                self.null_field = format!("REQUEST_HEADERS:{}", String::from_utf8_lossy(name));
+                let start = pos.saturating_sub(16);
+                let end = (pos + 17).min(value.len());
+                self.null_snippet = value[start..end].to_vec();
+            }
+        }
+        if self.ctl_field.is_empty() {
+            let is_ctl = |&c: &u8| (c > 0 && c < 0x20 && c != b'\t') || c == 0x7f;
+            if let Some(pos) = name.iter().position(is_ctl) {
+                self.ctl_field = format!("REQUEST_HEADERS:{}", String::from_utf8_lossy(name));
+                let start = pos.saturating_sub(16);
+                let end = (pos + 17).min(name.len());
+                self.ctl_snippet = name[start..end].to_vec();
+            } else if let Some(pos) = value.iter().position(is_ctl) {
+                self.ctl_field = format!("REQUEST_HEADERS:{}", String::from_utf8_lossy(name));
+                let start = pos.saturating_sub(16);
+                let end = (pos + 17).min(value.len());
+                self.ctl_snippet = value[start..end].to_vec();
             }
         }
     }
@@ -185,20 +242,28 @@ impl Headers {
             report(alone(
                 CL_TE_CONFLICT,
                 "REQUEST_HEADERS:Transfer-Encoding",
-                b"chunked",
+                &self.te_snippet,
             ));
         }
         if self.cl_count > 1 || self.cl_bad {
-            report(alone(CL_INVALID, "REQUEST_HEADERS:Content-Length", b""));
+            report(alone(
+                CL_INVALID,
+                "REQUEST_HEADERS:Content-Length",
+                &self.cl_snippet,
+            ));
         }
         if self.te_count > 1 || self.te_bad {
-            report(alone(TE_INVALID, "REQUEST_HEADERS:Transfer-Encoding", b""));
+            report(alone(
+                TE_INVALID,
+                "REQUEST_HEADERS:Transfer-Encoding",
+                &self.te_snippet,
+            ));
         }
-        if self.null {
-            report(scored(NULL_BYTE, 100, "REQUEST_HEADERS", b"\x00"));
+        if !self.null_field.is_empty() {
+            report(scored(NULL_BYTE, 100, &self.null_field, &self.null_snippet));
         }
-        if self.ctl {
-            report(scored(CONTROL_CHAR, 50, "REQUEST_HEADERS", b""));
+        if !self.ctl_field.is_empty() {
+            report(scored(CONTROL_CHAR, 50, &self.ctl_field, &self.ctl_snippet));
         }
     }
 }

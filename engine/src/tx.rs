@@ -8,7 +8,6 @@
 //! bytes of the previous chunk).
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::block_id::{self, Kind};
@@ -62,10 +61,19 @@ impl Line {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MatchEntry {
+    pub rule_id: u32,
+    pub layer: &'static str,
+    pub field: String,
+    pub snippet: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub struct Tx {
     engine: Option<Arc<Engine>>,
-    client_addr: Vec<u8>,
+    client_addr: [u8; 64],
+    client_addr_len: usize,
     line: Option<Line>,
     node: u16,
     shadow: bool,
@@ -97,17 +105,26 @@ pub struct Tx {
     elapsed_ns: u64,
     tail: [u8; TAIL],
     tail_len: usize,
-    node_id_str: Vec<u8>,
-    policy_id: Vec<u8>,
+    node_id: [u8; 64],
+    node_id_len: usize,
+    policy_index: Option<u32>,
+    unmatched_policy: [u8; 64],
+    unmatched_policy_len: usize,
     bundle_version: u64,
-    identity: Vec<u8>,
-    request_id: Vec<u8>,
-    host: Vec<u8>,
-    method: Vec<u8>,
-    path: Vec<u8>,
+    identity: [u8; 128],
+    identity_len: usize,
+    request_id: [u8; 64],
+    request_id_len: usize,
+    host: [u8; 255],
+    host_len: usize,
+    method: [u8; 16],
+    method_len: usize,
+    path: [u8; 1024],
+    path_len: usize,
     status: u32,
-    layer_scores: HashMap<String, i32>,
-    matches: Vec<crate::event::Match>,
+    layer_scores: [i32; 6],
+    protocol_score: i32,
+    matches: Vec<MatchEntry>,
 }
 
 /// Body bytes the request_body rules see at most; the connector's
@@ -133,9 +150,12 @@ impl Tx {
         let missing = engine.is_none();
         let version = engine.as_ref().map_or(0, |e| e.info().version);
         let node_id_bounded = &node_id[..node_id.len().min(64)];
+        let mut node_buf = [0u8; 64];
+        node_buf[..node_id_bounded.len()].copy_from_slice(node_id_bounded);
         let mut tx = Tx {
             engine,
-            client_addr: Vec::new(),
+            client_addr: [0u8; 64],
+            client_addr_len: 0,
             line: None,
             node: block_id::node_hash(node_id),
             shadow: flags & TXF_FORCE_SHADOW != 0,
@@ -158,16 +178,25 @@ impl Tx {
             elapsed_ns: 0,
             tail: [0; TAIL],
             tail_len: 0,
-            node_id_str: node_id_bounded.to_vec(),
-            policy_id: Vec::new(),
+            node_id: node_buf,
+            node_id_len: node_id_bounded.len(),
+            policy_index: None,
+            unmatched_policy: [0u8; 64],
+            unmatched_policy_len: 0,
             bundle_version: version,
-            identity: Vec::new(),
-            request_id: Vec::new(),
-            host: Vec::new(),
-            method: Vec::new(),
-            path: Vec::new(),
+            identity: [0u8; 128],
+            identity_len: 0,
+            request_id: [0u8; 64],
+            request_id_len: 0,
+            host: [0u8; 255],
+            host_len: 0,
+            method: [0u8; 16],
+            method_len: 0,
+            path: [0u8; 1024],
+            path_len: 0,
             status: 0,
-            layer_scores: HashMap::new(),
+            layer_scores: [0; 6],
+            protocol_score: 0,
             matches: Vec::new(),
         };
         if missing {
@@ -180,23 +209,32 @@ impl Tx {
     /// never blocks, whatever the connector asks), oversize handling and
     /// response layer. An unknown policy keeps the defaults.
     pub fn set_policy(&mut self, name: &[u8]) {
-        self.policy_id = name[..name.len().min(55)].to_vec();
+        let len = name.len().min(self.unmatched_policy.len());
+        self.unmatched_policy[..len].copy_from_slice(&name[..len]);
+        self.unmatched_policy_len = len;
         if let Some(p) = self.engine.as_ref().and_then(|e| e.policy(name)) {
+            self.policy_index = Some(p.index);
             // Only towards shadow: nothing lifts TXF_FORCE_SHADOW.
             self.shadow |= p.mode == crate::bundle::Mode::Shadow;
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
+        } else {
+            self.policy_index = None;
         }
     }
 
     /// Client identity for event reporting (at most 128 bytes).
     pub fn set_identity(&mut self, identity: &[u8]) {
-        self.identity = identity[..identity.len().min(128)].to_vec();
+        let len = identity.len().min(self.identity.len());
+        self.identity[..len].copy_from_slice(&identity[..len]);
+        self.identity_len = len;
     }
 
     /// Request id for event reporting (at most 64 bytes).
     pub fn set_request_id(&mut self, request_id: &[u8]) {
-        self.request_id = request_id[..request_id.len().min(64)].to_vec();
+        let len = request_id.len().min(self.request_id.len());
+        self.request_id[..len].copy_from_slice(&request_id[..len]);
+        self.request_id_len = len;
     }
 
     /// The connector inspected only part of the body: `bytes` were not
@@ -221,7 +259,9 @@ impl Tx {
 
     /// Client address for rules on `remote_addr` (copied up to 64 bytes).
     pub fn set_client_addr(&mut self, addr: &[u8]) {
-        self.client_addr = addr[..addr.len().min(64)].to_vec();
+        let len = addr.len().min(self.client_addr.len());
+        self.client_addr[..len].copy_from_slice(&addr[..len]);
+        self.client_addr_len = len;
     }
 
     fn has_rules(&self) -> bool {
@@ -283,11 +323,22 @@ impl Tx {
             self.n_rules += 1;
         }
         self.score = self.score.saturating_add(v.score);
-        *self.layer_scores.entry(v.layer.to_string()).or_insert(0) += v.score;
+        match v.layer {
+            "pre" => self.layer_scores[0] = self.layer_scores[0].saturating_add(v.score),
+            "protocol" => {
+                self.layer_scores[1] = self.layer_scores[1].saturating_add(v.score);
+                self.protocol_score = self.layer_scores[1];
+            }
+            "rate" => self.layer_scores[2] = self.layer_scores[2].saturating_add(v.score),
+            "managed" => self.layer_scores[3] = self.layer_scores[3].saturating_add(v.score),
+            "custom-post" => self.layer_scores[4] = self.layer_scores[4].saturating_add(v.score),
+            "response" => self.layer_scores[5] = self.layer_scores[5].saturating_add(v.score),
+            _ => {}
+        }
         if self.matches.len() < MAX_RULES {
-            self.matches.push(crate::event::Match {
+            self.matches.push(MatchEntry {
                 rule_id: v.rule,
-                layer: v.layer.to_string(),
+                layer: v.layer,
                 field: v.field,
                 snippet: v.snippet,
             });
@@ -314,9 +365,9 @@ impl Tx {
             _ => ("RESPONSE_BODY".to_string(), Vec::new()),
         };
         if self.matches.len() < MAX_RULES {
-            self.matches.push(crate::event::Match {
+            self.matches.push(MatchEntry {
                 rule_id: rule,
-                layer: "response".to_string(),
+                layer: "response",
                 field,
                 snippet,
             });
@@ -360,13 +411,23 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
-        self.method = _method[.._method.len().min(16)].to_vec();
+        let m_len = _method.len().min(self.method.len());
+        self.method[..m_len].copy_from_slice(&_method[..m_len]);
+        self.method_len = m_len;
+
         let p = if !norm_uri.is_empty() {
             norm_uri
         } else {
             raw_uri
         };
-        self.path = p[..p.len().min(1024)].to_vec();
+        let p_no_query = match p.iter().position(|&b| b == b'?') {
+            Some(idx) => &p[..idx],
+            None => p,
+        };
+        let p_len = p_no_query.len().min(self.path.len());
+        self.path[..p_len].copy_from_slice(&p_no_query[..p_len]);
+        self.path_len = p_len;
+
         #[cfg(feature = "test-hooks")]
         {
             let e = |b: &[u8]| b.escape_ascii().to_string();
@@ -390,7 +451,7 @@ impl Tx {
                 norm_uri,
                 args,
                 _proto,
-                &self.client_addr[..],
+                &self.client_addr[..self.client_addr_len],
             ]
             .iter()
             .enumerate()
@@ -411,8 +472,10 @@ impl Tx {
         if let Err(rc) = self.check(Stage::Line, Stage::Headers) {
             return rc;
         }
-        if key.eq_ignore_ascii_case(b"host") && self.host.is_empty() {
-            self.host = val[..val.len().min(255)].to_vec();
+        if key.eq_ignore_ascii_case(b"host") && self.host_len == 0 {
+            let len = val.len().min(self.host.len());
+            self.host[..len].copy_from_slice(&val[..len]);
+            self.host_len = len;
         }
         self.headers.header(key, val);
         #[cfg(feature = "test-hooks")]
@@ -700,20 +763,44 @@ impl Tx {
         };
 
         let block_id_str = std::str::from_utf8(&id).unwrap_or("");
-        let node_id_str = std::str::from_utf8(&self.node_id_str).unwrap_or("");
-        let req_id_str = std::str::from_utf8(&self.request_id).unwrap_or("");
-        let policy_id_str = std::str::from_utf8(&self.policy_id).unwrap_or("");
-        let client_ip_str = std::str::from_utf8(&self.client_addr).unwrap_or("");
-        let identity_str = std::str::from_utf8(&self.identity).unwrap_or("");
-        let method_str = std::str::from_utf8(&self.method).unwrap_or("");
-        let host_str = std::str::from_utf8(&self.host).unwrap_or("");
-        let path_str = std::str::from_utf8(&self.path).unwrap_or("");
+        let node_id_str = std::str::from_utf8(&self.node_id[..self.node_id_len]).unwrap_or("");
+        let req_id_str = std::str::from_utf8(&self.request_id[..self.request_id_len]).unwrap_or("");
+        let client_ip_str =
+            std::str::from_utf8(&self.client_addr[..self.client_addr_len]).unwrap_or("");
+        let identity_str = std::str::from_utf8(&self.identity[..self.identity_len]).unwrap_or("");
+        let method_str = std::str::from_utf8(&self.method[..self.method_len]).unwrap_or("");
+        let host_str = std::str::from_utf8(&self.host[..self.host_len]).unwrap_or("");
+        let path_str = std::str::from_utf8(&self.path[..self.path_len]).unwrap_or("");
 
-        let layer_scores: Vec<(&str, i32)> = self
-            .layer_scores
-            .iter()
-            .map(|(k, v)| (k.as_str(), *v))
-            .collect();
+        let policy_id_str = if let (Some(engine), Some(idx)) =
+            (self.engine.as_ref(), self.policy_index)
+        {
+            engine
+                .policy_by_index(idx)
+                .and_then(|p| std::str::from_utf8(p.name).ok())
+                .unwrap_or("")
+        } else {
+            std::str::from_utf8(&self.unmatched_policy[..self.unmatched_policy_len]).unwrap_or("")
+        };
+
+        let mut layer_scores_arr = [("", 0i32); 8];
+        let mut n_scores = 0;
+        layer_scores_arr[n_scores] = ("anomaly", self.score);
+        n_scores += 1;
+        if self.protocol_score > 0 {
+            layer_scores_arr[n_scores] = ("protocol", self.protocol_score);
+            n_scores += 1;
+        }
+        for (i, &layer_name) in crate::rules::LAYERS.iter().enumerate() {
+            if layer_name == "protocol" {
+                continue;
+            }
+            let s = self.layer_scores[i];
+            if s > 0 {
+                layer_scores_arr[n_scores] = (layer_name, s);
+                n_scores += 1;
+            }
+        }
 
         let status = if self.status != 0 {
             self.status
@@ -723,7 +810,18 @@ impl Tx {
             0
         };
 
-        let ev = crate::event::Event {
+        let match_datas: Vec<crate::event::MatchData<'_>> = self
+            .matches
+            .iter()
+            .map(|m| crate::event::MatchData {
+                rule_id: m.rule_id,
+                layer: m.layer,
+                field: &m.field,
+                snippet: &m.snippet,
+            })
+            .collect();
+
+        let ev = crate::event::EventData {
             block_id: block_id_str,
             time_unix_ms,
             node_id: node_id_str,
@@ -737,12 +835,12 @@ impl Tx {
             path: path_str,
             status,
             action,
-            layer_scores,
+            layer_scores: &layer_scores_arr[..n_scores],
             rule_ids: &self.rules[..self.n_rules],
-            matches: self.matches.clone(),
+            matches: &match_datas,
         };
 
-        Some(crate::event::encode_event(ev))
+        Some(crate::event::encode(&ev))
     }
 }
 
@@ -1099,5 +1197,44 @@ mod tests {
         assert_eq!(v.error, E_INCOMPLETE);
         assert!(id_str(&v).starts_with("EVT-"));
         assert_eq!(t.request_body_chunk(b"", true), E_INCOMPLETE);
+    }
+
+    #[test]
+    fn test_tx_caps_at_16_matches() {
+        let mut t = tx();
+        line(&mut t, b"/");
+        for i in 0..25 {
+            t.add(Violation {
+                rule: 700_000 + i,
+                score: 1,
+                block_alone: false,
+                layer: "managed",
+                field: format!("ARGS:arg_{i}"),
+                snippet: vec![b'A'; 10],
+            });
+        }
+        let v = t.verdict();
+        assert_eq!(v.n_rules, 16);
+        assert_eq!(t.matches.len(), 16);
+    }
+
+    #[test]
+    fn test_path_excludes_query() {
+        let mut t = tx();
+        assert_eq!(
+            t.request_line(
+                b"GET",
+                b"/api/test?foo=bar&baz=1",
+                b"/api/test?foo=bar&baz=1",
+                b"foo=bar&baz=1",
+                b"HTTP/1.1"
+            ),
+            OK
+        );
+        assert_eq!(t.request_headers_done(), OK);
+        assert_eq!(&t.path[..t.path_len], b"/api/test");
+        t.stub_rule("URI", b"/api/test");
+        let ev_bytes = t.encode_event().expect("should produce event");
+        assert!(!ev_bytes.windows(b"foo=bar".len()).any(|w| w == b"foo=bar"));
     }
 }

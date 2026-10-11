@@ -74,6 +74,9 @@ func TestGoldenEvents(t *testing.T) {
 				if !strings.Contains(string(m.GetSnippet()), "STRATA-TEST-BLOCK") {
 					t.Fatalf("expected snippet with STRATA-TEST-BLOCK, got %q", string(m.GetSnippet()))
 				}
+				if ev.GetLayerScores()["anomaly"] != 100 {
+					t.Fatalf("expected anomaly score 100, got %d", ev.GetLayerScores()["anomaly"])
+				}
 			},
 		},
 		{
@@ -177,6 +180,12 @@ func TestGoldenEvents(t *testing.T) {
 				// Ensure matches were truncated to fit under 8192 bytes
 				if len(ev.GetMatches()) >= 60 {
 					t.Fatalf("expected matches to be truncated below 60, got %d", len(ev.GetMatches()))
+				}
+				if ev.GetLayerScores()["protocol"] != 50 {
+					t.Fatalf("expected protocol score 50, got %d", ev.GetLayerScores()["protocol"])
+				}
+				if ev.GetLayerScores()["anomaly"] != 150 {
+					t.Fatalf("expected anomaly score 150, got %d", ev.GetLayerScores()["anomaly"])
 				}
 			},
 		},
