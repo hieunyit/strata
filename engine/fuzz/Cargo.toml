@@ -1,4 +1,4 @@
-# Fuzz targets (W06-R-01). Not part of the workspace: built with sancov
+# Fuzz targets (W06-R-01; bodies and body_eval: body parsers). Not part of the workspace: built with sancov
 # instrumentation by engine/fuzz/run.sh (stable rustc, libFuzzer from
 # libfuzzer-sys), never shipped.
 [package]
@@ -37,5 +37,17 @@ doc = false
 [[bin]]
 name = "response_tx"
 path = "fuzz_targets/response_tx.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bodies"
+path = "fuzz_targets/bodies.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "body_eval"
+path = "fuzz_targets/body_eval.rs"
 test = false
 doc = false

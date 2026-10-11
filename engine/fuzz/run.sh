@@ -7,7 +7,7 @@ set -euo pipefail
 secs="${1:?usage: run.sh <seconds> [targets...]}"; shift
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
-[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx)
+[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx bodies body_eval)
 out="$root/build/fuzz"
 mkdir -p "$out"
 
@@ -29,6 +29,12 @@ for t in "${targets[@]}"; do
         for f in "$root"/engine/tests/libinjection/test-*.txt; do
             cp "$f" "$out/$t/corpus/" 2>/dev/null || true
         done
+    fi
+    # seeds for the body parsers: one body of each format
+    if [ "$t" = bodies ] || [ "$t" = body_eval ]; then
+        printf '\001B--B\r\nContent-Disposition: form-data; name="f"; filename="a.php"\r\n\r\nx\r\n--B--' > "$out/$t/corpus/multipart"
+        printf '\001\000{"a": [1, {"b": "x\\u0041"}], "c": null}' > "$out/$t/corpus/json"
+        printf '\002\000<?xml version="1.0"?><!DOCTYPE r [<!ENTITY e "x">]><r a="&lt;b&gt;"><![CDATA[c]]>t&#65;</r>' > "$out/$t/corpus/xml"
     fi
     "$bin/$t" "$out/$t/corpus" \
         -artifact_prefix="$out/$t/artifacts/" -max_total_time="$secs" \
