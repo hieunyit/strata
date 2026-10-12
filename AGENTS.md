@@ -23,7 +23,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W07-R-02 | Operator đợt 2 (validateByteRange, validateUrlEncoding, validateUtf8Encoding, ipMatch) | Antigravity | L2 | — | ✅ Done |
 | W07-R-03 | Mã hóa sự kiện trong libstrata (strata_tx_event) | Antigravity | L3 | — | ✅ Done |
 | W07-R-01 | CPU budget hợp tác và cô lập lỗi | Antigravity | L3 | — | ✅ Done |
-| W07-N-01 | Fail mode, event sink, metrics, RST_STREAM | Antigravity | L3 | W07-R-03, W07-R-01 | ⏳ Chưa bắt đầu |
+| W07-N-01 | Fail mode, event sink, metrics, RST_STREAM | Antigravity, Claude Code | L3 | W07-R-03, W07-R-01 | ✅ Done |
 | W07-G1-01 | Lệnh ForceShadow, chẩn đoán, test mất mạng | Antigravity | L3 | W07-N-01 | ⏳ Chưa bắt đầu |
 | W07-G2-01 | Signer KMS và cost unit | Antigravity | L3 | — | ⏳ Chưa bắt đầu |
 | W07-S-01 | Nhập Sigma, ET Open, danh sách bot | Antigravity | L2 | — | ⏳ Chưa bắt đầu |
@@ -34,7 +34,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
-| W06-F-01 | Trang Sự kiện nối API thật | Antigravity | W06-G2-01 | ✅ Done (sự kiện chặn thật từ NGINX chờ W07-N-01; lab dùng `strata-emit`) |
+| W06-F-01 | Trang Sự kiện nối API thật | Antigravity | W06-G2-01 | ✅ Done (sự kiện chặn thật từ NGINX từ W07-N-01) |
 
 **Các tuần đã qua**: tuần 3–5 xong và đã merge vào `main` (W05-S-01: 136 rule CRS PL1 trong `rules/crs`, pack protocol 40 rule trong `rules/protocol`, 0 FP trên corpus benign).
 
