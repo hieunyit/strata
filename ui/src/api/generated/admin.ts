@@ -5,6 +5,18 @@
 
 
 export interface paths {
+  "/v1/bundles": {
+    /** REST: GET /v1/bundles */
+    get: operations["RolloutService_ListBundles"];
+  };
+  "/v1/commands": {
+    /** REST: GET /v1/commands?node_id=. Newest first, at most 100. */
+    get: operations["FleetAdminService_ListCommands"];
+  };
+  "/v1/commands/{command_id}": {
+    /** REST: GET /v1/commands/{command_id} */
+    get: operations["FleetAdminService_GetCommand"];
+  };
   "/v1/groups": {
     /** REST: GET /v1/groups */
     get: operations["FleetAdminService_ListGroups"];
@@ -25,6 +37,23 @@ export interface paths {
      * certificates refused from then on.
      */
     delete: operations["FleetAdminService_RevokeNode"];
+  };
+  "/v1/nodes/{node_id}:collectDiagnostics": {
+    /**
+     * REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
+     * with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
+     */
+    post: operations["FleetAdminService_CollectDiagnostics"];
+  };
+  "/v1/nodes:forceShadow": {
+    /**
+     * REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy
+     * (or every policy) on one node or every node of a group, for a while
+     * (nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes
+     * apply it within seconds while connected; a node that connects later
+     * gets it if the duration has not run out.
+     */
+    post: operations["FleetAdminService_ForceShadow"];
   };
   "/v1/policies": {
     /** REST: GET /v1/policies */
@@ -56,6 +85,29 @@ export interface paths {
      */
     post: operations["PolicyService_DeployPolicy"];
   };
+  "/v1/rollouts": {
+    /** REST: GET /v1/rollouts */
+    get: operations["RolloutService_ListRollouts"];
+  };
+  "/v1/rollouts/{rollout_id}": {
+    /** REST: GET /v1/rollouts/{rollout_id} */
+    get: operations["RolloutService_GetRollout"];
+  };
+  "/v1/rollouts/{rollout_id}:abort": {
+    /** REST: POST /v1/rollouts/{rollout_id}:abort. Nodes keep what they run. */
+    post: operations["RolloutService_AbortRollout"];
+  };
+  "/v1/rollouts/{rollout_id}:pause": {
+    /** REST: POST /v1/rollouts/{rollout_id}:pause. No new wave starts. */
+    post: operations["RolloutService_PauseRollout"];
+  };
+  "/v1/rollouts/{rollout_id}:resume": {
+    /**
+     * REST: POST /v1/rollouts/{rollout_id}:resume. Also after a failure,
+     * once the cause is fixed.
+     */
+    post: operations["RolloutService_ResumeRollout"];
+  };
   "/v1/version": {
     /** REST: GET /v1/version */
     get: operations["VersionService_GetVersion"];
@@ -66,6 +118,7 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    FleetAdminServiceCollectDiagnosticsBody: Record<string, never>;
     FleetAdminServiceCreateEnrollmentTokenBody: {
       /**
        * Format: int64
@@ -85,6 +138,9 @@ export interface components {
      * @enum {string}
      */
     PolicySpecOversize: "OVERSIZE_UNSPECIFIED" | "OVERSIZE_PASS" | "OVERSIZE_BLOCK";
+    RolloutServiceAbortRolloutBody: Record<string, never>;
+    RolloutServicePauseRolloutBody: Record<string, never>;
+    RolloutServiceResumeRolloutBody: Record<string, never>;
     protobufAny: {
       "@type"?: string;
       [key: string]: unknown;
@@ -94,6 +150,9 @@ export interface components {
       code?: number;
       message?: string;
       details?: components["schemas"]["protobufAny"][];
+    };
+    v1AbortRolloutResponse: {
+      rollout?: components["schemas"]["v1Rollout"];
     };
     v1Bundle: {
       /** Format: uint64 */
@@ -111,6 +170,9 @@ export interface components {
       /** Format: date-time */
       create_time?: string;
     };
+    v1CollectDiagnosticsResponse: {
+      command?: components["schemas"]["v1NodeCommand"];
+    };
     v1CreateEnrollmentTokenResponse: {
       id?: string;
       group_id?: string;
@@ -127,12 +189,40 @@ export interface components {
     };
     v1DeployPolicyResponse: {
       bundle?: components["schemas"]["v1Bundle"];
+      /**
+       * Format: int64
+       * @description The rollout of the bundle to the nodes (GET /v1/rollouts/{id}); 0 when
+       * this control plane does not distribute bundles.
+       */
+      rollout_id?: string;
+    };
+    v1ForceShadowRequest: {
+      /** @description Exactly one of node_id and group_id. */
+      node_id?: string;
+      group_id?: string;
+      /** empty: every policy */
+      policy_id?: string;
+      /**
+       * 1..86400
+       * Format: int64
+       */
+      duration_seconds?: number;
+    };
+    v1ForceShadowResponse: {
+      /** one per node (revoked nodes skipped) */
+      commands?: components["schemas"]["v1NodeCommand"][];
+    };
+    v1GetCommandResponse: {
+      command?: components["schemas"]["v1NodeCommand"];
     };
     v1GetPolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
     };
     v1GetPolicyVersionResponse: {
       version?: components["schemas"]["v1PolicyVersion"];
+    };
+    v1GetRolloutResponse: {
+      rollout?: components["schemas"]["v1Rollout"];
     };
     v1GetVersionResponse: {
       /** @description Control plane build version, e.g. 0.1.0 or a git describe string. */
@@ -149,6 +239,12 @@ export interface components {
       /** Format: date-time */
       create_time?: string;
     };
+    v1ListBundlesResponse: {
+      bundles?: components["schemas"]["v1Bundle"][];
+    };
+    v1ListCommandsResponse: {
+      commands?: components["schemas"]["v1NodeCommand"][];
+    };
     v1ListGroupsResponse: {
       groups?: components["schemas"]["v1Group"][];
     };
@@ -160,6 +256,9 @@ export interface components {
     };
     v1ListPolicyVersionsResponse: {
       versions?: components["schemas"]["v1PolicyVersion"][];
+    };
+    v1ListRolloutsResponse: {
+      rollouts?: components["schemas"]["v1Rollout"][];
     };
     v1Node: {
       id?: string;
@@ -180,6 +279,38 @@ export interface components {
       revoked?: boolean;
       /** Format: date-time */
       create_time?: string;
+    };
+    /** @description NodeCommand is a command sent to one node and its result. */
+    v1NodeCommand: {
+      id?: string;
+      node_id?: string;
+      /** FORCE_SHADOW, DIAGNOSTICS */
+      kind?: string;
+      /** FORCE_SHADOW: empty = every policy */
+      policy_id?: string;
+      /**
+       * FORCE_SHADOW
+       * Format: int64
+       */
+      duration_seconds?: number;
+      /**
+       * PENDING (not sent yet), SENT, DONE, FAILED (the agent refused or
+       * failed), EXPIRED (not answered before its deadline)
+       */
+      state?: string;
+      error?: string;
+      /** DIAGNOSTICS: JSON from the agent (untrusted) */
+      output?: string;
+      created_by?: string;
+      /** Format: date-time */
+      create_time?: string;
+      /** Format: date-time */
+      expire_time?: string;
+      /** Format: date-time */
+      update_time?: string;
+    };
+    v1PauseRolloutResponse: {
+      rollout?: components["schemas"]["v1Rollout"];
     };
     v1Policy: {
       /** @description [a-z0-9][a-z0-9-]{0,62}; set at creation. */
@@ -221,8 +352,42 @@ export interface components {
       /** cccd, jwt */
       data_guard?: string[];
     };
+    v1ResumeRolloutResponse: {
+      rollout?: components["schemas"]["v1Rollout"];
+    };
     v1RevokeNodeResponse: {
       node?: components["schemas"]["v1Node"];
+    };
+    v1Rollout: {
+      /** Format: int64 */
+      id?: string;
+      /** Format: uint64 */
+      bundle_version?: string;
+      /** RUNNING, PAUSED, FAILED, DONE, ABORTED */
+      state?: string;
+      /** cumulative node counts */
+      waves?: number[];
+      /** Format: int32 */
+      current_wave?: number;
+      /** Format: int32 */
+      soak_seconds?: number;
+      reason?: string;
+      nodes?: components["schemas"]["v1RolloutNode"][];
+      created_by?: string;
+      /** Format: date-time */
+      create_time?: string;
+      /** Format: date-time */
+      update_time?: string;
+    };
+    v1RolloutNode: {
+      node_id?: string;
+      /** Format: int32 */
+      wave?: number;
+      /** PENDING, NOTIFIED, DOWNLOADING, VERIFIED, ACTIVE, FAILED */
+      state?: string;
+      error?: string;
+      /** Format: date-time */
+      update_time?: string;
     };
     v1UpdatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
@@ -241,6 +406,68 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /** REST: GET /v1/bundles */
+  RolloutService_ListBundles: {
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ListBundlesResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: GET /v1/commands?node_id=. Newest first, at most 100. */
+  FleetAdminService_ListCommands: {
+    parameters: {
+      query?: {
+        /** @description empty: every node */
+        node_id?: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ListCommandsResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: GET /v1/commands/{command_id} */
+  FleetAdminService_GetCommand: {
+    parameters: {
+      path: {
+        command_id: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetCommandResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
   /** REST: GET /v1/groups */
   FleetAdminService_ListGroups: {
     responses: {
@@ -340,6 +567,64 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1RevokeNodeResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
+   * with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
+   */
+  FleetAdminService_CollectDiagnostics: {
+    parameters: {
+      path: {
+        node_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FleetAdminServiceCollectDiagnosticsBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1CollectDiagnosticsResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy
+   * (or every policy) on one node or every node of a group, for a while
+   * (nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes
+   * apply it within seconds while connected; a node that connects later
+   * gets it if the duration has not run out.
+   */
+  FleetAdminService_ForceShadow: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["v1ForceShadowRequest"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ForceShadowResponse"];
         };
       };
       /** @description An unexpected error response. */
@@ -519,6 +804,129 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1DeployPolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: GET /v1/rollouts */
+  RolloutService_ListRollouts: {
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ListRolloutsResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: GET /v1/rollouts/{rollout_id} */
+  RolloutService_GetRollout: {
+    parameters: {
+      path: {
+        rollout_id: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetRolloutResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: POST /v1/rollouts/{rollout_id}:abort. Nodes keep what they run. */
+  RolloutService_AbortRollout: {
+    parameters: {
+      path: {
+        rollout_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RolloutServiceAbortRolloutBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1AbortRolloutResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /** REST: POST /v1/rollouts/{rollout_id}:pause. No new wave starts. */
+  RolloutService_PauseRollout: {
+    parameters: {
+      path: {
+        rollout_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RolloutServicePauseRolloutBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1PauseRolloutResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/rollouts/{rollout_id}:resume. Also after a failure,
+   * once the cause is fixed.
+   */
+  RolloutService_ResumeRollout: {
+    parameters: {
+      path: {
+        rollout_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RolloutServiceResumeRolloutBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ResumeRolloutResponse"];
         };
       };
       /** @description An unexpected error response. */
