@@ -112,7 +112,7 @@
       "blockIp": "Chặn IP này",
       "close": "Đóng"
     },
-    "viewerNotice": "Bạn đang đăng nhập với vai trò Viewer. Dữ liệu nhạy cảm (IP, input snippet) đã được che; nút xuất CSV và các nút tác vụ bị ẩn/vô hiệu hóa."
+    "viewerNotice": "Bạn đang đăng nhập với vai trò Viewer. Dữ liệu nhạy cảm (IP, input snippet) đã được che, cả trong file CSV xuất ra; các nút tác vụ ghi bị ẩn."
   },
   "login": {
     "title": "Đăng nhập Strata",

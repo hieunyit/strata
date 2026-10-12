@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Download } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
-import { useAuth } from '../context/AuthContext';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell, ErrorBanner, formatTime } from './PageShell';
 
@@ -15,7 +14,6 @@ const modeClass: Record<string, string> = {
 // Read only (W04-F-01): editing, diff and deploy come with the policy editor.
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { isViewer } = useAuth();
   const { data, error, loading } = usePolling(() => apiClient.listPolicies(), 0);
   const [selected, setSelected] = useState<Policy | null>(null);
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
@@ -54,7 +52,7 @@ export const PoliciesPage: React.FC = () => {
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('policies.title')}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t('policies.subtitle')}</p>
         </div>
-        {!isViewer && (data ?? []).length > 0 && (
+        {(data ?? []).length > 0 && (
           <button
             type="button"
             data-testid="export-csv-btn"

@@ -77,8 +77,9 @@ describe('Strata Events UI Components', () => {
         />
       </StaticAuthProvider>
     );
+    // a viewer exports too: what it is shown, masked by the API
     const { unmount } = render(bar('viewer'));
-    expect(screen.queryByTestId('export-csv-btn')).not.toBeInTheDocument();
+    expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();
     unmount();
     render(bar('operator'));
     expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();

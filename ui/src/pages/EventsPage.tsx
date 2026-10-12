@@ -6,9 +6,12 @@ import { EventsTable } from '../components/events/EventsTable';
 import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
 import { apiClient, Event, SearchEventsRequest, ApiError } from '../api/client';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { downloadCsv, csvDate } from '../lib/csv';
 
 export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlockId }) => {
   const { t } = useTranslation();
+  const { maskIp } = useAuth();
 
   // Query state
   const [filters, setFilters] = useState<SearchEventsRequest>(() => {
@@ -133,31 +136,18 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
     }
   };
 
-  // Export CSV
+  // Export CSV: what the table shows. A viewer gets the client IP masked
+  // (by the API, and again here) and no input snippet.
   const handleExportCsv = () => {
     if (events.length === 0) return;
-
-    const headers = ['Block ID', 'Timestamp', 'Action', 'Method', 'Host', 'Path', 'Client IP', 'Rules', 'Anomaly Score'];
-    const rows = events.map(e => [
-      `"${e.block_id}"`,
-      `"${e.timestamp}"`,
-      `"${e.action}"`,
-      `"${e.http_method}"`,
-      `"${e.http_host}"`,
-      `"${e.http_path}"`,
-      `"${e.client_ip}"`,
-      `"${(e.matched_rules || []).join(';')}"`,
-      e.score_anomaly ?? 0,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `strata-events-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(
+      `strata-events-${csvDate()}.csv`,
+      ['Block ID', 'Timestamp', 'Action', 'Method', 'Host', 'Path', 'Client IP', 'Rules', 'Anomaly Score'],
+      events.map((e) => [
+        e.block_id ?? '', e.timestamp ?? '', e.action ?? '', e.http_method ?? '', e.http_host ?? '',
+        e.http_path ?? '', maskIp(e.client_ip ?? ''), (e.matched_rules || []).join(';'), e.score_anomaly ?? 0,
+      ]),
+    );
   };
 
   // Filter application
