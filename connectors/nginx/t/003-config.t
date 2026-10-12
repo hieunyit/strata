@@ -126,7 +126,7 @@ strata: tx created
     location /t { strata on; }
 --- must_die
 --- error_log
-must be 32 raw bytes
+must be 32 or 64 raw bytes
 
 
 
@@ -247,3 +247,47 @@ GET /t
 --- request
 GET /t
 --- response_body_like: ^backend
+
+
+
+=== TEST 17: key rotation: two trusted keys, the bundle signed by the second
+--- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
+    strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
+    strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/rotation.pub;
+--- config
+    location /t { strata on; strata_policy example-api; proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/; }
+--- request
+GET /t?STRATA-TEST-BLOCK
+--- error_code: 403
+--- no_error_log
+[emerg]
+rejected
+
+
+
+=== TEST 18: key rotation: the bundle signed by the first
+--- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bad/control;
+    strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bad;
+    strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/rotation.pub;
+--- config
+    location /t { strata on; strata_policy example-api; proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/; }
+--- request
+GET /t?STRATA-TEST-BLOCK
+--- error_code: 403
+--- no_error_log
+[emerg]
+
+
+
+=== TEST 19: two keys, neither signed the bundle: refused
+--- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
+    strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
+    strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/untrusted.pub;
+--- config
+    location /t { strata on; }
+--- must_die
+--- error_log
+rejected
