@@ -39,6 +39,12 @@ else
     mv /signer/token.new /signer/token
     echo "vault-init: new signer token"
 fi
+# bundle.pub: written once; later the key rotation procedure owns it
+# (docs/design/control-file.md, "Xoay khóa ký bundle")
+if [ -s /bundles/bundle.pub ]; then
+    echo "vault-init: transit key strata-bundles ready, bundle.pub kept"
+    exit 0
+fi
 vault read -format=json transit/keys/strata-bundles | flat |
     sed -n 's/.*"public_key":"\([^"]*\)".*/\1/p' | base64 -d > /bundles/bundle.pub.new
 [ "$(wc -c < /bundles/bundle.pub.new)" -eq 32 ] || { echo "vault-init: bad public key" >&2; exit 1; }
