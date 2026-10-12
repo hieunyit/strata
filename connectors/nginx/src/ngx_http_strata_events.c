@@ -104,7 +104,7 @@ ngx_http_strata_metrics_create(ngx_cycle_t *cycle,
         goto failed;
     }
 
-    if (ftruncate(fd, smcf->metrics_len) == -1
+    if (ftruncate(fd, (off_t) smcf->metrics_len) == -1
         || pwrite(fd, hdr, sizeof(hdr), 0) != (ssize_t) sizeof(hdr)
         || rename((char *) tmp, (char *) smcf->metrics_file.data) == -1)
     {
