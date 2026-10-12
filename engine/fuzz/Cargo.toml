@@ -13,6 +13,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "=0.4.10"
 libstrata = { path = "..", features = ["test-hooks"] }
+libstrata-ffi = { path = "../ffi" }
 
 [workspace]
 
@@ -61,5 +62,11 @@ doc = false
 [[bin]]
 name = "budget_eval"
 path = "fuzz_targets/budget_eval.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ffi"
+path = "fuzz_targets/ffi.rs"
 test = false
 doc = false
