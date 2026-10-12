@@ -125,6 +125,37 @@ services:
     depends_on:
       fleet-init: { condition: service_completed_successfully }
 
+  # Signs bundles (W07-G2-01): the control plane sends the bytes to sign,
+  # the key stays in Vault.
+  vault:
+    image: hashicorp/vault:1.20.4
+    restart: unless-stopped
+    command: ["server", "-config=/etc/vault/lab.hcl"]
+    volumes:
+      - ./vault/lab.hcl:/etc/vault/lab.hcl:ro
+      - vault-data:/vault/file
+    healthcheck:
+      # answers once listening, initialized or not, sealed or not
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8200/v1/sys/health?uninitcode=200&sealedcode=200&standbyok=true"]
+      interval: 2s
+      retries: 30
+
+  vault-init:
+    image: hashicorp/vault:1.20.4
+    restart: "no"
+    user: root
+    entrypoint: ["/bin/sh", "/opt/vault-init.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+    volumes:
+      - ./vault/init.sh:/opt/vault-init.sh:ro
+      - vault-keys:/keys
+      - vault-signer:/signer
+      - bundles:/bundles
+    depends_on:
+      vault: { condition: service_healthy }
+      lab-init: { condition: service_completed_successfully }
+
   control-plane:
     <<: *runtime
     read_only: true
@@ -153,8 +184,10 @@ services:
       - -oidc-audience=strata-api
       - -admin-grpc-addr=:9090
       - -admin-grpc-plaintext
-      # Deploys: compile with the lab rules, sign, store in MinIO.
-      - -bundle-signing-key=/state/signing/bundle.key
+      # Deploys: compile with the lab rules, sign in Vault, store in MinIO.
+      - -bundle-signer=vault
+      - -vault-addr=http://vault:8200
+      - -vault-token-file=/vault-signer/token
       - -rules=/opt/strata/rules.yaml
       - -block-page=/opt/strata/block.html
       - -s3-endpoint=minio:9000
@@ -168,12 +201,14 @@ services:
     volumes:
       - state:/state:ro
       - bundles:/bundles:ro
+      - vault-signer:/vault-signer:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 5s
       retries: 30
     depends_on:
       lab-init: { condition: service_completed_successfully }
+      vault-init: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy }
       postgres: { condition: service_healthy }
       keycloak: { condition: service_healthy }
@@ -349,3 +384,8 @@ volumes:
   minio:
   victoriametrics:
   grafana:
+  # Vault's storage and, lab only, its unseal key and root token
+  vault-data:
+  vault-keys:
+  # the control plane's Vault token (sign with the bundle key, read it)
+  vault-signer:

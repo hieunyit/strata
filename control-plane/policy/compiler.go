@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,12 +21,44 @@ type Named struct {
 
 // Compiler runs strata-compile.
 type Compiler struct {
-	Binary         string   // default "strata-compile" from PATH
-	KeyFile        string   // Ed25519 seed (32 bytes) that signs bundles
+	Binary string // default "strata-compile" from PATH
+	// Signer signs bundles (KMS): strata-compile then writes the unsigned
+	// bytes and never sees a key. Without it, KeyFile (an Ed25519 seed,
+	// lab and development only) is passed to strata-compile.
+	Signer         Signer
+	KeyFile        string
 	Rules          []string // IR files (docs/spec/ir.schema.json)
 	BlockPage      string   // HTML file of the default block page; optional
 	SupportContact string
 	Timeout        time.Duration // default 2 min
+	// CostBudget: a bundle whose rules cost more cost units is refused
+	// (CostError); 0: no limit.
+	CostBudget uint64
+}
+
+// DefaultCostBudget: CRS 4.25 PL1 as imported costs about 15 000 units
+// (W07-G2-01 report); room for three times that.
+const DefaultCostBudget = 50000
+
+// RuleCost is one rule of strata-compile's cost report.
+type RuleCost struct {
+	ID   uint32 `json:"id"`
+	Name string `json:"name"`
+	Cost uint64 `json:"cost"`
+}
+
+// CostError: the rules of the bundle cost more than the budget.
+type CostError struct {
+	Total, Budget uint64
+	Top           []RuleCost // costliest first, at most 3
+}
+
+func (e *CostError) Error() string {
+	var names []string
+	for _, r := range e.Top {
+		names = append(names, fmt.Sprintf("%d %q (%d)", r.ID, r.Name, r.Cost))
+	}
+	return fmt.Sprintf("the rules cost %d units, over the budget of %d; costliest: %s", e.Total, e.Budget, strings.Join(names, ", "))
 }
 
 // Build compiles and signs a bundle of version holding policies.
@@ -71,7 +104,13 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		return nil, err
 	}
 	out := filepath.Join(dir, "bundle.sbn")
-	args := []string{"--policies", polFile, "--key", c.KeyFile, "--version", strconv.FormatUint(version, 10), "--out", out}
+	costFile := filepath.Join(dir, "cost.json")
+	args := []string{"--policies", polFile, "--version", strconv.FormatUint(version, 10), "--out", out, "--cost-report", costFile}
+	if c.Signer != nil {
+		args = append(args, "--unsigned")
+	} else {
+		args = append(args, "--key", c.KeyFile)
+	}
 	for _, r := range c.Rules {
 		args = append(args, "--rules", r)
 	}
@@ -95,5 +134,30 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		}
 		return nil, fmt.Errorf("policy: strata-compile: %v: %s", err, msg)
 	}
-	return os.ReadFile(out)
+	if c.CostBudget > 0 {
+		raw, err := os.ReadFile(costFile)
+		if err != nil {
+			return nil, fmt.Errorf("policy: cost report: %w", err)
+		}
+		var rep struct {
+			Total uint64     `json:"total"`
+			Rules []RuleCost `json:"rules"`
+		}
+		if err := json.Unmarshal(raw, &rep); err != nil {
+			return nil, fmt.Errorf("policy: cost report: %w", err)
+		}
+		if rep.Total > c.CostBudget {
+			top := rep.Rules[:min(3, len(rep.Rules))]
+			return nil, &CostError{Total: rep.Total, Budget: c.CostBudget, Top: top}
+		}
+	}
+	data, err := os.ReadFile(out)
+	if err != nil || c.Signer == nil {
+		return data, err
+	}
+	sig, err := c.Signer.Sign(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("policy: sign: %w", err)
+	}
+	return append(data, sig...), nil
 }

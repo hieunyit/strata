@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"flag"
@@ -60,7 +61,13 @@ func main() {
 	nodeCAKey := flag.String("node-ca-key", "", "Key of -node-ca-cert")
 	trustBundle := flag.String("fleet-trust-bundle", "", "CA bundle enrolled agents trust for FleetService (default: -tls-ca)")
 	bundlePub := flag.String("bundle-pubkey", "", "Public key that verifies bundle signatures, sent to enrolled agents")
-	signingKey := flag.String("bundle-signing-key", "", "Ed25519 seed that signs bundles (deploys need it, with -bundle-pubkey and -s3-*)")
+	signingKey := flag.String("bundle-signing-key", "", "Ed25519 seed that signs bundles, with -bundle-signer=file (lab, development); deploys need a signer, -bundle-pubkey and -s3-*")
+	signerKind := flag.String("bundle-signer", "file", "Who signs bundles: file (-bundle-signing-key) or vault (Vault transit; the key never leaves Vault; token from -vault-token-file or VAULT_TOKEN)")
+	vaultAddr := flag.String("vault-addr", os.Getenv("VAULT_ADDR"), "Vault address, with -bundle-signer=vault")
+	vaultMount := flag.String("vault-transit-mount", "transit", "Vault transit mount")
+	vaultKey := flag.String("vault-transit-key", "strata-bundles", "Vault transit key (ed25519, not exportable)")
+	vaultTokenFile := flag.String("vault-token-file", "", "File holding the Vault token (default: VAULT_TOKEN)")
+	costBudget := flag.Uint64("cost-budget", policy.DefaultCostBudget, "Cost units a bundle's rules may cost; a deploy over it is refused (0: no limit)")
 	rulesFlag := flag.String("rules", "", "Comma-separated rule IR files compiled into every bundle")
 	blockPage := flag.String("block-page", "", "HTML of the default block page put in bundles")
 	supportContact := flag.String("support-contact", "", "Support contact shown on the block page")
@@ -149,6 +156,41 @@ func main() {
 			Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS13,
 		})))
 	}
+	// The bundle public key: Vault's, or the -bundle-pubkey file.
+	var signer policy.Signer
+	var pub []byte
+	switch *signerKind {
+	case "vault":
+		token := os.Getenv("VAULT_TOKEN")
+		if *vaultTokenFile != "" {
+			b, err := os.ReadFile(*vaultTokenFile)
+			if err != nil {
+				log.Fatalf("[FATAL] Vault token: %v", err)
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		vs := &policy.VaultSigner{Addr: *vaultAddr, Mount: *vaultMount, Key: *vaultKey, Token: token}
+		if err := vs.Init(ctx); err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
+		k, _ := vs.PublicKey(ctx)
+		pub, signer = k, vs
+		if *bundlePub != "" {
+			if f, err := os.ReadFile(*bundlePub); err != nil || !bytes.Equal(f, pub) {
+				log.Fatalf("[FATAL] -bundle-pubkey %s is not the public key of Vault key %s", *bundlePub, *vaultKey)
+			}
+		}
+		log.Printf("[INFO] Bundles are signed by Vault transit key %s at %s", *vaultKey, *vaultAddr)
+	case "file":
+		if *bundlePub != "" {
+			var err error
+			if pub, err = os.ReadFile(*bundlePub); err != nil {
+				log.Fatalf("[FATAL] bundle public key: %v", err)
+			}
+		}
+	default:
+		log.Fatalf("[FATAL] -bundle-signer must be file or vault")
+	}
 	deps := admin.Deps{Presence: presence}
 	var objects *policy.S3
 	var rollouts *fleet.Rollouts
@@ -168,8 +210,8 @@ func main() {
 			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
 				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
 		}
-		if *signingKey != "" {
-			d := newDeployer(pg, objects, *signingKey, *bundlePub, *rulesFlag, *blockPage, *supportContact, *compilerBin)
+		if signer != nil || *signingKey != "" {
+			d := newDeployer(pg, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
 			d.Publish = rollouts.Start
 			deps.Deployer = d
 		}
@@ -267,11 +309,7 @@ func main() {
 			if fcfg.TrustBundle, err = os.ReadFile(tb); err != nil {
 				log.Fatalf("[FATAL] fleet trust bundle: %v", err)
 			}
-			if *bundlePub != "" {
-				if fcfg.BundlePubKey, err = os.ReadFile(*bundlePub); err != nil {
-					log.Fatalf("[FATAL] bundle public key: %v", err)
-				}
-			}
+			fcfg.BundlePubKey = pub
 		}
 		gs = fleet.NewGRPCServer(tlsCfg, fleet.NewServer(fcfg))
 		go func() {
@@ -320,13 +358,9 @@ func connectS3(ctx context.Context, cfg policy.S3Config) *policy.S3 {
 }
 
 // newDeployer wires the compiler, the signing key and the object store.
-func newDeployer(pg *store.Store, objects *policy.S3, key, pubFile, rules, blockPage, contact, bin string) *policy.Deployer {
-	if pubFile == "" || objects == nil {
-		log.Fatal("[FATAL] -bundle-signing-key needs -bundle-pubkey and -s3-endpoint")
-	}
-	pub, err := os.ReadFile(pubFile)
-	if err != nil {
-		log.Fatalf("[FATAL] bundle public key: %v", err)
+func newDeployer(pg *store.Store, objects *policy.S3, signer policy.Signer, key string, pub []byte, rules, blockPage, contact, bin string, budget uint64) *policy.Deployer {
+	if len(pub) == 0 || objects == nil {
+		log.Fatal("[FATAL] deploys need the bundle public key (-bundle-pubkey or Vault) and -s3-endpoint")
 	}
 	var ruleFiles []string
 	for _, r := range strings.Split(rules, ",") {
@@ -336,8 +370,9 @@ func newDeployer(pg *store.Store, objects *policy.S3, key, pubFile, rules, block
 	}
 	log.Printf("[INFO] Deploys: %s, %d rule files", bin, len(ruleFiles))
 	return &policy.Deployer{
-		Store:   pg,
-		Builder: &policy.Compiler{Binary: bin, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage, SupportContact: contact},
+		Store: pg,
+		Builder: &policy.Compiler{Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
+			SupportContact: contact, CostBudget: budget},
 		Objects: objects,
 		PubKey:  pub,
 	}

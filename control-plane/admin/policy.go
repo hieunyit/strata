@@ -189,7 +189,11 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 		return nil, notFound(err, "policy")
 	}
 	d, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
-	if err != nil {
+	var costErr *policy.CostError
+	switch {
+	case errors.As(err, &costErr):
+		return nil, status.Error(codes.InvalidArgument, costErr.Error())
+	case err != nil:
 		return nil, internal("deploy", err)
 	}
 	out := &adminv1.DeployPolicyResponse{Bundle: bundlePB(d.Bundle)}

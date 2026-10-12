@@ -5,8 +5,8 @@ set -euo pipefail
 dir="$(cd "$(dirname "$0")" && pwd)/.state"
 mkdir -p "$dir"
 env="$dir/env"
-[ -f "$env" ] && exit 0
 pw() { head -c 18 /dev/urandom | base64 | tr -d '/+='; }
+[ -f "$env" ] && exit 0
 umask 077
 cat > "$env" <<EOT
 CLICKHOUSE_PASSWORD=$(pw)

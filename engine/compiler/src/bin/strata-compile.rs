@@ -1,22 +1,29 @@
 //! strata-compile — rule IR + policies -> signed bundle.
 //!
 //! ```text
-//! strata-compile --policies <file> --key <seed file> --version <n> --out <file>
+//! strata-compile --policies <file> (--key <seed file> | --unsigned)
+//!                --version <n> --out <file>
 //!                [--rules <file>]... [--created-at <ms>] [--rollback]
+//!                [--cost-report <file>]
 //! ```
 //! Files are JSON or YAML by extension. Without --created-at the current
 //! time is used (fixtures pass it to stay reproducible).
+//!
+//! `--unsigned` writes the bytes to sign instead of a bundle: an external
+//! signer (KMS) appends its 64-byte Ed25519 signature over them. No key is
+//! read. `--cost-report` writes the cost units of each rule as JSON:
+//! `{"total": n, "rules": [{"id", "name", "cost"}...]}`, costliest first.
 
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use strata_compiler::{Build, compile, load, policies_from, rules_from_ir};
+use strata_compiler::{Build, compile_unsigned, load, policies_from, rules_from_ir};
 
 fn run(args: &[String]) -> Result<(), String> {
     let (mut rules_files, mut policies, mut key, mut version, mut out) =
         (vec![], None, None, None, None);
-    let (mut created, mut rollback) = (None, false);
+    let (mut created, mut rollback, mut unsigned, mut cost_report) = (None, false, false, None);
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -40,18 +47,25 @@ fn run(args: &[String]) -> Result<(), String> {
             }
             "--out" => out = Some(val()?),
             "--rollback" => rollback = true,
+            "--unsigned" => unsigned = true,
+            "--cost-report" => cost_report = Some(val()?),
             _ => return Err(format!("unexpected argument {a}")),
         }
     }
     let policies = policies.ok_or("--policies is required")?;
-    let key = key.ok_or("--key is required")?;
     let version = version.ok_or("--version is required")?;
     let out = out.ok_or("--out is required")?;
-
-    let seed: [u8; 32] = std::fs::read(&key)
-        .map_err(|e| format!("{key}: {e}"))?
-        .try_into()
-        .map_err(|_| format!("{key}: must hold a 32-byte seed"))?;
+    let seed: Option<[u8; 32]> = match (key, unsigned) {
+        (Some(_), true) => return Err("--key and --unsigned exclude each other".into()),
+        (None, false) => return Err("--key or --unsigned is required".into()),
+        (None, true) => None,
+        (Some(key), false) => Some(
+            std::fs::read(&key)
+                .map_err(|e| format!("{key}: {e}"))?
+                .try_into()
+                .map_err(|_| format!("{key}: must hold a 32-byte seed"))?,
+        ),
+    };
     let mut rules = vec![];
     for f in &rules_files {
         rules.extend(rules_from_ir(&load(Path::new(f))?).map_err(|e| format!("{f}: {e}"))?);
@@ -66,7 +80,7 @@ fn run(args: &[String]) -> Result<(), String> {
             .unwrap_or(0)
     });
 
-    let bundle = compile(
+    let (mut bundle, mut costs) = compile_unsigned(
         &rules,
         &pol,
         &Build {
@@ -74,11 +88,23 @@ fn run(args: &[String]) -> Result<(), String> {
             created_at_ms,
             rollback,
         },
-        &seed,
     )?;
+    if let Some(seed) = &seed {
+        bundle = libstrata::bundle::sign(bundle, seed);
+    }
     std::fs::write(&out, &bundle).map_err(|e| format!("{out}: {e}"))?;
+    let total: u64 = costs.iter().map(|c| c.cost).sum();
+    if let Some(f) = &cost_report {
+        costs.sort_by(|a, b| b.cost.cmp(&a.cost).then(a.id.cmp(&b.id)));
+        let rules: Vec<_> = costs
+            .iter()
+            .map(|c| serde_json::json!({"id": c.id, "name": c.name, "cost": c.cost}))
+            .collect();
+        let doc = serde_json::json!({"total": total, "rules": rules});
+        std::fs::write(f, doc.to_string()).map_err(|e| format!("{f}: {e}"))?;
+    }
     eprintln!(
-        "strata-compile: {out}: version {version}, {} rules, {} policies, block page: {}, {} bytes",
+        "strata-compile: {out}: version {version}, {} rules, {} policies, block page: {}, {} bytes, {total} cost units{}",
         rules.len(),
         pol.policies.len(),
         if pol.block_page.is_some() {
@@ -86,7 +112,8 @@ fn run(args: &[String]) -> Result<(), String> {
         } else {
             "no"
         },
-        bundle.len()
+        bundle.len(),
+        if seed.is_none() { ", unsigned" } else { "" }
     );
     Ok(())
 }

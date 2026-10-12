@@ -431,6 +431,8 @@ Khi một policy được deploy, compiler tạo và ký bundle, lưu vào objec
 | Object storage | Bundle, corpus replay | S3 / MinIO |
 | ClickHouse | Sự kiện, tra theo Block ID, thống kê dashboard | Hoặc OpenSearch nếu tái sử dụng hạ tầng sẵn có |
 
+**Ký bundle và cost unit (W07-G2-01)**: `strata-compile --unsigned` ghi phần cần ký (bundle trừ 64 byte cuối) và không đọc khóa; control plane gửi phần đó tới Vault transit (`-bundle-signer=vault`, khóa `ed25519` với `exportable=false`, `allow_plaintext_backup=false`, phiên bản khóa ghim lúc khởi động; token chỉ có quyền `transit/sign/<key>` và đọc `transit/keys/<key>`), gắn chữ ký vào cuối, kiểm lại bằng public key lấy từ Vault rồi mới lưu. Vault giới hạn request 32 MiB nên bundle tối đa 24 MiB. Chế độ `-bundle-signer=file` (seed Ed25519 trong file) chỉ cho lab cũ và phát triển. `--cost-report` cho cost unit từng rule: 1 + Σ điều kiện Σ target trọng số target × (1 + số transformation) × trọng số operator (× 2 nếu `multi_match`). Trọng số target: collection không chọn key (args, header, cookie, files, xml, matched_vars, response headers) 4, body request/response 8, còn lại (kể cả có key hoặc đếm) 1. Trọng số operator: `detect_sqli`/`detect_xss` 10, regex chạy ngoài Hyperscan 25, `validate_*` và `ip_match` 2, còn lại 1. Bundle vượt `-cost-budget` (mặc định 50.000; CRS 4.25 PL1 nhập vào khoảng 14.900) bị từ chối với 400, kèm 3 rule tốn nhất.
+
 **Mục tiêu vận hành**: 5.000 node mỗi cụm control plane; thông báo bundle tới toàn bộ node trong dưới 10 giây; control plane sập không ảnh hưởng traffic vì node chạy tiếp với bundle đã có.
 
 ## Giao thức gRPC agent ↔ control plane
