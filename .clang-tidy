@@ -1,0 +1,21 @@
+# clang-tidy for the NGINX module (connectors/nginx/src), W07-Q-01:
+# `make clang-tidy`. Every check of these groups runs and any finding fails;
+# the checks turned off below are listed with the reason, and no finding is
+# silenced in the code.
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-multi-level-implicit-pointer-conversion
+#  insecureAPI.DeprecatedOrUnsafeBufferHandling: asks for C11 Annex K
+#    (memcpy_s), which glibc does not have; every copy is length-checked
+#    before it (CLAUDE.md) and runs under ASan in the tests.
+#  easily-swappable-parameters: the flagged signatures are NGINX callbacks
+#    (merge_loc_conf(cf, parent, child)) and helpers with NGINX types.
+#  multi-level-implicit-pointer-conversion: NGINX containers return void *
+#    (ngx_array_push), assigned to typed pointers everywhere in NGINX.
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'connectors/nginx/src/.*'
