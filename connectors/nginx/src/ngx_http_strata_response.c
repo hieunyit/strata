@@ -97,6 +97,8 @@ ngx_http_strata_header_filter(ngx_http_request_t *r)
                                       (uint16_t) r->headers_out.status,
                                       hdrs, n);
 
+    ctx->status = (uint16_t) r->headers_out.status;
+    ctx->status_sent = 1;
     ctx->resp_seen = 1;
     strata_tx_verdict(ctx->tx, &v);
 

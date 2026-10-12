@@ -21,6 +21,7 @@ STRATA_SRCS="                                                         \
     $ngx_addon_dir/src/ngx_http_strata_bundle.c                       \
     $ngx_addon_dir/src/ngx_http_strata_vars.c                         \
     $ngx_addon_dir/src/ngx_http_strata_response.c                     \
+    $ngx_addon_dir/src/ngx_http_strata_events.c                       \
     "
 
 STRATA_DEPS="                                                         \

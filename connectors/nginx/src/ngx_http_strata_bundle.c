@@ -22,6 +22,8 @@ typedef void (*ngx_http_strata_done_pt)(void *ctx);
 typedef struct {
     /* in */
     u_char                       path[NGX_MAX_PATH];
+    u_char                       name[NGX_HTTP_STRATA_CTL_NAME_MAX + 1];
+    size_t                       name_len;
     u_char                       key[STRATA_PUBKEY_LEN];
     uint64_t                     generation;
     uint64_t                     current_version;
@@ -66,6 +68,17 @@ static void ngx_http_strata_bundle_cleanup(void *data);
 static ngx_int_t ngx_http_strata_bundle_page(ngx_http_strata_bundle_t *bundle,
     ngx_pool_t *pool);
 
+
+typedef struct {
+    uint32_t  flags;
+    uint32_t  num_policies;
+    u_char    policies[32][56];
+} ngx_http_strata_force_shadow_t;
+
+static ngx_http_strata_force_shadow_t  ngx_http_strata_force_shadow;
+static ngx_uint_t                      ngx_http_strata_fs_warned = 0;
+static u_char                          ngx_http_strata_current_name[NGX_HTTP_STRATA_CTL_NAME_MAX + 1];
+static size_t                          ngx_http_strata_current_name_len = 0;
 
 /* per worker */
 static ngx_http_strata_main_conf_t  *ngx_http_strata_smcf;
@@ -143,6 +156,9 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
 
     if (rc == NGX_OK) {
         /* copy the name out before unmapping */
+        ngx_memcpy(ngx_http_strata_current_name, name.data, name.len);
+        ngx_http_strata_current_name[name.len] = '\0';
+        ngx_http_strata_current_name_len = name.len;
         rc = ngx_http_strata_bundle_path(&smcf->bundle_dir, &name, path);
     }
 
@@ -333,12 +349,16 @@ done:
 static ngx_int_t
 ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
 {
-    u_char     c;
-    size_t     i;
-    uint16_t   len;
-    uint32_t   layout;
-    uint64_t   g1, g2;
-    u_char     magic[8];
+    u_char                          c;
+    size_t                          i, j;
+    uint16_t                        len;
+    uint32_t                        layout;
+    uint64_t                        g1, g2;
+    u_char                          magic[8];
+    uint32_t                        raw_flags, raw_npol;
+    u_char                          raw_pols[32][56];
+    ngx_uint_t                      valid;
+    ngx_http_strata_force_shadow_t  fs;
 
     g1 = *(volatile const uint64_t *) (ctl + 16);
     if (g1 & 1) {
@@ -350,6 +370,11 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
     ngx_memcpy(magic, ctl, 8);
     ngx_memcpy(&layout, ctl + 8, 4);
     ngx_memcpy(&len, ctl + 64, 2);
+    ngx_memcpy(&raw_flags, ctl + 324, 4);
+    ngx_memcpy(&raw_npol, ctl + 328, 4);
+    if (raw_npol <= 32) {
+        ngx_memcpy(raw_pols, ctl + 336, raw_npol * 56);
+    }
 
     ngx_memory_barrier();
 
@@ -385,9 +410,69 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
         return NGX_ERROR;
     }
 
+    /* Validate force-shadow (untrusted input) */
+    ngx_memzero(&fs, sizeof(ngx_http_strata_force_shadow_t));
+    fs.flags = raw_flags;
+    valid = (raw_npol <= 32);
+
+    for (i = 0; i < raw_npol && valid; i++) {
+        u_char *p = raw_pols[i];
+        u_char *nul = memchr(p, '\0', 56);
+        if (nul == NULL || nul == p) {
+            valid = 0;
+            break;
+        }
+        for (j = 0; p + j < nul; j++) {
+            c = p[j];
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                  || c == '.' || c == '_' || c == '-'))
+            {
+                valid = 0;
+                break;
+            }
+        }
+        if (valid) {
+            ngx_memcpy(fs.policies[i], p, nul - p + 1);
+        }
+    }
+
+    if (!valid && !ngx_http_strata_fs_warned) {
+        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+                      "strata: invalid force_shadow in control file");
+        ngx_http_strata_fs_warned = 1;
+    }
+
+    fs.num_policies = valid ? raw_npol : 0;
+
+    ngx_http_strata_force_shadow = fs;
     *gen = g1;
 
     return NGX_OK;
+}
+
+
+ngx_uint_t
+ngx_http_strata_is_force_shadow(ngx_str_t *policy)
+{
+    ngx_uint_t  i;
+
+    if (ngx_http_strata_force_shadow.flags & 1) {
+        return 1;
+    }
+
+    if (policy == NULL || policy->len == 0 || policy->len > 55) {
+        return 0;
+    }
+
+    for (i = 0; i < ngx_http_strata_force_shadow.num_policies; i++) {
+        if (ngx_strncmp(policy->data, ngx_http_strata_force_shadow.policies[i], policy->len) == 0
+            && ngx_http_strata_force_shadow.policies[i][policy->len] == '\0')
+        {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -415,36 +500,12 @@ static void
 ngx_http_strata_load_handler(void *data, ngx_log_t *log)
 {
     ngx_http_strata_load_t  *ld = data;
-
     int          fd;
     void        *p;
     struct stat  st;
+    size_t       exp_len;
 
-    if (ld->open_ctl) {
-        fd = open((char *) ld->path, O_RDONLY | O_CLOEXEC);
-        if (fd == -1) {
-            ld->err = ngx_errno;
-            ld->step = "open";
-            return;
-        }
-
-        p = MAP_FAILED;
-        if (fstat(fd, &st) == 0 && st.st_size == NGX_HTTP_STRATA_CTL_SIZE) {
-            p = mmap(NULL, NGX_HTTP_STRATA_CTL_SIZE, PROT_READ, MAP_SHARED,
-                     fd, 0);
-        }
-
-        ld->err = ngx_errno;
-        close(fd);
-
-        if (p == MAP_FAILED) {
-            ld->step = "mmap";
-            return;
-        }
-
-        ld->base = p;
-        return;
-    }
+    (void) log;
 
     fd = open((char *) ld->path, O_RDONLY | O_CLOEXEC);
     if (fd == -1) {
@@ -460,15 +521,15 @@ ngx_http_strata_load_handler(void *data, ngx_log_t *log)
         return;
     }
 
-    if (st.st_size <= 0 || (uint64_t) st.st_size > NGX_MAX_SIZE_T_VALUE) {
+    exp_len = ld->open_ctl ? NGX_HTTP_STRATA_CTL_SIZE : (size_t) st.st_size;
+    if (st.st_size <= 0 || (size_t) st.st_size != exp_len) {
         ld->err = 0;
         ld->step = "size";
         close(fd);
         return;
     }
 
-    ld->len = (size_t) st.st_size;
-
+    ld->len = exp_len;
     p = mmap(NULL, ld->len, PROT_READ, MAP_SHARED, fd, 0);
     ld->err = ngx_errno;
     close(fd);
@@ -479,10 +540,14 @@ ngx_http_strata_load_handler(void *data, ngx_log_t *log)
     }
 
     ld->base = p;
+
+    if (ld->open_ctl) {
+        return;
+    }
+
     (void) madvise(p, ld->len, MADV_WILLNEED);
 
     /* signature and layout are verified here, off the event loop */
-
     ld->engine = strata_engine_map(ld->base, ld->len, ld->key, &ld->serr);
     ld->serr.msg[STRATA_ERR_MSG_SIZE - 1] = '\0';
 
@@ -538,6 +603,13 @@ ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle)
     ngx_http_strata_load_handler(ld, cycle->log);
     ngx_http_strata_ctl = ld->base;      /* NULL: retried by the timer */
     ngx_free(ld);
+
+    if (ngx_http_strata_ctl) {
+        uint64_t   dummy_gen;
+        ngx_str_t  dummy_name;
+        (void) ngx_http_strata_ctl_read(ngx_http_strata_ctl, &dummy_gen,
+                                        &dummy_name);
+    }
 
 #if !(NGX_THREADS)
     ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
@@ -641,6 +713,15 @@ ngx_http_strata_tick(ngx_event_t *ev)
         goto next;
     }
 
+    if (ngx_http_strata_current != NULL
+        && name.len == ngx_http_strata_current_name_len
+        && ngx_memcmp(name.data, ngx_http_strata_current_name, name.len) == 0)
+    {
+        /* generation changed only for force-shadow: flags already updated in memory */
+        ngx_http_strata_seen = gen;
+        goto next;
+    }
+
     ld = ngx_calloc(sizeof(ngx_http_strata_load_t), ev->log);
     if (ld == NULL) {
         goto next;
@@ -656,6 +737,9 @@ ngx_http_strata_tick(ngx_event_t *ev)
         goto next;
     }
 
+    ngx_memcpy(ld->name, name.data, name.len);
+    ld->name[name.len] = '\0';
+    ld->name_len = name.len;
     ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
     ld->generation = gen;
 
@@ -755,6 +839,11 @@ ngx_http_strata_load_done(void *data)
 
     old = ngx_http_strata_current;
     ngx_http_strata_current = bundle;
+
+    ngx_memcpy(ngx_http_strata_current_name, ld->name, ld->name_len);
+    ngx_http_strata_current_name[ld->name_len] = '\0';
+    ngx_http_strata_current_name_len = ld->name_len;
+    ngx_http_strata_metrics_bundle(bundle->version);
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
                   "strata: bundle version %uL active (generation %uL)%s",
