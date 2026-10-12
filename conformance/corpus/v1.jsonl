@@ -1,0 +1,10 @@
+{"name":"clean-get","method":"GET","uri":"/index.html?q=1","expect":"allow"}
+{"name":"clean-post-form","method":"POST","uri":"/submit","headers":{"Content-Type":"application/x-www-form-urlencoded"},"body":"name=alice&city=hanoi","expect":"allow"}
+{"name":"stub-test-block-query","method":"GET","uri":"/x?STRATA-TEST-BLOCK","expect":"block"}
+{"name":"stub-test-block-body","method":"POST","uri":"/x","headers":{"Content-Type":"text/plain"},"body":"hello STRATA-TEST-BLOCK world","expect":"block"}
+{"name":"sqli-in-args","method":"GET","uri":"/s?q=UNION%20SELECT%201","expect":"block"}
+{"name":"sqli-clean-word","method":"GET","uri":"/s?q=unionize%20selection","expect":"allow"}
+{"name":"virtual-patch-block-alone","method":"GET","uri":"/evil/exploit","expect":"block"}
+{"name":"null-byte-in-uri","method":"GET","uri":"/a%00b","expect":"block"}
+{"name":"encoded-dot-segment","method":"GET","uri":"/a/%2e%2e/b","expect":"block"}
+{"name":"clean-path-with-dot","method":"GET","uri":"/images/logo.png","expect":"allow"}
