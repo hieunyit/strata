@@ -34,7 +34,15 @@ type Manifest struct {
 	ByLicense     map[string]int `json:"by_license"`
 	ByActionMode  map[string]int `json:"by_action_mode"`
 	RuleIDs       []int          `json:"rule_ids"`
+	// sha256 of every other file of the package (public key, NOTICE,
+	// CHANGELOG.md): manifest.json.sig signs the manifest, so the whole
+	// package is covered, not only the bundle (W08 review)
+	Files map[string]string `json:"files"`
 }
+
+// SigFile is the detached Ed25519 signature of manifest.json, made with the
+// bundle's signing key.
+const SigFile = "manifest.json.sig"
 
 // Options for Build.
 type Options struct {
@@ -129,16 +137,76 @@ func Build(o Options) (*Manifest, error) {
 	}
 	sort.Ints(m.RuleIDs)
 
-	if err := writeJSON(filepath.Join(o.Out, "manifest.json"), m); err != nil {
-		return nil, err
-	}
 	if err := copyFile(filepath.Join(o.Repo, "NOTICE"), filepath.Join(o.Out, "NOTICE")); err != nil {
 		return nil, err
 	}
 	if err := writeChangelog(filepath.Join(o.Out, "CHANGELOG.md"), m, o.Baseline); err != nil {
 		return nil, err
 	}
+	m.Files = map[string]string{}
+	for _, f := range []string{name + ".pub", "NOTICE", "CHANGELOG.md"} {
+		b, err := os.ReadFile(filepath.Join(o.Out, f))
+		if err != nil {
+			return nil, err
+		}
+		h := sha256.Sum256(b)
+		m.Files[f] = hex.EncodeToString(h[:])
+	}
+	if err := writeJSON(filepath.Join(o.Out, "manifest.json"), m); err != nil {
+		return nil, err
+	}
+	mb, err := os.ReadFile(filepath.Join(o.Out, "manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	sig := ed25519.Sign(ed25519.NewKeyFromSeed(seed[:ed25519.SeedSize]), mb)
+	if err := os.WriteFile(filepath.Join(o.Out, SigFile), sig, 0o644); err != nil {
+		return nil, err
+	}
 	return m, nil
+}
+
+// Verify checks a package directory against a trusted public key: the
+// manifest signature, then the sha256 of the bundle and of every file the
+// manifest lists. The bundle's own signature is checked again by libstrata
+// when it is loaded.
+func Verify(dir string, pub ed25519.PublicKey) (*Manifest, error) {
+	if len(pub) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("public key is %d bytes, want %d", len(pub), ed25519.PublicKeySize)
+	}
+	mb, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	sig, err := os.ReadFile(filepath.Join(dir, SigFile))
+	if err != nil {
+		return nil, err
+	}
+	if !ed25519.Verify(pub, mb, sig) {
+		return nil, fmt.Errorf("%s: signature does not match manifest.json", SigFile)
+	}
+	var m Manifest
+	if err := json.Unmarshal(mb, &m); err != nil {
+		return nil, err
+	}
+	want := map[string]string{m.Bundle: m.SHA256}
+	for f, h := range m.Files {
+		want[f] = h
+	}
+	for f, h := range want {
+		if f != filepath.Base(f) {
+			return nil, fmt.Errorf("manifest names a file outside the package: %q", f)
+		}
+		b, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			return nil, err
+		}
+		got := sha256.Sum256(b)
+		if hex.EncodeToString(got[:]) != h {
+			return nil, fmt.Errorf("%s: sha256 does not match the manifest", f)
+		}
+	}
+	return &m, nil
 }
 
 func compile(bin string, rules []map[string]any, o Options, out string, createdMS int64) error {

@@ -4,9 +4,10 @@
 //	strata-rules test [--repo <root>] [dir]   match / no_match requests through libstrata
 //	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file] [--max-fp N]
 //	                                          FP and recall on the corpus, as Markdown
-//	strata-rules ftw [--repo <root>] [--group 942] [--min 90]  CRS go-ftw tests of rules/crs, as Markdown
+//	strata-rules ftw [--repo <root>] [--group 942] [--min 90] [--min-total 95]  CRS go-ftw tests of rules/crs, as Markdown
 //	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json]
-//	                                          signed signature package: bundle + manifest + changelog + NOTICE
+//	                                          signed signature package: bundle + manifest (signed, sha256 of every file) + changelog + NOTICE
+//	strata-rules verify --pub <key> <dir>     check a package: manifest signature and every file's sha256
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
 //	strata-rules corpus benign [--repo <root>] [--n N] [--seed S]   corpus/benign/synthetic.jsonl
 //
@@ -47,13 +48,15 @@ func main() {
 		ftwCmd()
 	case "release":
 		releaseCmd()
+	case "verify":
+		verifyCmd()
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|corpus ... (see the package comment)")
+	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|verify|corpus ... (see the package comment)")
 	os.Exit(2)
 }
 
@@ -225,6 +228,26 @@ func releaseCmd() {
 	fmt.Fprintf(os.Stderr, "strata-rules release: %s (%d rules) -> %s\n", m.Version, m.Rules, *out)
 }
 
+// verifyCmd checks a release package against a trusted public key (not the
+// .pub inside the package, which an attacker could replace).
+func verifyCmd() {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	pubFile := fs.String("pub", "", "trusted ed25519 public key (32 bytes)")
+	_ = fs.Parse(os.Args[2:])
+	if *pubFile == "" || fs.NArg() != 1 {
+		die(fmt.Errorf("usage: strata-rules verify --pub KEY PACKAGE_DIR"))
+	}
+	pub, err := os.ReadFile(*pubFile)
+	if err != nil {
+		die(err)
+	}
+	m, err := release.Verify(fs.Arg(0), pub)
+	if err != nil {
+		die(err)
+	}
+	fmt.Fprintf(os.Stderr, "strata-rules verify: %s (%d rules) OK\n", m.Version, m.Rules)
+}
+
 func lintCmd() {
 	fs := flag.NewFlagSet("lint", flag.ExitOnError)
 	repo := fs.String("repo", ".", "repository root (where docs/spec and rules/schema are)")
@@ -253,12 +276,14 @@ func lintCmd() {
 }
 
 // ftwCmd runs the CRS go-ftw tests; with --min, it fails when a group of
-// --group is under that pass rate.
+// --group is under that pass rate, with --min-total when all the tests run
+// together are.
 func ftwCmd() {
 	fs := flag.NewFlagSet("ftw", flag.ExitOnError)
 	repo := fs.String("repo", ".", "repository root")
 	groups := fs.String("group", "", "comma-separated CRS groups to run (930,942); default all")
 	minRate := fs.Float64("min", 0, "fail when a group passes under this percentage")
+	minTotal := fs.Float64("min-total", 0, "fail when all the tests together pass under this percentage")
 	maxPL := fs.Int("pl", 1, "paranoia levels imported")
 	testsDir := fs.String("tests", "", "test requests (default <repo>/corpus/crs-ftw)")
 	rulesDir := fs.String("rules", "", "rules the tests are for (default <repo>/rules/crs)")
@@ -312,6 +337,10 @@ func ftwCmd() {
 			fmt.Fprintf(os.Stderr, "strata-rules ftw: %s passes %.1f%%, under %.0f%%\n", g.Name, g.Rate(), *minRate)
 			low = true
 		}
+	}
+	if t := ftw.Total(results); *minTotal > 0 && t.Rate() < *minTotal {
+		fmt.Fprintf(os.Stderr, "strata-rules ftw: all groups pass %.1f%%, under %.0f%%\n", t.Rate(), *minTotal)
+		low = true
 	}
 	if low {
 		os.Exit(1)
