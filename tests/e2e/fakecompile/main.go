@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	var policies, key, out string
+	var policies, key, out, cost string
 	var version uint64
 	for i := 1; i+1 < len(os.Args); i += 2 {
 		switch os.Args[i] {
@@ -24,6 +24,8 @@ func main() {
 			key = os.Args[i+1]
 		case "--out":
 			out = os.Args[i+1]
+		case "--cost-report":
+			cost = os.Args[i+1]
 		case "--version":
 			version, _ = strconv.ParseUint(os.Args[i+1], 10, 64)
 		}
@@ -55,6 +57,11 @@ func main() {
 	b = append(b, ed25519.Sign(ed25519.NewKeyFromSeed(seed), b)...)
 	if err := os.WriteFile(out, b, 0o644); err != nil {
 		fail(err)
+	}
+	if cost != "" {
+		if err := os.WriteFile(cost, []byte(`{"total":1,"rules":[]}`), 0o644); err != nil {
+			fail(err)
+		}
 	}
 }
 
