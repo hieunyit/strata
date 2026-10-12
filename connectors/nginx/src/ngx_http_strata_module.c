@@ -433,10 +433,10 @@ ngx_http_strata_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_uint_value(conf->body_mode, prev->body_mode,
                               NGX_HTTP_STRATA_BODY_BUFFER);
     ngx_conf_merge_size_value(conf->body_limit, prev->body_limit,
-                              1024 * 1024);
+                              (size_t) 1024 * 1024);
     ngx_conf_merge_value(conf->response_inspect, prev->response_inspect, 1);
     ngx_conf_merge_size_value(conf->response_body_limit,
-                              prev->response_body_limit, 512 * 1024);
+                              prev->response_body_limit, (size_t) 512 * 1024);
     ngx_conf_merge_ptr_value(conf->identity, prev->identity, NULL);
     ngx_conf_merge_ptr_value(conf->block_page, prev->block_page, NULL);
     ngx_conf_merge_msec_value(conf->cpu_budget, prev->cpu_budget, 2);

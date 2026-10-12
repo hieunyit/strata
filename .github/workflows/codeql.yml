@@ -1,0 +1,67 @@
+name: codeql
+
+# CodeQL for the NGINX module (C) and the Go services (W07-Q-01). Code
+# scanning of a private repository needs GitHub Advanced Security: without
+# it the upload step fails, and results stay in the run's artifact (SARIF).
+# Run by hand meanwhile: docs/reports/w07-q-01.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL ${{ matrix.language }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [c-cpp, go]
+    env:
+      IMAGE: strata-dev:codeql
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'manual' }}
+
+      # C: the module is built the way `make nginx` builds it, on the
+      # runner (CodeQL traces the compiler): libstrata comes prebuilt from
+      # the dev image, NGINX is compiled with the module.
+      - uses: docker/setup-buildx-action@v3
+        if: matrix.language == 'c-cpp'
+      - uses: docker/build-push-action@v6
+        if: matrix.language == 'c-cpp'
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+      - name: Build libstrata, then NGINX with the module (traced)
+        if: matrix.language == 'c-cpp'
+        run: |
+          STRATA_DEV_IMAGE=$IMAGE deploy/dev/run.sh make lib
+          sudo apt-get install -y --no-install-recommends libpcre2-dev zlib1g-dev libssl-dev libhyperscan-dev
+          connectors/nginx/scripts/build.sh 1.30.5 build
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+          upload: ${{ github.event.repository.visibility == 'public' && 'always' || 'failure-only' }}
+          output: build/codeql-sarif
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-${{ matrix.language }}-sarif
+          path: build/codeql-sarif

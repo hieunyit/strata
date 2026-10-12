@@ -245,6 +245,11 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
+      - name: clang-tidy (bugprone, cert, clang-analyzer; .clang-tidy)
+        run: deploy/dev/run.sh make clang-tidy NGINX_VERSION=${{ matrix.nginx }}
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

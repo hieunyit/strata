@@ -81,7 +81,7 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
         if (ctx->bundle) {
             contact = ctx->bundle->contact;
         } else {
-            ngx_str_null(&contact);
+            ngx_str_set(&contact, ""); /* never NULL: copied with memcpy */
         }
 
         b = ngx_http_strata_render(r, page, &id, &contact);

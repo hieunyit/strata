@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures clang-tidy
 
 all: lib nginx
 
@@ -75,6 +75,12 @@ test-nginx: $(MKBUNDLE) $(COMPILE)
 		sh -c "cd connectors/nginx && prove -r t/"
 
 test: rust-check check-header check-fixtures abi-test nginx test-nginx
+
+# clang-tidy on the module (W07-Q-01; checks in .clang-tidy), with the exact
+# compile commands of the NGINX build of `make nginx`.
+clang-tidy: nginx
+	connectors/nginx/scripts/compile-commands.sh $(BUILD)/nginx-$(NGINX_VERSION) > $(BUILD)/compile_commands.json
+	clang-tidy -p $(BUILD) --quiet connectors/nginx/src/*.c
 
 nginx-asan: lib
 	STRATA_SANITIZE=1 connectors/nginx/scripts/build.sh $(NGINX_VERSION) $(BUILD)

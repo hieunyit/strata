@@ -92,7 +92,22 @@ static ngx_connection_t              ngx_http_strata_dummy;  /* ev->data, for
                                                                debug logging */
 
 
-/* master, at configuration time */
+/*
+ * Master, at configuration time (nginx -t and every reload): load the
+ * bundle the control file names, once, before the workers fork, so every
+ * worker starts with it mapped (docs/design/control-file.md, "Nạp bundle").
+ *
+ * Steps: resolve the paths and read the public key; open the control file
+ * and read the bundle name under the seqlock; open, map and verify the
+ * bundle (the same load handler the workers run in the thread pool, here
+ * inline); keep it with one reference, released by the cycle pool.
+ *
+ * A missing or half-written control file, or a bundle that cannot be read,
+ * is not fatal: NGINX starts and requests follow strata_fail_mode until
+ * the agent publishes a good one. A bundle that is read but rejected
+ * (signature, layout) or that makes a "strata_request_body_mode stream"
+ * location enforce stops the configuration: that is an operator error.
+ */
 
 ngx_int_t
 ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
@@ -125,6 +140,7 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
         return NGX_ERROR;
     }
 
+    /* workers load later bundles off the event loop (one task each) */
 #if (NGX_THREADS)
     smcf->thread_pool = ngx_thread_pool_add(cf, NULL);
     if (smcf->thread_pool == NULL) {
@@ -173,6 +189,7 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
         return NGX_OK;
     }
 
+    /* the same load structure, reused for the bundle itself */
     ngx_memzero(ld, sizeof(ngx_http_strata_load_t));
     ngx_memcpy(ld->path, path, NGX_MAX_PATH);
     ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
@@ -193,6 +210,7 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
         return NGX_ERROR;
     }
 
+    /* one reference, the configuration's; requests take their own */
     bundle = ngx_pcalloc(cf->pool, sizeof(ngx_http_strata_bundle_t));
     cln = ngx_pool_cleanup_add(cf->pool, 0);
     if (bundle == NULL || cln == NULL) {
@@ -213,10 +231,12 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
     smcf->bundle = bundle;
     smcf->generation = gen;
 
+    /* the block page of the bundle, rendered per request later */
     if (ngx_http_strata_bundle_page(bundle, cf->pool) != NGX_OK) {
         return NGX_ERROR;
     }
 
+    /* stream body mode is shadow only: refuse an enforce policy there */
     if (ngx_http_strata_check_stream(cf->log, NGX_LOG_EMERG, smcf,
                                      bundle->engine))
     {
@@ -341,9 +361,17 @@ done:
 
 
 /*
- * Seqlock reader. NGX_OK: stable and valid, "name" points into "ctl" and is
- * only valid until the next check; NGX_AGAIN: being written; NGX_ERROR:
- * invalid. Fields are little-endian, like every supported platform.
+ * Seqlock reader (docs/design/control-file.md). NGX_OK: stable and valid,
+ * "name" points into a static buffer, valid until the next call; NGX_AGAIN:
+ * being written; NGX_ERROR: invalid. Fields are little-endian, like every
+ * supported platform.
+ *
+ * Every field is copied out between the two reads of the generation, then
+ * checked: what the agent writes in place may change at any time, so
+ * nothing is checked or used in the mapping itself after the window.
+ * Then the bundle name ([A-Za-z0-9._-], not . or ..) and the force-shadow
+ * block ([a-z0-9._-] names, at most 32) are validated; an invalid
+ * force-shadow block is ignored (logged once), the bundle name still used.
  */
 
 static ngx_int_t
@@ -359,7 +387,9 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
     u_char                          raw_pols[32][56];
     ngx_uint_t                      valid;
     ngx_http_strata_force_shadow_t  fs;
+    static u_char                   name_buf[NGX_HTTP_STRATA_CTL_NAME_MAX];
 
+    /* odd generation: the agent is writing */
     g1 = *(volatile const uint64_t *) (ctl + 16);
     if (g1 & 1) {
         return NGX_AGAIN;
@@ -370,14 +400,16 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
     ngx_memcpy(magic, ctl, 8);
     ngx_memcpy(&layout, ctl + 8, 4);
     ngx_memcpy(&len, ctl + 64, 2);
+    ngx_memcpy(name_buf, ctl + 66, NGX_HTTP_STRATA_CTL_NAME_MAX);
     ngx_memcpy(&raw_flags, ctl + 324, 4);
     ngx_memcpy(&raw_npol, ctl + 328, 4);
     if (raw_npol <= 32) {
-        ngx_memcpy(raw_pols, ctl + 336, raw_npol * 56);
+        ngx_memcpy(raw_pols, ctl + 336, (size_t) raw_npol * 56);
     }
 
     ngx_memory_barrier();
 
+    /* the generation moved meanwhile: a torn copy, read again later */
     g2 = *(volatile const uint64_t *) (ctl + 16);
     if (g1 != g2) {
         return NGX_AGAIN;
@@ -391,7 +423,7 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
         return NGX_ERROR;
     }
 
-    name->data = (u_char *) ctl + 66;
+    name->data = name_buf;
     name->len = len;
 
     for (i = 0; i < len; i++) {
@@ -410,7 +442,7 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
         return NGX_ERROR;
     }
 
-    /* Validate force-shadow (untrusted input) */
+    /* force-shadow: untrusted input, all or nothing */
     ngx_memzero(&fs, sizeof(ngx_http_strata_force_shadow_t));
     fs.flags = raw_flags;
     valid = (raw_npol <= 32);
@@ -444,6 +476,7 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
 
     fs.num_policies = valid ? raw_npol : 0;
 
+    /* the requests of this worker read it from now on */
     ngx_http_strata_force_shadow = fs;
     *gen = g1;
 

@@ -5,8 +5,8 @@
  * NGINX structures to libstrata and enforces the verdict.
  */
 
-#ifndef _NGX_HTTP_STRATA_MODULE_H_INCLUDED_
-#define _NGX_HTTP_STRATA_MODULE_H_INCLUDED_
+#ifndef NGX_HTTP_STRATA_MODULE_H_INCLUDED
+#define NGX_HTTP_STRATA_MODULE_H_INCLUDED
 
 
 #include <ngx_config.h>
@@ -239,4 +239,4 @@ void ngx_http_strata_metrics_record(ngx_http_strata_ctx_t *ctx,
     uint64_t engine_us);
 
 
-#endif /* _NGX_HTTP_STRATA_MODULE_H_INCLUDED_ */
+#endif /* NGX_HTTP_STRATA_MODULE_H_INCLUDED */
