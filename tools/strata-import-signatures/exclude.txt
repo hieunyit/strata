@@ -1,0 +1,4 @@
+# Upstream rules left out after the benign corpus check (W07-S-01): they
+# match ordinary free text. <source> <upstream id> <reason>
+sigma 5513deaf-f49a-46c2-a6c8-3f111b5cb453 matches benign free text ("select .* ", "=select " match q=SELECT+the+best+plan): 63 of 2000 benign requests
+et 2053468 matches benign free text: UNION ... SELECT anywhere in the body once Suricata's distance is dropped ("union station tickets. select the best plan"): 4 of 2000 benign requests
