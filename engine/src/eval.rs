@@ -462,11 +462,12 @@ struct Data<'a> {
     xml: Option<xml::Xml>,
 }
 
-type ScanKey = (usize, usize, [u8; 8], u8);
+type ScanKey = (usize, usize, [u8; crate::rules::MAX_TRANSFORMS], u8);
 
 fn make_scan_key(v: &[u8], chain: &[u8]) -> ScanKey {
-    let mut buf = [0u8; 8];
-    let len = chain.len().min(8);
+    // the whole chain: two chains sharing a prefix must not share a scan
+    let mut buf = [0u8; crate::rules::MAX_TRANSFORMS];
+    let len = chain.len().min(buf.len());
     buf[..len].copy_from_slice(&chain[..len]);
     (v.as_ptr() as usize, v.len(), buf, len as u8)
 }
@@ -821,6 +822,19 @@ fn condition(
             }
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
+                // already scanned with this chain and not a match: no need to
+                // transform the value again (the transformed form is only
+                // needed for a match, in the match detail)
+                if pattern
+                    && fallback.is_none()
+                    && !from_prev
+                    && ctx
+                        .scans
+                        .get(&make_scan_key(v.val, chain))
+                        .is_some_and(|hits| hits.contains(&ci) == neg)
+                {
+                    continue;
+                }
                 let tv = match transform::apply_chain_with_budget(
                     chain,
                     v.val,

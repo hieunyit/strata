@@ -262,3 +262,61 @@ fn budget_overshoot_all_9_payloads() {
         (rc, us)
     });
 }
+
+#[test]
+#[ignore]
+fn zz_review_many_short_tokens() {
+    let e = engine_from(&["rules/crs", "rules/protocol"], "");
+    for (name, unit) in [
+        ("xss many tags", &b"%3Ca+b%3Dc%3E"[..]),
+        ("sqli 1-1-1", &b"1-"[..]),
+        ("sqli or chain", &b"1+or+1+"[..]),
+    ] {
+        let mut body = b"q=".to_vec();
+        while body.len() < 1 << 20 {
+            body.extend_from_slice(unit);
+        }
+        let mut over = vec![];
+        let mut rcs = std::collections::BTreeSet::new();
+        for _ in 0..30 {
+            let (rc, us, _) = post(&e, 1_000, "application/x-www-form-urlencoded", &body);
+            rcs.insert(rc);
+            over.push(us.saturating_sub(1_000));
+        }
+        over.sort_unstable();
+        eprintln!(
+            "REVIEW {name}: rc {rcs:?} overshoot p50 {} us max {} us",
+            over[15], over[29]
+        );
+    }
+}
+
+/// Two chains sharing their first 8 transformations must not share a scan
+/// (the scan cache key used to keep only 8 of the up to 16 codes).
+#[test]
+fn chains_sharing_a_prefix_do_not_share_a_scan() {
+    let e = engine_from(
+        &[],
+        r#"
+ir_version: 1
+ruleset: { name: p, version: "1" }
+rules:
+  - { id: 800701, name: with lowercase, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args } ],
+        transforms: [remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, lowercase],
+        operator: { type: contains, value: abc } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+  - { id: 800702, name: without lowercase, layer: managed, stage: request_body, score: 5, severity: notice,
+      match: { all: [ { targets: [ { var: args } ],
+        transforms: [remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, remove_nulls, url_decode],
+        operator: { type: contains, value: abc } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#,
+    );
+    let (_, _, rules) = post(&e, 0, "application/x-www-form-urlencoded", b"q=ABC");
+    assert!(rules.contains(&800701), "{rules:?}");
+    assert!(
+        !rules.contains(&800702),
+        "800702 took the scan of another chain: {rules:?}"
+    );
+}
