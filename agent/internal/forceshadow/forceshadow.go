@@ -77,6 +77,9 @@ func (m *Manager) Apply(fs *fleetv1.ForceShadow) error {
 	if fs.GetRoute() != "" {
 		return errors.New("route not supported")
 	}
+	if fs.GetClear() {
+		return m.clear(fs.GetPolicyId())
+	}
 	d := time.Duration(fs.GetDurationSeconds()) * time.Second
 	if d <= 0 || d > MaxDuration {
 		return errors.New("duration_seconds must be between 1 and 86400")
@@ -105,6 +108,29 @@ func (m *Manager) Apply(fs *fleetv1.ForceShadow) error {
 	err := m.reconcileLocked(now)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil // no bundle yet: written once a bundle install creates the file
+	}
+	return err
+}
+
+// clear ends the force shadow of policy now, or every one with "".
+func (m *Manager) clear(policy string) error {
+	if policy != "" && !bundles.ValidPolicyName(policy) {
+		return fmt.Errorf("bad policy id %q", policy)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if policy == "" {
+		m.st = State{Policies: map[string]time.Time{}}
+	} else {
+		delete(m.st.Policies, policy)
+	}
+	if err := m.saveLocked(); err != nil {
+		return err
+	}
+	slog.Info("force shadow cleared", "policy", policy)
+	err := m.reconcileLocked(m.now())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
 	return err
 }

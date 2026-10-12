@@ -9,6 +9,14 @@ import (
 	"github.com/strata/strata/control-plane/store"
 )
 
+func TestClearCommandMessage(t *testing.T) {
+	m := CommandMessage(store.Command{ID: "cmd-x", Kind: store.CommandClearShadow, PolicyID: "example-api"})
+	fs := m.GetCommand().GetForceShadow()
+	if !fs.GetClear() || fs.GetPolicyId() != "example-api" || fs.GetDurationSeconds() != 0 {
+		t.Fatalf("%v", m)
+	}
+}
+
 // W07-G1-01: a pending command reaches the node's open stream once; the
 // node's answer closes it; answers for other nodes' or closed commands,
 // and oversized output, change nothing they should not.

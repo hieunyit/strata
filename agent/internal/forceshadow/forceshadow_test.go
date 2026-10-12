@@ -156,3 +156,34 @@ func TestApplyRefuses(t *testing.T) {
 		t.Fatalf("corrupt state: %+v", s)
 	}
 }
+
+// A clear ends a force shadow before its deadline: one policy, or all.
+func TestClear(t *testing.T) {
+	dir, m, _ := setup(t)
+	if _, err := bundles.WriteControl(filepath.Join(dir, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []*fleetv1.ForceShadow{fs("example-api", 600), fs("example-web", 600), fs("", 600)} {
+		if err := m.Apply(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.Apply(&fleetv1.ForceShadow{PolicyId: "example-api", Clear: true}); err != nil {
+		t.Fatal(err)
+	}
+	if ctl := control(t, dir); !ctl.ForceAll || len(ctl.ForcePolicies) != 1 || ctl.ForcePolicies[0] != "example-web" {
+		t.Fatalf("after clearing one: %+v", ctl)
+	}
+	if err := m.Apply(&fleetv1.ForceShadow{Clear: true}); err != nil {
+		t.Fatal(err)
+	}
+	if ctl := control(t, dir); ctl.ForceAll || len(ctl.ForcePolicies) != 0 {
+		t.Fatalf("after clearing all: %+v", ctl)
+	}
+	if s := New(filepath.Join(dir, "control"), filepath.Join(dir, "force-shadow.json")).Snapshot(); !s.All.IsZero() || len(s.Policies) != 0 {
+		t.Fatalf("cleared state not saved: %+v", s)
+	}
+	if err := m.Apply(&fleetv1.ForceShadow{PolicyId: "Bad Name", Clear: true}); err == nil {
+		t.Fatal("bad policy accepted")
+	}
+}

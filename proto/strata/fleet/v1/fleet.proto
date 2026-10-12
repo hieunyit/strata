@@ -140,10 +140,12 @@ message Command {
 message ForceShadow {
   string policy_id = 1; // empty: every policy of the node
   string route = 2; // empty: every route of the policy (other values: not supported yet)
-  // 1..86400. A new ForceShadow for the same policy replaces the deadline
-  // (a short one ends it early). 0 ("until cleared") is refused until a
-  // clear command exists.
+  // 1..86400. A new ForceShadow for the same policy replaces the deadline.
+  // 0 ("until cleared") is refused: every force shadow ends by itself.
   uint32 duration_seconds = 3;
+  // Ends the force shadow now instead: of policy_id, or with an empty
+  // policy_id every force shadow of the node. duration_seconds is ignored.
+  bool clear = 4;
 }
 
 message CollectDiagnostics {}

@@ -12,6 +12,7 @@ import (
 // Command kinds and states (node_commands).
 const (
 	CommandForceShadow = "FORCE_SHADOW"
+	CommandClearShadow = "CLEAR_FORCE_SHADOW"
 	CommandDiagnostics = "DIAGNOSTICS"
 
 	CommandPending = "PENDING"

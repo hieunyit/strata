@@ -140,14 +140,33 @@ func TestForceShadowAndDiagnostics_REST(t *testing.T) {
 		t.Fatalf("audit %+v", au)
 	}
 
+	// clear: same targeting and permission, no duration
+	if rec := call("viewer", http.MethodPost, "/v1/nodes:clearForceShadow", `{"node_id":"node-a"}`); rec.Code != http.StatusForbidden {
+		t.Fatalf("viewer clears: %d", rec.Code)
+	}
+	if rec := call("operator", http.MethodPost, "/v1/nodes:clearForceShadow", `{"node_id":"node-a","group_id":"lab"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("clear with node and group: %d", rec.Code)
+	}
+	n := len(cs.created)
+	if rec := call("operator", http.MethodPost, "/v1/nodes:clearForceShadow", `{"group_id":"lab","policy_id":"example-api"}`); rec.Code != http.StatusOK {
+		t.Fatalf("clear: %d %s", rec.Code, rec.Body.String())
+	}
+	if c := cs.created[n]; len(cs.created) != n+2 || c.Kind != store.CommandClearShadow || c.PolicyID != "example-api" || c.DurationSeconds != 0 ||
+		time.Until(c.ExpiresAt) > admin.DiagnosticsTTL+time.Second {
+		t.Fatalf("clear stored %+v", cs.created[n:])
+	}
+	if au := cs.audits[len(cs.audits)-1]; au.Resource != "groups/lab:clearForceShadow" {
+		t.Fatalf("audit %+v", au)
+	}
+
 	if rec := call("operator", http.MethodPost, "/v1/nodes/node-a:collectDiagnostics", `{}`); rec.Code != http.StatusForbidden {
 		t.Fatalf("operator diagnostics: %d", rec.Code)
 	}
 	rec = call("admin", http.MethodPost, "/v1/nodes/node-a:collectDiagnostics", `{}`)
-	if rec.Code != http.StatusOK || cs.created[2].Kind != store.CommandDiagnostics {
+	if rec.Code != http.StatusOK || cs.created[len(cs.created)-1].Kind != store.CommandDiagnostics {
 		t.Fatalf("diagnostics: %d %s", rec.Code, rec.Body.String())
 	}
-	if rec := call("viewer", http.MethodGet, "/v1/commands/"+cs.created[2].ID, ""); rec.Code != http.StatusOK {
+	if rec := call("viewer", http.MethodGet, "/v1/commands/"+cs.created[len(cs.created)-1].ID, ""); rec.Code != http.StatusOK {
 		t.Fatalf("get command: %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := call("viewer", http.MethodGet, "/v1/commands/../x", ""); rec.Code == http.StatusOK {

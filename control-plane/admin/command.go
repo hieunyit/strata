@@ -57,8 +57,8 @@ func (f *fleetAdmin) create(ctx context.Context, kind, policy string, dur time.D
 	}
 	now := f.now()
 	ttl := dur
-	if kind == store.CommandDiagnostics {
-		ttl = DiagnosticsTTL
+	if kind != store.CommandForceShadow {
+		ttl = DiagnosticsTTL // delivered within 10 minutes or expired
 	}
 	cmds := make([]store.Command, 0, len(nodes))
 	for _, n := range nodes {
@@ -82,48 +82,80 @@ func (f *fleetAdmin) create(ctx context.Context, kind, policy string, dur time.D
 	return out, nil
 }
 
-func (f *fleetAdmin) ForceShadow(ctx context.Context, req *adminv1.ForceShadowRequest) (*adminv1.ForceShadowResponse, error) {
-	if (req.GetNodeId() == "") == (req.GetGroupId() == "") {
-		return nil, status.Error(codes.InvalidArgument, "exactly one of node_id and group_id is required")
+// targets resolves exactly one of node and group to node ids, and the
+// audit resource.
+func (f *fleetAdmin) targets(ctx context.Context, node, group string) ([]string, string, error) {
+	if (node == "") == (group == "") {
+		return nil, "", status.Error(codes.InvalidArgument, "exactly one of node_id and group_id is required")
 	}
-	if p := req.GetPolicyId(); p != "" && !policyIDRe.MatchString(p) {
-		return nil, status.Error(codes.InvalidArgument, "policy_id must match [a-z0-9._-]{1,55}")
+	if node != "" {
+		if len(node) > 128 {
+			return nil, "", status.Error(codes.InvalidArgument, "node_id is not valid")
+		}
+		return []string{node}, "nodes/" + node, nil
+	}
+	if !groupIDRe.MatchString(group) {
+		return nil, "", status.Error(codes.InvalidArgument, "group_id is not valid")
+	}
+	if f.commands == nil {
+		return nil, "", status.Error(codes.FailedPrecondition, "commands are not enabled on this control plane")
+	}
+	nodes, err := f.commands.GroupNodes(ctx, group)
+	if err != nil {
+		return nil, "", internal("group nodes", err)
+	}
+	if len(nodes) == 0 {
+		return nil, "", status.Error(codes.NotFound, "the group has no active node")
+	}
+	if len(nodes) > maxNodesCommand {
+		return nil, "", status.Error(codes.InvalidArgument, "too many nodes in the group")
+	}
+	return nodes, "groups/" + group, nil
+}
+
+func validPolicy(p string) error {
+	if p != "" && !policyIDRe.MatchString(p) {
+		return status.Error(codes.InvalidArgument, "policy_id must match [a-z0-9._-]{1,55}")
+	}
+	return nil
+}
+
+func (f *fleetAdmin) ForceShadow(ctx context.Context, req *adminv1.ForceShadowRequest) (*adminv1.ForceShadowResponse, error) {
+	if err := validPolicy(req.GetPolicyId()); err != nil {
+		return nil, err
 	}
 	dur := time.Duration(req.GetDurationSeconds()) * time.Second
 	if dur < time.Second || dur > MaxForceShadow {
 		return nil, status.Error(codes.InvalidArgument, "duration_seconds must be between 1 and 86400")
 	}
-	var nodes []string
-	resource := "nodes/" + req.GetNodeId()
-	if id := req.GetNodeId(); id != "" {
-		if len(id) > 128 {
-			return nil, status.Error(codes.InvalidArgument, "node_id is not valid")
-		}
-		nodes = []string{id}
-	} else {
-		if !groupIDRe.MatchString(req.GetGroupId()) {
-			return nil, status.Error(codes.InvalidArgument, "group_id is not valid")
-		}
-		resource = "groups/" + req.GetGroupId()
-		if f.commands == nil {
-			return nil, status.Error(codes.FailedPrecondition, "commands are not enabled on this control plane")
-		}
-		var err error
-		if nodes, err = f.commands.GroupNodes(ctx, req.GetGroupId()); err != nil {
-			return nil, internal("group nodes", err)
-		}
-		if len(nodes) == 0 {
-			return nil, status.Error(codes.NotFound, "the group has no active node")
-		}
-		if len(nodes) > maxNodesCommand {
-			return nil, status.Error(codes.InvalidArgument, "too many nodes in the group")
-		}
+	nodes, resource, err := f.targets(ctx, req.GetNodeId(), req.GetGroupId())
+	if err != nil {
+		return nil, err
 	}
 	cmds, err := f.create(ctx, store.CommandForceShadow, req.GetPolicyId(), dur, nodes, resource+":forceShadow")
 	if err != nil {
 		return nil, err
 	}
 	out := &adminv1.ForceShadowResponse{}
+	for _, c := range cmds {
+		out.Commands = append(out.Commands, commandPB(c))
+	}
+	return out, nil
+}
+
+func (f *fleetAdmin) ClearForceShadow(ctx context.Context, req *adminv1.ClearForceShadowRequest) (*adminv1.ClearForceShadowResponse, error) {
+	if err := validPolicy(req.GetPolicyId()); err != nil {
+		return nil, err
+	}
+	nodes, resource, err := f.targets(ctx, req.GetNodeId(), req.GetGroupId())
+	if err != nil {
+		return nil, err
+	}
+	cmds, err := f.create(ctx, store.CommandClearShadow, req.GetPolicyId(), 0, nodes, resource+":clearForceShadow")
+	if err != nil {
+		return nil, err
+	}
+	out := &adminv1.ClearForceShadowResponse{}
 	for _, c := range cmds {
 		out.Commands = append(out.Commands, commandPB(c))
 	}

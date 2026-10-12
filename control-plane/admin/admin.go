@@ -31,6 +31,7 @@ var Permissions = auth.MethodPermissions{
 	adminv1.FleetAdminService_ListNodes_FullMethodName:             auth.PermNodesRead,
 	adminv1.FleetAdminService_RevokeNode_FullMethodName:            auth.PermNodesWrite,
 	adminv1.FleetAdminService_ForceShadow_FullMethodName:           auth.PermPoliciesDeploy,
+	adminv1.FleetAdminService_ClearForceShadow_FullMethodName:      auth.PermPoliciesDeploy,
 	adminv1.FleetAdminService_CollectDiagnostics_FullMethodName:    auth.PermNodesWrite,
 	adminv1.FleetAdminService_ListCommands_FullMethodName:          auth.PermNodesRead,
 	adminv1.FleetAdminService_GetCommand_FullMethodName:            auth.PermNodesRead,

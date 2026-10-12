@@ -25,6 +25,7 @@ const (
 	FleetAdminService_ListNodes_FullMethodName             = "/strata.admin.v1.FleetAdminService/ListNodes"
 	FleetAdminService_RevokeNode_FullMethodName            = "/strata.admin.v1.FleetAdminService/RevokeNode"
 	FleetAdminService_ForceShadow_FullMethodName           = "/strata.admin.v1.FleetAdminService/ForceShadow"
+	FleetAdminService_ClearForceShadow_FullMethodName      = "/strata.admin.v1.FleetAdminService/ClearForceShadow"
 	FleetAdminService_CollectDiagnostics_FullMethodName    = "/strata.admin.v1.FleetAdminService/CollectDiagnostics"
 	FleetAdminService_ListCommands_FullMethodName          = "/strata.admin.v1.FleetAdminService/ListCommands"
 	FleetAdminService_GetCommand_FullMethodName            = "/strata.admin.v1.FleetAdminService/GetCommand"
@@ -55,6 +56,10 @@ type FleetAdminServiceClient interface {
 	// apply it within seconds while connected; a node that connects later
 	// gets it if the duration has not run out.
 	ForceShadow(ctx context.Context, in *ForceShadowRequest, opts ...grpc.CallOption) (*ForceShadowResponse, error)
+	// REST: POST /v1/nodes:clearForceShadow. Ends a force shadow before its
+	// deadline: of policy_id, or every one of the nodes when it is empty
+	// Same permission and audit.
+	ClearForceShadow(ctx context.Context, in *ClearForceShadowRequest, opts ...grpc.CallOption) (*ClearForceShadowResponse, error)
 	// REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
 	// with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
 	CollectDiagnostics(ctx context.Context, in *CollectDiagnosticsRequest, opts ...grpc.CallOption) (*CollectDiagnosticsResponse, error)
@@ -132,6 +137,16 @@ func (c *fleetAdminServiceClient) ForceShadow(ctx context.Context, in *ForceShad
 	return out, nil
 }
 
+func (c *fleetAdminServiceClient) ClearForceShadow(ctx context.Context, in *ClearForceShadowRequest, opts ...grpc.CallOption) (*ClearForceShadowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearForceShadowResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_ClearForceShadow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fleetAdminServiceClient) CollectDiagnostics(ctx context.Context, in *CollectDiagnosticsRequest, opts ...grpc.CallOption) (*CollectDiagnosticsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CollectDiagnosticsResponse)
@@ -187,6 +202,10 @@ type FleetAdminServiceServer interface {
 	// apply it within seconds while connected; a node that connects later
 	// gets it if the duration has not run out.
 	ForceShadow(context.Context, *ForceShadowRequest) (*ForceShadowResponse, error)
+	// REST: POST /v1/nodes:clearForceShadow. Ends a force shadow before its
+	// deadline: of policy_id, or every one of the nodes when it is empty
+	// Same permission and audit.
+	ClearForceShadow(context.Context, *ClearForceShadowRequest) (*ClearForceShadowResponse, error)
 	// REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
 	// with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
 	CollectDiagnostics(context.Context, *CollectDiagnosticsRequest) (*CollectDiagnosticsResponse, error)
@@ -221,6 +240,9 @@ func (UnimplementedFleetAdminServiceServer) RevokeNode(context.Context, *RevokeN
 }
 func (UnimplementedFleetAdminServiceServer) ForceShadow(context.Context, *ForceShadowRequest) (*ForceShadowResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceShadow not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) ClearForceShadow(context.Context, *ClearForceShadowRequest) (*ClearForceShadowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearForceShadow not implemented")
 }
 func (UnimplementedFleetAdminServiceServer) CollectDiagnostics(context.Context, *CollectDiagnosticsRequest) (*CollectDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CollectDiagnostics not implemented")
@@ -360,6 +382,24 @@ func _FleetAdminService_ForceShadow_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetAdminService_ClearForceShadow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearForceShadowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).ClearForceShadow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_ClearForceShadow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).ClearForceShadow(ctx, req.(*ClearForceShadowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FleetAdminService_CollectDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CollectDiagnosticsRequest)
 	if err := dec(in); err != nil {
@@ -444,6 +484,10 @@ var FleetAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ForceShadow",
 			Handler:    _FleetAdminService_ForceShadow_Handler,
+		},
+		{
+			MethodName: "ClearForceShadow",
+			Handler:    _FleetAdminService_ClearForceShadow_Handler,
 		},
 		{
 			MethodName: "CollectDiagnostics",
