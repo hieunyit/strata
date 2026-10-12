@@ -290,11 +290,10 @@ impl<'a> Html5<'a> {
     }
 
     fn tag_name(&mut self) -> Step {
-        let max_pos = (self.pos + 4096).min(self.len());
         let mut pos = self.pos;
-        while pos < max_pos {
-            pos = skip_non_delims(&self.s[..max_pos], pos);
-            if pos >= max_pos {
+        while pos < self.len() {
+            pos = skip_non_delims(self.s, pos);
+            if pos >= self.len() {
                 break;
             }
             let ch = self.s[pos];
@@ -329,7 +328,7 @@ impl<'a> Html5<'a> {
                 pos += 1;
             }
         }
-        self.emit(self.pos, pos - self.pos, TokenType::TagNameOpen);
+        self.emit(self.pos, self.len() - self.pos, TokenType::TagNameOpen);
         self.state = St::Eof;
         self.pos = self.len();
         Step::Token
@@ -354,11 +353,10 @@ impl<'a> Html5<'a> {
     }
 
     fn attribute_name(&mut self) -> Step {
-        let max_pos = (self.pos + 4096).min(self.len());
         let mut pos = self.pos + 1;
-        while pos < max_pos {
-            pos = skip_non_delims(&self.s[..max_pos], pos);
-            if pos >= max_pos {
+        while pos < self.len() {
+            pos = skip_non_delims(self.s, pos);
+            if pos >= self.len() {
                 break;
             }
             let ch = self.s[pos];
@@ -381,7 +379,7 @@ impl<'a> Html5<'a> {
             }
             pos += 1;
         }
-        self.emit(self.pos, pos - self.pos, TokenType::AttrName);
+        self.emit(self.pos, self.len() - self.pos, TokenType::AttrName);
         self.state = St::Eof;
         self.pos = self.len();
         Step::Token

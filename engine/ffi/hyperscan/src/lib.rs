@@ -105,16 +105,21 @@ impl Error {
     }
 }
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_DB_ID: AtomicU64 = AtomicU64::new(1);
+
 /// A database image inside a bundle mapping (or any buffer that outlives it).
 #[derive(Clone, Copy, Debug)]
 pub struct MappedDb<'a> {
     bytes: &'a [u8],
+    id: u64,
 }
 
 struct Scratch {
     ptr: *mut HsScratch,
-    /// database the scratch was last sized for
-    db: *const HsDatabase,
+    /// engine or database ID the scratch and stream were configured for
+    engine_id: u64,
     stream: *mut HsStream,
 }
 
@@ -135,7 +140,7 @@ thread_local! {
     static SCRATCH: RefCell<Scratch> = const {
         RefCell::new(Scratch {
             ptr: std::ptr::null_mut(),
-            db: std::ptr::null(),
+            engine_id: 0,
             stream: std::ptr::null_mut(),
         })
     };
@@ -169,13 +174,27 @@ impl<'a> MappedDb<'a> {
         if rc != HS_SUCCESS {
             return Err(Error::Invalid(rc));
         }
-        Ok(MappedDb { bytes })
+        Ok(MappedDb {
+            bytes,
+            id: NEXT_DB_ID.fetch_add(1, Ordering::Relaxed),
+        })
     }
 
     /// For an image that already passed [`validate`] (same bytes, still
     /// mapped): no checks, nothing allocated.
     pub fn assume_valid(bytes: &'a [u8]) -> MappedDb<'a> {
-        MappedDb { bytes }
+        MappedDb {
+            bytes,
+            id: NEXT_DB_ID.fetch_add(1, Ordering::Relaxed),
+        }
+    }
+
+    pub fn assume_valid_with_id(bytes: &'a [u8], id: u64) -> MappedDb<'a> {
+        MappedDb { bytes, id }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     /// Scans `data` (block mode); `on_match(pattern_id)` returns `false` to
@@ -185,13 +204,17 @@ impl<'a> MappedDb<'a> {
         let len = c_uint::try_from(data.len()).map_err(|_| Error::Scan(-1))?;
         SCRATCH.with(|cell| {
             let mut s = cell.borrow_mut();
-            if s.db != db {
+            if s.engine_id != self.id {
+                if !s.stream.is_null() {
+                    unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
+                    s.stream = std::ptr::null_mut();
+                }
                 // SAFETY: db was validated; grows (or creates) the scratch.
                 let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.db = db;
+                s.engine_id = self.id;
             }
             let mut ctx = Ctx {
                 f: on_match,
@@ -224,7 +247,7 @@ impl<'a> MappedDb<'a> {
         let db = self.bytes.as_ptr().cast::<HsDatabase>();
         SCRATCH.with(|cell| {
             let mut s = cell.borrow_mut();
-            if s.db != db {
+            if s.engine_id != self.id {
                 if !s.stream.is_null() {
                     unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
                     s.stream = std::ptr::null_mut();
@@ -233,7 +256,7 @@ impl<'a> MappedDb<'a> {
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.db = db;
+                s.engine_id = self.id;
             }
             if s.stream.is_null() {
                 let rc = unsafe { hs_open_stream(db, 0, &mut s.stream) };
@@ -258,7 +281,7 @@ impl<'a> MappedDb<'a> {
         let db = self.bytes.as_ptr().cast::<HsDatabase>();
         SCRATCH.with(|cell| {
             let mut s = cell.borrow_mut();
-            if s.db != db {
+            if s.engine_id != self.id {
                 if !s.stream.is_null() {
                     unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
                     s.stream = std::ptr::null_mut();
@@ -267,7 +290,7 @@ impl<'a> MappedDb<'a> {
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.db = db;
+                s.engine_id = self.id;
             }
             if s.stream.is_null() {
                 let rc = unsafe { hs_open_stream(db, 0, &mut s.stream) };
@@ -310,8 +333,8 @@ impl<'a> MappedDb<'a> {
                     return Err(Error::Scan(rc));
                 }
             } else {
-                for (chunk_idx, chunk) in data.chunks(chunk_size).enumerate() {
-                    if chunk_idx > 0 && !check_budget() {
+                for chunk in data.chunks(chunk_size) {
+                    if !check_budget() {
                         let _ = unsafe {
                             hs_reset_stream(stream, 0, scratch, None, std::ptr::null_mut())
                         };

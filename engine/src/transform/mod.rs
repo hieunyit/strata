@@ -14,9 +14,15 @@ mod tables;
 
 use std::borrow::Cow;
 
+use crate::budget::{BudgetExceeded, TxBudget};
+
 pub use batch2::{
-    base64_decode, cmd_line, css_decode, js_decode, normalize_path_win, remove_comments_char,
-    remove_whitespace, replace_comments, url_decode, utf8_to_unicode,
+    base64_decode, base64_decode_with_budget, cmd_line, cmd_line_with_budget, css_decode,
+    css_decode_with_budget, js_decode, js_decode_with_budget, normalize_path_win,
+    normalize_path_win_with_budget, remove_comments_char, remove_comments_char_with_budget,
+    remove_whitespace, remove_whitespace_with_budget, replace_comments,
+    replace_comments_with_budget, url_decode, url_decode_with_budget, utf8_to_unicode,
+    utf8_to_unicode_with_budget,
 };
 
 use tables::{BEST_FIT, ENTITY, ENTITY2, LONGEST_ENTITY_WITHOUT_SEMICOLON, REPLACEMENT};
@@ -43,41 +49,66 @@ pub const REMOVE_COMMENTS_CHAR: u8 = 15;
 /// The byte length of the value, in decimal (for numeric operators).
 pub const LENGTH: u8 = 16;
 
-/// Applies one transformation; `None` when this engine does not implement
-/// it yet (the condition using it is then skipped).
-pub fn apply(code: u8, input: &[u8]) -> Option<Cow<'_, [u8]>> {
-    Some(match code {
-        URL_DECODE_UNI => url_decode_uni(input),
-        HTML_ENTITY_DECODE => html_entity_decode(input),
-        LOWERCASE => lowercase(input),
-        REMOVE_NULLS => remove_nulls(input),
-        COMPRESS_WHITESPACE => compress_whitespace(input),
-        NORMALIZE_PATH => normalize_path(input),
-        JS_DECODE => js_decode(input),
-        CSS_DECODE => css_decode(input),
-        REMOVE_WHITESPACE => remove_whitespace(input),
-        CMD_LINE => cmd_line(input),
-        UTF8_TO_UNICODE => utf8_to_unicode(input),
-        BASE64_DECODE => base64_decode(input),
-        URL_DECODE => url_decode(input),
-        NORMALIZE_PATH_WIN => normalize_path_win(input),
-        REPLACE_COMMENTS => replace_comments(input),
-        REMOVE_COMMENTS_CHAR => remove_comments_char(input),
+/// Applies one transformation with cooperative CPU budget tracking;
+/// `Ok(None)` when this engine does not implement it yet (condition skipped).
+pub fn apply_with_budget<'a>(
+    code: u8,
+    input: &'a [u8],
+    budget: Option<&mut TxBudget>,
+) -> Result<Option<Cow<'a, [u8]>>, BudgetExceeded> {
+    Ok(Some(match code {
+        URL_DECODE_UNI => url_decode_uni_with_budget(input, budget)?,
+        HTML_ENTITY_DECODE => html_entity_decode_with_budget(input, budget)?,
+        LOWERCASE => lowercase_with_budget(input, budget)?,
+        REMOVE_NULLS => remove_nulls_with_budget(input, budget)?,
+        COMPRESS_WHITESPACE => compress_whitespace_with_budget(input, budget)?,
+        NORMALIZE_PATH => normalize_path_with_budget(input, budget)?,
+        JS_DECODE => js_decode_with_budget(input, budget)?,
+        CSS_DECODE => css_decode_with_budget(input, budget)?,
+        REMOVE_WHITESPACE => remove_whitespace_with_budget(input, budget)?,
+        CMD_LINE => cmd_line_with_budget(input, budget)?,
+        UTF8_TO_UNICODE => utf8_to_unicode_with_budget(input, budget)?,
+        BASE64_DECODE => base64_decode_with_budget(input, budget)?,
+        URL_DECODE => url_decode_with_budget(input, budget)?,
+        NORMALIZE_PATH_WIN => normalize_path_win_with_budget(input, budget)?,
+        REPLACE_COMMENTS => replace_comments_with_budget(input, budget)?,
+        REMOVE_COMMENTS_CHAR => remove_comments_char_with_budget(input, budget)?,
         LENGTH => Cow::Owned(input.len().to_string().into_bytes()),
-        _ => return None,
-    })
+        _ => return Ok(None),
+    }))
+}
+
+/// Applies one transformation without budget tracking.
+pub fn apply(code: u8, input: &[u8]) -> Option<Cow<'_, [u8]>> {
+    apply_with_budget(code, input, None).ok().flatten()
+}
+
+/// Applies a chain left to right with cooperative CPU budget tracking;
+/// `Ok(None)` if one of them is not implemented.
+pub fn apply_chain_with_budget<'a>(
+    codes: &[u8],
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Option<Cow<'a, [u8]>>, BudgetExceeded> {
+    let mut cur = Cow::Borrowed(input);
+    for &c in codes {
+        cur = match cur {
+            Cow::Borrowed(b) => match apply_with_budget(c, b, budget.as_deref_mut())? {
+                Some(res) => res,
+                None => return Ok(None),
+            },
+            Cow::Owned(o) => match apply_with_budget(c, &o, budget.as_deref_mut())? {
+                Some(res) => Cow::Owned(res.into_owned()),
+                None => return Ok(None),
+            },
+        };
+    }
+    Ok(Some(cur))
 }
 
 /// Applies a chain left to right; `None` if one of them is not implemented.
 pub fn apply_chain<'a>(codes: &[u8], input: &'a [u8]) -> Option<Cow<'a, [u8]>> {
-    let mut cur = Cow::Borrowed(input);
-    for &c in codes {
-        cur = match cur {
-            Cow::Borrowed(b) => apply(c, b)?,
-            Cow::Owned(o) => Cow::Owned(apply(c, &o)?.into_owned()),
-        };
-    }
-    Some(cur)
+    apply_chain_with_budget(codes, input, None).ok().flatten()
 }
 
 pub fn is_implemented(code: u8) -> bool {
@@ -90,15 +121,25 @@ pub(crate) fn hex(c: u8) -> Option<u8> {
 
 /// `%XX`, `%uXXXX` (IIS, with ModSecurity's best-fit table) and `+`.
 /// Invalid or truncated escapes are copied as they are.
-pub fn url_decode_uni(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn url_decode_uni_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(first) = input.iter().position(|&c| c == b'%' || c == b'+') else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let mut out = Vec::with_capacity(input.len());
     out.extend_from_slice(&input[..first]);
     let n = input.len();
     let mut i = first;
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let ch = input[i];
         if ch == b'+' {
             out.push(b' ');
@@ -151,10 +192,14 @@ pub fn url_decode_uni(input: &[u8]) -> Cow<'_, [u8]> {
         i += 1;
     }
     if out == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
     }
+}
+
+pub fn url_decode_uni(input: &[u8]) -> Cow<'_, [u8]> {
+    url_decode_uni_with_budget(input, None).unwrap()
 }
 
 fn push_char(out: &mut Vec<u8>, cp: u32) {
@@ -257,14 +302,24 @@ fn html_entity(s: &[u8]) -> (u32, u32, usize) {
 }
 
 /// HTML character references, as Go's `html.UnescapeString` (Coraza).
-pub fn html_entity_decode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn html_entity_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(first) = input.iter().position(|&c| c == b'&') else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let mut out = Vec::with_capacity(input.len());
     out.extend_from_slice(&input[..first]);
     let mut src = first;
+    let mut next_check = 8192;
     while src < input.len() {
+        if src >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = src + 8192;
+        }
         if input[src] != b'&' {
             out.push(input[src]);
             src += 1;
@@ -283,10 +338,14 @@ pub fn html_entity_decode(input: &[u8]) -> Cow<'_, [u8]> {
         src += used;
     }
     if out == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
     }
+}
+
+pub fn html_entity_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    html_entity_decode_with_budget(input, None).unwrap()
 }
 
 /// Decodes one UTF-8 sequence like Go's `utf8.DecodeRune`: invalid input
@@ -307,16 +366,31 @@ pub(crate) fn decode_rune(b: &[u8]) -> (u32, usize) {
 
 /// Unicode lowercase, as Go's `strings.ToLower` (Coraza): ASCII fast path;
 /// otherwise simple case mapping per rune, invalid UTF-8 becomes U+FFFD.
-pub fn lowercase(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn lowercase_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     if input.is_ascii() {
-        if !input.iter().any(u8::is_ascii_uppercase) {
-            return Cow::Borrowed(input);
+        if input.len() >= 8192
+            && let Some(bgt) = budget.as_deref_mut()
+        {
+            bgt.check()?;
         }
-        return Cow::Owned(input.to_ascii_lowercase());
+        if !input.iter().any(u8::is_ascii_uppercase) {
+            return Ok(Cow::Borrowed(input));
+        }
+        return Ok(Cow::Owned(input.to_ascii_lowercase()));
     }
     let mut out = Vec::with_capacity(input.len());
     let mut i = 0;
+    let mut next_check = 8192;
     while i < input.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let (r, w) = decode_rune(&input[i..]);
         let lower = match char::from_u32(r) {
             // simple mapping: one code point (Go has no special casing here)
@@ -334,27 +408,55 @@ pub fn lowercase(input: &[u8]) -> Cow<'_, [u8]> {
         i += w;
     }
     if out == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
+    }
+}
+
+pub fn lowercase(input: &[u8]) -> Cow<'_, [u8]> {
+    lowercase_with_budget(input, None).unwrap()
+}
+
+pub fn remove_nulls_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
+    if input.len() >= 8192
+        && let Some(bgt) = budget.as_mut()
+    {
+        bgt.check()?;
+    }
+    if input.contains(&0) {
+        Ok(Cow::Owned(
+            input.iter().copied().filter(|&c| c != 0).collect(),
+        ))
+    } else {
+        Ok(Cow::Borrowed(input))
     }
 }
 
 pub fn remove_nulls(input: &[u8]) -> Cow<'_, [u8]> {
-    if input.contains(&0) {
-        Cow::Owned(input.iter().copied().filter(|&c| c != 0).collect())
-    } else {
-        Cow::Borrowed(input)
-    }
+    remove_nulls_with_budget(input, None).unwrap()
 }
 
 /// Runs of Latin whitespace (\t \n \v \f \r space, U+0085, U+00A0, and a
 /// raw 0xA0 byte) become one space, decoding runes like Coraza.
-pub fn compress_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn compress_whitespace_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let is_space = |r: u32, b: u8| matches!(r, 0x09..=0x0D | 0x20 | 0x85 | 0xA0) || b == 0xA0;
     let mut i = 0;
     let mut first = None;
+    let mut next_check = 8192;
     while i < input.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let (r, w) = decode_rune(&input[i..]);
         if is_space(r, input[i]) {
             first = Some(i);
@@ -363,13 +465,20 @@ pub fn compress_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
         i += w;
     }
     let Some(first) = first else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let mut out = Vec::with_capacity(input.len());
     out.extend_from_slice(&input[..first]);
     let mut in_space = false;
     let mut i = first;
+    next_check = i + 8192;
     while i < input.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let (r, w) = decode_rune(&input[i..]);
         if is_space(r, input[i]) {
             if !in_space {
@@ -383,17 +492,21 @@ pub fn compress_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
         i += w;
     }
     if out == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
     }
+}
+
+pub fn compress_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
+    compress_whitespace_with_budget(input, None).unwrap()
 }
 
 /// Go's `path.Clean` (lexical: "//", "/./", "/x/../"), as `filepath.Clean`
 /// on Unix.
-fn clean(path: &[u8]) -> Vec<u8> {
+fn clean(path: &[u8], mut budget: Option<&mut TxBudget>) -> Result<Vec<u8>, BudgetExceeded> {
     if path.is_empty() {
-        return b".".to_vec();
+        return Ok(b".".to_vec());
     }
     let rooted = path[0] == b'/';
     let n = path.len();
@@ -404,7 +517,14 @@ fn clean(path: &[u8]) -> Vec<u8> {
         r = 1;
         dotdot = 1;
     }
+    let mut next_check = 8192;
     while r < n {
+        if r >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = r + 8192;
+        }
         if path[r] == b'/' || (path[r] == b'.' && (r + 1 == n || path[r + 1] == b'/')) {
             r += 1;
         } else if path[r] == b'.' && path[r + 1] == b'.' && (r + 2 == n || path[r + 2] == b'/') {
@@ -434,33 +554,40 @@ fn clean(path: &[u8]) -> Vec<u8> {
         }
     }
     if out.is_empty() {
-        return b".".to_vec();
+        return Ok(b".".to_vec());
     }
-    out
+    Ok(out)
 }
 
 /// Coraza's normalisePath: `filepath.Clean`, "." becomes empty, and a
 /// trailing '/' of the input is kept.
-pub fn normalize_path(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn normalize_path_with_budget<'a>(
+    input: &'a [u8],
+    budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     if input.is_empty() {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     }
-    let mut c = clean(input);
+    let mut c = clean(input, budget)?;
     if c == b"." {
         return if input.is_empty() {
-            Cow::Borrowed(input)
+            Ok(Cow::Borrowed(input))
         } else {
-            Cow::Owned(vec![])
+            Ok(Cow::Owned(vec![]))
         };
     }
     if input[input.len() - 1] == b'/' {
         c.push(b'/');
     }
     if c == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(c)
+        Ok(Cow::Owned(c))
     }
+}
+
+pub fn normalize_path(input: &[u8]) -> Cow<'_, [u8]> {
+    normalize_path_with_budget(input, None).unwrap()
 }
 
 #[cfg(test)]
@@ -516,5 +643,30 @@ mod tests {
         assert_eq!(&*url_decode_uni(b"%u0041%uff1c%u2018"), b"A<'");
         assert_eq!(&*url_decode_uni(b"a+b%zz%"), b"a b%zz%");
         assert_eq!(&*url_decode_uni(b"%u12"), b"%u12");
+    }
+
+    #[test]
+    fn transform_boundary_8192_straddling() {
+        // &amp; straddling byte 8192 (starts at 8190, ends at 8195)
+        let mut input_html = vec![b'a'; 8190];
+        input_html.extend_from_slice(b"&amp;b");
+        let decoded_no_budget = html_entity_decode(&input_html);
+        let mut budget = TxBudget::new(100_000);
+        let _ = budget.enter();
+        let decoded_with_budget =
+            html_entity_decode_with_budget(&input_html, Some(&mut budget)).unwrap();
+        assert_eq!(decoded_no_budget, decoded_with_budget);
+        assert_eq!(&decoded_with_budget[8190..], b"&b");
+
+        // \u0041 straddling byte 8192 (starts at 8190, ends at 8196)
+        let mut input_js = vec![b'a'; 8190];
+        input_js.extend_from_slice(b"\\u0041b");
+        let decoded_js_no_budget = js_decode(&input_js);
+        let mut budget_js = TxBudget::new(100_000);
+        let _ = budget_js.enter();
+        let decoded_js_with_budget =
+            js_decode_with_budget(&input_js, Some(&mut budget_js)).unwrap();
+        assert_eq!(decoded_js_no_budget, decoded_js_with_budget);
+        assert_eq!(&decoded_js_with_budget[8190..], b"Ab");
     }
 }

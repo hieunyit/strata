@@ -22,3 +22,6 @@ pub mod transform;
 pub mod tx;
 pub mod verdict;
 pub mod xml;
+
+pub use regex;
+pub use regex_automata;

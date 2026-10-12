@@ -23,35 +23,59 @@ enum Frame {
     Array(usize, usize),
 }
 
-fn memchr2_8k(c1: u8, c2: u8, slice: &[u8]) -> Option<usize> {
+fn memchr2_8k(
+    c1: u8,
+    c2: u8,
+    slice: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let mut curr = 0;
     while curr < slice.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192).min(slice.len());
         if let Some(i) = memchr::memchr2(c1, c2, &slice[curr..end]) {
-            return Some(curr + i);
+            return Ok(Some(curr + i));
         }
         curr = end;
     }
-    None
+    Ok(None)
 }
 
-fn position_8k<F>(slice: &[u8], mut pred: F) -> Option<usize>
+fn position_8k<F>(
+    slice: &[u8],
+    mut pred: F,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded>
 where
     F: FnMut(u8) -> bool,
 {
     let mut curr = 0;
     while curr < slice.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192).min(slice.len());
         if let Some(i) = slice[curr..end].iter().position(|&c| pred(c)) {
-            return Some(curr + i);
+            return Ok(Some(curr + i));
         }
         curr = end;
     }
-    None
+    Ok(None)
 }
 
-/// (name, value) of every scalar, at most `max`.
-pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
+/// (name, value) of every scalar, at most `max`, with cooperative budget tracking.
+#[allow(clippy::type_complexity)]
+pub fn args_with_budget(
+    b: &[u8],
+    max: usize,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Vec<(Vec<u8>, Vec<u8>)>, crate::budget::BudgetExceeded> {
     let mut out = vec![];
     let mut path = b"json".to_vec();
     let mut stack: Vec<Frame> = vec![];
@@ -68,7 +92,7 @@ pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
                     i += 1; // empty: no member, nothing to close
                 } else {
                     stack.push(Frame::Object(path.len()));
-                    match key(b, i, &mut path) {
+                    match key(b, i, &mut path, budget.as_deref_mut())? {
                         Some(n) => {
                             i = n;
                             continue 'value;
@@ -91,14 +115,18 @@ pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
                 }
             }
             b'"' => {
-                let Some((v, n)) = string(b, i) else { break };
+                let Some((v, n)) = string(b, i, budget.as_deref_mut())? else {
+                    break;
+                };
                 out.push((path.clone(), v));
                 i = n;
             }
             _ => {
-                let end = position_8k(&b[i..], |c| {
-                    matches!(c, b',' | b'}' | b']') || c.is_ascii_whitespace()
-                })
+                let end = position_8k(
+                    &b[i..],
+                    |c| matches!(c, b',' | b'}' | b']') || c.is_ascii_whitespace(),
+                    budget.as_deref_mut(),
+                )?
                 .map_or(b.len(), |e| i + e);
                 if end == i {
                     break;
@@ -117,7 +145,7 @@ pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
             match (top, b.get(i)) {
                 (Frame::Object(base), Some(b',')) => {
                     path.truncate(*base);
-                    match key(b, skip_ws(b, i + 1), &mut path) {
+                    match key(b, skip_ws(b, i + 1), &mut path, budget.as_deref_mut())? {
                         Some(n) => {
                             i = n;
                             continue 'value;
@@ -142,36 +170,56 @@ pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
             }
         }
     }
-    out
+    Ok(out)
+}
+
+/// (name, value) of every scalar, at most `max`.
+pub fn args(b: &[u8], max: usize) -> Vec<(Vec<u8>, Vec<u8>)> {
+    args_with_budget(b, max, None).unwrap()
 }
 
 /// `"key" :` at i: appends `.key` to path; returns where the value starts.
-fn key(b: &[u8], i: usize, path: &mut Vec<u8>) -> Option<usize> {
+fn key(
+    b: &[u8],
+    i: usize,
+    path: &mut Vec<u8>,
+    budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     if b.get(i) != Some(&b'"') {
-        return None;
+        return Ok(None);
     }
-    let (k, n) = string(b, i)?;
+    let Some((k, n)) = string(b, i, budget)? else {
+        return Ok(None);
+    };
     let n = skip_ws(b, n);
     if b.get(n) != Some(&b':') {
-        return None;
+        return Ok(None);
     }
     path.push(b'.');
     path.extend_from_slice(&k);
-    Some(skip_ws(b, n + 1))
+    Ok(Some(skip_ws(b, n + 1)))
 }
 
 /// The string at `b[i] == '"'`, unescaped, and the index after it.
-fn string(b: &[u8], i: usize) -> Option<(Vec<u8>, usize)> {
+fn string(
+    b: &[u8],
+    i: usize,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<(Vec<u8>, usize)>, crate::budget::BudgetExceeded> {
     let mut out = vec![];
     let mut j = i + 1;
     loop {
-        let rel = memchr2_8k(b'"', b'\\', &b[j..])?;
+        let Some(rel) = memchr2_8k(b'"', b'\\', &b[j..], budget.as_deref_mut())? else {
+            return Ok(None);
+        };
         out.extend_from_slice(&b[j..j + rel]);
         j += rel;
         if b[j] == b'"' {
-            return Some((out, j + 1));
+            return Ok(Some((out, j + 1)));
         }
-        let e = *b.get(j + 1)?;
+        let Some(&e) = b.get(j + 1) else {
+            return Ok(None);
+        };
         j += 2;
         match e {
             b'n' => out.push(b'\n'),
@@ -180,7 +228,9 @@ fn string(b: &[u8], i: usize) -> Option<(Vec<u8>, usize)> {
             b'b' => out.push(8),
             b'f' => out.push(12),
             b'u' => {
-                let mut cp = hex4(b, j)?;
+                let Some(mut cp) = hex4(b, j) else {
+                    return Ok(None);
+                };
                 j += 4;
                 // a surrogate pair
                 if (0xd800..0xdc00).contains(&cp)
