@@ -26,7 +26,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W08-R-01 | Fuzz và differential (libFuzzer FFI, harness `go-net-http`/`spring`, fuzz ASan 72h) | Claude Code | — | ✅ Done |
 | W08-S-01 | Chất lượng v0 và pipeline phát hành (go-ftw ≥ 95%, FP/recall, `strata-rules release`) | Claude Code | — | ✅ Done |
 | W08-G1-01 | Test tải Fleet (1.000 agent, `BundleAvailable` < 10 giây) | Claude Code | — | ✅ Done |
-| W08-G2-01 | Test tích hợp khi mạng lỗi (toxiproxy agent ↔ control plane) | Claude Code | — | ⏳ |
+| W08-G2-01 | Test tích hợp khi mạng lỗi (toxiproxy agent ↔ control plane) | Claude Code | — | ✅ Done |
 | W08-F-01 | Phân quyền trên UI và xuất CSV | Claude Code | — | ⏳ |
 | W08-Q-01 | Conformance trong CI (corpus v1 mỗi PR của `engine/`, `connectors/`) | Claude Code | — | ⏳ |
 
