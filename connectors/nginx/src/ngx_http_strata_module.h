@@ -172,6 +172,7 @@ extern ngx_module_t  ngx_http_strata_filter_module;
 
 
 /* metrics file layout: docs/design/control-file.md, "Metrics file" */
+#define NGX_HTTP_STRATA_VERSION  "0.1.0" /* libstrata's; in the metrics file header */
 #define NGX_HTTP_STRATA_METRICS_HEADER    64
 #define NGX_HTTP_STRATA_METRICS_SLOT      256
 #define NGX_HTTP_STRATA_METRICS_COUNTERS  21

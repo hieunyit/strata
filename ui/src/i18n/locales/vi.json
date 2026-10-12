@@ -156,15 +156,18 @@
   },
   "fleet": {
     "title": "Fleet",
-    "subtitle": "Node đã đăng ký và trạng thái kết nối, tự làm mới mỗi 5 giây",
+    "subtitle": "Node theo connector group, phiên bản, bundle và rollout đang chạy; tự làm mới mỗi 3 giây",
     "empty": "Chưa có node nào đăng ký.",
     "loading": "Đang tải node…",
     "summary": "{{online}}/{{total}} node online · {{groups}} connector group",
+    "groupCount_other": "{{count}} node",
+    "groupEmpty": "Group này chưa có node.",
+    "noGroup": "Không thuộc group",
     "col": {
       "status": "Trạng thái",
       "node": "Node",
-      "group": "Group",
-      "versions": "NGINX / module",
+      "nginx": "NGINX",
+      "module": "Module",
       "bundle": "Bundle",
       "lastSeen": "Lần cuối thấy",
       "cert": "Chứng chỉ hết hạn"
@@ -173,6 +176,25 @@
       "online": "Online",
       "offline": "Offline",
       "revoked": "Đã thu hồi"
+    },
+    "bundleState": {
+      "NONE": "chưa có bundle",
+      "PENDING": "chờ",
+      "NOTIFIED": "đã báo",
+      "DOWNLOADING": "đang tải",
+      "VERIFIED": "đã kiểm",
+      "ACTIVE": "đang dùng",
+      "FAILED": "lỗi",
+      "RUNNING": "đang triển khai",
+      "PAUSED": "tạm dừng",
+      "DONE": "xong",
+      "ABORTED": "đã hủy"
+    },
+    "rollout": {
+      "none": "Không có rollout đang chạy.",
+      "title": "Rollout {{id}} · bundle v{{version}}",
+      "wave": "đợt {{current}}/{{total}}",
+      "waveN": "Đợt {{n}}"
     }
   },
   "common": {

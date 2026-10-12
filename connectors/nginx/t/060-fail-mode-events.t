@@ -270,6 +270,7 @@ sub metrics {
     local $/;
     my $f = <$fh>;
     my ($magic, $layout, $slots, $size, $n) = unpack "a8 L< L< L< L<", $f;
+    my ($nginx, $module, $abi) = unpack "Z16 Z12 L<", substr $f, 32, 32;
     my @sum = (0) x $n;
     for my $s (0 .. $slots - 1) {
         my @c = unpack "Q<$n", substr $f, 64 + $s * $size, 8 * $n;
@@ -279,7 +280,7 @@ sub metrics {
         $sum[C_BUNDLE] = $c[C_BUNDLE];
     }
     return { magic => $magic, layout => $layout, slots => $slots, size => $size,
-             n => $n, len => length $f, c => \@sum };
+             n => $n, len => length $f, c => \@sum, nginx => $nginx, module => $module, abi => $abi };
 }
 
 # runs $code, returns how much each counter moved
@@ -315,6 +316,10 @@ subtest "metrics file layout" => sub {
     is($m->{len}, 64 + $workers * 256, "file size");
     is($m->{c}[C_PID], $workers, "every worker wrote its pid");
     is($m->{c}[C_BUNDLE], 7, "bundle version of the workers");
+    like($m->{nginx}, qr/^1\.\d+\.\d+$/, "NGINX version in the header");
+    like(`nginx -v 2>&1`, qr/\Q$m->{nginx}\E/, "the running NGINX");
+    is($m->{module}, "0.1.0", "module version");
+    is($m->{abi}, (1 << 16) | 1, "ABI version");
 };
 
 subtest "clean request: no event, counted as allow" => sub {

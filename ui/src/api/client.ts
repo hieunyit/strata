@@ -11,6 +11,8 @@ export type Policy = admin['schemas']['v1Policy'];
 export type PolicyVersion = admin['schemas']['v1PolicyVersion'];
 export type Group = admin['schemas']['v1Group'];
 export type FleetNode = admin['schemas']['v1Node'];
+export type Rollout = admin['schemas']['v1Rollout'];
+export type RolloutNode = admin['schemas']['v1RolloutNode'];
 export type ErrorResponse = components['schemas']['ErrorResponse'];
 
 export class ApiError extends Error {
@@ -103,5 +105,18 @@ export const apiClient = {
   async listNodes(): Promise<FleetNode[]> {
     const r = await call<admin['schemas']['v1ListNodesResponse']>('/nodes', { method: 'GET' }, 'Failed to list nodes');
     return r.nodes ?? [];
+  },
+
+  /** GET /v1/rollouts, newest first */
+  async listRollouts(): Promise<Rollout[]> {
+    const r = await call<admin['schemas']['v1ListRolloutsResponse']>('/rollouts', { method: 'GET' }, 'Failed to list rollouts');
+    return r.rollouts ?? [];
+  },
+
+  /** GET /v1/rollouts/{id}: with the state of each node */
+  async getRollout(id: string): Promise<Rollout | undefined> {
+    const r = await call<admin['schemas']['v1GetRolloutResponse']>(
+      `/rollouts/${encodeURIComponent(id)}`, { method: 'GET' }, 'Failed to get rollout');
+    return r.rollout;
   },
 };

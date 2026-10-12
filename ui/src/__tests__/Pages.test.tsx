@@ -61,13 +61,16 @@ describe('fleet page', () => {
       { id: 'node-c', hostname: 'edge-03', group_id: 'lab', online: false, revoked: true },
     ]);
     vi.spyOn(apiClient, 'listGroups').mockResolvedValue([{ id: 'lab', name: 'Lab' }]);
+    vi.spyOn(apiClient, 'listRollouts').mockResolvedValue([{ id: '3', state: 'DONE' }]);
     render(<StaticAuthProvider roles={['viewer']}><FleetPage /></StaticAuthProvider>);
     const rows = await screen.findAllByTestId('node-row');
     expect(rows.map((r) => r.getAttribute('data-status'))).toEqual(['online', 'offline', 'revoked']);
-    expect(rows[0]).toHaveTextContent('Lab');
+    expect(screen.getByTestId('group')).toHaveTextContent('Lab');
+    expect(rows[0]).toHaveTextContent('1.30.5');
     expect(screen.getByTestId('fleet-summary')).toHaveTextContent('1/3 nodes online');
+    expect(screen.getByTestId('rollout-none')).toBeInTheDocument();
     const calls = nodes.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(3100);
     expect(nodes.mock.calls.length).toBeGreaterThan(calls);
     vi.useRealTimers();
   });

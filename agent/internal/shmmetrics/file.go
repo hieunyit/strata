@@ -64,7 +64,11 @@ type Worker struct {
 // Snapshot is the content of one metrics file.
 type Snapshot struct {
 	CreatedMs uint64
-	Workers   []Worker // slots in use (pid != 0)
+	// What the module wrote in the header (0 / empty with an older one).
+	ProxyVersion  string // NGINX version
+	ModuleVersion string
+	ABIVersion    uint32
+	Workers       []Worker // slots in use (pid != 0)
 }
 
 // ErrLayout marks a file that does not follow the layout.
@@ -116,7 +120,7 @@ func parse(m []byte) (Snapshot, error) {
 	case headerSize+slots*slotSize != len(m):
 		return Snapshot{}, fmt.Errorf("%w: %d slots of %d bytes in %d bytes", ErrLayout, slots, slotSize, len(m))
 	}
-	s := Snapshot{CreatedMs: le.Uint64(m[24:])}
+	s := Snapshot{CreatedMs: le.Uint64(m[24:]), ProxyVersion: cstr(m[32:48]), ModuleVersion: cstr(m[48:60]), ABIVersion: le.Uint32(m[60:])}
 	for i := 0; i < slots; i++ {
 		slot := m[headerSize+i*slotSize:]
 		c := func(k int) uint64 { return load(slot[8*k:]) }
@@ -151,4 +155,16 @@ func parse(m []byte) (Snapshot, error) {
 func load(b []byte) uint64 {
 	_ = b[7]
 	return atomic.LoadUint64((*uint64)(unsafe.Pointer(&b[0])))
+}
+
+// cstr: a NUL-padded field, printable ASCII only.
+func cstr(b []byte) string {
+	n := 0
+	for n < len(b) && b[n] >= 0x20 && b[n] < 0x7f {
+		n++
+	}
+	if n < len(b) && b[n] != 0 {
+		return ""
+	}
+	return string(b[:n])
 }

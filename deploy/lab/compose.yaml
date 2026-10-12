@@ -185,6 +185,8 @@ services:
       - -admin-grpc-addr=:9090
       - -admin-grpc-plaintext
       # Deploys: compile with the lab rules, sign in Vault, store in MinIO.
+      # a canary soak, as in production: each wave runs 5 s before the next
+      - -rollout-soak=5s
       - -bundle-signer=vault
       - -vault-addr=http://vault:8200
       - -vault-token-file=/vault-signer/token

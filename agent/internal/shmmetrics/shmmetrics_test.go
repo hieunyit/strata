@@ -213,3 +213,21 @@ func TestServe(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// W07-F-01: the header carries the NGINX and module versions and the ABI.
+func TestHeaderVersions(t *testing.T) {
+	b := fixture{slots: 1}.bytes()
+	copy(b[32:], "1.30.5")
+	copy(b[48:], "0.1.0")
+	binary.LittleEndian.PutUint32(b[60:], 0x10001)
+	s, err := Read(write(t, b))
+	if err != nil || s.ProxyVersion != "1.30.5" || s.ModuleVersion != "0.1.0" || s.ABIVersion != 0x10001 {
+		t.Fatalf("%+v %v", s, err)
+	}
+	// an older module left them 0; garbage is not reported
+	b = fixture{slots: 1}.bytes()
+	copy(b[32:], "1.3\x01x")
+	if s, err := Read(write(t, b)); err != nil || s.ProxyVersion != "" || s.ModuleVersion != "" {
+		t.Fatalf("%+v %v", s, err)
+	}
+}

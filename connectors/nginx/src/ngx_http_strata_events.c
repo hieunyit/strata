@@ -94,6 +94,10 @@ ngx_http_strata_metrics_create(ngx_cycle_t *cycle,
     ngx_memcpy(hdr + 8, v, sizeof(v));
     now = (uint64_t) ngx_time() * 1000;
     ngx_memcpy(hdr + 24, &now, sizeof(now));
+    ngx_memcpy(hdr + 32, NGINX_VERSION, ngx_min(sizeof(NGINX_VERSION) - 1, 15));
+    ngx_memcpy(hdr + 48, NGX_HTTP_STRATA_VERSION, sizeof(NGX_HTTP_STRATA_VERSION) - 1);
+    v[0] = STRATA_ABI_VERSION;
+    ngx_memcpy(hdr + 60, v, sizeof(uint32_t));
 
     fd = open((char *) tmp, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0644);
     if (fd == -1) {

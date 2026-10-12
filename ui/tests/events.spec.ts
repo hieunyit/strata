@@ -261,6 +261,9 @@ test.describe('Strata WAF - Security Events Management', () => {
     await page.route('**/v1/groups', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({ groups: [{ id: 'lab', name: 'Lab' }] }) }),
     );
+    await page.route('**/v1/rollouts', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ rollouts: [] }) }),
+    );
     await page.route('**/v1/policies', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({ policies: [
         { id: 'example-api', name: 'example-api', version: 2, spec: { mode: 'MODE_ENFORCE' } },

@@ -156,15 +156,19 @@
   },
   "fleet": {
     "title": "Fleet",
-    "subtitle": "Enrolled nodes and their connection, refreshed every 5 seconds",
+    "subtitle": "Nodes by connector group, their versions and bundle, and the rollout in progress; refreshed every 3 seconds",
     "empty": "No node has enrolled yet.",
     "loading": "Loading nodes…",
     "summary": "{{online}}/{{total}} nodes online · {{groups}} connector groups",
+    "groupCount_one": "{{count}} node",
+    "groupCount_other": "{{count}} nodes",
+    "groupEmpty": "No node in this group.",
+    "noGroup": "Without a group",
     "col": {
       "status": "Status",
       "node": "Node",
-      "group": "Group",
-      "versions": "NGINX / module",
+      "nginx": "NGINX",
+      "module": "Module",
       "bundle": "Bundle",
       "lastSeen": "Last seen",
       "cert": "Certificate expires"
@@ -173,6 +177,25 @@
       "online": "Online",
       "offline": "Offline",
       "revoked": "Revoked"
+    },
+    "bundleState": {
+      "NONE": "no bundle",
+      "PENDING": "pending",
+      "NOTIFIED": "notified",
+      "DOWNLOADING": "downloading",
+      "VERIFIED": "verified",
+      "ACTIVE": "active",
+      "FAILED": "failed",
+      "RUNNING": "rolling out",
+      "PAUSED": "paused",
+      "DONE": "done",
+      "ABORTED": "aborted"
+    },
+    "rollout": {
+      "none": "No rollout in progress.",
+      "title": "Rollout {{id}} · bundle v{{version}}",
+      "wave": "wave {{current}} of {{total}}",
+      "waveN": "Wave {{n}}"
     }
   },
   "common": {
