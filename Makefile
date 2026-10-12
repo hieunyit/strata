@@ -174,7 +174,7 @@ test-rules: rules-tools
 	# the protocol pack (W05-S-01) matches no benign request
 	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/protocol --max-fp 0 > /dev/null
 	# the imported signature packs (W07-S-01) match no benign request either
-	cd tools/strata-rules && for p in sigma et-open bots; do go run . report --repo ../.. --rules ../../rules/$$p --max-fp 0 > /dev/null || exit 1; done
+	cd tools/strata-rules && for p in sigma et-open bots virtual-patches; do go run . report --repo ../.. --rules ../../rules/$$p --max-fp 0 > /dev/null || exit 1; done
 	$(MAKE) test-signatures
 
 # Sigma rules/web, ET Open (SIDs 2000000-2099999), crawler-user-agents,

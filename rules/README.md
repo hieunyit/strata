@@ -60,7 +60,11 @@ nằm trong `tools/strata-import-signatures/exclude.txt` (có lý do).
 | 450000–499999 | ET Open, **chỉ SID 2000000–2099999** | BSD-3-Clause | phần BSD của ET Open; importer từ chối SID khác (có test). Chỉ rule HTTP `to_server` của `web_server`, `web_specific_apps`, `exploit`, `scan` |
 | 500100 | mẫu crawler-user-agents | MIT | `samples/` |
 | 500200–509999 | crawler-user-agents | MIT | mỗi pattern một rule trên User-Agent, **điểm 0**, label `bot`: nhận diện, không chặn |
-| 700000–799999 | virtual patch | — | chưa có: chờ PO cho biết stack của route thí điểm (Q4) |
+| 700000–799999 | virtual patch (`virtual-patches/`) | Apache-2.0 | Strata viết, một rule một file, có mẫu; xem dưới |
+
+**Bộ ET khuyến nghị** (quyết định 12/10/2026): `et-open/web_server.yaml`, `scan.yaml`, `exploit.yaml` (khoảng 20.500 cost unit, cộng CRS PL1 khoảng 14.900, tổng khoảng 35.400, dưới ngân sách mặc định 50.000). `web_specific_apps.yaml` (82.681) chỉ bật cho policy bảo vệ đúng các ứng dụng đó. Không nâng ngân sách mặc định để chứa cả pack: cost unit đo chi phí CPU mỗi request.
+
+**Virtual patch (`virtual-patches/`, 700001–700010)**: chặn khai thác các CVE web bị dùng rộng: Log4Shell, Spring4Shell, Struts2 OGNL (Content-Type), Confluence OGNL trong path, PHPUnit `eval-stdin.php`, Drupalgeddon 2, Laravel Ignition, Apache path traversal mã hóa hai lần, Citrix `/vpns/`, Exchange ProxyShell. Mỗi rule bám đúng dấu hiệu của khai thác, điểm 100 (chặn ngay) và `accuracy: high`. Rule có mẫu `match`/`no_match` và khớp 0 request benign (`make test-rules`). `metadata.systems` ghi stack liên quan; khi PO cho biết stack của route thí điểm (Q4), thêm patch theo cùng mẫu.
 
 Điểm: Sigma critical 100, high 60, medium 40, low 20 (informational không nhập).
 ET: `signature_severity` Critical 80, Major 60, Minor 30, Informational 10,

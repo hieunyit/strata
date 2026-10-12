@@ -1,0 +1,28 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700004
+  name: OGNL expression in the URL path (Confluence CVE-2022-26134)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: uri_raw } ]
+      transforms: [ url_decode_uni ]
+      multi_match: true
+      operator: { type: rx, value: '^/[^?]*\$\{' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [java, confluence]
+    tags: [cve-2022-26134, virtual-patch]
+tests:
+  match:
+  - uri: /%24%7B%40java.lang.Runtime%40getRuntime%28%29.exec%28%22id%22%29%7D/
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  no_match:
+  - uri: /wiki/display/PRICE/Plans?x=%24%7Bnot-in-path%7D
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }

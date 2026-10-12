@@ -1,0 +1,31 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700003
+  name: Apache Struts 2 OGNL in Content-Type (CVE-2017-5638)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: request_headers, key: Content-Type } ]
+      transforms: [ lowercase ]
+      operator: { type: rx, value: '[%$]\{.*(?:#_memberaccess|@ognl|#context|java\.lang|#cmd)' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [java, struts]
+    tags: [cve-2017-5638, virtual-patch]
+tests:
+  match:
+  - method: POST
+    uri: /struts2-showcase/index.action
+    headers: { Host: api.example.test, Content-Type: "%{(#_='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):1)}" }
+    body: x
+  no_match:
+  - method: POST
+    uri: /upload
+    headers: { Host: api.example.test, Content-Type: 'multipart/form-data; boundary=----abc' }
+    body: x

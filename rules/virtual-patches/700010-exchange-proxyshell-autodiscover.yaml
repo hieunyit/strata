@@ -1,0 +1,28 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700010
+  name: Exchange ProxyShell autodiscover SSRF (CVE-2021-34473)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: uri_raw } ]
+      transforms: [ url_decode_uni, lowercase ]
+      multi_match: true
+      operator: { type: rx, value: '/autodiscover/autodiscover\.json\?.*@.*(?:/mapi/|/powershell|/ews/)' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: ssrf
+    accuracy: high
+    systems: [microsoft-exchange]
+    tags: [cve-2021-34473, virtual-patch]
+tests:
+  match:
+  - uri: /autodiscover/autodiscover.json?@evil.example.test/mapi/nspi/?&Email=autodiscover/autodiscover.json%3F@evil.example.test
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  no_match:
+  - uri: /autodiscover/autodiscover.json?Email=user@example.test&Protocol=ActiveSync
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
