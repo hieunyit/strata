@@ -20,7 +20,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
-| W08-R-02 | Mức tin cậy của rule (`action_mode: block_alone \| score`) | Claude Code | — | ⏳ |
+| W08-R-02 | Mức tin cậy của rule (`action_mode: block_alone \| score`) | Claude Code | — | ✅ Done |
 | W08-S-02 | Gán mức tin cậy cho rule | Claude Code | W08-R-02 | ⏳ |
 | W08-N-01 | Bộ Test::Nginx đầy đủ (HTTP/2, HTTP/3, subrequest, redirect, client ngắt, hot reload dưới tải) | Claude Code | — | ⏳ |
 | W08-R-01 | Fuzz và differential (libFuzzer FFI, harness `go-net-http`/`spring`, fuzz ASan 72h) | Claude Code | — | ⏳ |

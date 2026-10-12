@@ -4,7 +4,10 @@
 //!
 //! ```text
 //! RULES       32 B: id u32 | layer u8 | stage u8 | severity u8 | flags u8
-//!                   (bit 0: conditions are OR-ed) | score i32 | cond_first u32
+//!                   (bit 0: conditions are OR-ed; bit 1: block_alone — the
+//!                   rule blocks on its own, 0: it only adds to the score;
+//!                   was reserved, bundles from before it keep their meaning)
+//!                   | score i32 | cond_first u32
 //!                   | cond_count u32 | name_off u32 | name_len u32
 //!                   | paranoia u8 | reserved [u8; 3]
 //! CONDITIONS  48 B: op u8 | negate u8 | n_transforms u8 | value_kind u8
@@ -211,6 +214,9 @@ pub struct RuleDef {
     pub score: i32,
     pub paranoia: u8,
     pub any: bool,
+    /// block the request as soon as this rule matches, without reaching the
+    /// score threshold (IR `action_mode: block_alone`)
+    pub block_alone: bool,
     pub conditions: Vec<CondDef>,
 }
 
@@ -262,7 +268,8 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
     for r in rules {
         let (name_off, name_len) = pool.add(r.name.as_bytes());
         put_u32(&mut rt, r.id);
-        rt.extend_from_slice(&[r.layer, r.stage, r.severity, u8::from(r.any)]);
+        let flags = u8::from(r.any) | (u8::from(r.block_alone) << 1);
+        rt.extend_from_slice(&[r.layer, r.stage, r.severity, flags]);
         rt.extend_from_slice(&r.score.to_le_bytes());
         put_u32(&mut rt, cond_i);
         put_u32(&mut rt, r.conditions.len() as u32);
@@ -532,6 +539,7 @@ pub struct RuleView<'a> {
     pub score: i32,
     pub paranoia: u8,
     pub any: bool,
+    pub block_alone: bool,
     pub cond_first: u32,
     pub cond_count: u32,
 }
@@ -602,7 +610,7 @@ impl<'a> Tables<'a> {
                 || r[4] as usize >= LAYERS.len()
                 || r[5] as usize >= STAGES.len()
                 || r[6] as usize >= SEVERITIES.len()
-                || r[7] > 1
+                || r[7] & !0b11 != 0
                 || !in_range(u32_at(r, 12), u32_at(r, 16), n_conds)
                 || !str_ok(u32_at(r, 20), u32_at(r, 24), strings)
                 || r[28] > 4
@@ -755,7 +763,8 @@ impl<'a> Tables<'a> {
             layer: r[4],
             stage: r[5],
             severity: r[6],
-            any: r[7] == 1,
+            any: r[7] & 1 == 1,
+            block_alone: r[7] & 2 != 0,
             score: i32_at(r, 8),
             cond_first: u32_at(r, 12),
             cond_count: u32_at(r, 16),
@@ -788,6 +797,7 @@ mod tests {
                 score: 5,
                 paranoia: 1,
                 any: false,
+                block_alone: false,
                 conditions: vec![CondDef {
                     targets: vec![
                         TargetDef {
@@ -822,6 +832,7 @@ mod tests {
                 score: 20,
                 paranoia: 0,
                 any: true,
+                block_alone: true,
                 conditions: vec![
                     CondDef {
                         targets: vec![TargetDef {
@@ -893,8 +904,16 @@ mod tests {
         assert_eq!(t.n_rules(), 2);
         let r = t.rule(0).unwrap();
         assert_eq!(
-            (r.id, r.name, r.score, r.any, r.cond_first, r.cond_count),
-            (942_100, &b"SQLi via libinjection"[..], 5, false, 0, 1)
+            (
+                r.id,
+                r.name,
+                r.score,
+                r.any,
+                r.block_alone,
+                r.cond_first,
+                r.cond_count
+            ),
+            (942_100, &b"SQLi via libinjection"[..], 5, false, false, 0, 1)
         );
         let r = t.rule(1).unwrap();
         assert_eq!(
@@ -902,11 +921,12 @@ mod tests {
                 r.id,
                 r.severity,
                 r.any,
+                r.block_alone,
                 r.cond_first,
                 r.cond_count,
                 r.paranoia
             ),
-            (800_001, 2, true, 1, 2, 0)
+            (800_001, 2, true, true, 1, 2, 0)
         );
         assert!(t.rule(2).is_none());
         assert_eq!(
@@ -939,6 +959,7 @@ mod tests {
             (kind::CONDITIONS, 8 + 4, 99, "bad condition record"), // transform code
             (kind::CONDITIONS, 8 + 24, 9, "bad condition record"), // target_count
             (kind::RULES, 8 + 4, 9, "bad rule record"),         // layer
+            (kind::RULES, 8 + 7, 0xff, "bad rule record"),      // flags byte (bits 0,1 only)
             (kind::RULES, 8 + 16, 7, "bad rule record"),        // cond_count
             (kind::TARGETS, 8, 77, "bad target record"),        // var
             (kind::TARGETS, 8 + 16, 50, "bad target record"),   // exclude_count

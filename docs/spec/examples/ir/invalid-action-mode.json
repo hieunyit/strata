@@ -1,0 +1,17 @@
+{
+  "ir_version": 1,
+  "ruleset": { "name": "example", "version": "1" },
+  "rules": [
+    {
+      "id": 100101,
+      "name": "bad action_mode value",
+      "layer": "protocol",
+      "stage": "request_headers",
+      "match": { "all": [ { "targets": [ { "var": "method" } ], "operator": { "type": "rx", "value": "^TRACE$" } } ] },
+      "score": 40,
+      "action_mode": "warn",
+      "severity": "warning",
+      "metadata": { "source": "strata", "license": "Apache-2.0" }
+    }
+  ]
+}

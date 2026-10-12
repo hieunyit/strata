@@ -219,6 +219,8 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 score: r["score"].as_i64().unwrap_or(0) as i32,
                 paranoia: r["paranoia_level"].as_u64().unwrap_or(0) as u8,
                 any,
+                // absent means score (see ir.schema.json action_mode)
+                block_alone: r["action_mode"].as_str() == Some("block_alone"),
                 conditions: conds
                     .iter()
                     .map(condition)

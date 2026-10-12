@@ -11,6 +11,7 @@
                             "transforms": ["url_decode_uni", "remove_nulls"],
                             "operator": { "type": "detect_sqli" } } ] },
       "score": 5,
+      "action_mode": "score",
       "severity": "critical",
       "paranoia_level": 1,
       "labels": ["attack-sqli"],
@@ -28,6 +29,7 @@
         { "targets": [ { "var": "request_headers", "key": "Content-Length" } ], "operator": { "type": "ne", "value": 0 } }
       ] },
       "score": 5,
+      "action_mode": "block_alone",
       "severity": "critical",
       "metadata": { "source": "crs", "upstream_id": "920170", "upstream_version": "4.25.0", "license": "Apache-2.0", "author": "OWASP CRS project" }
     }
