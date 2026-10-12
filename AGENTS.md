@@ -4,8 +4,8 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 ## 0. Tiến độ hiện tại
 
-> **Tuần hiện tại: 7** · Khối `A2` (tuần 6–7) · Giai đoạn A (tới shadow, Gate A cuối tuần 10)
-> Cập nhật lần cuối: 2026-10-11
+> **Tuần hiện tại: 8** · Khối `A3` (tuần 8–10) · Giai đoạn A (tới shadow, Gate A cuối tuần 10)
+> Cập nhật lần cuối: 2026-10-12
 
 **Quy tắc dùng mục này**
 
@@ -15,6 +15,20 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 - PO / tech lead đổi con trỏ "Tuần hiện tại" và chép bảng nhiệm vụ tuần mới vào mục này vào sáng thứ 2.
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
+
+**Nhiệm vụ tuần 8** (khối A3 · Kiểm thử (1))
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W08-R-02 | Mức tin cậy của rule (`action_mode: block_alone \| score`) | Claude Code | — | ⏳ |
+| W08-S-02 | Gán mức tin cậy cho rule | Claude Code | W08-R-02 | ⏳ |
+| W08-N-01 | Bộ Test::Nginx đầy đủ (HTTP/2, HTTP/3, subrequest, redirect, client ngắt, hot reload dưới tải) | Claude Code | — | ⏳ |
+| W08-R-01 | Fuzz và differential (libFuzzer FFI, harness `go-net-http`/`spring`, fuzz ASan 72h) | Claude Code | — | ⏳ |
+| W08-S-01 | Chất lượng v0 và pipeline phát hành (go-ftw ≥ 95%, FP/recall, `strata-rules release`) | Claude Code | — | ⏳ |
+| W08-G1-01 | Test tải Fleet (1.000 agent, `BundleAvailable` < 10 giây) | Claude Code | — | ⏳ |
+| W08-G2-01 | Test tích hợp khi mạng lỗi (toxiproxy agent ↔ control plane) | Claude Code | — | ⏳ |
+| W08-F-01 | Phân quyền trên UI và xuất CSV | Claude Code | — | ⏳ |
+| W08-Q-01 | Conformance trong CI (corpus v1 mỗi PR của `engine/`, `connectors/`) | Claude Code | — | ⏳ |
 
 **Nhiệm vụ tuần 7**
 
@@ -48,8 +62,8 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | 4 | Mốc nối thông end-to-end | A1 | ✅ Done |
 | 5 | Bundle và hot reload | A1 | ✅ Done |
 | 6 | Đường đi response và sự kiện | A2 | ✅ Done |
-| 7 | Fail mode, CPU budget, độ bền | A2 | 🔄 Đang làm |
-| 8 | Kiểm thử (1), mức tin cậy rule | A3 | ⏳ |
+| 7 | Fail mode, CPU budget, độ bền | A2 | ✅ Done |
+| 8 | Kiểm thử (1), mức tin cậy rule | A3 | 🔄 Đang làm |
 | 9 | Benchmark, soak, staging, gói signature v0 | A3 | ⏳ |
 | 10 | Đóng gói và shadow · **Gate A** | A3 | ⏳ |
 | 11 | Circuit breaker, canary 1% | B1 | ⏳ |
