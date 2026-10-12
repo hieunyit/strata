@@ -32,7 +32,10 @@ type VaultSigner struct {
 	Mount string // transit mount, default "transit"
 	Key   string // key name
 	Token string // a token allowed to sign with Key and read it, nothing else
-	HTTP  *http.Client
+	// Version of the key to sign with; 0: the latest. Pin it while a new
+	// version is rotated in, until every node trusts its public key.
+	Version int
+	HTTP    *http.Client
 
 	version int // key version pinned by Init
 	pub     ed25519.PublicKey
@@ -43,8 +46,7 @@ type VaultSigner struct {
 const MaxVaultMessage = 24 << 20
 
 // Init reads the key: it must be ed25519, not exportable and without
-// plaintext backup; its latest version is pinned (a rotation in Vault
-// would make bundles the nodes refuse, so it needs a restart).
+// plaintext backup; its version (Version, or the latest) is pinned.
 func (v *VaultSigner) Init(ctx context.Context) error {
 	if v.Mount == "" {
 		v.Mount = "transit"
@@ -76,15 +78,19 @@ func (v *VaultSigner) Init(ctx context.Context) error {
 	case d.Exportable || d.AllowPlaintextBackup:
 		return fmt.Errorf("vault signer: key %q can leave Vault (exportable or plaintext backup); refused", v.Key)
 	}
-	k, ok := d.Keys[strconv.Itoa(d.LatestVersion)]
+	ver := v.Version
+	if ver == 0 {
+		ver = d.LatestVersion
+	}
+	k, ok := d.Keys[strconv.Itoa(ver)]
 	if !ok {
-		return fmt.Errorf("vault signer: key %q has no version %d", v.Key, d.LatestVersion)
+		return fmt.Errorf("vault signer: key %q has no version %d", v.Key, ver)
 	}
 	pub, err := base64.StdEncoding.DecodeString(k.PublicKey)
 	if err != nil || len(pub) != ed25519.PublicKeySize {
 		return fmt.Errorf("vault signer: key %q: bad public key", v.Key)
 	}
-	v.version, v.pub = d.LatestVersion, pub
+	v.version, v.pub = ver, pub
 	return nil
 }
 
