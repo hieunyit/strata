@@ -48,6 +48,69 @@
         ]
       }
     },
+    "/v1/commands": {
+      "get": {
+        "summary": "REST: GET /v1/commands?node_id=. Newest first, at most 100.",
+        "operationId": "FleetAdminService_ListCommands",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCommandsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "node_id",
+            "description": "empty: every node",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/commands/{command_id}": {
+      "get": {
+        "summary": "REST: GET /v1/commands/{command_id}",
+        "operationId": "FleetAdminService_GetCommand",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCommandResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "command_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
     "/v1/groups": {
       "get": {
         "summary": "REST: GET /v1/groups",
@@ -189,6 +252,78 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/nodes/{node_id}:collectDiagnostics": {
+      "post": {
+        "summary": "REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers\nwith non-sensitive facts (versions, bundle, counters). Needs nodes:write.",
+        "operationId": "FleetAdminService_CollectDiagnostics",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CollectDiagnosticsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceCollectDiagnosticsBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/nodes:forceShadow": {
+      "post": {
+        "summary": "REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy\n(or every policy) on one node or every node of a group, for a while\n(nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes\napply it within seconds while connected; a node that connects later\ngets it if the duration has not run out.",
+        "operationId": "FleetAdminService_ForceShadow",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ForceShadowResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ForceShadowRequest"
+            }
           }
         ],
         "tags": [
@@ -659,6 +794,9 @@
     }
   },
   "definitions": {
+    "FleetAdminServiceCollectDiagnosticsBody": {
+      "type": "object"
+    },
     "FleetAdminServiceCreateEnrollmentTokenBody": {
       "type": "object",
       "properties": {
@@ -771,6 +909,14 @@
         }
       }
     },
+    "v1CollectDiagnosticsResponse": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/definitions/v1NodeCommand"
+        }
+      }
+    },
     "v1CreateEnrollmentTokenResponse": {
       "type": "object",
       "properties": {
@@ -816,6 +962,48 @@
           "type": "string",
           "format": "int64",
           "description": "The rollout of the bundle to the nodes (GET /v1/rollouts/{id}); 0 when\nthis control plane does not distribute bundles."
+        }
+      }
+    },
+    "v1ForceShadowRequest": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Exactly one of node_id and group_id."
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "policy_id": {
+          "type": "string",
+          "title": "empty: every policy"
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "format": "int64",
+          "title": "1..86400"
+        }
+      }
+    },
+    "v1ForceShadowResponse": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          },
+          "title": "one per node (revoked nodes skipped)"
+        }
+      }
+    },
+    "v1GetCommandResponse": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/definitions/v1NodeCommand"
         }
       }
     },
@@ -884,6 +1072,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1Bundle"
+          }
+        }
+      }
+    },
+    "v1ListCommandsResponse": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
           }
         }
       }
@@ -994,6 +1194,57 @@
           "format": "date-time"
         }
       }
+    },
+    "v1NodeCommand": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "title": "FORCE_SHADOW, DIAGNOSTICS"
+        },
+        "policy_id": {
+          "type": "string",
+          "title": "FORCE_SHADOW: empty = every policy"
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "format": "int64",
+          "title": "FORCE_SHADOW"
+        },
+        "state": {
+          "type": "string",
+          "title": "PENDING (not sent yet), SENT, DONE, FAILED (the agent refused or\nfailed), EXPIRED (not answered before its deadline)"
+        },
+        "error": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string",
+          "title": "DIAGNOSTICS: JSON from the agent (untrusted)"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expire_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "NodeCommand is a command sent to one node and its result."
     },
     "v1PauseRolloutResponse": {
       "type": "object",
