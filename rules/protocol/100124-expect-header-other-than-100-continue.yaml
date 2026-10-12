@@ -14,6 +14,7 @@ rule:
         value: '(?i)^\s*100-continue\s*$'
         negate: true
   score: 30
+  action_mode: score
   severity: warning
   metadata:
     source: strata

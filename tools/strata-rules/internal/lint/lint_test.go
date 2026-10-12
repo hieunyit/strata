@@ -19,6 +19,7 @@ const good = `rule:
       - targets: [{ var: path }]
         operator: { type: rx, value: '^/admin(/|$)' }
   score: 10
+  action_mode: score
   severity: warning
   metadata: { source: organization, license: Apache-2.0, author: example-secops }
 tests:
@@ -82,6 +83,12 @@ func TestGoodRule(t *testing.T) {
 func TestMissingLicense(t *testing.T) {
 	body := strings.Replace(good, "license: Apache-2.0, ", "", 1)
 	expectFinding(t, lintFiles(t, map[string]string{"800010-example.yaml": body}), "license")
+}
+
+// W08-R-02/S-02: every source rule must state its action_mode.
+func TestMissingActionMode(t *testing.T) {
+	body := strings.Replace(good, "  action_mode: score\n", "", 1)
+	expectFinding(t, lintFiles(t, map[string]string{"800010-example.yaml": body}), "action_mode")
 }
 
 func TestImportedRuleNeedsUpstream(t *testing.T) {

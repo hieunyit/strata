@@ -12,6 +12,7 @@ rule:
         type: contains
         value: '%00'
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

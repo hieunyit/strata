@@ -12,6 +12,7 @@ rule:
         type: rx
         value: '(?i)%c[01]%[89ab][0-9a-f]|%e0%[89][0-9a-f]%[89ab][0-9a-f]|%f0%8[0-9a-f]%'
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

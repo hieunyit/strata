@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '^[^,]*(?:,[^,]*){5}'
   score: 30
+  action_mode: score
   severity: warning
   metadata:
     source: strata

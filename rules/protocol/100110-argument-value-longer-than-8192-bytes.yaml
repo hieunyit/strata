@@ -14,6 +14,7 @@ rule:
         type: gt
         value: 8192
   score: 20
+  action_mode: score
   severity: notice
   metadata:
     source: strata

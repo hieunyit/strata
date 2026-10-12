@@ -18,6 +18,7 @@ rule:
         value: OPTIONS
         negate: true
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

@@ -20,6 +20,7 @@ rule:
         - 192.0.2.0/24
         negate: true
   score: 100
+  action_mode: score
   severity: error
   metadata:
     source: organization

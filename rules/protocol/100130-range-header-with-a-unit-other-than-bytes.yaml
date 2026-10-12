@@ -14,6 +14,7 @@ rule:
         value: '(?i)^\s*bytes\s*='
         negate: true
   score: 20
+  action_mode: score
   severity: notice
   metadata:
     source: strata

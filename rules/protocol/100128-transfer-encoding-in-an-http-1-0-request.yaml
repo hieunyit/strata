@@ -19,6 +19,7 @@ rule:
         type: gt
         value: 0
   score: 50
+  action_mode: block_alone
   severity: error
   metadata:
     source: strata

@@ -12,6 +12,7 @@ rule:
         type: streq
         value: CONNECT
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

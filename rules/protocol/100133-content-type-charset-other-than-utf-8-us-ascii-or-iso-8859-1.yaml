@@ -20,6 +20,7 @@ rule:
         value: '(?i)charset\s*=\s*[\"'']?(?:utf-?8|us-ascii|iso-8859-1)[\"'']?\s*(?:;|$)'
         negate: true
   score: 30
+  action_mode: score
   severity: warning
   metadata:
     source: strata

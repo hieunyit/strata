@@ -20,6 +20,7 @@ rule:
         value: '(?i);\s*boundary=(?:\"[0-9A-Za-z''()+_,./:=? -]{1,70}\"|[0-9A-Za-z''()+_,./:=?-]{1,70})\s*(?:;|$)'
         negate: true
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

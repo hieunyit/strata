@@ -11,6 +11,7 @@ rule:
       multi_match: true
       operator: { type: rx, value: '/\.\./vpns/' }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

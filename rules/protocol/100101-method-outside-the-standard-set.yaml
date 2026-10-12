@@ -13,6 +13,7 @@ rule:
         value: '^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$'
         negate: true
   score: 40
+  action_mode: score
   severity: warning
   metadata:
     source: strata

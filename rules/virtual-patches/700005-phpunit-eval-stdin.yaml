@@ -10,6 +10,7 @@ rule:
       transforms: [ lowercase ]
       operator: { type: ends_with, value: /phpunit/src/util/php/eval-stdin.php }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

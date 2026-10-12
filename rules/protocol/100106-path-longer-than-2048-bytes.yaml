@@ -14,6 +14,7 @@ rule:
         type: gt
         value: 2048
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

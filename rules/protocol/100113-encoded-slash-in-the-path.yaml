@@ -12,6 +12,7 @@ rule:
         type: rx
         value: '(?i)^[^?#]*%2f'
   score: 20
+  action_mode: score
   severity: notice
   metadata:
     source: strata

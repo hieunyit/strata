@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '@|^(?:\[[^\]]*\]|[^\[:]*):(?:[0-9]*[^0-9]|[0-9]{6}|$)'
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

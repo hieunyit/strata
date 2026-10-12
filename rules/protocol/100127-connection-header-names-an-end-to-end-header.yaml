@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '(?i)(?:^|,)\s*(?:x-forwarded-[a-z-]+|x-real-ip|forwarded|authorization|cookie|host|content-length|transfer-encoding|x-api-key)\s*(?:,|$)'
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata
