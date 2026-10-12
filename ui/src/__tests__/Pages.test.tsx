@@ -75,3 +75,34 @@ describe('fleet page', () => {
     vi.useRealTimers();
   });
 });
+
+describe('CSV export is an operator+ action (W08-F-01)', () => {
+  it('policies: export button for operator, hidden for viewer', async () => {
+    vi.spyOn(apiClient, 'listPolicies').mockResolvedValue([
+      { id: 'example-api', name: 'example-api', version: 3, spec: { mode: 'MODE_ENFORCE', oversize: 'OVERSIZE_BLOCK' }, created_by: 'lab-operator' },
+    ]);
+    const { unmount } = render(<StaticAuthProvider roles={['operator']}><PoliciesPage /></StaticAuthProvider>);
+    await screen.findAllByTestId('policy-row');
+    expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();
+    unmount();
+
+    render(<StaticAuthProvider roles={['viewer']}><PoliciesPage /></StaticAuthProvider>);
+    await screen.findAllByTestId('policy-row');
+    expect(screen.queryByTestId('export-csv-btn')).not.toBeInTheDocument();
+  });
+
+  it('fleet: export button for operator, hidden for viewer', async () => {
+    const nodes = [{ id: 'node-a', hostname: 'edge-01', group_id: 'lab', online: true, proxy_version: '1.30.5' }];
+    vi.spyOn(apiClient, 'listNodes').mockResolvedValue(nodes);
+    vi.spyOn(apiClient, 'listGroups').mockResolvedValue([{ id: 'lab', name: 'Lab' }]);
+    vi.spyOn(apiClient, 'listRollouts').mockResolvedValue([]);
+    const { unmount } = render(<StaticAuthProvider roles={['operator']}><FleetPage /></StaticAuthProvider>);
+    await screen.findAllByTestId('node-row');
+    expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();
+    unmount();
+
+    render(<StaticAuthProvider roles={['viewer']}><FleetPage /></StaticAuthProvider>);
+    await screen.findAllByTestId('node-row');
+    expect(screen.queryByTestId('export-csv-btn')).not.toBeInTheDocument();
+  });
+});

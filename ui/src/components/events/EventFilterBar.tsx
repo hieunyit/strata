@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, Download, Pause, Play, RefreshCw, RotateCcw } from 'lucide-react';
 import { SearchEventsRequest } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 interface FilterBarProps {
   initialFilters: SearchEventsRequest;
@@ -23,6 +24,7 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({
   onManualRefresh,
 }) => {
   const { t } = useTranslation();
+  const { isViewer } = useAuth();
 
   const [action, setAction] = useState<string>(initialFilters.action || '');
   const [clientIp, setClientIp] = useState<string>(initialFilters.client_ip || '');
@@ -113,15 +115,18 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({
             <span>{isRefreshing ? t('events.table.loading') : t('events.toolbar.autoRefresh')}</span>
           </button>
 
-          <button
-            type="button"
-            data-testid="export-csv-btn"
-            onClick={onExportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>{t('events.toolbar.exportCsv')}</span>
-          </button>
+          {/* Bulk CSV export is an operator+ action; hidden for viewer. */}
+          {!isViewer && (
+            <button
+              type="button"
+              data-testid="export-csv-btn"
+              onClick={onExportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{t('events.toolbar.exportCsv')}</span>
+            </button>
+          )}
         </div>
       </div>
 

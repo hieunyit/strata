@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StaticAuthProvider } from '../context/AuthContext';
 import { EventsTable } from '../components/events/EventsTable';
 import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
+import { EventFilterBar } from '../components/events/EventFilterBar';
 import { Header } from '../components/layout/Header';
 import { Event, apiClient } from '../api/client';
 import '../i18n';
@@ -60,6 +61,27 @@ describe('Strata Events UI Components', () => {
     expect(screen.getByText('POST')).toBeInTheDocument();
     expect(screen.getByText('/v1/users/search')).toBeInTheDocument();
     expect(screen.getByText('45')).toBeInTheDocument(); // Anomaly score
+  });
+
+  it('hides the CSV export button for a viewer, shows it for an operator (W08-F-01)', () => {
+    const bar = (role: 'viewer' | 'operator') => (
+      <StaticAuthProvider roles={[role]}>
+        <EventFilterBar
+          initialFilters={{}}
+          onApplyFilters={vi.fn()}
+          onExportCsv={vi.fn()}
+          isAutoRefresh={false}
+          onToggleAutoRefresh={vi.fn()}
+          isRefreshing={false}
+          onManualRefresh={vi.fn()}
+        />
+      </StaticAuthProvider>
+    );
+    const { unmount } = render(bar('viewer'));
+    expect(screen.queryByTestId('export-csv-btn')).not.toBeInTheDocument();
+    unmount();
+    render(bar('operator'));
+    expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();
   });
 
   it('masks client IP and payload snippet when role is viewer', () => {
