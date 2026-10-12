@@ -63,3 +63,26 @@ func TestCompilerFixtures(t *testing.T) {
 		t.Fatal("the corrupted fixture verified")
 	}
 }
+
+// Key rotation: two trusted keys, a bundle signed by either verifies.
+func TestVerifyTwoKeys(t *testing.T) {
+	oldPub, oldPriv, _ := ed25519.GenerateKey(nil)
+	newPub, newPriv, _ := ed25519.GenerateKey(nil)
+	otherPub, otherPriv, _ := ed25519.GenerateKey(nil)
+	both := append(append([]byte{}, oldPub...), newPub...)
+	for _, priv := range []ed25519.PrivateKey{oldPriv, newPriv} {
+		if _, err := Verify(build(t, priv, 1), both); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Verify(build(t, otherPriv, 1), both); err == nil {
+		t.Fatal("signed by a key not trusted")
+	}
+	three := append(append([]byte{}, both...), otherPub...)
+	if _, err := Verify(build(t, otherPriv, 1), three); err == nil {
+		t.Fatal("three keys accepted")
+	}
+	if _, err := Verify(build(t, oldPriv, 1), both[:40]); err == nil {
+		t.Fatal("a 40-byte key file accepted")
+	}
+}

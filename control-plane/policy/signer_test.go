@@ -192,3 +192,20 @@ done
 		t.Fatalf("at the budget: %q %v", out, err)
 	}
 }
+
+// Key rotation: a pinned version signs even when a newer one exists.
+func TestVaultSignerPinnedVersion(t *testing.T) {
+	f, srv := newFakeVault(t)
+	f.version = 3 // latest; the fake serves only that version
+	v := &VaultSigner{Addr: srv.URL, Key: "strata-bundles", Token: "signer-token", Version: 2}
+	if err := v.Init(context.Background()); err == nil || !strings.Contains(err.Error(), "no version 2") {
+		t.Fatalf("missing pinned version: %v", err)
+	}
+	v.Version = 3
+	if err := v.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Sign(context.Background(), []byte("x")); err != nil || !strings.Contains(f.bodies[len(f.bodies)-1], `"key_version":3`) {
+		t.Fatalf("%v %s", err, f.bodies[len(f.bodies)-1])
+	}
+}

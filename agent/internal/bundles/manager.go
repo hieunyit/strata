@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ import (
 type Options struct {
 	Dir         string // strata_bundle_dir
 	ControlFile string // strata_control_file
-	PubKey      []byte // Ed25519, 32 bytes: bundles signed otherwise are refused
+	PubKey      []byte // Ed25519, one key or two (rotation): bundles signed otherwise are refused
 	// MetricsFile, when set and present, tells when the workers run a
 	// bundle (ACTIVE). Without it (the module writes it from W07-N-01)
 	// ACTIVE is reported ActiveDelay after the control file changed.
@@ -60,8 +61,8 @@ type Manager struct {
 // reads the running version from the control file. report sends a
 // BundleStatus to the control plane.
 func New(client fleetv1.FleetServiceClient, opts Options, report func(*fleetv1.BundleStatus)) (*Manager, error) {
-	if len(opts.PubKey) != 32 {
-		return nil, errors.New("bundles: the bundle public key must be 32 bytes")
+	if !bundlefmt.ValidKeys(opts.PubKey) {
+		return nil, errors.New("bundles: the bundle public key file must hold one or two 32-byte keys")
 	}
 	if opts.ActiveDelay <= 0 {
 		opts.ActiveDelay = 2 * time.Second
@@ -106,6 +107,17 @@ func (m *Manager) Active() uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.active
+}
+
+// TrustedKeys: the SHA-256 (first 8 bytes, hex) of each public key the
+// bundles must be signed with, for diagnostics during a key rotation.
+func (m *Manager) TrustedKeys() []string {
+	var out []string
+	for k := 0; k+32 <= len(m.opts.PubKey); k += 32 {
+		sum := sha256.Sum256(m.opts.PubKey[k : k+32])
+		out = append(out, hex.EncodeToString(sum[:8]))
+	}
+	return out
 }
 
 // Offer handles a BundleAvailable: installs it in the background unless it

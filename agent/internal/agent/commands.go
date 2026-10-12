@@ -57,7 +57,9 @@ type DiagBundle struct {
 	Control    string `json:"control_file_bundle,omitempty"`
 	Version    uint64 `json:"control_file_version"`
 	Generation uint64 `json:"control_file_generation"`
-	Error      string `json:"error,omitempty"`
+	// sha256 prefixes of the trusted bundle signing keys (key rotation)
+	TrustedKeys []string `json:"trusted_keys"`
+	Error       string   `json:"error,omitempty"`
 }
 
 // DiagForceShadow: the deadlines still running.
@@ -96,7 +98,7 @@ func (a *Agent) diagnostics() Diagnostics {
 			DroppedBatches: st.DroppedBatches, DroppedEvents: st.DroppedEvents},
 	}
 	if a.Bundles != nil {
-		b := &DiagBundle{Active: a.Bundles.Active()}
+		b := &DiagBundle{Active: a.Bundles.Active(), TrustedKeys: a.Bundles.TrustedKeys()}
 		if c, err := bundles.ReadControl(a.cfg.ControlFile); err != nil {
 			b.Error = "control file: not readable"
 		} else {

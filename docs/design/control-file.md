@@ -64,6 +64,23 @@ Section `HYPERSCAN` chứa database Hyperscan đã biên dịch và bảng ánh 
 
 libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm biên mọi trường (mọi bản ghi rule, điều kiện, target, list) kể cả khi chữ ký đúng, một lần lúc nạp; sau đó đọc tại chỗ, không copy. Mode của policy là dữ liệu đã ký: `strata_engine_policy` đọc nó tại chỗ trong vùng mmap. Location đặt `strata_request_body_mode stream` mà policy là enforce thì `nginx -t` (và `nginx -s reload`) lỗi; nếu policy chuyển sang enforce qua hot reload, worker ghi cảnh báo và location vẫn chạy shadow. File bundle đã công bố không bao giờ được sửa tại chỗ (xem `docs/poc/hyperscan-mmap.md`): agent ghi file tạm → `fsync` → `rename` sang tên mới theo phiên bản, rồi mới cập nhật control file; xóa bundle cũ chỉ bằng `unlink`.
 
+## Xoay khóa ký bundle
+
+Node tin **một hoặc hai** public key Ed25519: file `strata_bundle_pubkey` của NGINX và `bundle.pub` của agent dài 32 hoặc 64 byte (hai khóa nối nhau). Bundle được nhận khi chữ ký đúng với một trong các khóa đó. Kiểm tra chạy trong thread pool, nên khóa thứ hai chỉ tốn thêm một lần kiểm khi khóa đầu không khớp.
+
+Khóa mới được phát tới node **ngoài băng** (config management, như bản cài agent), không qua control plane. Nếu control plane đẩy được danh sách khóa tin cậy, thì ai chiếm control plane cũng tự cài khóa của mình được, và việc giữ khóa trong KMS không còn ý nghĩa.
+
+Quy trình (Vault transit, khóa `strata-bundles` đang ở phiên bản N):
+
+1. Ghim phiên bản đang ký: control plane chạy với `-vault-transit-key-version=N`.
+2. `vault write -f transit/keys/strata-bundles/rotate` tạo phiên bản N+1. Lấy public key của nó: `vault read -format=json transit/keys/strata-bundles`, trường `keys["N+1"].public_key` (base64 → 32 byte).
+3. Phát `bundle.pub` = khóa N ‖ khóa N+1 (64 byte) tới mọi node (NGINX `nginx -s reload`, khởi động lại agent), và cho control plane (`-bundle-pubkey`, để node enroll sau đó cũng nhận cả hai).
+4. Kiểm: `POST /v1/nodes/{id}:collectDiagnostics` của từng node, `bundle.trusted_keys` (sha256 rút gọn) phải có khóa N+1.
+5. Chuyển ký: `-vault-transit-key-version=N+1`, khởi động lại control plane, deploy; rollout ACTIVE trên mọi node.
+6. Bỏ khóa cũ: `bundle.pub` = khóa N+1 (32 byte) trên node và control plane; sau đó có thể đặt `min_encryption_version` của khóa trong Vault.
+
+Một node chưa nhận khóa mới ở bước 3 sẽ từ chối bundle ở bước 5. Rollout dừng ở node đó (FAILED, "signature does not verify") và các node khác giữ bundle cũ.
+
 ## Quy tắc nạp trong worker
 
 - Timer mỗi `strata_bundle_check` (cộng jitter ngẫu nhiên tới 25%) chỉ đọc generation trong bộ nhớ.

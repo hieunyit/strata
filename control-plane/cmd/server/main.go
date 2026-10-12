@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/strata/strata/agent/pkg/bundlefmt"
 	"github.com/strata/strata/control-plane/admin"
 	"github.com/strata/strata/control-plane/api"
 	"github.com/strata/strata/control-plane/auth"
@@ -66,6 +67,7 @@ func main() {
 	vaultAddr := flag.String("vault-addr", os.Getenv("VAULT_ADDR"), "Vault address, with -bundle-signer=vault")
 	vaultMount := flag.String("vault-transit-mount", "transit", "Vault transit mount")
 	vaultKey := flag.String("vault-transit-key", "strata-bundles", "Vault transit key (ed25519, not exportable)")
+	vaultKeyVersion := flag.Int("vault-transit-key-version", 0, "Version of the Vault key that signs (0: latest); pin it while a new version is rotated in")
 	vaultTokenFile := flag.String("vault-token-file", "", "File holding the Vault token (default: VAULT_TOKEN)")
 	costBudget := flag.Uint64("cost-budget", policy.DefaultCostBudget, "Cost units a bundle's rules may cost; a deploy over it is refused (0: no limit)")
 	rulesFlag := flag.String("rules", "", "Comma-separated rule IR files compiled into every bundle")
@@ -158,7 +160,10 @@ func main() {
 	}
 	// The bundle public key: Vault's, or the -bundle-pubkey file.
 	var signer policy.Signer
-	var pub []byte
+	// pub verifies what this control plane signs; trust is what enrolled
+	// nodes are told to trust: the -bundle-pubkey file (one key, or two
+	// while the signing key is rotated), else pub.
+	var pub, trust []byte
 	switch *signerKind {
 	case "vault":
 		token := os.Getenv("VAULT_TOKEN")
@@ -169,24 +174,28 @@ func main() {
 			}
 			token = strings.TrimSpace(string(b))
 		}
-		vs := &policy.VaultSigner{Addr: *vaultAddr, Mount: *vaultMount, Key: *vaultKey, Token: token}
+		vs := &policy.VaultSigner{Addr: *vaultAddr, Mount: *vaultMount, Key: *vaultKey, Token: token, Version: *vaultKeyVersion}
 		if err := vs.Init(ctx); err != nil {
 			log.Fatalf("[FATAL] %v", err)
 		}
 		k, _ := vs.PublicKey(ctx)
 		pub, signer = k, vs
+		trust = pub
 		if *bundlePub != "" {
-			if f, err := os.ReadFile(*bundlePub); err != nil || !bytes.Equal(f, pub) {
-				log.Fatalf("[FATAL] -bundle-pubkey %s is not the public key of Vault key %s", *bundlePub, *vaultKey)
+			f, err := os.ReadFile(*bundlePub)
+			if err != nil || !bundlefmt.ValidKeys(f) || (!bytes.Equal(f[:32], pub) && !bytes.Equal(f[len(f)-32:], pub)) {
+				log.Fatalf("[FATAL] -bundle-pubkey %s does not hold the public key of Vault key %s (one or two 32-byte keys)", *bundlePub, *vaultKey)
 			}
+			trust = f
 		}
 		log.Printf("[INFO] Bundles are signed by Vault transit key %s at %s", *vaultKey, *vaultAddr)
 	case "file":
 		if *bundlePub != "" {
 			var err error
-			if pub, err = os.ReadFile(*bundlePub); err != nil {
-				log.Fatalf("[FATAL] bundle public key: %v", err)
+			if pub, err = os.ReadFile(*bundlePub); err != nil || !bundlefmt.ValidKeys(pub) {
+				log.Fatalf("[FATAL] bundle public key %s: one or two 32-byte keys (%v)", *bundlePub, err)
 			}
+			trust = pub
 		}
 	default:
 		log.Fatalf("[FATAL] -bundle-signer must be file or vault")
@@ -309,7 +318,7 @@ func main() {
 			if fcfg.TrustBundle, err = os.ReadFile(tb); err != nil {
 				log.Fatalf("[FATAL] fleet trust bundle: %v", err)
 			}
-			fcfg.BundlePubKey = pub
+			fcfg.BundlePubKey = trust
 		}
 		gs = fleet.NewGRPCServer(tlsCfg, fleet.NewServer(fcfg))
 		go func() {

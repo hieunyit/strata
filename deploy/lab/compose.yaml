@@ -190,6 +190,7 @@ services:
       - -bundle-signer=vault
       - -vault-addr=http://vault:8200
       - -vault-token-file=/vault-signer/token
+      - -vault-transit-key-version=${LAB_VAULT_KEY_VERSION:-0}
       - -rules=/opt/strata/rules.yaml
       - -block-page=/opt/strata/block.html
       - -s3-endpoint=minio:9000

@@ -24,7 +24,8 @@ typedef struct {
     u_char                       path[NGX_MAX_PATH];
     u_char                       name[NGX_HTTP_STRATA_CTL_NAME_MAX + 1];
     size_t                       name_len;
-    u_char                       key[STRATA_PUBKEY_LEN];
+    u_char                       key[NGX_HTTP_STRATA_MAX_KEYS * STRATA_PUBKEY_LEN];
+    ngx_uint_t                   nkeys;
     uint64_t                     generation;
     uint64_t                     current_version;
     unsigned                     have_current:1;
@@ -51,7 +52,7 @@ typedef struct {
 
 
 static ngx_int_t ngx_http_strata_read_pubkey(ngx_conf_t *cf, ngx_str_t *path,
-    u_char *key);
+    u_char *key, ngx_uint_t *n);
 static ngx_int_t ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen,
     ngx_str_t *name);
 static ngx_int_t ngx_http_strata_bundle_path(ngx_str_t *dir, ngx_str_t *name,
@@ -134,7 +135,8 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
         return NGX_ERROR;
     }
 
-    if (ngx_http_strata_read_pubkey(cf, &smcf->pubkey_file, smcf->pubkey)
+    if (ngx_http_strata_read_pubkey(cf, &smcf->pubkey_file, smcf->pubkey,
+                                    &smcf->npubkeys)
         != NGX_OK)
     {
         return NGX_ERROR;
@@ -192,7 +194,8 @@ ngx_http_strata_bundle_init(ngx_conf_t *cf, ngx_http_strata_main_conf_t *smcf)
     /* the same load structure, reused for the bundle itself */
     ngx_memzero(ld, sizeof(ngx_http_strata_load_t));
     ngx_memcpy(ld->path, path, NGX_MAX_PATH);
-    ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
+    ngx_memcpy(ld->key, smcf->pubkey, sizeof(smcf->pubkey));
+    ld->nkeys = smcf->npubkeys;
 
     ngx_http_strata_load_handler(ld, cf->log);
 
@@ -313,8 +316,10 @@ ngx_http_strata_bundle_cleanup(void *data)
 
 
 static ngx_int_t
-ngx_http_strata_read_pubkey(ngx_conf_t *cf, ngx_str_t *path, u_char *key)
+ngx_http_strata_read_pubkey(ngx_conf_t *cf, ngx_str_t *path, u_char *key,
+    ngx_uint_t *nkeys)
 {
+    off_t            size;
     ssize_t          n;
     ngx_fd_t         fd;
     ngx_int_t        rc;
@@ -335,17 +340,21 @@ ngx_http_strata_read_pubkey(ngx_conf_t *cf, ngx_str_t *path, u_char *key)
 
     rc = NGX_ERROR;
 
-    if (ngx_fd_info(fd, &fi) == NGX_FILE_ERROR
-        || ngx_file_size(&fi) != STRATA_PUBKEY_LEN)
+    /* one raw key, or two concatenated while keys are rotated */
+    size = ngx_fd_info(fd, &fi) == NGX_FILE_ERROR ? 0 : ngx_file_size(&fi);
+    if (size != STRATA_PUBKEY_LEN
+        && size != (off_t) NGX_HTTP_STRATA_MAX_KEYS * STRATA_PUBKEY_LEN)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "strata: public key \"%V\" must be %d raw bytes",
-                           path, STRATA_PUBKEY_LEN);
+                           "strata: public key \"%V\" must be %d or %d raw "
+                           "bytes", path, STRATA_PUBKEY_LEN,
+                           NGX_HTTP_STRATA_MAX_KEYS * STRATA_PUBKEY_LEN);
         goto done;
     }
 
-    n = ngx_read_file(&file, key, STRATA_PUBKEY_LEN, 0);
-    if (n != STRATA_PUBKEY_LEN) {
+    n = ngx_read_file(&file, key, (size_t) size, 0);
+    *nkeys = (ngx_uint_t) size / STRATA_PUBKEY_LEN;
+    if (n != size) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "strata: short read of public key \"%V\"", path);
         goto done;
@@ -537,6 +546,7 @@ ngx_http_strata_load_handler(void *data, ngx_log_t *log)
     void        *p;
     struct stat  st;
     size_t       exp_len;
+    ngx_uint_t   i;
 
     (void) log;
 
@@ -580,8 +590,14 @@ ngx_http_strata_load_handler(void *data, ngx_log_t *log)
 
     (void) madvise(p, ld->len, MADV_WILLNEED);
 
-    /* signature and layout are verified here, off the event loop */
-    ld->engine = strata_engine_map(ld->base, ld->len, ld->key, &ld->serr);
+    /* signature and layout are verified here, off the event loop; with
+     * two trusted keys (rotation), the bundle is signed by either */
+    ld->engine = NULL;
+    for (i = 0; i < ld->nkeys && ld->engine == NULL; i++) {
+        ld->engine = strata_engine_map(ld->base, ld->len,
+                                       ld->key + i * STRATA_PUBKEY_LEN,
+                                       &ld->serr);
+    }
     ld->serr.msg[STRATA_ERR_MSG_SIZE - 1] = '\0';
 
     if (ld->engine == NULL) {
@@ -773,7 +789,8 @@ ngx_http_strata_tick(ngx_event_t *ev)
     ngx_memcpy(ld->name, name.data, name.len);
     ld->name[name.len] = '\0';
     ld->name_len = name.len;
-    ngx_memcpy(ld->key, smcf->pubkey, STRATA_PUBKEY_LEN);
+    ngx_memcpy(ld->key, smcf->pubkey, sizeof(smcf->pubkey));
+    ld->nkeys = smcf->npubkeys;
     ld->generation = gen;
 
     if (ngx_http_strata_current) {

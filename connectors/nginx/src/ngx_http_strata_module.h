@@ -37,6 +37,8 @@
 
 #define NGX_HTTP_STRATA_CTL_SIZE       4096
 #define NGX_HTTP_STRATA_CTL_NAME_MAX   255
+/* bundle public keys trusted at once: one, two while the key is rotated */
+#define NGX_HTTP_STRATA_MAX_KEYS       2
 #define NGX_HTTP_STRATA_PAGE_MAX       65536
 
 /* placeholders of the block page template */
@@ -103,7 +105,9 @@ typedef struct {
     ngx_http_strata_bundle_t   *bundle;         /* mapped by the master */
     uint64_t                    generation;     /* control file generation
                                                    of that bundle */
-    u_char                      pubkey[STRATA_PUBKEY_LEN];
+    /* one key, or two while bundle signing keys are rotated */
+    u_char                      pubkey[NGX_HTTP_STRATA_MAX_KEYS * STRATA_PUBKEY_LEN];
+    ngx_uint_t                  npubkeys;
     ngx_http_strata_page_t     *default_page;
     ngx_array_t                *stream_locs;    /* ngx_http_strata_stream_loc_t */
 #if (NGX_THREADS)
