@@ -42,6 +42,10 @@
         },
         "match": { "$ref": "#/$defs/match" },
         "score": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "action_mode": {
+          "description": "How a match acts. block_alone: the request is blocked as soon as this rule matches (unambiguous, high-precision rules: virtual patches, ambiguous protocol violations). score: the rule only adds `score` to the anomaly total, which blocks at the threshold. Absent in the IR means score, so bundles compiled before this field keep their meaning; the authoring schema (rules/schema/rule.schema.json) requires it so every source rule states its mode.",
+          "enum": ["block_alone", "score"]
+        },
         "severity": { "enum": ["critical", "error", "warning", "notice"] },
         "paranoia_level": { "type": "integer", "minimum": 1, "maximum": 4 },
         "labels": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }, "uniqueItems": true },

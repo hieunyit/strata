@@ -38,6 +38,7 @@ fn rule(id: u32, conditions: Vec<CondDef>) -> RuleDef {
         score: 5,
         paranoia: 1,
         any: false,
+        block_alone: false,
         conditions,
     }
 }

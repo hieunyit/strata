@@ -1342,7 +1342,7 @@ pub fn evaluate_with_budget(
             report(Violation {
                 rule: r.id,
                 score: r.score,
-                block_alone: false,
+                block_alone: r.block_alone,
                 layer: layer_name,
                 field,
                 snippet,

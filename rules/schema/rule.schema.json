@@ -8,8 +8,11 @@
   "required": ["rule", "tests"],
   "properties": {
     "rule": {
-      "description": "Every rule carries source and license; imported ones also upstream_id, upstream_version and author (enforced by the IR schema).",
-      "$ref": "https://strata.example.test/spec/ir.schema.json#/$defs/rule"
+      "description": "Every rule carries source and license; imported ones also upstream_id, upstream_version and author (enforced by the IR schema). A source rule must also state its action_mode (block_alone or score): the IR keeps the field optional for backward compatibility, the linter requires it here.",
+      "allOf": [
+        { "$ref": "https://strata.example.test/spec/ir.schema.json#/$defs/rule" },
+        { "required": ["action_mode"] }
+      ]
     },
     "tests": {
       "type": "object",
