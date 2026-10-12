@@ -80,24 +80,26 @@ func TestRunCountsEveryTestOfTheParanoiaLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]Status{
-		"942100-1": Pass, "942100-2": Pass, "942100-3": Fail, "942100-4": Fail,
+		"942100-1": Pass, "942100-2": Pass, "942100-3": Fail, "942100-4": Pass,
 		"942101-1": Unsupported, "942102-1": NotImported, "942103-1": "",
 	}
 	for _, r := range res {
 		if r.Status != want[r.Name] {
 			t.Errorf("%s: %s (%s), want %q", r.Name, r.Status, r.Reason, want[r.Name])
 		}
-		if r.Name == "942100-4" && !strings.HasPrefix(r.Reason, "blocked first by") {
-			t.Errorf("942100-4: the protocol layer blocks a NUL first: %q", r.Reason)
+		// a match-expected request with a raw NUL is blocked by the protocol
+		// layer before the CRS rule: still a pass (the attack is caught)
+		if r.Name == "942100-4" && !strings.HasPrefix(r.Reason, "blocked by the protocol layer") {
+			t.Errorf("942100-4: expected a protocol-layer block pass: %q", r.Reason)
 		}
 	}
 	g := Groups(res)
-	if len(g) != 1 || g[0].Tests != 6 || g[0].Passed != 2 || g[0].Failed != 2 || g[0].Missing != 2 || g[0].AboveMax != 1 {
+	if len(g) != 1 || g[0].Tests != 6 || g[0].Passed != 3 || g[0].Failed != 1 || g[0].Missing != 2 || g[0].AboveMax != 1 {
 		t.Fatalf("groups %+v", g)
 	}
 	var b strings.Builder
 	Markdown(&b, res, 1)
-	for _, s := range []string{"| REQUEST-942-APPLICATION-ATTACK-SQLI | 6 | 2 | 2 | 2 | 33.3 | 1 |", "| 942102 | not imported | 1 |", "942100-3 | no_match | matched"} {
+	for _, s := range []string{"| REQUEST-942-APPLICATION-ATTACK-SQLI | 6 | 3 | 1 | 2 | 50.0 | 1 |", "| 942102 | not imported | 1 |", "942100-3 | no_match | matched"} {
 		if !strings.Contains(b.String(), s) {
 			t.Errorf("markdown lacks %q:\n%s", s, b.String())
 		}
