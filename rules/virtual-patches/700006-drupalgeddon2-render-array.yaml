@@ -1,0 +1,31 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700006
+  name: Drupal render array injection, Drupalgeddon 2 (CVE-2018-7600)
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args_names } ]
+      transforms: [ lowercase ]
+      operator: { type: rx, value: '(?:^|\[)#(?:post_render|pre_render|lazy_builder|access_callback|markup)' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [php, drupal]
+    tags: [cve-2018-7600, virtual-patch]
+tests:
+  match:
+  - method: POST
+    uri: /user/register?element_parents=account/mail/%23value&ajax_form=1
+    headers: { Host: api.example.test, Content-Type: application/x-www-form-urlencoded }
+    body: form_id=user_register_form&mail%5B%23post_render%5D%5B%5D=exec&mail%5B%23markup%5D=id
+  no_match:
+  - method: POST
+    uri: /user/register
+    headers: { Host: api.example.test, Content-Type: application/x-www-form-urlencoded }
+    body: form_id=user_register_form&mail=user%40example.test&note=%23post+render

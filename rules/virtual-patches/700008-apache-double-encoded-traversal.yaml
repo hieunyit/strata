@@ -1,0 +1,27 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700008
+  name: Apache HTTP Server double-encoded path traversal (CVE-2021-42013)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: uri_raw } ]
+      transforms: [ lowercase ]
+      operator: { type: rx, value: '%%32%65|%2%65|%%32e|\.%%32%65' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+    accuracy: high
+    systems: [apache-httpd]
+    tags: [cve-2021-42013, cve-2021-41773, virtual-patch]
+tests:
+  match:
+  - uri: /cgi-bin/.%%32%65/.%%32%65/.%%32%65/bin/sh
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  no_match:
+  - uri: /files/report%202026.pdf
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }

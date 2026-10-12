@@ -1,0 +1,30 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700009
+  name: Citrix ADC / Gateway path traversal to /vpns/ (CVE-2019-19781)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: uri_raw } ]
+      transforms: [ url_decode_uni, lowercase ]
+      multi_match: true
+      operator: { type: rx, value: '/\.\./vpns/' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: path-traversal
+    accuracy: high
+    systems: [citrix-adc]
+    tags: [cve-2019-19781, virtual-patch]
+tests:
+  match:
+  - uri: /vpn/../vpns/portal/scripts/newbm.pl
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  - uri: /vpn/%2e%2e/vpns/cfg/smb.conf
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  no_match:
+  - uri: /vpns/portal/index.html
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }

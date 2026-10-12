@@ -1,0 +1,29 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700007
+  name: Laravel Ignition execute-solution (CVE-2021-3129)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: path } ]
+      transforms: [ lowercase ]
+      operator: { type: ends_with, value: /_ignition/execute-solution }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [php, laravel]
+    tags: [cve-2021-3129, virtual-patch]
+tests:
+  match:
+  - method: POST
+    uri: /_ignition/execute-solution
+    headers: { Host: api.example.test, Content-Type: application/json }
+    body: '{"solution":"Facade\\Ignition\\Solutions\\MakeViewVariableOptionalSolution","parameters":{"viewFile":"phar://x"}}'
+  no_match:
+  - uri: /_ignition/health-check
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }

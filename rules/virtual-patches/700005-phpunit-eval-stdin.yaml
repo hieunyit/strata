@@ -1,0 +1,29 @@
+# Virtual patch (rules/README.md: 700000-799999).
+rule:
+  id: 700005
+  name: PHPUnit eval-stdin.php remote code execution (CVE-2017-9841)
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: path } ]
+      transforms: [ lowercase ]
+      operator: { type: ends_with, value: /phpunit/src/util/php/eval-stdin.php }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [php, phpunit]
+    tags: [cve-2017-9841, virtual-patch]
+tests:
+  match:
+  - method: POST
+    uri: /vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php
+    headers: { Host: api.example.test, Content-Type: text/plain }
+    body: <?php echo 1;
+  no_match:
+  - uri: /docs/phpunit/eval-stdin.html
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }

