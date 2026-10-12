@@ -93,6 +93,10 @@ typedef struct {
     ngx_msec_t                  bundle_check;
     ngx_str_t                   node_id;
     ngx_str_t                   event_socket;
+    ngx_str_t                   metrics_file;
+    u_char                     *metrics_base;
+    size_t                      metrics_len;
+    ngx_uint_t                  metrics_slots;
 
     ngx_flag_t                  enabled;        /* "strata on" somewhere */
     ngx_int_t                   request_id_index;
@@ -156,11 +160,35 @@ typedef struct {
     unsigned                    resp_done:1;    /* limit or end reached */
     unsigned                    own_response:1; /* our block page */
     unsigned                    resp_seen:1;    /* response headers passed */
+    unsigned                    counted:1;      /* metrics recorded */
+    unsigned                    emitted:1;      /* event sent to sink */
+    unsigned                    status_sent:1;  /* response status given to tx */
+    uint16_t                    status;         /* response status (403, 503...) */
 } ngx_http_strata_ctx_t;
 
 
 extern ngx_module_t  ngx_http_strata_module;
 extern ngx_module_t  ngx_http_strata_filter_module;
+
+
+/* metrics file layout: docs/design/control-file.md, "Metrics file" */
+#define NGX_HTTP_STRATA_METRICS_HEADER    64
+#define NGX_HTTP_STRATA_METRICS_SLOT      256
+#define NGX_HTTP_STRATA_METRICS_COUNTERS  21
+
+#define NGX_HTTP_STRATA_METRIC_PID          0
+#define NGX_HTTP_STRATA_METRIC_BUNDLE       1
+#define NGX_HTTP_STRATA_METRIC_ALLOW        2   /* + STRATA_ACTION_* */
+#define NGX_HTTP_STRATA_METRIC_BODY         6
+#define NGX_HTTP_STRATA_METRIC_FAIL_OPEN    7
+#define NGX_HTTP_STRATA_METRIC_FAIL_CLOSED  8
+#define NGX_HTTP_STRATA_METRIC_DROPPED      9
+#define NGX_HTTP_STRATA_METRIC_BUDGET       10
+#define NGX_HTTP_STRATA_METRIC_ENGINE_NS    11
+#define NGX_HTTP_STRATA_METRIC_HISTOGRAM    12  /* 9 buckets */
+
+/* largest event the agent takes (agent/internal/eventsock) */
+#define NGX_HTTP_STRATA_EVENT_MAX           8192
 
 
 /* ngx_http_strata_phase.c */
@@ -191,9 +219,23 @@ ngx_http_strata_bundle_t *ngx_http_strata_bundle_acquire(void);
 ngx_uint_t ngx_http_strata_check_stream(ngx_log_t *log, ngx_uint_t level,
     ngx_http_strata_main_conf_t *smcf, strata_engine_t *engine);
 void ngx_http_strata_bundle_release(ngx_http_strata_bundle_t *bundle);
+ngx_uint_t ngx_http_strata_is_force_shadow(ngx_str_t *policy);
 
 /* ngx_http_strata_vars.c */
 ngx_int_t ngx_http_strata_add_variables(ngx_conf_t *cf);
+
+/* ngx_http_strata_events.c */
+extern u_char  ngx_http_strata_event_buf[NGX_HTTP_STRATA_EVENT_MAX];
+
+void ngx_http_strata_metrics_create(ngx_cycle_t *cycle,
+    ngx_http_strata_main_conf_t *smcf);
+void ngx_http_strata_events_init_process(ngx_cycle_t *cycle,
+    ngx_http_strata_main_conf_t *smcf);
+void ngx_http_strata_events_exit_process(void);
+void ngx_http_strata_event_send(size_t len);
+void ngx_http_strata_metrics_bundle(uint64_t version);
+void ngx_http_strata_metrics_record(ngx_http_strata_ctx_t *ctx,
+    uint64_t engine_us);
 
 
 #endif /* _NGX_HTTP_STRATA_MODULE_H_INCLUDED_ */

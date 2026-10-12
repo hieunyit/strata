@@ -125,6 +125,29 @@ unsafe fn with_tx(
     tx: *mut TxHandle,
     f: impl FnOnce(&mut Tx) -> Result<strata_rc_t, strata_rc_t>,
 ) -> strata_rc_t {
+    unsafe { with_tx_gated(tx, true, f) }
+}
+
+/// `with_tx` for response calls: the request budget does not stop them, so
+/// the status still reaches the event and the data guard still masks once
+/// the request inspection ran out of time (`Tx` returns OK for them then).
+///
+/// # Safety
+/// As `with_tx`.
+unsafe fn with_tx_response(
+    tx: *mut TxHandle,
+    f: impl FnOnce(&mut Tx) -> Result<strata_rc_t, strata_rc_t>,
+) -> strata_rc_t {
+    unsafe { with_tx_gated(tx, false, f) }
+}
+
+/// # Safety
+/// As `with_tx`.
+unsafe fn with_tx_gated(
+    tx: *mut TxHandle,
+    gated: bool,
+    f: impl FnOnce(&mut Tx) -> Result<strata_rc_t, strata_rc_t>,
+) -> strata_rc_t {
     if tx.is_null() {
         return STRATA_E_INVALID;
     }
@@ -133,7 +156,7 @@ unsafe fn with_tx(
     let timer = CallTimer::start();
     let mut guard = BudgetGuard(tx, timer, true);
     let rc = catch_unwind(AssertUnwindSafe(|| {
-        if !guard.0.is_matched() && guard.0.budget_enter_lazy().is_err() {
+        if gated && !guard.0.is_matched() && guard.0.budget_enter_lazy().is_err() {
             return STRATA_E_BUDGET;
         }
 
@@ -521,7 +544,7 @@ pub unsafe extern "C" fn strata_tx_response_headers(
     n: usize,
 ) -> strata_rc_t {
     unsafe {
-        with_tx(tx, |t| {
+        with_tx_response(tx, |t| {
             if n != 0 && h.is_null() {
                 return Err(STRATA_E_INVALID);
             }
@@ -597,7 +620,7 @@ unsafe fn response_out(
         unsafe { *out = strata_buf_t::empty() };
     }
     unsafe {
-        with_tx(tx, |t| {
+        with_tx_response(tx, |t| {
             let (rc, bytes) = f(t)?;
             if let Some(v) = bytes {
                 if out.is_null() {

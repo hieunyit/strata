@@ -16,7 +16,12 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 | 32 | `u8[32]` | sha256 của file bundle (agent kiểm; worker không kiểm, worker kiểm chữ ký) |
 | 64 | `u16` | độ dài tên file, 1..255 |
 | 66 | `u8[256]` | tên file bundle trong `strata_bundle_dir`, chỉ gồm `[A-Za-z0-9._-]`, không phải `.` hay `..` |
-| 322 | — | dự phòng, 0 (sau này: cờ force-shadow theo policy) |
+| 322 | `u16` | dự phòng, đệm 0 |
+| 324 | `u32` | **cờ force-shadow** (bit 0: `1 << 0` = mọi policy bị ép shadow) |
+| 328 | `u32` | số policy bị ép shadow (`num_policies`, 0..32) |
+| 332 | `u32` | đệm căn lề 8 byte, 0 |
+| 336 | `u8[32][56]` | danh sách tên policy bị ép shadow (mỗi tên tối đa 55 byte `[a-z0-9._-]`, đệm NUL) |
+| 2128 | — | dự phòng, 0 (1.968 byte) |
 
 **Agent ghi (seqlock)**, luôn **tại chỗ** trên cùng inode:
 
@@ -66,7 +71,7 @@ libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm bi
 - Control file chưa có lúc worker khởi động: worker thử mở lại ở mỗi chu kỳ timer (trong thread pool) và chạy theo `strata_fail_mode` cho tới khi có bundle.
 - Master đọc control file khi đọc cấu hình và mmap bundle hiện hành; worker thừa hưởng qua `fork`. Chữ ký sai → `nginx -t` lỗi; chưa có control file hoặc bundle → cảnh báo, chạy theo fail mode.
 
-## Metrics file (mặc định `/dev/shm/strata/metrics`)
+## Metrics file (mặc định `/run/strata/metrics`)
 
 Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiện" trong `nginx-module.md`. `strata-agent` không attach được vào shared memory zone của NGINX (zone tạo bằng anonymous mmap), nên bộ đếm nằm trong một file trên tmpfs mà module tạo và agent chỉ đọc. Phần module ghi file thuộc W07-N-01; W06-G1-01 cài đặt phía agent theo layout này.
 

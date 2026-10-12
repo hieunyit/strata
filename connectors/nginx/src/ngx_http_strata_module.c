@@ -6,6 +6,7 @@
 
 
 static ngx_int_t ngx_http_strata_preconfiguration(ngx_conf_t *cf);
+static ngx_int_t ngx_http_strata_init_module(ngx_cycle_t *cycle);
 static ngx_int_t ngx_http_strata_init_process(ngx_cycle_t *cycle);
 static void ngx_http_strata_exit_process(ngx_cycle_t *cycle);
 static ngx_int_t ngx_http_strata_postconfiguration(ngx_conf_t *cf);
@@ -94,6 +95,13 @@ static ngx_command_t  ngx_http_strata_commands[] = {
       ngx_http_strata_event_socket,
       NGX_HTTP_MAIN_CONF_OFFSET,
       0,
+      NULL },
+
+    { ngx_string("strata_metrics_file"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_strata_main_conf_t, metrics_file),
       NULL },
 
     { ngx_string("strata_policy"),
@@ -191,7 +199,7 @@ ngx_module_t  ngx_http_strata_module = {
     ngx_http_strata_commands,              /* module directives */
     NGX_HTTP_MODULE,                       /* module type */
     NULL,                                  /* init master */
-    NULL,                                  /* init module */
+    ngx_http_strata_init_module,           /* init module */
     ngx_http_strata_init_process,          /* init process */
     NULL,                                  /* init thread */
     NULL,                                  /* exit thread */
@@ -221,9 +229,36 @@ ngx_http_strata_preconfiguration(ngx_conf_t *cf)
 
 
 static ngx_int_t
+ngx_http_strata_init_module(ngx_cycle_t *cycle)
+{
+    ngx_http_strata_main_conf_t  *smcf;
+
+    smcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_strata_module);
+
+    if (smcf != NULL && smcf->enabled && !ngx_test_config) {
+        ngx_http_strata_metrics_create(cycle, smcf);
+    }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_http_strata_init_process(ngx_cycle_t *cycle)
 {
-    return ngx_http_strata_bundle_init_process(cycle);
+    ngx_http_strata_main_conf_t  *smcf;
+
+    if (ngx_http_strata_bundle_init_process(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    smcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_strata_module);
+
+    if (smcf != NULL && smcf->enabled) {
+        ngx_http_strata_events_init_process(cycle, smcf);
+    }
+
+    return NGX_OK;
 }
 
 
@@ -231,6 +266,7 @@ static void
 ngx_http_strata_exit_process(ngx_cycle_t *cycle)
 {
     ngx_http_strata_bundle_exit_process(cycle);
+    ngx_http_strata_events_exit_process();
 }
 
 
@@ -319,6 +355,10 @@ ngx_http_strata_init_main_conf(ngx_conf_t *cf, void *conf)
 
     if (smcf->event_socket.data == NULL) {
         ngx_str_set(&smcf->event_socket, "unix:/run/strata/events.sock");
+    }
+
+    if (smcf->metrics_file.data == NULL) {
+        ngx_str_set(&smcf->metrics_file, "/run/strata/metrics");
     }
 
     if (smcf->node_id.data == NULL) {

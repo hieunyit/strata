@@ -315,7 +315,8 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
     }
 
     if (slcf->mode == NGX_HTTP_STRATA_MODE_SHADOW
-        || slcf->body_mode == NGX_HTTP_STRATA_BODY_STREAM)
+        || slcf->body_mode == NGX_HTTP_STRATA_BODY_STREAM
+        || ngx_http_strata_is_force_shadow(&ctx->policy))
     {
         conn.flags |= STRATA_TXF_FORCE_SHADOW;
     }
@@ -429,17 +430,45 @@ static void
 ngx_http_strata_cleanup(void *data)
 {
     ngx_http_strata_ctx_t  *ctx = data;
+    uint64_t                engine_us = 0;
+    size_t                  len;
 
     /* runs exactly once, also when the client goes away mid-request */
 
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
-                   "strata: tx freed %p", ctx->tx);
+    if (ctx->tx != NULL) {
+        engine_us = strata_tx_time_us(ctx->tx);
 
-    strata_tx_free(ctx->tx);
-    ctx->tx = NULL;
+        if (!ctx->emitted) {
+            if (!ctx->status_sent) {
+                uint16_t status = ctx->status ? ctx->status : ctx->verdict.status;
+                (void) strata_tx_response_headers(ctx->tx, status, NULL, 0);
+                ctx->status_sent = 1;
+            }
+
+            len = strata_tx_event(ctx->tx, ngx_http_strata_event_buf,
+                                  sizeof(ngx_http_strata_event_buf));
+            if (len > 0) {
+                ngx_http_strata_event_send(len);
+            }
+            ctx->emitted = 1;
+        }
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
+                       "strata: tx freed %p", ctx->tx);
+
+        strata_tx_free(ctx->tx);
+        ctx->tx = NULL;
+    }
+
+    if (!ctx->counted && (ctx->decided || ctx->failed)) {
+        ngx_http_strata_metrics_record(ctx, engine_us);
+        ctx->counted = 1;
+    }
 
     /* after the tx: the engine must outlive every transaction built on it */
 
-    ngx_http_strata_bundle_release(ctx->bundle);
-    ctx->bundle = NULL;
+    if (ctx->bundle != NULL) {
+        ngx_http_strata_bundle_release(ctx->bundle);
+        ctx->bundle = NULL;
+    }
 }

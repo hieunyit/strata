@@ -86,7 +86,7 @@ services:
           --spool-dir=/var/lib/strata/spool --server=control-plane:8443 --server-name=cp.example.test \
           --identity-dir=/var/lib/strata/identity \
           --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
-          --metrics-file=/dev/shm/strata/metrics --metrics-addr=0.0.0.0:9469
+          --metrics-file=/run/strata/metrics --metrics-addr=0.0.0.0:9469
     volumes:
       - identity-node-1:/var/lib/strata/identity
       - bundles-node-1:/var/lib/strata/bundles
@@ -114,7 +114,7 @@ services:
           --spool-dir=/var/lib/strata/spool --server=control-plane:8443 --server-name=cp.example.test \
           --identity-dir=/var/lib/strata/identity \
           --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
-          --metrics-file=/dev/shm/strata/metrics --metrics-addr=0.0.0.0:9469
+          --metrics-file=/run/strata/metrics --metrics-addr=0.0.0.0:9469
     volumes:
       - identity-node-2:/var/lib/strata/identity
       - bundles-node-2:/var/lib/strata/bundles

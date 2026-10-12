@@ -43,6 +43,7 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 
     /* the response filters must not inspect our own block page */
     ctx->own_response = 1;
+    ctx->status = (uint16_t) status;
 
     id.data = (u_char *) ctx->verdict.block_id;
     id.len = ngx_strlen(id.data);
