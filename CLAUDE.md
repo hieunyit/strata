@@ -10,23 +10,33 @@ Strata là WAF mã nguồn mở: lõi detection viết bằng Rust (`libstrata`,
 
 Khi tài liệu và code mâu thuẫn, tài liệu NGINX module thắng; nếu thấy tài liệu sai hoặc thiếu, dừng lại và hỏi, không tự đổi thiết kế. Sơ đồ trong tài liệu không có trong bản Markdown; phần chữ đủ để code.
 
-## Phạm vi hiện tại: khối A1 (tuần 3–5), luồng N và R
+## Phạm vi hiện tại: khối A3 (tuần 8–10), mọi luồng
 
-Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này với Claude Code" và các dòng "Đọc" của nhiệm vụ trước khi code). Phiên này chỉ làm luồng **N** (module NGINX, C) và **R** (libstrata, Rust); luồng Go/UI làm ở phiên khác.
+Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này với Claude Code" và các dòng "Đọc" của nhiệm vụ trước khi code). Phiên này làm **mọi luồng**: N (module NGINX, C), R (libstrata, Rust), S (rule, importer), G1 (agent, Fleet), G2 (auth/compiler/control plane), F (Web UI), Q (lab, CI, e2e). Khối A3 khóa lại ở **Gate A** cuối tuần 10 (shadow).
 
-**Đã xong** (tuần 1–2 và làm trước plan): skeleton monorepo; ABI `strata.h` 1.0 + test ABI hai phía; libstrata stub; khung module (directive, context, redirect, subrequest, đọc body đồng bộ/bất đồng bộ, trang chặn, biến); 7 test đọc body trên 1.30.5 và 1.31.6; CI; PoC Hyperscan + mmap; bundle v1 có chữ ký Ed25519 và hot reload qua control file (phần lớn W05-N-01, một phần W04-R-01, W04-N-02).
+**Đã xong** (tuần 1–7 và các follow-up):
 
-**Đang làm**, theo thứ tự, mỗi nhiệm vụ một nhánh tên theo mã:
+- Tuần 1–2: skeleton monorepo; ABI `strata.h` 1.0 + test ABI hai phía; libstrata stub; khung module (directive, context, redirect, subrequest, đọc body đồng bộ/bất đồng bộ, trang chặn, biến); CI; PoC Hyperscan + mmap.
+- Tuần 3–5 (khối A1): tách `libstrata` / `libstrata-ffi`; Block ID + JSON Schema IR; protocol v1; test PREACCESS và ép đọc body; bundle v1 ký Ed25519 + hot reload qua control file; 136 rule CRS 4.25.2 PL1 (`rules/crs`), 40 rule protocol (`rules/protocol`, 0 FP trên corpus benign), `make test-crs-ftw`.
+- Tuần 6 (khối A2): đường đi response, tokenizer response layer, trang Sự kiện nối API.
+- Tuần 7 (khối A2): fail mode open/closed, event sink Unix socket, metrics shared memory, RST_STREAM; CPU budget hợp tác + cô lập lỗi (`catch_unwind`); operator đợt 2; mã hóa sự kiện protobuf trong libstrata; nhập Sigma/ET Open/bot + virtual patch 700001–700010; độ bền agent (reconnect, gia hạn chứng chỉ, `ForceShadow`); signer KMS (Vault transit) + cost unit + điều khiển rollout; trang Fleet; clang-tidy + CodeQL cho C.
+- Follow-up #11–#14 (2026-10-12, PO giao tự quyết): giới hạn C nâng lên 3.000 dòng thực; `POST /v1/nodes:clearForceShadow`; quy trình xoay khóa ký bundle (node tin tối đa 2 khóa, phân phối ngoài băng, `tests/e2e/lab-key-rotation.sh`); bộ virtual patch khởi đầu; gate 0 FP benign.
 
-1. Tách `engine/` thành crate `libstrata` (code an toàn) và `engine/ffi/` thành crate `libstrata-ffi` (C ABI, xuất `libstrata.a`); ABI không đổi.
-2. **W03-R-02** Block ID bản cuối + JSON Schema IR (`docs/spec/ir.schema.json`, cần luồng S duyệt).
-3. **W03-R-01** Lớp protocol v1 (`engine/src/detectors/protocol/`, Rule ID dải 100000).
-4. **W03-N-01** Test PREACCESS `t/010-preaccess.t`.
-5. **W03-N-02** Ép đọc body ở enforce, `t/020-body-enforce.t`; kiểm tra `stream` + policy enforce khi `nginx -t`.
+**Đang làm** (tuần 8 · Kiểm thử (1)), theo thứ tự, mỗi nhiệm vụ một nhánh tên theo mã:
 
-Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đổi interface chung (`strata.h`, định dạng bundle, định dạng rule/IR) chỉ khi nhiệm vụ ghi rõ hoặc đã được duyệt; ngoài ra dừng lại và đề xuất.
+1. **W08-R-02** Mức tin cậy của rule: trường `action_mode: block_alone | score` trong định dạng rule (`engine/`, `rules/schema/`).
+2. **W08-S-02** Gán `action_mode` cho mọi rule (cần W08-R-02).
+3. **W08-N-01** Bộ Test::Nginx đầy đủ: HTTP/2, HTTP/3, subrequest, internal redirect, client ngắt giữa chừng, hot reload dưới tải (`connectors/nginx/t/`).
+4. **W08-R-01** Fuzz và differential: target libFuzzer cho FFI, harness differential (`go-net-http`, `spring`), fuzz ASan 72 giờ (`engine/fuzz/`, `conformance/`).
+5. **W08-S-01** Chất lượng v0 và pipeline phát hành: go-ftw CRS ≥ 95%, báo cáo FP/recall, `strata-rules release` (`rules/`, `tools/strata-rules/`).
+6. **W08-G1-01** Test tải Fleet: 1.000 agent giả lập, `BundleAvailable` tới đủ trong < 10 giây.
+7. **W08-G2-01** Test tích hợp khi mạng lỗi: toxiproxy giữa agent và control plane, không mất sự kiện/bundle hỏng.
+8. **W08-F-01** Phân quyền UI và xuất CSV: nút ẩn theo vai trò, `viewer` không thấy IP/đoạn input đầy đủ, mọi bảng xuất CSV.
+9. **W08-Q-01** Conformance trong CI: corpus conformance v1 chạy mỗi PR của `engine/` và `connectors/`.
 
-**Chưa làm** trong khối này: control plane, agent, UI (luồng khác); response filter (W06); event sink, CPU budget, metrics (W07); circuit breaker (W11); việc của tuần sau.
+Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đổi interface chung (`strata.h`, `proto/`, OpenAPI, định dạng bundle, định dạng rule/IR) chỉ khi dòng "Làm" của nhiệm vụ ghi rõ (W08-R-02 được phép đổi định dạng rule + JSON Schema); ngoài ra dừng lại và đề xuất.
+
+**Chưa làm** trong khối này (tuần 9–10, hoặc tuần sau): benchmark/soak/staging (W09-Q); xử lý điểm nóng hiệu năng (W09-R-01); phát hành gói signature v0 (W09-S-01); ClickHouse (W09-G2-01); decision trace (W09-F-01); đóng gói + shadow + Gate A (tuần 10); circuit breaker và canary (B1, tuần 11+).
 
 ## Quy tắc code
 
