@@ -2,6 +2,21 @@
 
 Tests bắt buộc để các connector và các stack cho kết quả nhất quán.
 
+## corpus/v1.jsonl (W08-Q-01)
+
+Corpus conformance v1: mỗi dòng là một request kèm quyết định mong đợi
+(`allow`/`block`). `engine/compiler/tests/conformance.rs` nạp corpus, biên dịch
+một bundle thật rồi chạy từng request qua engine và so khớp quyết định — ghim
+hành vi chung của engine và connector: lớp protocol built-in (null byte,
+encoded dot-segment), stub rule, và rule `score`/`block_alone` tiêu biểu.
+
+```bash
+make test-conformance    # corpus v1 qua engine + differential go-net-http/spring
+```
+
+CI chạy `make test-conformance` mỗi PR chạm `engine/**`, `connectors/**` hoặc
+`conformance/**` (`.github/workflows/ci.yml`, job `conformance`).
+
 ## differential/ (W08-R-01)
 
 So khung (framing) một request thô giữa hai profile và gắn cờ phân kỳ — nơi

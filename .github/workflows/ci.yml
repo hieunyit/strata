@@ -55,6 +55,42 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
+  conformance:
+    name: conformance corpus v1 (engine/, connectors/)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only engine/ and connectors/ changes need the corpus run (W08-Q-01);
+      # conformance/ itself too, so a corpus edit is checked.
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            relevant:
+              - 'engine/**'
+              - 'connectors/**'
+              - 'conformance/**'
+
+      - if: steps.changes.outputs.relevant == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        if: steps.changes.outputs.relevant == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+          cache-to: type=gha,scope=dev-image,mode=max
+
+      - name: conformance corpus v1
+        if: steps.changes.outputs.relevant == 'true'
+        run: deploy/dev/run.sh make test-conformance
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
   go:
     name: Go (agent, control-plane, e2e) and proto
     runs-on: ubuntu-24.04

@@ -28,7 +28,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W08-G1-01 | Test tải Fleet (1.000 agent, `BundleAvailable` < 10 giây) | Claude Code | — | ✅ Done |
 | W08-G2-01 | Test tích hợp khi mạng lỗi (toxiproxy agent ↔ control plane) | Claude Code | — | ✅ Done |
 | W08-F-01 | Phân quyền trên UI và xuất CSV | Claude Code | — | ✅ Done |
-| W08-Q-01 | Conformance trong CI (corpus v1 mỗi PR của `engine/`, `connectors/`) | Claude Code | — | ⏳ |
+| W08-Q-01 | Conformance trong CI (corpus v1 mỗi PR của `engine/`, `connectors/`) | Claude Code | — | ✅ Done |
 
 **Nhiệm vụ tuần 7**
 

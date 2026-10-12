@@ -24,7 +24,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release nginx-h3 test-nginx-h3 clang-tidy check-c-lines
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines
 
 all: lib nginx
 
@@ -125,6 +125,14 @@ test-nginx-valgrind: $(MKBUNDLE) $(COMPILE)
 		ls -l connectors/nginx/vgcore.*; \
 		echo "nginx died on a signal under valgrind (vgcore written)"; exit 1; fi
 	@echo "no valgrind reports"
+
+# Conformance corpus v1 (W08-Q-01): every request in conformance/corpus runs
+# through a real bundle and the engine's allow/block decision must match; plus
+# the framing differential (go-net-http vs spring). Runs on engine/ and
+# connectors/ PRs in CI.
+test-conformance:
+	cargo test -p strata-compiler --test conformance
+	cd conformance/differential && go test ./...
 
 # HTTP/3 (W08-N-01): NGINX built with --with-http_v3_module against a static
 # quictls (build.sh builds it into build/quic or uses /opt/quictls from the
