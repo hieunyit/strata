@@ -87,7 +87,11 @@ Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiệ
 | 16 | `u32` | kích thước slot (byte), bội số của 64, ≥ 8 × số bộ đếm |
 | 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 |
 | 24 | `u64` | thời điểm tạo file (ms); đổi khi file được tạo lại |
-| 32 | — | dự phòng, 0 |
+| 32 | `u8[16]` | phiên bản NGINX (`NGINX_VERSION`, đệm NUL), W07-F-01 |
+| 48 | `u8[12]` | phiên bản module (đệm NUL) |
+| 60 | `u32` | `STRATA_ABI_VERSION` của module |
+
+Agent gửi ba trường phiên bản trong `Hello` (`Connector.proxy_version`, `module_version`, `abi_version`) và mở lại luồng khi chúng đổi (NGINX khởi động sau agent, hoặc được nâng cấp). File của module cũ có 0 ở đó: agent báo rỗng.
 
 Slot của worker `i` (`ngx_worker`) nằm ở offset `64 + i × kích thước slot`. Kích thước file đúng bằng `64 + số slot × kích thước slot`, tối đa 16 MB. Mỗi bộ đếm là `u64` căn 8 byte. **Chỉ worker sở hữu slot ghi slot đó**, bằng một lệnh ghi 64 bit, nên không cần khóa; agent đọc từng bộ đếm bằng atomic load. Worker được respawn dùng lại slot cũ và đếm tiếp.
 
