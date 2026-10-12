@@ -127,11 +127,15 @@ test-nginx-valgrind: $(MKBUNDLE) $(COMPILE)
 	@echo "no valgrind reports"
 
 # Conformance corpus v1 (W08-Q-01): every request in conformance/corpus runs
-# through a real bundle and the engine's allow/block decision must match; plus
-# the framing differential (go-net-http vs spring). Runs on engine/ and
-# connectors/ PRs in CI.
-test-conformance:
+# through the NGINX test bundle (policy example-api), in the engine and then
+# through NGINX (t/080-conformance.t); action and matched rules must match
+# the corpus. Plus the framing differential (go-net-http vs spring). Runs on
+# engine/ and connectors/ PRs in CI.
+test-conformance: nginx
 	cargo test -p strata-compiler --test conformance
+	PATH="$(CURDIR)/$(NGX_OBJS):$$PATH" \
+	TEST_NGINX_LOAD_MODULES="$(CURDIR)/$(NGX_OBJS)/ngx_http_strata_module.so" \
+		sh -c "cd connectors/nginx && prove t/080-conformance.t"
 	cd conformance/differential && go test ./...
 
 # HTTP/3 (W08-N-01): NGINX built with --with-http_v3_module against a static
@@ -226,12 +230,14 @@ crs-ftw:
 crs-import: rules-tools
 	cd tools/strata-import-crs && go run . import --crs "$$(./fetch-crs.sh)" --out ../../rules/crs --report ../../docs/crs-import-report.md --compile ../../target/release/strata-compile
 
-# go-ftw tests of the injection groups through libstrata (W06-S-01, W08-S-01):
-# at least 95% per group; the result is docs/crs-ftw-report.md.
+# go-ftw tests through libstrata (W06-S-01, W08-S-01): every CRS test together
+# passes at least 95% (the result is docs/crs-ftw-report.md), and each
+# injection group at least 95% on its own.
 CRS_FTW_GROUPS ?= 930,931,932,933,941,942,944
 CRS_FTW_MIN    ?= 95
 test-crs-ftw: rules-tools
-	cd tools/strata-rules && go run . ftw --repo ../.. --group $(CRS_FTW_GROUPS) --min $(CRS_FTW_MIN) > ../../docs/crs-ftw-report.md
+	cd tools/strata-rules && go run . ftw --repo ../.. --min-total $(CRS_FTW_MIN) > ../../docs/crs-ftw-report.md
+	cd tools/strata-rules && go run . ftw --repo ../.. --group $(CRS_FTW_GROUPS) --min $(CRS_FTW_MIN) > /dev/null
 
 # Signature package (W08-S-01): all rules in one signed bundle, with a
 # manifest, changelog and NOTICE. Needs a key: make signatures-release

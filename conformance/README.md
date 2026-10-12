@@ -4,14 +4,22 @@ Tests bắt buộc để các connector và các stack cho kết quả nhất qu
 
 ## corpus/v1.jsonl (W08-Q-01)
 
-Corpus conformance v1: mỗi dòng là một request kèm quyết định mong đợi
-(`allow`/`block`). `engine/compiler/tests/conformance.rs` nạp corpus, biên dịch
-một bundle thật rồi chạy từng request qua engine và so khớp quyết định — ghim
-hành vi chung của engine và connector: lớp protocol built-in (null byte,
-encoded dot-segment), stub rule, và rule `score`/`block_alone` tiêu biểu.
+Corpus conformance v1: mỗi dòng là một request kèm kỳ vọng `expect`
+(`action` allow/block và tập `rules` khớp), tùy chọn `nginx.status` khi chính
+NGINX từ chối request trước module (smuggling), `framed: true` khi gửi đúng
+nguyên văn header/body. Hai runner dùng cùng corpus, cùng bundle test
+(`connectors/nginx/t/fixtures`, biên dịch từ `engine/compiler/examples/rules.yaml`)
+và policy `example-api`:
+
+- `engine/compiler/tests/conformance.rs`: gọi engine như connector gọi (path đã
+  chuẩn hóa như NGINX, client 127.0.0.1).
+- `connectors/nginx/t/080-conformance.t`: gửi request thô qua NGINX; block → 403,
+  allow → 200, `$strata_rules` phải đúng tập rule.
+
+Placeholder `@ARGS<n>@` trong `uri` sinh `n` tham số `a<k>=1`.
 
 ```bash
-make test-conformance    # corpus v1 qua engine + differential go-net-http/spring
+make test-conformance    # corpus v1 qua engine và NGINX + differential go-net-http/spring
 ```
 
 CI chạy `make test-conformance` mỗi PR chạm `engine/**`, `connectors/**` hoặc

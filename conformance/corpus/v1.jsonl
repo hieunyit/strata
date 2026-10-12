@@ -1,10 +1,32 @@
-{"name":"clean-get","method":"GET","uri":"/index.html?q=1","expect":"allow"}
-{"name":"clean-post-form","method":"POST","uri":"/submit","headers":{"Content-Type":"application/x-www-form-urlencoded"},"body":"name=alice&city=hanoi","expect":"allow"}
-{"name":"stub-test-block-query","method":"GET","uri":"/x?STRATA-TEST-BLOCK","expect":"block"}
-{"name":"stub-test-block-body","method":"POST","uri":"/x","headers":{"Content-Type":"text/plain"},"body":"hello STRATA-TEST-BLOCK world","expect":"block"}
-{"name":"sqli-in-args","method":"GET","uri":"/s?q=UNION%20SELECT%201","expect":"block"}
-{"name":"sqli-clean-word","method":"GET","uri":"/s?q=unionize%20selection","expect":"allow"}
-{"name":"virtual-patch-block-alone","method":"GET","uri":"/evil/exploit","expect":"block"}
-{"name":"null-byte-in-uri","method":"GET","uri":"/a%00b","expect":"block"}
-{"name":"encoded-dot-segment","method":"GET","uri":"/a/%2e%2e/b","expect":"block"}
-{"name":"clean-path-with-dot","method":"GET","uri":"/images/logo.png","expect":"allow"}
+{"name":"clean-get","method":"GET","uri":"/v1/items?id=12&sort=price","expect":{"action":"allow","rules":[]}}
+{"name":"clean-post-form","method":"POST","uri":"/v1/items","headers":{"Content-Type":"application/x-www-form-urlencoded"},"body":"name=alice&city=hanoi","expect":{"action":"allow","rules":[]}}
+{"name":"clean-post-json","method":"POST","uri":"/v1/items","headers":{"Content-Type":"application/json"},"body":"{\"name\":\"alice\",\"tags\":[\"a\",\"b\"]}","expect":{"action":"allow","rules":[]}}
+{"name":"clean-dots-in-file-name","method":"GET","uri":"/static/app.min.js","expect":{"action":"allow","rules":[]}}
+{"name":"clean-utf8-query","method":"GET","uri":"/search?q=%E1%BB%87n","expect":{"action":"allow","rules":[]}}
+{"name":"clean-lookalike-words","method":"GET","uri":"/search?q=unionize+the+selection","expect":{"action":"allow","rules":[]}}
+{"name":"clean-json-with-select-word","method":"POST","uri":"/v1/notes","headers":{"Content-Type":"application/json"},"body":"{\"text\":\"please select your size\"}","expect":{"action":"allow","rules":[]}}
+{"name":"sqli-query","method":"GET","uri":"/s?id=1%27%20OR%20%271%27%3D%271","expect":{"action":"allow","rules":[942100]}}
+{"name":"sqli-form-body","method":"POST","uri":"/login","headers":{"Content-Type":"application/x-www-form-urlencoded"},"body":"user=admin%27%20OR%20%271%27%3D%271&pass=x","expect":{"action":"allow","rules":[942100]}}
+{"name":"sqli-json-body","method":"POST","uri":"/v1/search","headers":{"Content-Type":"application/json"},"body":"{\"id\":\"1' OR '1'='1\"}","expect":{"action":"allow","rules":[942100]}}
+{"name":"sqli-cookie","method":"GET","uri":"/","headers":{"Cookie":"sess=1' OR '1'='1"},"expect":{"action":"allow","rules":[942100]}}
+{"name":"xss-query","method":"GET","uri":"/s?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E","expect":{"action":"allow","rules":[941100]}}
+{"name":"xss-referer","method":"GET","uri":"/","headers":{"Referer":"<script>alert(1)</script>"},"expect":{"action":"allow","rules":[941100]}}
+{"name":"shell-command-in-arg","method":"GET","uri":"/run?cmd=/bin/sh","expect":{"action":"allow","rules":[932160]}}
+{"name":"web-shell-path","method":"GET","uri":"/uploads/cmd.php","expect":{"action":"allow","rules":[400100]}}
+{"name":"web-shell-arg-name","method":"GET","uri":"/x?c99shell=1","expect":{"action":"allow","rules":[400100]}}
+{"name":"scanner-user-agent","method":"GET","uri":"/","headers":{"User-Agent":"sqlmap/1.8#stable"},"expect":{"action":"allow","rules":[500100]}}
+{"name":"admin-from-outside","method":"GET","uri":"/admin/settings","expect":{"action":"block","rules":[800001]}}
+{"name":"admin-prefix-lookalike","method":"GET","uri":"/admin-guide","expect":{"action":"block","rules":[800001]},"note":"begins_with /admin: the rule as written also covers /admin-guide"}
+{"name":"too-many-arguments","method":"GET","uri":"/q?@ARGS300@","expect":{"action":"allow","rules":[800002]}}
+{"name":"get-with-body","method":"GET","uri":"/v1/items","headers":{"Content-Type":"text/plain"},"body":"hello","expect":{"action":"allow","rules":[920170]}}
+{"name":"null-byte-in-query","method":"GET","uri":"/a?x=1%00","expect":{"action":"block","rules":[100013]}}
+{"name":"encoded-dot-segment","method":"GET","uri":"/a/%2e%2e/b","expect":{"action":"block","rules":[100011]}}
+{"name":"double-url-encoding","method":"GET","uri":"/a?x=%252e","expect":{"action":"allow","rules":[100010]}}
+{"name":"matrix-parameter","method":"GET","uri":"/a;jsessionid=1/b","expect":{"action":"allow","rules":[100012]}}
+{"name":"scores-add-up-to-block","method":"GET","uri":"/uploads/cmd.php?x=%252e","expect":{"action":"block","rules":[100010,400100]}}
+{"name":"admin-web-shell","method":"GET","uri":"/admin/cmd.php","expect":{"action":"block","rules":[400100,800001]}}
+{"name":"cl-and-te-together","method":"POST","uri":"/v1/items","headers":{"Content-Type":"text/plain","Content-Length":"5","Transfer-Encoding":"chunked"},"body":"0\r\n\r\n","framed":true,"expect":{"action":"block","rules":[100001]},"nginx":{"status":400},"note":"request smuggling: NGINX refuses it before the module"}
+{"name":"duplicate-content-length","method":"POST","uri":"/v1/items","headers":{"Content-Type":"text/plain","Content-Length":["5","5"]},"body":"hello","framed":true,"expect":{"action":"block","rules":[100002]},"nginx":{"status":400}}
+{"name":"te-not-only-chunked","method":"POST","uri":"/v1/items","headers":{"Content-Type":"text/plain","Transfer-Encoding":"gzip, chunked"},"body":"0\r\n\r\n","framed":true,"expect":{"action":"block","rules":[100003]},"nginx":{"status":501}}
+{"name":"chunked-clean-body","method":"POST","uri":"/v1/items","headers":{"Content-Type":"application/x-www-form-urlencoded","Transfer-Encoding":"chunked"},"body":"a=1&b=2","expect":{"action":"allow","rules":[]}}
+{"name":"chunked-sqli-body","method":"POST","uri":"/login","headers":{"Content-Type":"application/x-www-form-urlencoded","Transfer-Encoding":"chunked"},"body":"user=admin%27%20OR%20%271%27%3D%271","expect":{"action":"allow","rules":[942100]}}
