@@ -27,4 +27,10 @@ compile --key test.key --out bundle/bundle-1.sbn
 compile --key other.key --out bad/bundle-1.sbn
 "$bin/mkbundle" control --out bad/control --generation 2 --version 1 --name bundle-1.sbn \
     --bundle bad/bundle-1.sbn
-rm -f other.pub
+# key rotation: two trusted keys, the bundle signed by either; and two keys
+# that signed nothing here
+"$bin/mkbundle" keygen --seed 0303030303030303030303030303030303030303030303030303030303030303 \
+    --key-out third.key --pub-out third.pub
+cat other.pub bundle.pub > rotation.pub
+cat third.pub third.pub > untrusted.pub
+rm -f other.pub third.pub third.key
