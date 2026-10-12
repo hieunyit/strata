@@ -26,6 +26,7 @@ our $HttpConfig = <<'_EOC_';
     strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
     strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
     strata_node_id       web-01;
+    strata_metrics_file  $TEST_NGINX_SERVER_ROOT/logs/metrics;
 _EOC_
 
 # Backend locations appended to every server block: they echo what the
@@ -42,6 +43,8 @@ add_block_preprocessor(sub {
 
     if (!defined $block->http_config) {
         $block->set_value("http_config", $HttpConfig);
+    } elsif ($block->http_config !~ /strata_metrics_file/) {
+        $block->set_value("http_config", $block->http_config . "\n    strata_metrics_file \$TEST_NGINX_SERVER_ROOT/logs/metrics;\n");
     }
 
     if (defined $block->config && !defined $block->no_backend
@@ -64,6 +67,21 @@ add_block_preprocessor(sub {
         && defined $block->error_log)
     {
         $block->set_value("error_log", undef);
+    }
+
+    # Valgrind runs libstrata 20-50 times slower: any CPU budget sized for
+    # native code would turn requests into fail-mode cases. The suites that
+    # exceed the budget on purpose (t/060) do not run under Valgrind.
+    if ($ENV{TEST_NGINX_USE_VALGRIND}) {
+        for my $k ("http_config", "config") {
+            my $v = $block->$k;
+            next unless defined $v;
+            $v =~ s/strata_cpu_budget\s+\S+;/strata_cpu_budget 60s;/g;
+            $block->set_value($k, $v);
+        }
+        if ($block->http_config !~ /strata_cpu_budget/) {
+            $block->set_value("http_config", $block->http_config . "\n    strata_cpu_budget 60s;\n");
+        }
     }
 
     # A short timeout on a stream that never ends ("--- abort") is how long
