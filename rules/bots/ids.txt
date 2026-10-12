@@ -1,0 +1,1455 @@
+# upstream id -> rule id, written by tools/strata-import-signatures: ids are never reused.
+ DVbot 501654
+(^| )PTST\/ 500651
+(^| )sentry\/ 500465
+(sistrix|SISTRIX) [cC]rawler 500267
+007ac9 Crawler 500444
+008\/ 501127
+2ip bot 500697
+2ip\.ru 500559
+360Spider 500305
+7Siters 500988
+;Owler 500932
+A Patent Crawler 500681
+A360-Search 500800
+A6-Indexer 500317
+AASA-Bot 500801
+ABEvalBot 501061
+ADmantX 500318
+AGAKIDSBOT 501134
+AHC\/ 500430
+AI2Bot 501136
+ALittle Client 500758
+AP3A\.240617\.008 500815
+APIs-Google 500209
+Aboundex 500282
+AcademicBotRTU 500739
+AccessStatus 500802
+Accessible Web Bot 500989
+Acquia optimize 500803
+ActiveComply 500804
+AdagioBot 501129
+AddSearchBot 500565
+AddThis 500340
+AdkernelTopicCrawler 500805
+AdminLabs 501131
+AdsBot-Google([^-]|$) 500205
+AdsBot-Google-Mobile 500206
+AdsBot-IAB 501317
+AdsTxtCrawler 500514
+AdvBot 500322
+Adventurer 501133
+AgencyAnalyticsBot 501135
+Ahrefs(Bot|SiteAudit) 500268
+AkismetBot 501137
+AlertSite 500806
+AlexandriaOrgBot 500696
+Algolia Crawler 501139
+AliyunSecBot 500759
+AllAfrica 500807
+AlphaBot 500473
+Amazing-SearchBot 500808
+Amazon CloudFront 500520
+Amazon-Bedrock-AgentCore-Browser 500809
+AmazonAdBot 501142
+AmazonBuyForMe 500810
+AmazonProductDiscovery 500596
+AmazonSellerInitiatedListing 500597
+Amazonbot 500595
+Amzn-SearchBot 500811
+Amzn-User 500812
+Anchor Browser 500813
+AndersPinkBot 500414
+Anomura 500814
+AnyEvent 500556
+Apercite 500280
+ApifyBot 500816
+ApifyWebsiteContentCrawler 500817
+AppEngine-Google 500434
+AppInsights 500389
+AppSiteAssociation 501144
+Applebot 500331
+Aragog\/ 501145
+Aranea 501146
+Aranet-SearchBot 501055
+Archive-It 500818
+ArchiveBot 500452
+ArchiveBox 501147
+Arquivo-web-crawler 501149
+ArquivoBot 501148
+ArtemisBot 501150
+Asana\/ 501151
+AspiegelBot 500608
+AtVowBot 500990
+Atom Feed Robot 500618
+Attracta 500821
+AudigentAdBot 500822
+Audisto Crawler 500729
+AudistoBot 501152
+Authory 500823
+Autoconfig Test from USTC 501153
+Automaton|Newsify Feed Fetcher 500824
+AwarioBot 500677
+AwarioRendererBot 500825
+AwarioRssBot 500605
+AwarioSmartBot 500604
+AzureAI-SearchBot 500826
+B2B Bot 500564
+BDBot\/ 501157
+BDCbot 500448
+BDFetch 501170
+BIGLOTRON 500228
+BLEXBot\/ 500503
+BLP_bbot 500455
+BTWebClient 500485
+BUbiNG 500328
+BW\/ 501174
+Bad Neighborhood Header Detector 501155
+Baidu-YunGuanCe 500479
+BaiduAdsBot 501156
+Baiduspider 500253
+Bark[rR]owler 500398
+BazQux 500548
+BeeperBot 501158
+BehloolBot 500445
+BestChange 500827
+Better Uptime Bot 500663
+BetterUptimeBot 501159
+Bibliotheque Nacional de France Crawler 500991
+BigUpDataBot 501161
+BinaryCanary 501162
+BingPreview\/ 500375
+BitBot 500642
+BitSightBot\/ 500674
+Bitbucket-Webhooks 501163
+BlackDuck-FD 501165
+Blackboard 500546
+Blackbox Exporter\/ 501459
+Bling ERP 500992
+BlingERP 500830
+Blockaid 500831
+BlogTraffic\/\d\.\d+ Feed-Fetcher 500636
+BlogVault 500833
+Bloglines 500832
+Blogtrottr 501166
+BlueskyPreviewBot 501167
+Bluesky\/ 500835
+BnFBot 501160
+BoardGamePricesBot 501168
+BomboraBot 500456
+BotPoke 501169
+Bot\.AraTurka\.com 500482
+BoxcarBot 500484
+BrandONbot 500629
+BrandVerity 500446
+Brandwatch 501171
+BraveBot 501172
+BrightEdge Crawler 500687
+Brightbot 500837
+BrowserBot-Observer 500838
+BublupBot 500628
+Buck\/ 500457
+BuddyBot 501064
+BufferLinkPreviewBot 500839
+Bugsnag 500840
+Bushbaby 501175
+Butterfly 501176
+Buttondown 500841
+Bytespider 500583
+CC Metadata Scaper 500307
+CCBot 500285
+CDSCbot 500993
+CERT PL 501182
+CISPA Webcrawler 500693
+CLASSLA-web 501192
+CMSChecker 500768
+CXK_Bot 501228
+CaliberBot 501178
+Caliperbot 500561
+CapitalOneBot 500842
+CapitalOneShopping 501179
+CapsuleChecker 500346
+CapterraBot 501065
+Catchpoint 501180
+CensysInspect\/ 500751
+CentComBot\/ 501380
+Centro Ads\.txt Crawler 501068
+CertChief 500843
+Channel3Bot 500845
+ChargeBeeBot 501184
+Charlotte 501185
+ChatGLM-Spider 501186
+ChatGPT-User 500669
+Chatwork LinkPreview 501187
+CheckHost 501188
+CheckMarkNetwork\/ 500570
+Checkly 500757
+Chirp|gotosocial 500846
+Chrome Privacy Preserving Prefetch Proxy 501190
+Chrome-Lighthouse 500568
+Cincraw 500638
+CirrusExplorer 501191
+Citoid 501609
+ClarityBot\/ 501506
+Claude-SearchBot 500763
+Claude-User 500762
+Claude-Web 500760
+Clearscopebot 501193
+ClickUpLinkUnfurler 500847
+Clickagy 500560
+Cliqzbot\/ 500350
+CloudFlare-AlwaysOnline 500522
+CloudFlare-Prefetch 500525
+Cloudflare-AutoRAG 500848
+Cloudflare-Custom-Error-Page-Crawler 501197
+Cloudflare-Custom-Hostname-Verification 500849
+Cloudflare-Healthchecks 500523
+Cloudflare-Radar-Scanner 501198
+Cloudflare-SSLDetector 500526
+Cloudflare-SpeedTest 501199
+Cloudflare-Stream-Hook 501200
+Cloudflare-Stream-Webhook 500850
+Cloudflare-Traffic-Manager 500524
+Cloudflare-Validator 501195
+CloudflareRadarURLScanner 500851
+Cloudtrellis 500852
+Cocolyzebot 500705
+CodaBot 501070
+Code\/1\. 500854
+Collapsify 500855
+CommaFeed 501203
+Companybook-Crawler 500458
+ContextAd Bot 500486
+ContextualBot[\s\S]*outcomes\.net 500856
+Convermax 500857
+CookieHub Bot 501206
+CookieHubScan 500742
+CookieHubVerify 500859
+CookieYesbot 500860
+Cookiebot 500653
+Corporama matcher 501071
+Cotoyogi 501207
+Coveobot 501208
+Cozi-iCalendar-FeedReader 501435
+Crawlson 501209
+CrawlyProjectCrawler 500690
+Crazy Egg 500861
+CriteoBot 500661
+Critical CSS Bot 500994
+Criticalcss\.com 501211
+Cronless 501225
+Current[\s\S]*RSS Reader 500862
+CustomAsyncHttpClient 500789
+Cutbot 500627
+CybaaBot 500995
+CyberFindCrawler 500996
+CyberPatrol 500251
+CyotekWebCopy 501072
+DF Bot 501235
+DMBrowser 501214
+DNSScanner 500999
+DVbot 500871
+DareBoost 500504
+Dark Visitor 500997
+DaspeedBot 501230
+DataForSeoBot 500678
+Datadog Agent 501073
+Datadog Synthetic 501558
+DatadogSynthetics 500755
+Datafeedwatch 500515
+Datanyze 500584
+Dataprovider\.com 500553
+Daum\/ 500382
+Dazzle BlueSky Bot 501074
+Dead Link Checker 501231
+DeepCrawl 500864
+DeepSeekBot 501057
+Deskyobot 501232
+Detectify 501233
+Determ 500998
+DeuSu\/ 500349
+Devin 501234
+Diffbot\/ 500508
+Digg Deeper 500411
+DigiCert DCV 500865
+Digincore bot 500487
+DingTalkBot-LinkService 501236
+Discordbot 500393
+Discourse Forum Onebox 501237
+Disqus 500488
+Dlc\/ 501218
+Dmbot 501238
+DnBCrawler 501213
+DnyzBot 500442
+Do Not Track Verifier 501242
+DomCopBot 501215
+Domain Re-Animator Bot 500339
+DomainStatsBot 500380
+Domains Project\/ 500612
+DominicBot 501075
+Dotcom-Monitor 500867
+Dow Jones Searchbot 501076
+Download Ninja 501077
+DowntimeDetector\/ 501217
+Dragonbot 500639
+DrataAutopilot 500868
+Dratabot 501219
+DreamHost Data Team 500869
+Drupalbot 501000
+Dubbotbot 500632
+DuckAssistBot 500795
+DuckDuckBot 500295
+DuckDuckGo-Favicons-Bot 500405
+EZID 500450
+EasyBib AutoCite 501220
+EasyCron\/ 501222
+EchoboxBot\/ 501224
+EcoVadisSustainabilityBot 500872
+EdgeWatch 501241
+EmailWolf 501078
+Embedly 500359
+EpivozCrawler 501245
+EvernoteRichLinkBot 500874
+EveryoneSocialBot 500416
+EvoUptimeBot 501247
+ExodusMovement 501248
+Expanse 500725
+Experibot 500551
+ExtLinksBot 500419
+ExteContextCrawl 501003
+Eyeotabot 500599
+EzLynx 500875
+Ezgif 501249
+EzoicBot 500876
+FAST Enterprise Crawler 500227
+FAST-WebCrawler 500226
+FDL Stats Bot 501252
+FacebookBot 500877
+Facebot 500319
+FastDAST 500878
+FastmailUA 501251
+FedReporter Bot for FFIEC 501008
+FedReporterDataBot 501254
+FediDB 501004
+FediIndex 501005
+FediList Agent 501006
+Fedicabot 501253
+Fedineko 501007
+Feed Image Audit 501255
+FeedBurner 501256
+FeedFlow 500880
+FeedValidator 500542
+Feedbin 500660
+Feeder \/ 500879
+Feedfetcher-Google 500207
+Feedly 500489
+Feedpresso Content Index Bot 501258
+Feedsearch Bot 501009
+Feedsearch-Crawler 501010
+Feedspot 500507
+Feedwind 501259
+FemtosearchBot 500377
+Fetch\/ 500490
+Fever 500491
+FindFiles\.net 500881
+FindITAnswersbot 500633
+FirecrawlAgent 500882
+FirmoGraph 501261
+Flamingo_SearchEngine 500492
+FleebsBot 501012
+FlipboardProxy 500493
+FlipboardRSS 501262
+Fluid 501013
+Flyriverbot 501014
+Foregenix 501263
+FreeWebMonitoring SiteChecker 500607
+Freespoke\/ 501264
+FreshRSS 500641
+Freshbot 501015
+FreshpingBot 500659
+Friendica 500579
+Friendly testing bot 501265
+FriendlyCrawler\/ 501267
+FullStoryBot\/ 501268
+Funnelback 501269
+FuseonBot\/ 501270
+FyndSearchEngine-Crawler 500883
+FyndSearchEngine-ReCrawler 500884
+Fyrebot 500415
+G2 Web Services 500495
+GG PeekBot 501274
+GIFTEDVISITOR SCAN 501490
+GPTBot 500668
+GTmetrix 501297
+Gabanzabot\/ 501271
+Gaisbot 501016
+GarlikCrawler 500374
+GeedoBot 500728
+GeedoProductSearch 500747
+GeedoShopProductFinder 501649
+Gemini-Deep-Research 500791
+Genieo 500459
+GenomeCrawlerd 501017
+Ghost Inspector 501275
+Gigablast 500233
+Gigabot 500232
+GingerCrawler 500236
+GlobalWebSearch 501277
+Gluten Free Crawler\/ 500354
+GnowitNewsbot 500406
+Go-http-client 500223
+GoParserBot 501080
+GoPay 501290
+Golfe\/ 501278
+Goodreads 500885
+Goodzer 501189
+Google Favicon 500566
+Google Trust Services 500886
+Google Web Preview 500471
+Google-AdWords-Express 501641
+Google-Ads-Conversions 500756
+Google-Adwords-Instant 500368
+Google-Agent 500887
+Google-Apps-Script 501279
+Google-Area120 501286
+Google-Certificates-Bridge 500644
+Google-CloudVertexBot 501287
+Google-Extended 500764
+Google-Gemini-CLI 500888
+Google-InspectionTool 500210
+Google-NotebookLM 500889
+Google-PhysicalWeb 500545
+Google-Read-Aloud 500665
+Google-Safety 500676
+Google-Site-Verification 500585
+Google-Structured-Data-Testing-Tool 500528
+Google-Trust-Services\/ 501285
+GoogleAgent-Mariner 500890
+GoogleAssociationService$ 501288
+GoogleAssociationService\/ 501281
+GoogleDocs 501289
+GoogleImageProxy 501282
+GoogleOther 500212
+GoogleProducer 501283
+GoogleStackdriverMonitoring 501280
+Googlebot-IA\/ 501284
+Googlebot-Image 500202
+Googlebot-Mobile 500201
+Googlebot-News 500203
+Googlebot-Video 500204
+Googlebot\/ 500200
+GotSiteMonitor\.com 501291
+Gowikibot 500391
+Grammarly\/ 501293
+GrapeshotCrawler 500308
+Greppr Web Crawler 500891
+Grobbot 500278
+GroovinaAdsbot\/ 501295
+GroupHigh\/ 500554
+GroupMeBot 500733
+Grover\/ 501296
+GuestpostsBot\/ 501298
+Gulper Web Bot 501299
+Gwene 500589
+HIFIBot\/ 501308
+HTTP Banner Detection 500744
+HTTrack 500237
+HaloBot 501018
+HanaleiBot 501082
+HappyWing 501301
+Hardenize 500892
+Hatena 500470
+HawaiiBot 501303
+HeadOnlyScraper 501084
+HeadlessChrome 500569
+Hello World 501305
+HelloworkJobPostingBot\/ 501306
+HenkBot 501085
+HetrixTools 501307
+Hlidam\.to robot 501309
+Honeybadger Uptime Check 501310
+HoneybadgerBot 500893
+HostTracker\/ 501311
+Hotjar 501312
+HttpUrlConnection 500531
+HubSpot 500567
+Huckabot\/ 501314
+Hydrozen\.io 500743
+Hype Machine\/ 501315
+IAS crawler 500475
+IBM Crawler 501319
+ICBot\/ 500547
+ICC-Crawler 500451
+IDG\/EU 501539
+IFTTT\/ 501320
+INETDEX-BOT 500701
+IRLbot 501019
+ISSCyberRiskCrawler\/ 501334
+IbouBot 500894
+Iframely 500709
+ImageFetcher\/ 501321
+ImageMind 501322
+ImagesiftBot 500724
+Impact\.com Agent 501086
+IndeedBot 500271
+IndeedJobBot 501326
+Indy Library 501616
+Innguma\/ 501327
+Innologica 500896
+Instapaper\/ 501328
+Integromat\/ 501329
+InternetMeasurement 500726
+IonCrawl 500656
+Irokez\.cz monitoring 501332
+IsDownBot\/ 501333
+IsonSearchBot 501652
+IstellaBot 500348
+James BOT 500397
+Jamie's Spider 500429
+Jetslide 500395
+Jetty 500435
+JobboerseBot 500624
+Jooblebot 500577
+Jugendschutzprogramm-Crawler 500383
+Jumio 501339
+K7MLWCBot 500497
+KStandBot 500692
+Kagibot\/ 501340
+Kangaroo Bot 500898
+KangarooBot\/ 501341
+KargoBot-Artemis 501342
+Kemvibot 500498
+KendraBot 501143
+KeybaseBot 500740
+Keydrop\.io 501087
+Klaviyo\/ 501347
+Known Agent 500899
+KomodiaBot 500691
+Konturbot\/ 501526
+KosmioBot 500387
+KrawlerBot 500900
+Kukei\.eu-Bot\/ 501348
+KunatoCrawler 501059
+LAC_IAHarvester 501349
+LMArenaUnfurlBot 500904
+Landau-Media-Spider 500499
+Laserlikebot 500432
+LastModBot\/ 501350
+LegalMonster 501351
+Leikibot 500407
+Lemmy 500741
+Let's Encrypt 501352
+Level9SearchBot\/ 501353
+Library Of Congress Web Archiving 501022
+LightspeedSystemsCrawler 500672
+LinerBot\/ 501355
+Linespider 500679
+Linguee Bot 500250
+LinkAce\/ 501357
+LinkArchiver 500408
+LinkCheckerBot 500902
+LinkTiger 501356
+LinkWalker\/ 501359
+LinkedInBot 500216
+LinkisBot 500603
+LinkpadBot 501091
+LinksIndexerBot\/ 501358
+LinkupBot 500903
+ListGemBot 501651
+Livelap[bB]ot 500344
+LogicMonitor 501360
+LoomlyBot 501361
+Luminator-robots 500418
+MADBbot\/ 501363
+MB-LinkChecker 501375
+MBCrawler 500562
+MJ12bot 500244
+MRGbot\/ 501398
+MTRobot 500694
+MaCoCu 500717
+Macrobondbot 501362
+Magellan 501364
+MagiBot 500907
+Magnet\.me-web\/ 501366
+MagnetmeBot 501023
+MagpieRSS 500908
+Magus Bot 501093
+MailChimp 500910
+Mail\.RU_Bot 500262
+MainWP\/ 501367
+Make\/ 501368
+ManageWP 501369
+Manus-User 500911
+MarketGoo\/ 501370
+MarketingMiner 501371
+Mastodon 500440
+MatchorySearch 501024
+Mattermost-Bot\/ 501373
+MauiBot 500472
+Mavifinds 501374
+McontextualBot 500912
+MediaMonitoringBot\/ 501377
+MedialogiaBot 501376
+Mediapartners-Google 500208
+Mediatoolkitbot 500417
+MediavineMetadataParser\/ 501378
+Mediumbot-MetaTagFetcher 500913
+MegaIndex 500323
+MeltwaterNews 500461
+MergadoBot 501381
+Meta-ExternalHit\/ 501382
+MetaIAB Facebook 500914
+MetaInspector 500710
+MetaJobBot 500379
+MetaURI 500342
+Metorik 501383
+MgidBot 501384
+MicrosoftPreview\/ 500746
+Miniature\.io\/ 501385
+Miniflux\/ 500506
+Minoru's Fediverse Crawler 501025
+MirrorWebCrawler 501026
+MissinglettrBot\/ 501387
+MistralAI-User 500796
+MixnodeCache\/ 500574
+MixrankBot 500915
+ModatScanner 501028
+ModernizeBot 500916
+ModularConnector\/ 501389
+MojeekBot\/ 500351
+Mollie HTTP client 501390
+MonSpark\/ 501394
+MonTools\.com 501396
+Monibot 501391
+MonitoRSS\/ 501393
+Monsidobot 500732
+MontasticMonitor 500917
+MoodleBot 500534
+Moreover 500462
+MotoMinerBot\/ 501397
+MuckRack 500428
+Multiviewbot 500276
+MxToolbox 501399
+MyBot\/ 501401
+NAVER Blog Rssbot 500609
+NETVIGIE 501406
+NING\/ 500421
+NINJA bot 500626
+NIXStatsbot 500617
+NLNZ_IAHarvester 501410
+NLUX_IAHarvester 501031
+NTENTbot 500588
+NanoInteractive 500918
+NapBot 501029
+NaverBot 501094
+Neevabot 500686
+NerdByNature\.Bot 500266
+Nessus 500779
+NestDaddybot 500919
+NetAPI 501403
+NetSeer crawler 500922
+NetShelter ContentScan 501405
+NetSystemsResearch 500720
+Netcraft SSL Server Survey 500920
+Netcraft Web Server Survey 500921
+NetcraftSurveyAgent 500431
+Neticle Crawler 500601
+NetpeakCheckerBot\/ 501404
+Netumo|netumo 500923
+Netvibes 500477
+New York Times Newsgathering 501030
+NewRelicSynthetics 500924
+NewRelicbot\/ 501407
+NewsBlur 500718
+NewsNow\/ 501409
+NewsRoom\.BI 500925
+NextCloud 500580
+Nicecrawler 500685
+NicheIndex 501083
+Nikto 500773
+Nimbostratus-Bot 500511
+Nitro- 500926
+NitroBot 500927
+Nmap Scripting Engine 500558
+NoahBot 501032
+NodePing 501411
+Noibu 500928
+Nooshub\/ 501414
+NostoCrawlerBot 500929
+Notabot 501415
+Notion\/ 501642
+Novaact\/ 501416
+Novellum 501417
+NsToolsBot\/ 501418
+Nutch 500222
+Nuzzel 500422
+OAI-SearchBot 500670
+OICrawler 500786
+OWLer-W 501097
+Ocarinabot 500402
+Odin; 501420
+OdklBot\/ 500667
+Offline Explorer 501421
+OhDear\/ 501422
+Omnisend\/ 501423
+OnCrawl\/ 500749
+OneTrust 500930
+Online Domain Tools 501424
+OnlineOrNot\.com_bot 501426
+OpenGraphCheck 500714
+OpenGraph\.io\/ 501427
+OpenHoseBot 500345
+OpenRSS 501428
+OpenTheBoxBot 501096
+OpenVAS 501429
+Operator\/ 501431
+Optimizer\) 501519
+OrangeBot\/ 500320
+Orbbot\/ 501432
+Orlo-LinkPreview\/ 501434
+OutclicksBot 500468
+OutsellURLValidator 501436
+Overcast\/ 501437
+Owler \(ows\.eu 501430
+PDF24 URL To PDF 501445
+PR-CY\.RU 500513
+PRTG Network Monitor 501648
+PRTGCloudBot\/ 501438
+PS_Daily\/ 501461
+PWABuilderHttpAgent 501463
+PagePeeker\/ 500620
+PageThing 500721
+Pagespeed\/ 501439
+Pandalytics 500613
+PanguBot 501440
+Panopta 501441
+PaperLiBot 500410
+Paqlebot\/ 501442
+ParselySharesBot 500933
+PayPal\/ 501444
+Pcore-HTTP 500385
+Penthouse Critical Path CSS Generator 501640
+Perplexity-User 500792
+PerplexityBot\/ 500730
+PerplexityUser 500793
+PetalBot 500649
+PhantomJS 500390
+PhindBot 500934
+PhxBot 500723
+PingAdmin\.Ru\/ 501446
+PiplBot 500392
+Pixalate\.com 501099
+PlagAwareBot 501033
+PlayStore-Google 501448
+Playwright 500770
+Plesk screenshot bot 501449
+PocketCasts\/ 501450
+PocketParser 500424
+PodchaserParser 500935
+Podimo 500936
+Poduptime 501100
+Poggio-Citations 500937
+Pomothy-Bot 501101
+Potions\/ 501451
+PressEngineBot 501452
+PriEcoBot\/ 501454
+PricedroneShoppingBot\/ 501453
+Primalbot 500404
+PrintFriendly\.com 501455
+PrivacyAwareBot 500275
+Pro-Sitemaps\/ 501456
+ProbelySPDR\/ 501457
+ProjectShield-UrlCheck 501458
+Protopage\/ 501460
+PulsePoint-Crawler 501102
+Pulsepoint  500521
+Puppeteer 500771
+Python-urllib 500217
+Pywikibot\/ 501379
+QualifiedBot\/ 501464
+Qualys 500940
+Quantcastbot\/ 501465
+Quora-Bot 500941
+Qwantbot 500942
+Qwantify 500329
+Qwarrybot 500943
+RED\/ 501473
+RSSAPI\/ 501482
+RSS\.Social 500945
+RSSingBot 500576
+RSiteAuditor 500944
+Rackspace Monitoring\/ 501466
+Rakuten Image extraction bot 501034
+RankActiveLinkBot 500360
+RankurBot\/ 501469
+RavenCrawler\/ 501470
+Readable\/ 501471
+Recurly Webhooks\/ 501472
+Reelevant\/ 501474
+Refindbot 500635
+RegionStuttgartBot 500582
+RepoLookoutBot 501210
+ResearchBot 501035
+Retool\/ 501476
+RetrevoPageAnalyzer 500291
+RetroListeCOM\/ 501477
+ReverseEngineeringBot 500707
+RevvimGort\/ 501478
+RidderBot 500630
+Riddler \(http:\/\/riddler\.io 501480
+Rigor\) 501544
+Rivva 500550
+RobotsChecker\/ 501481
+RssReaderBot 501484
+RuxitSynthetic 500664
+RyteBot 500606
+SBIntuitionsBot\/ 500752
+SBL-BOT 500474
+SEBot-WA 501496
+SENTINEL-LinkCheck 501089
+SEOkicks 500509
+SEOlizer 500699
+SERPtimizerBot 501509
+SERankingBacklinksBot 500767
+SFDC-Callout\/ 501486
+SMTnetPMBot 500959
+SQWatcher 501108
+SSL Labs \(https:\/\/www\.ssllabs\.com 501546
+SSL Labs$ 501643
+SSSSBot\/ 501547
+SWIMGBot 500277
+S[eE][mM]rushBot 500335
+SafeDNSBot 500362
+SafeSearch microdata crawler 500353
+Salesforce\.com 500946
+SandobaCrawler\/ 501488
+Sansec Security Monitor\/ 501489
+Schema-Markup-Validator 501491
+Scoop\.it\/ 501492
+Scope3 500947
+ScourRSSBot\/ 501493
+ScoutJet 500464
+ScrapeheroBot\/ 501494
+Scrapy 500343
+Screaming Frog SEO Spider 500341
+Scrubby 500949
+Scrunchbot 500950
+SearchAtlas 500591
+SearchExpress 501499
+Searcherweb 501497
+Searcherxweb 501498
+SecurityHeaders 501500
+Seekport 500658
+Selenium 500772
+SemanticScholarBot 500324
+SendGrid Event API 501502
+SentiBot 500611
+SentryUptimeBot\/ 501503
+SenutoBot 500716
+SeoSiteCheckup 501507
+SeobilityBot 500637
+SeoulBot 501508
+SequelWP 500952
+SerendeputyBot 500598
+Server Density Service Monitoring 501510
+ServerDensity 500953
+ServerHunterSpider\/ 501511
+SeznamBot 500286
+SeznamHomepageCrawler\/ 501512
+ShapBot 500954
+Shopify-Captain-Hook 501513
+ShortPixel 500955
+Shortwave Image Fetcher 501514
+Sidetrade indexer bot 501516
+Silktide 500956
+SimpleCrawler 500312
+SimplePie 500590
+SimpleScraper 500575
+SinceraSyntheticUser\/ 501518
+Sindup 501105
+SirdataBot 501038
+Site24x7 501520
+SiteAuditBot\/ 501521
+SiteCheck-sitecrawl 501522
+SiteCheckerBotCrawler 500688
+SiteLock 500957
+SiteScoreBot 501523
+SiteSearch360\/ 501524
+SiteSucker 501106
+SiteUptime\.com 501525
+Siteimprove\.com 500502
+SitesOverPagesBot 501039
+Skroutz ImageBot 501644
+SkroutzBot 501527
+SkypeUriPreview 500363
+SkyworkSpider 501528
+SlaccaleBot 500788
+Slack-ImgProxy 500358
+Slackbot 500365
+SleepBot 501040
+SlickBot\/ 501529
+Slurp 500214
+SmarshBot 500958
+SmartologyBot\/ 501530
+Snacktory 500413
+Snap URL Preview Service 500662
+SnapURLPreview\/ 501531
+SnapchatAds\/ 501532
+Snipcart\/ 501533
+SocialRankIOBot 500400
+Software-Security-Research 500960
+Sogou 500292
+Sonic 500355
+Sora POS\/ 501535
+Sosospider 501041
+SottopopNone 500961
+SparkPost 501537
+SparkShipping 501536
+Spawning-AI 501538
+Specificfeeds 501540
+Spectate\/ 501541
+SpiderLing 501542
+Spider[\s\S]*spider\.com 500962
+Splunk 500963
+SpringserveBot 501107
+Stape\/ 501548
+StartpagePrivateImageProxy\/ 501549
+Statabot\/ 501550
+StatistikAustria\/ 501551
+StatsDroneBot 501552
+StatusCake 500781
+StatusNestBacklinkSpider 500964
+Storebot-Google 500211
+StorygizeBot 500466
+StractBot 500682
+Streamline3Bot\/ 500572
+Stripe\/ 501553
+Sucuri 501554
+SummalyBot 500745
+Supabase Paired Crawler 501109
+Superfeedr 500592
+SurdotlyBot 500602
+SurveyBot 500420
+SustainabilityCrawler 501239
+Svix-Webhooks\/ 501555
+Swiftbot 501111
+SwifteqLinkChecker 501556
+Swisscows 501557
+Synapse 500702
+SynthesiBot 501112
+Sysomos 500356
+TLS tester 501043
+TSM-turingos 501116
+TSMbot 501115
+TTD-Content 501574
+Taboolabot 500631
+TactiScout\/ 501559
+TangibleeBot 500517
+TaraGroup Intelligent Bot 501113
+TavilyBot 500966
+TelegramBot 500394
+Teoma 500229
+Termly 501042
+TerraCotta 501060
+Test Certificate Info 501562
+TestLocally\/ 501565
+TestURI 501566
+Testcrawler 501563
+TextRazor 501567
+The Knowledge AI 501568
+TheInternetSearchx 501569
+Thinkbot 501114
+Thinklab 500437
+ThousandEyes 500967
+TikTokSpider 500748
+Timpibot 500766
+TinEye 500399
+Tiny Tiny RSS 500581
+TombaPublicWebCrawler 500689
+ToutiaoSpider 500427
+Traackr\.com 500438
+Trae\/ 500968
+Trellis-Services 501571
+TrendsmapResolver 500586
+Trustly\/ 501573
+Tumblr\/ 501645
+Turnitin 500256
+Tweakers 501575
+TweetmemeBot 500332
+TwilioProxy\/ 501576
+TwinAgent 500969
+TwinWaveScanner 501545
+Twingly 500549
+Twitterbot 500313
+Twurly 500439
+UASlinkChecker\/ 501577
+UGAResearchAgent 501117
+URLSuMaBot 501586
+UT-Dorkbot 500594
+Unshorten\.It\! 501579
+Upflow 500436
+Uptime-Kuma 500657
+UptimeBot\/ 501336
+UptimeRobot 500467
+UptimeStatistics 500973
+Uptime\/ 501581
+Uptimebot\.org 500557
+Uptimia 501583
+UrlBeeBot 501045
+UrlSuMa\.de crawler 501118
+Urlcheckr\/ 501585
+VKRobot 500614
+Vagabondo\/ 501588
+Validator\.nu 500538
+Valve\/Steam 500666
+VaultPress 501589
+VelenPublicWebCrawler 500533
+Veoozbot 500364
+Vercelbot 500734
+Verispider 500974
+Verity\/ 501300
+Viber 500646
+Vigil\/ 500621
+VoluumDSP-content-bot 500640
+VsuSearchSpider\/ 501591
+W3C-checklink 500539
+W3C-mobileOK 500540
+W3C_CSS_Validator 500543
+W3C_I18n-Checker 500541
+W3C_Unicorn 500544
+W3C_Validator 500537
+WARDBot\/ 501593
+WEDOS OnLine 501604
+WISEbot 501069
+WJHRO\/ 501617
+WOVN Crawler 501052
+WP Time Capsule 501621
+WPMU DEV Broken Link Checker 501624
+WPMU DEV Hub 500982
+WPMUDEV Uptime Monitor 501625
+WPScan 500777
+WPSec\/ 501626
+WPUmbrella 501622
+WRTNBot 501627
+WSM\/ 501602
+WTotem 500983
+WadooBot 501048
+WanscannerBot 501119
+WatchForBot 501650
+WatchMouse 501595
+Watchbot monitoring robot 500976
+Watchful 500977
+Wayback 500769
+WeSEE:Search 500303
+Web Measure\/ 501596
+Web Screen Service By hyperhost 501316
+WebCEO Online\/ 501425
+WebCapture 501120
+WebCopier 501121
+WebDataStats 500530
+WebSniffer\/ 501601
+WebZIP 501050
+Webflow 501597
+Website-info\.net-Robot 501049
+WebsiteOps 501594
+WebwikiBot\/ 501603
+WellKnownBot 500680
+WepchSearchEngine 500980
+WhatWeb\/ 501606
+WhatsApp 500370
+WhatsMyIP\.org 501605
+Wheregoes\.com 501607
+WikiDo 501051
+WireReaderBot\/ 501610
+WordCountBot\/ 501613
+WordPress\/ 500722
+Wordup-1 501614
+WordupInfoSearch 500529
+WorldBot 501194
+WormlyBot 501618
+WovnCrawler\/ 501619
+XML Sitemaps Generator 501124
+XY-Archive-Compliance 501629
+Xenu Link Sleuth 500384
+Xing Bot 501123
+XoviOnpageCrawler 500984
+Y!J 500338
+YLT Chrome 501633
+YaK\/ 500409
+Yahoo Ad monitoring 501630
+Yahoo Link Preview 500378
+YahooCacheSystem 501632
+YahooMailProxy 501631
+YandexRenderResourcesBot\/ 500671
+YandoriRSSBot 501125
+Yellowbrandprotectionbot 500698
+Yeti 500290
+YextBot\/ 500754
+YisouSpider 500425
+YokoyGroupAG\/ 501634
+YouBot 500684
+YoudaoBot 501053
+Yuuperbot 501635
+Zabbix 500516
+ZanistaBot 500986
+Zapier 501636
+Zealbot 501126
+Zendesk Webhook 501637
+ZmEu 500775
+Zombiebot\/ 501638
+ZoomBot 500532
+ZoomInfo- 500987
+ZoominfoBot 500274
+ZoteroTranslationServer\/WMF 501611
+ZumBot 500449
+ZuperlistBot\/ 500505
+ZyBorg 501054
+[Cc]urebot 500619
+[aA]cunetix 500778
+[cC]laude[bB]ot 500731
+[cC]ludo 500853
+[dD]ir[Bb]uster 500780
+[mM]echanize 500783
+[pP]ingdom 500388
+[wW]get 500215
+^Apache-HttpClient 500433
+^ArenaUnfurlBot 500799
+^BW\/ 500727
+^CrunchBot 500270
+^HTTPie\/ 500790
+^LCC  500453
+^PHP-Curl-Class 500643
+^Seekbot 500231
+^Silk\/ 501517
+^dcrawl 500412
+abuse\.xmco\.fr 501628
+acapbot 500478
+adbeat\.com 501130
+adbeat_bot 500369
+adscanner 500476
+advanced_crawler 501132
+aiHitBot 500288
+aiohttp 500218
+air\.ai\/scanning 500784
+alexa site audit 501138
+alienfarm 501140
+allOrigins 501141
+anthropic-ai 500761
+archive\.org_bot 500330
+artemis web reader 500819
+asnriskscorer 500785
+atlassian-bot 500820
+awesomecrawler 500552
+axios 500519
+bidswitchbot 500615
+bigsur\.ai 500828
+bingbot 500213
+binlar 500311
+bitdiscovery 501561
+bitlybot 500480
+bl\.uk_lddc_bot 500829
+bl\.uk_ldfc_bot 501164
+blekkobot 501062
+blogmuraBot 500481
+bluesky-domain-status-classifier 500834
+bne\.es_bot 500836
+bnf\.fr_bot 500316
+bot-pge\.chlooe\.com 500483
+botify 500443
+br-crawler 501063
+brokenlinkcheck\.com 501173
+buzzbot 500247
+cXensebot 500314
+carbon-umbrella-bot 501066
+caveman-hunter 501067
+centuryb\.o\.t9 501181
+centurybot 500645
+certytags 501183
+changedetection 500302
+channable 500844
+check_http 500447
+cloudflare-csup 501196
+coccoc 500297
+cognitiveSEO Bot 501201
+cognitiveseo\.com 501122
+cohere-ai 500765
+cohere-training-data-crawler 501202
+collection@infegy\.com 500347
+colly 500782
+contentkingapp 501205
+contxbot 500371
+convera 500230
+cookie-maestro 500858
+crawl4ai 501056
+crawler4j 500333
+crawler_eb_germany 501388
+cron-job\.org 501212
+crusty\/ 501226
+csirt\.cz 501227
+cypex\.ai\/scanning 500863
+datagnionbot 500367
+daumoa 501229
+dbot\) 501372
+deadlinkchecker 500357
+deepnoc 500704
+developers\.google\.com\/\+\/web\/snippet 500715
+discobot 500263
+dlvr\.it 500866
+domaincrawler 500283
+dotbot 500261
+downnotifier\.com 501216
+drupact 500296
+ds9 500870
+eMoney Advisor 501001
+eMoneyBot 501244
+eRepublik\.tools 501246
+e\.ventures Investment Crawler 500647
+easyDNS Monitoring 501223
+easybill-ImportManager 501221
+ec2linkfinder 500287
+edansbot 501240
+electricmonk 500373
+elmah\.io Uptime Monitoring 500873
+elmahio-uptimebot 501243
+epicbot 500403
+eright 500279
+europarchive\.org 500265
+ev-crawler\/ 500673
+evc-batch 500648
+everyfeed-spider 501002
+exabot 500234
+ezooms 500260
+facebookcatalog\/ 500735
+facebookexternalhit 500289
+factset_spyderbot 501250
+fedistatsCrawler 501079
+fedoraplanet 500578
+feedbot 500593
+feeder\.co 501257
+fidget-spinner-bot 501260
+filterdb\.iss\.net\/crawler 500454
+findlink 500240
+findxbot 500334
+fiperbot 501011
+fr-crawler 500310
+friendly-spider 501266
+fuelbot 500269
+g2reader-bot 500494
+gdnplus\.com 501272
+getthit\.com 501273
+github-camo 501276
+google-xrawler 500518
+gregcrawler 501294
+grub\.org 500238
+gsa-crawler 501081
+hCardValidator 501304
+harsilbot\/ 501302
+heritrix 500264
+hgfAlphaXCrawl\/ 501578
+hstspreload-bot 501313
+http_get 500441
+https:\/\/developers\.cloudflare\.com\/security-center\/ 500527
+httpunit 500221
+httpx 500219
+hypestat 500706
+hyscore\.io 500695
+iAskBot\/ 501318
+ia_archiver 500235
+iaskspider 501058
+ichiro 500294
+imageSpider 500895
+img2dataset 501323
+imgproxy\/ 501324
+impendoom-bot\/ 501325
+imrbot 500496
+infoobot 500634
+inoreader 500719
+integromedb 500298
+intelx\.io_bot 501330
+internetVista monitor 501331
+ips-agent 500243
+iskanie 500361
+it2media-domain-crawler 500299
+iubenda-radar\/ 501335
+jetmon\/ 501337
+jobswithgptcom-bot 501338
+jpg-newsbot 500535
+kagi-fetcher 500897
+kaikki\.org-digital-archive 501020
+kazbtbot\/ 501343
+kb\.dk_bot 501021
+keycdn-tools\/ 501344
+keys-so-bot 501345
+kinsta-bot 501346
+l9explore 500712
+l9scan 500787
+laion-huggingface-processor 500901
+larbin 501088
+libwww-perl 500220
+linkReader\/ 501515
+linkapediabot 500500
+linkdex 500259
+linko 501090
+lipperhey 500337
+loc\.gov\/programs\/web-archiving 501354
+loopimprovements\.com 501095
+ltx71 500325
+lwp-trivial 501092
+lyonl-asset-proxy 500905
+lyonl-crawler 500906
+magicsearchdev\/ 501365
+magpie-crawler 500460
+mail\.ru 500909
+mappydata 500272
+masscan 500776
+memorybot 500321
+meta-externalads\/ 500736
+meta-externalagent\/ 500737
+meta-externalfetcher\/ 500738
+meta-webindexer 500794
+mindUpBot 500381
+minicrawler 500652
+mirrorweb\.com 501386
+mithril-crawler 501027
+mlbot 500248
+moatbot 500386
+monitis - 501392
+monitoring360bot\/ 501128
+montastic-monitor 501395
+msnbot 500225
+my-tiny-bot 501400
+nbertaupete95 501402
+nerdybot 500326
+netEstate NE Crawler 500352
+newsai\/ 500798
+newsharecounts 500396
+newspaper\/ 500463
+node-fetch 500711
+nomore404\.com robot 501412
+noorobot 501413
+nvdorz 501419
+nyt_scraping 501408
+officestorebot 500600
+omgili 500423
+online-webceo-bot 500563
+opencode-smartfetch 500931
+outbrain 500536
+page-preview-tool 501487
+page2rss 500257
+panscient 500241
+parse\.ly scraper\/ 501443
+peer39_crawler 501098
+phpcrawl 500224
+pingping\.io\/ 501447
+pinterest\.com\/bot 500372
+postrank 500255
+productsup\.io\/crawler 500938
+proximic 500301
+psbot 500306
+pulsetic\.com 501462
+python-opengraph 500713
+qcbot 500939
+rakutenusabot-image\/ 501467
+rawweb-bot 501103
+redditbot 500366
+remove\.bg\/ 501475
+researchscan\.comsys\.rwth-aachen\.de 501204
+reward-gateway 501479
+rogerbot 500304
+rss-is-dead\.lol web bot 501036
+rss-parser 501177
+rss2tg 501483
+rssbot\/ 500622
+s4a-probe-bot\/ 501485
+s4a\/ 501505
+scraping@nytimes\.com 500948
+screeenly-bot 501495
+search\.marginalia\.nu 500683
+seewithkids 500625
+semaltbot\/ 501501
+semantic-visions 501104
+semanticbot 500281
+sempi\.tech 500708
+seo-audit-check-bot\/ 501504
+seo4ajax\.com 500951
+seoLyt 501037
+seoscanners 500469
+seostar\.co 500655
+serpstatbot\/ 500573
+sindresorhus\/got 500750
+sitebot 500258
+sitebulb 500753
+siteexplorer\.info 500300
+smtbot 500315
+solarwinds\/ 501534
+spbot 500254
+speedy 500239
+splash Version\/ 501543
+sqlmap 500774
+startmebot\/ 500623
+stepstoneCrawlBot 500965
+summify 500284
+sv-watchagent 501110
+synthetic-monitoring-agent\/ 501292
+t3versionsBot 500703
+tchelebi\/ 501560
+test-bot 501564
+theoldreader\.com 500555
+thesis-research-bot 501570
+tigerbot 500616
+top100\.rambler\.ru crawler 501468
+tracemyfile 500510
+tracking-quality-spider 501154
+trafilatura 501044
+trendictionbot 500401
+trentwil\.es 501572
+trovitBot 500654
+tweetedtimes 500587
+uipbot 500970
+um-FC 500971
+um-IC 500972
+um-LN 500426
+upday\/ 501646
+updown\.io 501580
+uptimedoctor 501582
+uptrends 501584
+urlappendbot 500309
+useeBookChecker\/ 501587
+vebidoobot 500376
+videootv Bot 501046
+videootvBot 501590
+virustotal 500650
+visionheight\.com\/scan 500975
+vkShare 500501
+vmcrawl 501047
+voilabot 500252
+vu-server-health-scanner\/ 501592
+vuhuvBot 500700
+watchTowr 501647
+webgains-bot 501598
+weborama-fetcher 500978
+webprosbot\/ 501599
+websitepulse 501600
+webspidermount 500979
+webzio 500797
+wheresitup\.com\/ 501608
+wknd-bot 500981
+wmtips\.com\/ 501612
+woobot 500273
+woorankreview\/ 500675
+woriobot 500245
+workona-favicon-service\/ 501615
+wotbox 500293
+wowLink Crawler\/ 501620
+wpbot\/ 501623
+www\.uptime\.com 500571
+xovibot 500327
+yacybot 500242
+yandex\.com\/bots 500249
+yanga 500246
+yelpspider 500985
+yoozBot 500336
+zebra-v2-bot 501433
+zenback bot 500610
+zgrab 500512
+zzhbot 501639

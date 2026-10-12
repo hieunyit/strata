@@ -1,0 +1,14 @@
+# Signature sources Strata imports (W07-S-01). fetch.sh downloads each and
+# checks its hash; bump version, url and sha256 together, then run
+# `make signatures-import` and review the diff of rules/ and docs/.
+sigma_version=2026-10-06 (8a48134)
+sigma_url=https://github.com/SigmaHQ/sigma/archive/8a4813404ea3074890e0cda9272d4d1a8b2941d6.tar.gz
+sigma_sha256=dc505bf6ab67d28d54f72f53fdff9850ca4994f6515dfff1fd41a9797c6fd2fe
+# ET Open publishes only its latest ruleset under this URL: when it moves
+# past the pinned version the hash check fails, and the lock is bumped.
+et_version=11308
+et_url=https://rules.emergingthreats.net/open/suricata-7.0.3/emerging.rules.tar.gz
+et_sha256=6342daea6b328f67ce0bb7c0978bc4ee1668f630478ffe39a2095627416fd2e4
+bots_version=2026-09-29 (9345a7a)
+bots_url=https://raw.githubusercontent.com/monperrus/crawler-user-agents/9345a7ad9c49cd0fbd880eb5a84ed1f358fc6a97/crawler-user-agents.json
+bots_sha256=4218df91a9c2b87f94f1e16bbc71da38487247e8cec4f1df28eebe19d394bff3
