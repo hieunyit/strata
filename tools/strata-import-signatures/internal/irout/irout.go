@@ -85,11 +85,15 @@ func Match(conds []Cond, and bool) map[string]any {
 
 // Marshal writes rules (in id order) as one IR ruleset document.
 func Marshal(header, name, version string, rules []Rule) ([]byte, error) {
-	order := []string{"id", "name", "layer", "stage", "match", "score", "severity", "labels", "metadata"}
+	order := []string{"id", "name", "layer", "stage", "match", "score", "action_mode", "severity", "labels", "metadata"}
 	seq := &yaml.Node{Kind: yaml.SequenceNode}
 	sorted := append([]Rule(nil), rules...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i]["id"].(int) < sorted[j]["id"].(int) })
 	for _, r := range sorted {
+		if _, ok := r["action_mode"]; !ok {
+			// imported signatures add to the anomaly score; none blocks alone
+			r["action_mode"] = "score"
+		}
 		m := &yaml.Node{Kind: yaml.MappingNode}
 		for _, k := range order {
 			v, ok := r[k]
@@ -168,8 +172,10 @@ func LoadIDs(path string, min, max int) (*IDs, error) {
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		// only the end is trimmed: an upstream id may begin with a space
+		// (" DVbot" is not "DVbot")
+		line := strings.TrimRight(sc.Text(), " \t\r")
+		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
 			continue
 		}
 		// the rule id is after the last space (upstream ids may hold spaces)
