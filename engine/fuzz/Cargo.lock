@@ -228,6 +228,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "libstrata-ffi"
+version = "0.1.0"
+dependencies = [
+ "libstrata",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,6 +398,7 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "libstrata",
+ "libstrata-ffi",
 ]
 
 [[package]]

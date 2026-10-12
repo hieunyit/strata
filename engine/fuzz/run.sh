@@ -7,7 +7,7 @@ set -euo pipefail
 secs="${1:?usage: run.sh <seconds> [targets...]}"; shift
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
-[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx bodies body_eval event_encode budget_eval)
+[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx bodies body_eval event_encode budget_eval ffi)
 out="$root/build/fuzz"
 mkdir -p "$out"
 
@@ -18,7 +18,17 @@ export RUSTFLAGS="--cfg fuzzing -Cpasses=sancov-module \
 export CARGO_TARGET_DIR="$root/target/fuzz"
 # an explicit --target keeps RUSTFLAGS off build scripts (as cargo-fuzz does)
 triple="$(rustc -vV | sed -n 's/^host: //p')"
-cargo build --release --target "$triple" --manifest-path "$root/engine/fuzz/Cargo.toml" \
+
+# STRATA_FUZZ_ASAN=1 adds AddressSanitizer (nightly: -Zsanitizer=address
+# -Zbuild-std, as cargo-fuzz does), so a memory error at the FFI boundary is
+# caught, not just a chance crash. The 72h run (W08-R-01) uses it.
+cargo_bin=(cargo build --release --target "$triple")
+if [ "${STRATA_FUZZ_ASAN:-}" = 1 ]; then
+    export RUSTFLAGS="$RUSTFLAGS -Zsanitizer=address"
+    export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_odr_violation=0:abort_on_error=1}"
+    cargo_bin=(cargo +nightly build --release -Zbuild-std --target "$triple")
+fi
+"${cargo_bin[@]}" --manifest-path "$root/engine/fuzz/Cargo.toml" \
     "${targets[@]/#/--bin=}"
 bin="$CARGO_TARGET_DIR/$triple/release"
 

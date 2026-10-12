@@ -64,4 +64,9 @@ RUN git clone --depth 1 -b ${QUICTLS_TAG} https://github.com/quictls/openssl /tm
     && cd / && rm -rf /tmp/quictls
 RUN cpanm --notest CryptX && rm -rf /root/.cpanm
 
+# Nightly toolchain + rust-src for the AddressSanitizer fuzz build
+# (engine/fuzz/run.sh STRATA_FUZZ_ASAN=1, used by the W08-R-01 72h run).
+RUN rustup toolchain install nightly --profile minimal --component rust-src \
+    && chmod -R a+rwX ${RUSTUP_HOME}
+
 WORKDIR /src
