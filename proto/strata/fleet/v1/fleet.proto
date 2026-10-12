@@ -110,6 +110,9 @@ message CommandResult {
   string command_id = 1;
   bool ok = 2;
   string error = 3;
+  // CollectDiagnostics: a JSON object of non-sensitive facts (versions,
+  // bundle, counters); never keys or configuration files. At most 16 KB.
+  string output = 4;
 }
 
 message ControlMessage {
@@ -136,8 +139,11 @@ message Command {
 
 message ForceShadow {
   string policy_id = 1; // empty: every policy of the node
-  string route = 2; // empty: every route of the policy
-  uint32 duration_seconds = 3; // 0: until cleared
+  string route = 2; // empty: every route of the policy (other values: not supported yet)
+  // 1..86400. A new ForceShadow for the same policy replaces the deadline
+  // (a short one ends it early). 0 ("until cleared") is refused until a
+  // clear command exists.
+  uint32 duration_seconds = 3;
 }
 
 message CollectDiagnostics {}

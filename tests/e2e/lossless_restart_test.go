@@ -145,8 +145,27 @@ func ensureClickHouse(t *testing.T) string {
 
 type agentProcess struct {
 	cmd    *exec.Cmd
-	logBuf *bytes.Buffer
+	logBuf *syncBuffer
 	done   chan error
+}
+
+// syncBuffer is the agent's output: written by the process's copy
+// goroutine while the test reads it.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }
 
 func buildAgentBinary(t *testing.T) string {
@@ -167,7 +186,7 @@ func buildAgentBinary(t *testing.T) string {
 
 func startAgentProcess(t *testing.T, binPath string, args ...string) *agentProcess {
 	t.Helper()
-	buf := new(bytes.Buffer)
+	buf := &syncBuffer{}
 	cmd := exec.Command(binPath, args...)
 	cmd.Stdout = buf
 	cmd.Stderr = buf

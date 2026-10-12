@@ -24,6 +24,10 @@ const (
 	FleetAdminService_CreateEnrollmentToken_FullMethodName = "/strata.admin.v1.FleetAdminService/CreateEnrollmentToken"
 	FleetAdminService_ListNodes_FullMethodName             = "/strata.admin.v1.FleetAdminService/ListNodes"
 	FleetAdminService_RevokeNode_FullMethodName            = "/strata.admin.v1.FleetAdminService/RevokeNode"
+	FleetAdminService_ForceShadow_FullMethodName           = "/strata.admin.v1.FleetAdminService/ForceShadow"
+	FleetAdminService_CollectDiagnostics_FullMethodName    = "/strata.admin.v1.FleetAdminService/CollectDiagnostics"
+	FleetAdminService_ListCommands_FullMethodName          = "/strata.admin.v1.FleetAdminService/ListCommands"
+	FleetAdminService_GetCommand_FullMethodName            = "/strata.admin.v1.FleetAdminService/GetCommand"
 )
 
 // FleetAdminServiceClient is the client API for FleetAdminService service.
@@ -45,6 +49,19 @@ type FleetAdminServiceClient interface {
 	// REST: DELETE /v1/nodes/{node_id}. The node's streams are cut and its
 	// certificates refused from then on.
 	RevokeNode(ctx context.Context, in *RevokeNodeRequest, opts ...grpc.CallOption) (*RevokeNodeResponse, error)
+	// REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy
+	// (or every policy) on one node or every node of a group, for a while
+	// (nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes
+	// apply it within seconds while connected; a node that connects later
+	// gets it if the duration has not run out.
+	ForceShadow(ctx context.Context, in *ForceShadowRequest, opts ...grpc.CallOption) (*ForceShadowResponse, error)
+	// REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
+	// with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
+	CollectDiagnostics(ctx context.Context, in *CollectDiagnosticsRequest, opts ...grpc.CallOption) (*CollectDiagnosticsResponse, error)
+	// REST: GET /v1/commands?node_id=. Newest first, at most 100.
+	ListCommands(ctx context.Context, in *ListCommandsRequest, opts ...grpc.CallOption) (*ListCommandsResponse, error)
+	// REST: GET /v1/commands/{command_id}
+	GetCommand(ctx context.Context, in *GetCommandRequest, opts ...grpc.CallOption) (*GetCommandResponse, error)
 }
 
 type fleetAdminServiceClient struct {
@@ -105,6 +122,46 @@ func (c *fleetAdminServiceClient) RevokeNode(ctx context.Context, in *RevokeNode
 	return out, nil
 }
 
+func (c *fleetAdminServiceClient) ForceShadow(ctx context.Context, in *ForceShadowRequest, opts ...grpc.CallOption) (*ForceShadowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForceShadowResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_ForceShadow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) CollectDiagnostics(ctx context.Context, in *CollectDiagnosticsRequest, opts ...grpc.CallOption) (*CollectDiagnosticsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectDiagnosticsResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_CollectDiagnostics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) ListCommands(ctx context.Context, in *ListCommandsRequest, opts ...grpc.CallOption) (*ListCommandsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCommandsResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_ListCommands_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) GetCommand(ctx context.Context, in *GetCommandRequest, opts ...grpc.CallOption) (*GetCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommandResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_GetCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FleetAdminServiceServer is the server API for FleetAdminService service.
 // All implementations must embed UnimplementedFleetAdminServiceServer
 // for forward compatibility.
@@ -124,6 +181,19 @@ type FleetAdminServiceServer interface {
 	// REST: DELETE /v1/nodes/{node_id}. The node's streams are cut and its
 	// certificates refused from then on.
 	RevokeNode(context.Context, *RevokeNodeRequest) (*RevokeNodeResponse, error)
+	// REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy
+	// (or every policy) on one node or every node of a group, for a while
+	// (nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes
+	// apply it within seconds while connected; a node that connects later
+	// gets it if the duration has not run out.
+	ForceShadow(context.Context, *ForceShadowRequest) (*ForceShadowResponse, error)
+	// REST: POST /v1/nodes/{node_id}:collectDiagnostics. The agent answers
+	// with non-sensitive facts (versions, bundle, counters). Needs nodes:write.
+	CollectDiagnostics(context.Context, *CollectDiagnosticsRequest) (*CollectDiagnosticsResponse, error)
+	// REST: GET /v1/commands?node_id=. Newest first, at most 100.
+	ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error)
+	// REST: GET /v1/commands/{command_id}
+	GetCommand(context.Context, *GetCommandRequest) (*GetCommandResponse, error)
 	mustEmbedUnimplementedFleetAdminServiceServer()
 }
 
@@ -148,6 +218,18 @@ func (UnimplementedFleetAdminServiceServer) ListNodes(context.Context, *ListNode
 }
 func (UnimplementedFleetAdminServiceServer) RevokeNode(context.Context, *RevokeNodeRequest) (*RevokeNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeNode not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) ForceShadow(context.Context, *ForceShadowRequest) (*ForceShadowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ForceShadow not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) CollectDiagnostics(context.Context, *CollectDiagnosticsRequest) (*CollectDiagnosticsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CollectDiagnostics not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCommands not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) GetCommand(context.Context, *GetCommandRequest) (*GetCommandResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCommand not implemented")
 }
 func (UnimplementedFleetAdminServiceServer) mustEmbedUnimplementedFleetAdminServiceServer() {}
 func (UnimplementedFleetAdminServiceServer) testEmbeddedByValue()                           {}
@@ -260,6 +342,78 @@ func _FleetAdminService_RevokeNode_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetAdminService_ForceShadow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForceShadowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).ForceShadow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_ForceShadow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).ForceShadow(ctx, req.(*ForceShadowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_CollectDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CollectDiagnosticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).CollectDiagnostics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_CollectDiagnostics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).CollectDiagnostics(ctx, req.(*CollectDiagnosticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_ListCommands_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCommandsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).ListCommands(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_ListCommands_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).ListCommands(ctx, req.(*ListCommandsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_GetCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).GetCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_GetCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).GetCommand(ctx, req.(*GetCommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FleetAdminService_ServiceDesc is the grpc.ServiceDesc for FleetAdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -286,6 +440,22 @@ var FleetAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeNode",
 			Handler:    _FleetAdminService_RevokeNode_Handler,
+		},
+		{
+			MethodName: "ForceShadow",
+			Handler:    _FleetAdminService_ForceShadow_Handler,
+		},
+		{
+			MethodName: "CollectDiagnostics",
+			Handler:    _FleetAdminService_CollectDiagnostics_Handler,
+		},
+		{
+			MethodName: "ListCommands",
+			Handler:    _FleetAdminService_ListCommands_Handler,
+		},
+		{
+			MethodName: "GetCommand",
+			Handler:    _FleetAdminService_GetCommand_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

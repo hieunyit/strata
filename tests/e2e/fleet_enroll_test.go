@@ -72,9 +72,14 @@ type fleetEnv struct {
 	issuer   *authtest.Issuer
 	caFile   string
 	presence *fleet.Presence
+	events   *ingest.MockEventStore
 }
 
-func startFleet(t *testing.T) *fleetEnv {
+// startFleet runs a control plane (fleet gRPC with commands, admin REST)
+// on a fresh PostgreSQL. certLife: 0 for 24 h node certificates.
+func startFleet(t *testing.T) *fleetEnv { return startFleetWith(t, 0) }
+
+func startFleetWith(t *testing.T, certLife time.Duration) *fleetEnv {
 	t.Helper()
 	ctx := context.Background()
 	pool := startPostgres(t)
@@ -89,17 +94,23 @@ func startFleet(t *testing.T) *fleetEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ca.Lifetime = certLife
 	tlsCfg, err := fleet.ServerTLS(caFile, cert, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	presence := fleet.NewPresence()
 	trust, _ := os.ReadFile(caFile)
-	svc := ingest.NewIngestService(ingest.NewMockEventStore(), ingest.DefaultBatcherConfig(), time.Hour)
+	events := ingest.NewMockEventStore()
+	svc := ingest.NewIngestService(events, ingest.DefaultBatcherConfig(), time.Hour)
 	t.Cleanup(func() { _ = svc.Close(ctx) })
 	gs := fleet.NewGRPCServer(tlsCfg, fleet.NewServer(fleet.Config{
-		Ingest: svc, Registry: st, CA: ca, TrustBundle: trust, BundlePubKey: []byte("bundle-pub"), Presence: presence,
+		Ingest: svc, Registry: st, CA: ca, TrustBundle: trust, BundlePubKey: make([]byte, 32), Presence: presence,
 	}))
+	commands := fleet.NewCommands(st, presence)
+	cctx, stopCommands := context.WithCancel(ctx)
+	t.Cleanup(stopCommands)
+	go commands.Run(cctx)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -112,13 +123,13 @@ func startFleet(t *testing.T) *fleetEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adm, err := admin.New(ctx, v, admin.BuildInfo{Version: "e2e"}, admin.Deps{Fleet: st, Presence: presence})
+	adm, err := admin.New(ctx, v, admin.BuildInfo{Version: "e2e"}, admin.Deps{Fleet: st, Presence: presence, Commands: st, CommandKicker: commands})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(adm.Close)
 	srv := api.NewServer(api.ServerConfig{Auth: v, Admin: adm.Gateway}, ingest.NewMockEventStore())
-	return &fleetEnv{st: st, addr: ln.Addr().String(), rest: srv.Handler(), issuer: is, caFile: caFile, presence: presence}
+	return &fleetEnv{st: st, addr: ln.Addr().String(), rest: srv.Handler(), issuer: is, caFile: caFile, presence: presence, events: events}
 }
 
 // call sends a REST request as role and decodes the JSON answer.

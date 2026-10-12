@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -62,6 +63,7 @@ type Registry interface {
 	// DesiredBundle is the bundle a node should run (store.ErrNotFound: none).
 	DesiredBundle(ctx context.Context, node string) (store.Bundle, error)
 	ReportBundleStatus(ctx context.Context, node string, version uint64, state, msg string) error
+	CompleteCommand(ctx context.Context, node, id string, ok bool, msg, output string, now time.Time) error
 }
 
 // BundleObjects opens a stored bundle at an offset (policy.S3).
@@ -420,13 +422,43 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 				}
 				s.bundleStatus(ctx, id, msg.BundleStatus)
+			case *fleetv1.AgentMessage_CommandResult:
+				if !greeted {
+					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
+				}
+				s.commandResult(ctx, id, msg.CommandResult)
 			default:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 				}
-				// CommandResult comes with the commands (W12).
 			}
 		}
+	}
+}
+
+// Limits on what an agent reports for a command: the result is untrusted
+// data, stored and shown as text.
+const (
+	maxCommandError  = 1024
+	maxCommandOutput = 16 << 10
+)
+
+// commandResult closes one of the node's open commands; an id of another
+// node or of a closed command changes nothing.
+func (s *Server) commandResult(ctx context.Context, node string, r *fleetv1.CommandResult) {
+	if s.cfg.Registry == nil || len(r.GetCommandId()) == 0 || len(r.GetCommandId()) > 64 {
+		return
+	}
+	out := r.GetOutput()
+	if len(out) > maxCommandOutput || !utf8.ValidString(out) {
+		out = ""
+	}
+	err := s.cfg.Registry.CompleteCommand(ctx, node, r.GetCommandId(), r.GetOk(), clean(r.GetError(), maxCommandError), out, s.cfg.Now())
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		log.Printf("[WARN] fleet: node %s answered unknown or closed command %q", node, clean(r.GetCommandId(), 64))
+	case err != nil:
+		log.Printf("[ERROR] fleet: node %s command %s: %v", node, clean(r.GetCommandId(), 64), err)
 	}
 }
 

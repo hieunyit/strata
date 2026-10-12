@@ -18,6 +18,16 @@ http:
       get: /v1/nodes
     - selector: strata.admin.v1.FleetAdminService.RevokeNode
       delete: /v1/nodes/{node_id}
+    - selector: strata.admin.v1.FleetAdminService.ForceShadow
+      post: /v1/nodes:forceShadow
+      body: "*"
+    - selector: strata.admin.v1.FleetAdminService.CollectDiagnostics
+      post: /v1/nodes/{node_id}:collectDiagnostics
+      body: "*"
+    - selector: strata.admin.v1.FleetAdminService.ListCommands
+      get: /v1/commands
+    - selector: strata.admin.v1.FleetAdminService.GetCommand
+      get: /v1/commands/{command_id}
     - selector: strata.admin.v1.PolicyService.ListPolicies
       get: /v1/policies
     - selector: strata.admin.v1.PolicyService.GetPolicy

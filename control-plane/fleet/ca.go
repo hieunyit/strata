@@ -27,6 +27,9 @@ type CA struct {
 	key     crypto.Signer
 	certPEM []byte
 	now     func() time.Time
+	// Lifetime of the certificates it signs; 0: CertLifetime. Shorter ones
+	// are for tests of the renewal.
+	Lifetime time.Duration
 }
 
 // LoadCA reads the node CA's certificate and key (PEM).
@@ -126,7 +129,11 @@ func (c *CA) Sign(csrDER []byte, nodeID string) (certPEM []byte, serial string, 
 		return nil, "", time.Time{}, err
 	}
 	now := c.now()
-	notAfter = now.Add(CertLifetime)
+	life := c.Lifetime
+	if life <= 0 {
+		life = CertLifetime
+	}
+	notAfter = now.Add(life)
 	if notAfter.After(c.cert.NotAfter) {
 		return nil, "", time.Time{}, errors.New("fleet: node CA expires before the certificate would")
 	}

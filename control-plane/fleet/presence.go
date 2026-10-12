@@ -112,6 +112,22 @@ func (p *Presence) connects(node string) int {
 	return n
 }
 
+// ConnectedNodes lists the nodes with a Connect stream here.
+func (p *Presence) ConnectedNodes() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var out []string
+	for node, ss := range p.streams {
+		for s := range ss {
+			if s.kind == KindConnect {
+				out = append(out, node)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // Cut ends every stream of node.
 func (p *Presence) Cut(node string) {
 	p.mu.Lock()

@@ -82,3 +82,52 @@ func TestControlReadsMkbundleOutput(t *testing.T) {
 		t.Fatal("sha256 field does not match the fixture bundle")
 	}
 }
+
+// W07-G1-01: force-shadow is written in place (same inode, next even
+// generation) and a later bundle switch keeps it.
+func TestForceShadowSurvivesBundleSwitch(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "control")
+	if _, err := WriteForceShadow(p, true, nil); !os.IsNotExist(err) {
+		t.Fatalf("no control file yet: %v", err)
+	}
+	if _, err := WriteControl(p, 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	ino := inode(t, p)
+	g, err := WriteForceShadow(p, false, []string{"example-api", "example-web"})
+	if err != nil || g != 4 {
+		t.Fatalf("force shadow: %d %v", g, err)
+	}
+	if _, err := WriteControl(p, 2, [32]byte{}, "bundle-2.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	c, err := ReadControl(p)
+	if err != nil || c.Name != "bundle-2.sbn" || c.ForceAll || len(c.ForcePolicies) != 2 || c.ForcePolicies[1] != "example-web" || c.Generation != 6 {
+		t.Fatalf("%+v %v", c, err)
+	}
+	if inode(t, p) != ino {
+		t.Fatal("control file replaced")
+	}
+	b, _ := os.ReadFile(p)
+	if binary.LittleEndian.Uint32(b[324:]) != 0 || binary.LittleEndian.Uint32(b[328:]) != 2 || string(b[336:347]) != "example-api" || b[347] != 0 {
+		t.Fatalf("layout: %x", b[324:400])
+	}
+	if _, err := WriteForceShadow(p, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := ReadControl(p); !c.ForceAll || len(c.ForcePolicies) != 0 || c.Name != "bundle-2.sbn" {
+		t.Fatalf("%+v", c)
+	}
+	for _, bad := range [][]string{{"Example"}, {""}, {"a/b"}, {string(make([]byte, 56))}} {
+		if _, err := WriteForceShadow(p, false, bad); err == nil {
+			t.Errorf("policy %q accepted", bad)
+		}
+	}
+	many := make([]string, MaxForcePolicies+1)
+	for i := range many {
+		many[i] = "p"
+	}
+	if _, err := WriteForceShadow(p, false, many); err == nil {
+		t.Error("33 policies accepted")
+	}
+}

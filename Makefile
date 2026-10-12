@@ -219,7 +219,7 @@ lab-smoke:
 # ClickHouse in containers); e2e-lab needs a running lab; e2e does both,
 # starting the lab first.
 e2e-go:
-	cd tests/e2e && go test -count=1 -timeout 15m ./...
+	cd tests/e2e && go test -count=1 -timeout 25m ./...
 
 e2e-lab:
 	tests/e2e/lab-chain.sh
