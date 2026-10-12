@@ -336,3 +336,52 @@ fn operator_validation_in_compiler() {
         "{err}"
     );
 }
+
+// W07-G2-01: the unsigned bytes plus an external Ed25519 signature over
+// them are the bundle `compile` signs; nothing is signed without a key.
+#[test]
+fn unsigned_plus_external_signature_is_the_bundle() {
+    let rules = rules_from_ir(&load(&examples().join("rules.yaml")).unwrap()).unwrap();
+    let pol = policies_from(
+        &load(&examples().join("policies.yaml")).unwrap(),
+        &examples(),
+    )
+    .unwrap();
+    let build = Build {
+        version: 7,
+        created_at_ms: 1_760_000_000_000,
+        rollback: false,
+    };
+    let (unsigned, costs) = strata_compiler::compile_unsigned(&rules, &pol, &build).unwrap();
+    assert_eq!(costs.len(), rules.len());
+    let signed = libstrata::bundle::sign(unsigned.clone(), &SEED);
+    assert_eq!(signed, sample_bundle());
+    assert_eq!(&signed[..unsigned.len()], &unsigned[..]);
+    // unsigned bytes alone (or with a zero signature) do not map
+    assert!(map(unsigned.clone()).is_err());
+    let mut zero = unsigned;
+    zero.extend_from_slice(&[0u8; 64]);
+    assert!(map(zero).is_err());
+}
+
+#[test]
+fn rule_costs_follow_the_formula() {
+    let meta = "metadata: { source: organization, license: Apache-2.0 }";
+    let rules = ir(&format!(
+        "  - {{ id: 800901, name: cheap uri match, layer: managed, stage: request_headers, score: 5, severity: notice, {meta},
+      match: {{ all: [ {{ targets: [ {{ var: uri }} ], operator: {{ type: contains, value: /admin }} }} ] }} }}
+  - {{ id: 800902, name: sqli on every argument after two transforms, layer: managed, stage: request_body, score: 5, severity: critical, {meta},
+      match: {{ all: [ {{ targets: [ {{ var: args }} ], transforms: [ url_decode, lowercase ], operator: {{ type: detect_sqli }} }} ] }} }}
+  - {{ id: 800903, name: body regex, layer: managed, stage: request_body, score: 5, severity: notice, {meta},
+      match: {{ all: [ {{ targets: [ {{ var: request_body }} ], operator: {{ type: rx, value: a+b }} }} ] }} }}
+"
+    ))
+    .unwrap();
+    let c = strata_compiler::rule_costs(&rules, &Default::default());
+    // 1 + 1×1×1; 1 + 4×3×10; 1 + 8×1×1
+    assert_eq!(c.iter().map(|r| r.cost).collect::<Vec<_>>(), [2, 121, 9]);
+    assert_eq!(c[1].name, "sqli on every argument after two transforms");
+    // the regex outside Hyperscan (condition 2) weighs 25
+    let c = strata_compiler::rule_costs(&rules, &[2u32].into_iter().collect());
+    assert_eq!(c[2].cost, 1 + 8 * 25);
+}

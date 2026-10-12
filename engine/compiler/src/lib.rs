@@ -375,6 +375,94 @@ pub fn compile(
     build: &Build,
     seed: &[u8; 32],
 ) -> Result<Vec<u8>> {
+    let (out, _) = compile_unsigned(rules, policies, build)?;
+    Ok(bundle::sign(out, seed))
+}
+
+/// Cost of one rule in cost units (see `rule_cost`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuleCost {
+    pub id: u32,
+    pub name: String,
+    pub cost: u64,
+}
+
+/// Weight of a target: how many values it usually yields.
+fn target_weight(t: &rules::TargetDef) -> u64 {
+    let var = rules::VARS.get(t.var as usize).copied().unwrap_or("");
+    if t.count || t.key.is_some() {
+        return 1;
+    }
+    match var {
+        "request_body" | "response_body" => 8,
+        "args"
+        | "args_names"
+        | "args_get"
+        | "args_post"
+        | "request_headers"
+        | "request_headers_names"
+        | "request_cookies"
+        | "request_cookies_names"
+        | "files"
+        | "files_names"
+        | "xml"
+        | "xml_attributes"
+        | "response_headers"
+        | "matched_vars" => 4,
+        _ => 1,
+    }
+}
+
+/// Weight of an operator. Patterns of the Hyperscan operators share one
+/// scan per value; a regex Hyperscan refused runs alone (`fallback`).
+fn op_weight(op: u8, fallback: bool) -> u64 {
+    match OPERATORS.get(op as usize).copied().unwrap_or("") {
+        "rx" if fallback => 25,
+        "detect_sqli" | "detect_xss" => 10,
+        "validate_byte_range" | "validate_url_encoding" | "validate_utf8_encoding" | "ip_match" => {
+            2
+        }
+        _ => 1,
+    }
+}
+
+/// Cost units of a rule: 1, plus for each condition, for each target,
+/// target weight × (1 + transformations) × operator weight, doubled with
+/// multi_match. `fallback` holds the condition indexes (over all rules, in
+/// order) whose regex runs outside Hyperscan.
+pub fn rule_costs(rules: &[RuleDef], fallback: &BTreeSet<u32>) -> Vec<RuleCost> {
+    let mut ci = 0u32;
+    rules
+        .iter()
+        .map(|r| {
+            let mut cost = 1u64;
+            for c in &r.conditions {
+                let per = (1 + c.transforms.len() as u64)
+                    * op_weight(c.op, fallback.contains(&ci))
+                    * if c.multi_match { 2 } else { 1 };
+                cost += c
+                    .targets
+                    .iter()
+                    .map(|t| target_weight(t) * per)
+                    .sum::<u64>();
+                ci += 1;
+            }
+            RuleCost {
+                id: r.id,
+                name: r.name.clone(),
+                cost,
+            }
+        })
+        .collect()
+}
+
+/// The bundle bytes an external signer signs (append its 64-byte Ed25519
+/// signature to get the bundle), and the cost of each rule.
+pub fn compile_unsigned(
+    rules: &[RuleDef],
+    policies: &Policies,
+    build: &Build,
+) -> Result<(Vec<u8>, Vec<RuleCost>)> {
     let mut ids = BTreeSet::new();
     for r in rules {
         if !ids.insert(r.id) {
@@ -440,5 +528,6 @@ pub fn compile(
         policies: &names,
         sections: &refs,
     };
-    bundle::build(&spec, seed).map_err(|e| e.message().to_string())
+    let out = bundle::build_unsigned(&spec).map_err(|e| e.message().to_string())?;
+    Ok((out, rule_costs(rules, &apart)))
 }

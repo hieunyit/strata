@@ -359,6 +359,20 @@ pub struct Spec<'a> {
 
 /// Builds and signs a bundle with an Ed25519 seed (32 bytes).
 pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
+    Ok(sign(build_unsigned(spec)?, seed))
+}
+
+/// Appends the Ed25519 signature of `unsigned` with `seed`.
+pub fn sign(mut unsigned: Vec<u8>, seed: &[u8; 32]) -> Vec<u8> {
+    let sig = SigningKey::from_bytes(seed).sign(&unsigned);
+    unsigned.extend_from_slice(&sig.to_bytes());
+    unsigned
+}
+
+/// The bundle without its signature: the bytes an external signer (KMS)
+/// signs; the bundle is these bytes followed by the 64-byte Ed25519
+/// signature over them.
+pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
     if spec.policies.len() > MAX_POLICIES as usize
         || !spec.policies.iter().all(|PolicySpec { name: p, .. }| {
             let mut e = [0u8; POLICY_NAME_LEN];
@@ -418,9 +432,6 @@ pub fn build(spec: &Spec<'_>, seed: &[u8; 32]) -> Result<Vec<u8>, Error> {
     let sections_len = out.len() - sections_off;
     out[32..40].copy_from_slice(&(sections_off as u64).to_le_bytes());
     out[40..48].copy_from_slice(&(sections_len as u64).to_le_bytes());
-
-    let sig = SigningKey::from_bytes(seed).sign(&out);
-    out.extend_from_slice(&sig.to_bytes());
     Ok(out)
 }
 
