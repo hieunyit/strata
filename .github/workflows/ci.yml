@@ -161,6 +161,9 @@ jobs:
           cache-dependency-path: tests/e2e/go.sum
 
       - name: make e2e-go
+        # the full 5-minute outage ran once, output in docs/reports/w07-g1-01.md
+        env:
+          STRATA_E2E_OUTAGE: 30s
         run: make e2e-go
 
   lab:
