@@ -23,11 +23,30 @@ if [ "${STRATA_SANITIZE:-}" = 1 ]; then
     san="$san -fno-sanitize-recover=undefined"
     cc_opt="-O1 -g -fno-omit-frame-pointer $san -Wall -Wextra -Werror -fstack-protector-strong"
     ld_opt="$san -Wl,-z,relro -Wl,-z,now"
+elif [ "${STRATA_HTTP3:-}" = 1 ]; then
+    # HTTP/3 needs a QUIC-capable TLS library; the dev image's OpenSSL 3.0 has
+    # none, so link a static quictls (built here or baked into the image at
+    # /opt/quictls). A separate build dir keeps the plain/asan builds on the
+    # system OpenSSL.
+    quic="${STRATA_QUIC_SSL:-}"
+    if [ -z "$quic" ]; then
+        if [ -f /opt/quictls/lib/libssl.a ]; then
+            quic=/opt/quictls
+        else
+            quic="$build/quic/quictls"
+            [ -f "$quic/lib/libssl.a" ] || "$root/connectors/nginx/scripts/build-quic.sh" "$quic"
+        fi
+    fi
+    src="$build/nginx-$version-h3"
+    cc_opt="-O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2 -I$quic/include"
+    ld_opt="-L$quic/lib -Wl,-z,relro -Wl,-z,now"
+    v3="--with-http_v3_module"
 else
     src="$build/nginx-$version"
     cc_opt="-O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2"
     ld_opt="-Wl,-z,relro -Wl,-z,now"
 fi
+: "${v3:=}"
 
 if [ ! -d "$src" ]; then
     mkdir -p "$build/dl" "$src.tmp"
@@ -43,7 +62,7 @@ stamp="$cc_opt|$ld_opt|$root|$(cksum < "$root/connectors/nginx/config")"
 if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$stamp" ]; then
     ./configure \
         --with-compat --with-threads --with-debug \
-        --with-http_v2_module --with-http_auth_request_module \
+        --with-http_v2_module --with-http_auth_request_module $v3 \
         --with-cc-opt="$cc_opt" --with-ld-opt="$ld_opt" \
         --add-dynamic-module="$root/connectors/nginx"
     echo "$stamp" > objs/.strata-configure

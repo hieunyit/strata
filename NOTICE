@@ -37,6 +37,13 @@ crawler-user-agents (rules/bots/)
   Copyright the crawler-user-agents contributors. MIT License.
   https://github.com/monperrus/crawler-user-agents
 
+nginx test suite (connectors/nginx/t/lib/Test/Strata/HTTP3.pm)
+  A pure-Perl QUIC/HTTP/3 client vendored from nginx-tests
+  (lib/Test/Nginx/HTTP3.pm), used only by the HTTP/3 integration test, never
+  shipped in a bundle. Copyright (c) Nginx, Inc. and contributors.
+  BSD-2-Clause (the nginx license). Local changes are listed in the file
+  header. https://github.com/nginx/nginx-tests
+
 SecLists, PayloadsAllTheThings (corpus/attack/, payloads to measure recall,
 never packed into bundles)
   Copyright their contributors. MIT License.
