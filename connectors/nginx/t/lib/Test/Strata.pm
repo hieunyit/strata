@@ -84,6 +84,17 @@ add_block_preprocessor(sub {
         }
     }
 
+    # ASan + UBSan run libstrata several times slower, and the machine may
+    # be busy (a fuzz run): a request near the default budget (2 ms) then
+    # falls into the fail mode by chance, not by code. Raise the default
+    # only; a block that sets strata_cpu_budget itself keeps it.
+    if ($ENV{ASAN_OPTIONS} && !$ENV{TEST_NGINX_USE_VALGRIND}
+        && $block->http_config !~ /strata_cpu_budget/
+        && (!defined $block->config || $block->config !~ /strata_cpu_budget/))
+    {
+        $block->set_value("http_config", $block->http_config . "\n    strata_cpu_budget 1s;\n");
+    }
+
     # A short timeout on a stream that never ends ("--- abort") is how long
     # the test reads before it stops; under Valgrind the first bytes alone
     # take longer than that.
