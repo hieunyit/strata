@@ -22,21 +22,21 @@ Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này v�
 - Tuần 7 (khối A2): fail mode open/closed, event sink Unix socket, metrics shared memory, RST_STREAM; CPU budget hợp tác + cô lập lỗi (`catch_unwind`); operator đợt 2; mã hóa sự kiện protobuf trong libstrata; nhập Sigma/ET Open/bot + virtual patch 700001–700010; độ bền agent (reconnect, gia hạn chứng chỉ, `ForceShadow`); signer KMS (Vault transit) + cost unit + điều khiển rollout; trang Fleet; clang-tidy + CodeQL cho C.
 - Follow-up #11–#14 (2026-10-12, PO giao tự quyết): giới hạn C nâng lên 3.000 dòng thực; `POST /v1/nodes:clearForceShadow`; quy trình xoay khóa ký bundle (node tin tối đa 2 khóa, phân phối ngoài băng, `tests/e2e/lab-key-rotation.sh`); bộ virtual patch khởi đầu; gate 0 FP benign.
 
-**Đang làm** (tuần 8 · Kiểm thử (1)), theo thứ tự, mỗi nhiệm vụ một nhánh tên theo mã:
+- Tuần 8 (khối A3): `action_mode` (`block_alone | score`); Test::Nginx đầy đủ kể cả HTTP/3; fuzz libFuzzer FFI + differential `go-net-http`/`spring`; go-ftw toàn bộ CRS ≥ 95% + `strata-rules release`/`verify`; test tải Fleet 1.000 agent; toxiproxy; RBAC + CSV trên UI; conformance corpus v1 qua engine và NGINX. Review lại: `docs/reports/w08-review.md`.
 
-1. **W08-R-02** Mức tin cậy của rule: trường `action_mode: block_alone | score` trong định dạng rule (`engine/`, `rules/schema/`).
-2. **W08-S-02** Gán `action_mode` cho mọi rule (cần W08-R-02).
-3. **W08-N-01** Bộ Test::Nginx đầy đủ: HTTP/2, HTTP/3, subrequest, internal redirect, client ngắt giữa chừng, hot reload dưới tải (`connectors/nginx/t/`).
-4. **W08-R-01** Fuzz và differential: target libFuzzer cho FFI, harness differential (`go-net-http`, `spring`), fuzz ASan 72 giờ (`engine/fuzz/`, `conformance/`).
-5. **W08-S-01** Chất lượng v0 và pipeline phát hành: go-ftw CRS ≥ 95%, báo cáo FP/recall, `strata-rules release` (`rules/`, `tools/strata-rules/`).
-6. **W08-G1-01** Test tải Fleet: 1.000 agent giả lập, `BundleAvailable` tới đủ trong < 10 giây.
-7. **W08-G2-01** Test tích hợp khi mạng lỗi: toxiproxy giữa agent và control plane, không mất sự kiện/bundle hỏng.
-8. **W08-F-01** Phân quyền UI và xuất CSV: nút ẩn theo vai trò, `viewer` không thấy IP/đoạn input đầy đủ, mọi bảng xuất CSV.
-9. **W08-Q-01** Conformance trong CI: corpus conformance v1 chạy mỗi PR của `engine/` và `connectors/`.
+**Đang làm** (tuần 9 · Benchmark, soak, staging), theo thứ tự trong `docs/plan/w09-plan.md`, mỗi nhiệm vụ một nhánh tên theo mã:
+
+1. **W09-Q-01** Benchmark: p50/p99 và throughput (nhỏ, 64 KB, 1 MB, HTTP/2) so với NGINX không module; event socket ~50.000 sự kiện/giây; `docs/decisions/ring-buffer.md`.
+2. **W09-R-01** Xử lý điểm nóng: p99 < 1 ms, throughput giảm ≤ 10%, hoặc ticket cho phần còn thiếu.
+3. **W09-Q-02** Soak 24 giờ + 1.000 lần đổi bundle (bộ nhớ, fd không tăng); staging chỉ deploy từ tag.
+4. **W09-G2-01** ClickHouse: TTL, tra Block ID < 1 s, tìm kiếm 24 giờ < 2 s.
+5. **W09-F-01** Decision trace: tô field vi phạm, hiện tác giả rule Sigma.
+6. **W09-S-02** Bộ sinh biến thể payload (`tools/strata-mutate/`), báo cáo lách theo loại tấn công, chạy hằng đêm.
+7. **W09-S-01** Gói signature v0: CRS PL1 + nguồn nhập + rule riêng, staging 7 ngày, review 2 người (người thứ hai là PO/SecOps), đạt Gate A.
 
 Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đổi interface chung (`strata.h`, `proto/`, OpenAPI, định dạng bundle, định dạng rule/IR) chỉ khi dòng "Làm" của nhiệm vụ ghi rõ (W08-R-02 được phép đổi định dạng rule + JSON Schema); ngoài ra dừng lại và đề xuất.
 
-**Chưa làm** trong khối này (tuần 9–10, hoặc tuần sau): benchmark/soak/staging (W09-Q); xử lý điểm nóng hiệu năng (W09-R-01); phát hành gói signature v0 (W09-S-01); ClickHouse (W09-G2-01); decision trace (W09-F-01); đóng gói + shadow + Gate A (tuần 10); circuit breaker và canary (B1, tuần 11+).
+**Chưa làm** trong khối này (tuần 10, hoặc tuần sau): đóng gói + shadow + Gate A (tuần 10); circuit breaker và canary (B1, tuần 11+).
 
 ## Quy tắc code
 
