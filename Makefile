@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures
 
 all: lib nginx
 
@@ -151,6 +151,7 @@ test-go: test-agent
 	$(MAKE) lint-rules
 	tools/strata-import-crs/fetch-crs.sh >/dev/null
 	cd tools/strata-import-crs && go vet ./... && go test -race ./... && golangci-lint run ./...
+	cd tools/strata-import-signatures && go vet ./... && go test -race ./... && golangci-lint run ./...
 
 # Rule tests and the corpus report through libstrata (W04-S-01).
 rules-tools:
@@ -161,6 +162,25 @@ test-rules: rules-tools
 	cd tools/strata-rules && go run . report --repo ../..
 	# the protocol pack (W05-S-01) matches no benign request
 	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/protocol --max-fp 0 > /dev/null
+	# the imported signature packs (W07-S-01) match no benign request either
+	cd tools/strata-rules && for p in sigma et-open bots; do go run . report --repo ../.. --rules ../../rules/$$p --max-fp 0 > /dev/null || exit 1; done
+	$(MAKE) test-signatures
+
+# Sigma rules/web, ET Open (SIDs 2000000-2099999), crawler-user-agents,
+# pinned in tools/strata-import-signatures/sources.lock (W07-S-01).
+SIG       := tools/strata-import-signatures
+SIG_LOCK   = sed -n 's/^$(1)_version=//p' $(SIG)/sources.lock
+signatures-import:
+	cd $(SIG) && go build -o ../../build/strata-import-signatures .
+	build/strata-import-signatures sigma --src "$$($(SIG)/fetch.sh sigma)" --version "$$($(call SIG_LOCK,sigma))"
+	build/strata-import-signatures et --src "$$($(SIG)/fetch.sh et)" --version "$$($(call SIG_LOCK,et))"
+	build/strata-import-signatures bots --src "$$($(SIG)/fetch.sh bots)" --version "$$($(call SIG_LOCK,bots))"
+
+# their test requests through libstrata, each rule alone: all must pass
+test-signatures: rules-tools
+	cd tools/strata-rules && for p in sigma et-open bots; do \
+		go run . ftw --repo ../.. --tests ../../rules/$$p/tests --rules ../../rules/$$p --min 100 > ../../build/ftw-$$p.md || \
+		{ cat ../../build/ftw-$$p.md; exit 1; }; done
 
 # go-ftw tests of the pinned CRS, converted (W04-S-01).
 crs-ftw:

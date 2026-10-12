@@ -109,6 +109,13 @@ jobs:
           deploy/dev/run.sh sh -c 'make crs-import crs-inventory crs-ftw'
           git diff --exit-code -- rules/crs docs/crs-import-report.md docs/crs-inventory.csv corpus/crs-ftw docs/crs-ftw-unconverted.md
 
+      - name: rules/sigma, rules/et-open, rules/bots are generated from the pinned sources
+        run: |
+          deploy/dev/run.sh make signatures-import
+          git diff --exit-code -- rules/sigma rules/et-open rules/bots docs/sigma-import-report.md docs/et-open-import-report.md docs/bots-import-report.md
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: CRS go-ftw tests of the injection groups pass at least 90% (and the report is current)
         run: |
           deploy/dev/run.sh make test-crs-ftw
