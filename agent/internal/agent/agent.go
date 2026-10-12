@@ -8,12 +8,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/strata/strata/agent/internal/control"
 	"github.com/strata/strata/agent/internal/enroll"
 	"github.com/strata/strata/agent/internal/eventsock"
+	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/pusher"
 	"github.com/strata/strata/agent/internal/shmmetrics"
@@ -68,12 +71,16 @@ type Agent struct {
 	Control *control.Controller
 	// Bundles installs rolled-out bundles; nil without BundleDir.
 	Bundles *bundles.Manager
+	// ForceShadow applies ForceShadow commands; nil without BundleDir.
+	ForceShadow *forceshadow.Manager
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
 	conn     *grpc.ClientConn
+	conns    *connTracker
 	batch    *batch.Batcher
 	cfg      Config
+	started  time.Time
 }
 
 // New opens the spool, binds the event socket and prepares the client.
@@ -94,9 +101,16 @@ func New(cfg Config) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.NewClient(cfg.Server, grpc.WithTransportCredentials(creds),
+	conns := &connTracker{}
+	conn, err := grpc.NewClient(cfg.Server, grpc.WithTransportCredentials(creds), grpc.WithContextDialer(conns.dial),
 		// The control plane pings every 10 s; answer, and ping too.
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 20 * time.Second, Timeout: 10 * time.Second, PermitWithoutStream: true}))
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 20 * time.Second, Timeout: 10 * time.Second, PermitWithoutStream: true}),
+		// gRPC's own redial backoff grows to 120 s by default: after a long
+		// outage the agent would stay away up to two minutes past its own
+		// retry. 30 s at most, with jitter.
+		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.Config{
+			BaseDelay: time.Second, Multiplier: 1.6, Jitter: 0.2, MaxDelay: 30 * time.Second,
+		}, MinConnectTimeout: 10 * time.Second}))
 	if err != nil {
 		sp.Close()
 		return nil, fmt.Errorf("agent: dial %s: %w", cfg.Server, err)
@@ -116,8 +130,10 @@ func New(cfg Config) (*Agent, error) {
 		Pusher:   pusher.New(client, sp, cfg.Push),
 		Registry: prometheus.NewRegistry(),
 		conn:     conn,
+		conns:    conns,
 		batch:    batch.New(sp, cfg.Batch),
 		cfg:      cfg,
+		started:  time.Now(),
 	}
 	var bm *bundles.Manager
 	ctrl := &control.Controller{}
@@ -143,9 +159,17 @@ func New(cfg Config) (*Agent, error) {
 			return nil, err
 		}
 	}
+	if bm != nil {
+		a.ForceShadow = forceshadow.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "force-shadow.json"))
+	}
 	copts := control.Options{
-		Identity: id,
-		Node:     &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
+		Identity:  id,
+		OnCommand: a.command,
+		OnRenewed: func() {
+			// Calls on the old connections would be refused as superseded.
+			slog.Info("closing connections made with the old certificate", "conns", conns.closeAll())
+		},
+		Node: &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
 			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
@@ -186,6 +210,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	go func() { pushDone <- a.Pusher.Run(pushCtx) }()
 	controlDone := make(chan error, 1)
 	go func() { controlDone <- a.Control.Run(pushCtx) }()
+	fsDone := make(chan struct{})
+	if a.ForceShadow != nil {
+		go func() { a.ForceShadow.Run(pushCtx); close(fsDone) }()
+	} else {
+		close(fsDone)
+	}
 	metricsDone := make(chan error, 1)
 	if a.cfg.MetricsAddr != "" {
 		go func() { metricsDone <- shmmetrics.Serve(pushCtx, a.cfg.MetricsAddr, a.Registry) }()
@@ -216,6 +246,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		errs = append(errs, <-pushDone)
 	}
 	errs = append(errs, <-controlDone)
+	<-fsDone
 	return errors.Join(errs...)
 }
 

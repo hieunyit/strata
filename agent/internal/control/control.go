@@ -36,6 +36,13 @@ type Options struct {
 	Identity *identity.Identity
 	// OnBundle receives each BundleAvailable (bundles.Manager.Offer).
 	OnBundle func(context.Context, *fleetv1.BundleAvailable)
+	// OnCommand runs a Command; its result goes back on the stream. Without
+	// it every command is answered "not supported".
+	OnCommand func(context.Context, *fleetv1.Command) *fleetv1.CommandResult
+	// OnRenewed runs after the certificate was renewed: connections made
+	// with the old one must be closed, since the control plane refuses
+	// new calls on them ("certificate superseded").
+	OnRenewed func()
 }
 
 // Controller runs the control stream and the renewal.
@@ -45,6 +52,7 @@ type Controller struct {
 	runCtx context.Context
 
 	statuses chan *fleetv1.BundleStatus
+	results  chan *fleetv1.CommandResult
 	mu       sync.Mutex
 	last     *fleetv1.BundleStatus // sent again after a reconnect
 }
@@ -63,7 +71,8 @@ func New(client fleetv1.FleetServiceClient, opts Options) *Controller {
 	if opts.BundleVersion == nil {
 		opts.BundleVersion = func() uint64 { return 0 }
 	}
-	return &Controller{client: client, opts: opts, statuses: make(chan *fleetv1.BundleStatus, 64), runCtx: context.Background()}
+	return &Controller{client: client, opts: opts, statuses: make(chan *fleetv1.BundleStatus, 64),
+		results: make(chan *fleetv1.CommandResult, 16), runCtx: context.Background()}
 }
 
 // Report queues a bundle status for the control plane. The latest one is
@@ -174,8 +183,9 @@ func (c *Controller) stream(ctx context.Context) error {
 					// The agent's context: an install outlives a stream.
 					c.opts.OnBundle(c.runCtx, msg.BundleAvailable)
 				}
+			case *fleetv1.ControlMessage_Command:
+				c.command(msg.Command)
 			default:
-				// Commands (force shadow, diagnostics) come with W12.
 				slog.Info("control message", "type", typeName(m))
 			}
 		}
@@ -188,6 +198,10 @@ func (c *Controller) stream(ctx context.Context) error {
 			return ctx.Err()
 		case err := <-recv:
 			return err
+		case r := <-c.results:
+			if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_CommandResult{CommandResult: r}}); err != nil {
+				return recvErr(st, err)
+			}
 		case bs := <-c.statuses:
 			if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_BundleStatus{BundleStatus: bs}}); err != nil {
 				return recvErr(st, err)
@@ -202,6 +216,40 @@ func (c *Controller) stream(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// command runs cmd off the receive loop and queues its result. A result
+// lost with the stream is not sent again: the control plane expires the
+// command, and the operator sends it again.
+func (c *Controller) command(cmd *fleetv1.Command) {
+	slog.Info("command", "id", cmd.GetId(), "action", actionName(cmd))
+	go func() {
+		var r *fleetv1.CommandResult
+		if c.opts.OnCommand != nil {
+			r = c.opts.OnCommand(c.runCtx, cmd)
+		}
+		if r == nil {
+			r = &fleetv1.CommandResult{Error: "not supported"}
+		}
+		r.CommandId = cmd.GetId()
+		if !r.GetOk() {
+			slog.Warn("command failed", "id", cmd.GetId(), "err", r.GetError())
+		}
+		select {
+		case c.results <- r:
+		case <-c.runCtx.Done():
+		}
+	}()
+}
+
+func actionName(cmd *fleetv1.Command) string {
+	switch cmd.GetAction().(type) {
+	case *fleetv1.Command_ForceShadow:
+		return "force_shadow"
+	case *fleetv1.Command_Diagnostics:
+		return "diagnostics"
+	}
+	return "unknown"
 }
 
 // recvErr returns the stream's status once Send fails with io.EOF.
@@ -245,6 +293,9 @@ func (c *Controller) renewLoop(ctx context.Context) {
 		retry = time.Minute
 		leaf := c.opts.Identity.Certificate().Leaf
 		slog.Info("node certificate renewed", "serial", leaf.SerialNumber.Text(16), "not_after", leaf.NotAfter)
+		if c.opts.OnRenewed != nil {
+			c.opts.OnRenewed()
+		}
 	}
 }
 

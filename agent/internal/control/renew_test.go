@@ -75,11 +75,15 @@ func TestRenewsInTime(t *testing.T) {
 	}
 	oldSerial := id.Certificate().Leaf.SerialNumber.String()
 
-	c := New(client(t, f), Options{Identity: id, Node: &fleetv1.NodeInfo{Hostname: "edge-01"}, BackoffMin: time.Millisecond, BackoffMax: time.Millisecond})
+	var renewed atomic.Int32
+	c := New(client(t, f), Options{Identity: id, Node: &fleetv1.NodeInfo{Hostname: "edge-01"}, BackoffMin: time.Millisecond, BackoffMax: time.Millisecond,
+		OnRenewed: func() { renewed.Add(1) }})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = c.Run(ctx) }()
 	eventually(t, "renewal", func() bool { return id.Certificate().Leaf.SerialNumber.String() != oldSerial })
+	// The old connections are closed once the new certificate is in use.
+	eventually(t, "OnRenewed", func() bool { return renewed.Load() == 1 })
 	if n := f.calls.Load(); n != 1 {
 		t.Errorf("%d renewals, want 1 (the new certificate is good for 16 h)", n)
 	}
