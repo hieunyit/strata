@@ -8,7 +8,9 @@
 
 use std::borrow::Cow;
 
-use super::{decode_rune, hex, normalize_path};
+use crate::budget::{BudgetExceeded, TxBudget};
+
+use super::{decode_rune, hex, normalize_path_with_budget};
 
 fn is_hex(c: u8) -> bool {
     c.is_ascii_hexdigit()
@@ -21,14 +23,24 @@ fn x2c(a: u8, b: u8) -> u8 {
 
 /// jsDecode: \uHHHH (lower byte, full-width ASCII folded), \u{H..H},
 /// \xHH, \OOO, \C.
-pub fn js_decode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn js_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(pos) = input.iter().position(|&c| c == b'\\') else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let n = input.len();
     let mut d = input[..pos].to_vec();
     let mut i = pos;
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         if input[i] != b'\\' {
             d.push(input[i]);
             i += 1;
@@ -105,7 +117,11 @@ pub fn js_decode(input: &[u8]) -> Cow<'_, [u8]> {
             i = n;
         }
     }
-    Cow::Owned(d)
+    Ok(Cow::Owned(d))
+}
+
+pub fn js_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    js_decode_with_budget(input, None).unwrap()
 }
 
 fn css_space(c: u8) -> bool {
@@ -115,14 +131,24 @@ fn css_space(c: u8) -> bool {
 /// cssDecode: \H..H (1-6 hex digits, one code point, UTF-8, full-width
 /// ASCII folded, 0 -> U+FFFD, one following whitespace eaten), \newline
 /// dropped, \C -> C.
-pub fn css_decode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn css_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(pos) = input.iter().position(|&c| c == b'\\') else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let n = input.len();
     let mut d = input[..pos].to_vec();
     let mut i = pos;
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         if input[i] != b'\\' {
             d.push(input[i]);
             i += 1;
@@ -161,14 +187,28 @@ pub fn css_decode(input: &[u8]) -> Cow<'_, [u8]> {
             i += 1;
         }
     }
-    Cow::Owned(d)
+    Ok(Cow::Owned(d))
+}
+
+pub fn css_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    css_decode_with_budget(input, None).unwrap()
 }
 
 /// removeWhitespace: drops Unicode white space (Go's unicode.IsSpace).
-pub fn remove_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn remove_whitespace_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let mut out: Option<Vec<u8>> = None;
     let mut i = 0;
+    let mut next_check = 8192;
     while i < input.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let (cp, len) = decode_rune(&input[i..]);
         let space =
             char::from_u32(cp).is_some_and(char::is_whitespace) && !(cp == 0xFFFD && len == 1);
@@ -179,12 +219,19 @@ pub fn remove_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
         }
         i += len;
     }
-    out.map_or(Cow::Borrowed(input), Cow::Owned)
+    Ok(out.map_or(Cow::Borrowed(input), Cow::Owned))
+}
+
+pub fn remove_whitespace(input: &[u8]) -> Cow<'_, [u8]> {
+    remove_whitespace_with_budget(input, None).unwrap()
 }
 
 /// cmdLine: drops \ " ' ^, turns , ; and white space into one space, drops
 /// a space before / or (, lowercases ASCII.
-pub fn cmd_line(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn cmd_line_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let needs = |c: u8| {
         c.is_ascii_uppercase()
             || matches!(
@@ -203,12 +250,20 @@ pub fn cmd_line(input: &[u8]) -> Cow<'_, [u8]> {
             )
     };
     let Some(pos) = input.iter().position(|&c| needs(c)) else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let mut ret = input[..pos].to_vec();
     let mut changed = false;
     let mut space = false;
-    for &a in &input[pos..] {
+    let mut next_check = pos + 8192;
+    for (offset, &a) in input[pos..].iter().enumerate() {
+        let curr = pos + offset;
+        if curr >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = curr + 8192;
+        }
         match a {
             b'"' | b'\'' | b'\\' | b'^' => changed = true,
             b' ' | b',' | b';' | b'\t' | b'\r' | b'\n' => {
@@ -236,21 +291,35 @@ pub fn cmd_line(input: &[u8]) -> Cow<'_, [u8]> {
         }
     }
     if changed {
-        Cow::Owned(ret)
+        Ok(Cow::Owned(ret))
     } else {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     }
+}
+
+pub fn cmd_line(input: &[u8]) -> Cow<'_, [u8]> {
+    cmd_line_with_budget(input, None).unwrap()
 }
 
 /// utf8toUnicode: every non-ASCII code point as %uHHHH (lowercase hex, at
 /// least 4 digits); invalid bytes count as U+FFFD, as in Go.
-pub fn utf8_to_unicode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn utf8_to_unicode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(pos) = input.iter().position(|&c| c >= 0x80) else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let mut out = input[..pos].to_vec();
     let mut i = pos;
+    let mut next_check = 8192;
     while i < input.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let (cp, len) = decode_rune(&input[i..]);
         if cp < 0x80 {
             out.push(cp as u8);
@@ -259,7 +328,11 @@ pub fn utf8_to_unicode(input: &[u8]) -> Cow<'_, [u8]> {
         }
         i += len;
     }
-    Cow::Owned(out)
+    Ok(Cow::Owned(out))
+}
+
+pub fn utf8_to_unicode(input: &[u8]) -> Cow<'_, [u8]> {
+    utf8_to_unicode_with_budget(input, None).unwrap()
 }
 
 const B64: [u8; 128] = {
@@ -276,13 +349,23 @@ const B64: [u8; 128] = {
 
 /// base64Decode: optional padding, \r \n ignored, '=' or ' ' ends, an
 /// invalid character ends with what was decoded so far.
-pub fn base64_decode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn base64_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     if input.is_empty() {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     }
     let mut out = Vec::with_capacity(input.len());
     let (mut x, mut n) = (0u32, 0);
-    for &c in input {
+    let mut next_check = 8192;
+    for (i, &c) in input.iter().enumerate() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         if c == b'\r' || c == b'\n' {
             continue;
         }
@@ -308,18 +391,32 @@ pub fn base64_decode(input: &[u8]) -> Cow<'_, [u8]> {
         }
         _ => {}
     }
-    Cow::Owned(out)
+    Ok(Cow::Owned(out))
+}
+
+pub fn base64_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    base64_decode_with_budget(input, None).unwrap()
 }
 
 /// urlDecode: %HH and '+' (no %u, unlike urlDecodeUni).
-pub fn url_decode(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn url_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let Some(pos) = input.iter().position(|&c| c == b'%' || c == b'+') else {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     };
     let n = input.len();
     let mut d = input[..pos].to_vec();
     let mut i = pos;
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         match input[i] {
             b'%' if i + 2 < n && is_hex(input[i + 1]) && is_hex(input[i + 2]) => {
                 d.push(x2c(input[i + 1], input[i + 2]));
@@ -335,27 +432,38 @@ pub fn url_decode(input: &[u8]) -> Cow<'_, [u8]> {
             }
         }
     }
-    Cow::Owned(d)
+    Ok(Cow::Owned(d))
+}
+
+pub fn url_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    url_decode_with_budget(input, None).unwrap()
 }
 
 /// normalizePathWin: backslashes become slashes, normalizePath, then the
 /// Windows rules: an alternate data stream suffix of the last component
 /// and trailing dots and spaces of every component are dropped.
-pub fn normalize_path_win(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn normalize_path_win_with_budget<'a>(
+    input: &'a [u8],
+    budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     if input.is_empty() {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     }
     let slashed: Vec<u8> = input
         .iter()
         .map(|&c| if c == b'\\' { b'/' } else { c })
         .collect();
-    let clean = normalize_path(&slashed).into_owned();
+    let clean = normalize_path_with_budget(&slashed, budget)?.into_owned();
     let out = strip_trailing_dots_and_spaces(&strip_ads(&clean));
     if out == input {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     } else {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
     }
+}
+
+pub fn normalize_path_win(input: &[u8]) -> Cow<'_, [u8]> {
+    normalize_path_win_with_budget(input, None).unwrap()
 }
 
 fn strip_ads(data: &[u8]) -> Vec<u8> {
@@ -418,14 +526,24 @@ fn strip_trailing_dots_and_spaces(data: &[u8]) -> Vec<u8> {
 
 /// replaceComments: each /* ... */ (or an unterminated /* ...) becomes one
 /// space.
-pub fn replace_comments(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn replace_comments_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     if !input.windows(2).any(|w| w == b"/*") {
-        return Cow::Borrowed(input);
+        return Ok(Cow::Borrowed(input));
     }
     let n = input.len();
     let mut out = Vec::with_capacity(n);
     let (mut i, mut inc) = (0, false);
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         if !inc {
             if input[i] == b'/' && i + 1 < n && input[i + 1] == b'*' {
                 inc = true;
@@ -445,16 +563,30 @@ pub fn replace_comments(input: &[u8]) -> Cow<'_, [u8]> {
     if inc {
         out.push(b' ');
     }
-    Cow::Owned(out)
+    Ok(Cow::Owned(out))
+}
+
+pub fn replace_comments(input: &[u8]) -> Cow<'_, [u8]> {
+    replace_comments_with_budget(input, None).unwrap()
 }
 
 /// removeCommentsChar: drops /* */ <!-- --> -- and #.
-pub fn remove_comments_char(input: &[u8]) -> Cow<'_, [u8]> {
+pub fn remove_comments_char_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
     let n = input.len();
     let mut out = Vec::with_capacity(n);
     let mut changed = false;
     let mut i = 0;
+    let mut next_check = 8192;
     while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         let rest = &input[i..];
         let skip = if rest.starts_with(b"/*") || rest.starts_with(b"*/") {
             2
@@ -478,10 +610,14 @@ pub fn remove_comments_char(input: &[u8]) -> Cow<'_, [u8]> {
         }
     }
     if changed {
-        Cow::Owned(out)
+        Ok(Cow::Owned(out))
     } else {
-        Cow::Borrowed(input)
+        Ok(Cow::Borrowed(input))
     }
+}
+
+pub fn remove_comments_char(input: &[u8]) -> Cow<'_, [u8]> {
+    remove_comments_char_with_budget(input, None).unwrap()
 }
 
 #[cfg(test)]

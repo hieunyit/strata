@@ -37,7 +37,23 @@ Không bao giờ thay control file bằng `rename`: worker đang map inode cũ v
 | bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 
-Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+
+### Section 7 `HYPERSCAN` (`SHS1` và `SHS2`)
+
+Section `HYPERSCAN` chứa database Hyperscan đã biên dịch và bảng ánh xạ pattern ID về condition index.
+
+- **Header 56 byte**:
+  - `u8[4]`: magic `SHS1` (chế độ block) hoặc `SHS2` (chế độ stream `HS_MODE_STREAM`). `strata-compile` mặc định sinh `SHS2`. Engine tương thích ngược và đọc cả `SHS1` lẫn `SHS2`.
+  - `u32`: số lượng pattern (`n_patterns` / số mục trong `cond_index`).
+  - `u8[32]`: chuỗi phiên bản Hyperscan / Chimera (đệm NUL, so khớp với `strata_hs::version()`).
+  - `u32`: `db_off` (offset của ảnh database trong section, bắt buộc là bội số của 4.096 byte).
+  - `u32`: `db_len` (độ dài ảnh database tính bằng byte).
+  - `u8[8]`: dự phòng, đệm 0.
+- **Bảng `cond_index`**: mảng `n_patterns` phần tử `u32`, từ offset 56 tới `56 + n_patterns * 4`.
+- **Đệm căn lề**: các byte 0 từ cuối bảng `cond_index` tới `db_off`.
+- **Ảnh database Hyperscan**: từ offset `db_off` tới `db_off + db_len`, được ánh xạ trực tiếp và kiểm tra tính hợp lệ bằng `hs_validate_database` mà không cần cấp phát thêm bộ nhớ.
+
 
 libstrata kiểm chữ ký **trước** rồi mới đọc layout, và kiểm biên mọi trường (mọi bản ghi rule, điều kiện, target, list) kể cả khi chữ ký đúng, một lần lúc nạp; sau đó đọc tại chỗ, không copy. Mode của policy là dữ liệu đã ký: `strata_engine_policy` đọc nó tại chỗ trong vùng mmap. Location đặt `strata_request_body_mode stream` mà policy là enforce thì `nginx -t` (và `nginx -s reload`) lỗi; nếu policy chuyển sang enforce qua hot reload, worker ghi cảnh báo và location vẫn chạy shadow. File bundle đã công bố không bao giờ được sửa tại chỗ (xem `docs/poc/hyperscan-mmap.md`): agent ghi file tạm → `fsync` → `rename` sang tên mới theo phiên bản, rồi mới cập nhật control file; xóa bundle cũ chỉ bằng `unlink`.
 

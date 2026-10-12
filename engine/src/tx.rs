@@ -230,15 +230,12 @@ impl Tx {
 
     pub fn set_budget(&mut self, cpu_budget_us: u64) {
         if cpu_budget_us > 0 {
-            let factor = if std::env::var_os("ASAN_OPTIONS").is_some() {
-                5
-            } else {
-                1
-            };
-            self.budget = Some(crate::budget::TxBudget::new(
-                cpu_budget_us.saturating_mul(factor),
-            ));
+            self.budget = Some(crate::budget::TxBudget::new(cpu_budget_us));
         }
+    }
+
+    pub fn budget_elapsed_us(&self) -> u64 {
+        self.budget.as_ref().map_or(0, |b| b.elapsed_us())
     }
 
     /// Warms up thread-local engine resources (Hyperscan scratch, etc.)
@@ -682,6 +679,7 @@ impl Tx {
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
             let res = eval::evaluate_with_budget(
+                engine.id(),
                 &engine.tables(),
                 engine.hyperscan(),
                 engine.regexes(),
@@ -717,7 +715,7 @@ impl Tx {
     }
 
     /// Runs the request_body rules over the line, the headers and the body.
-    fn evaluate_body(&mut self) {
+    fn evaluate_body_bytes(&mut self, body: &[u8]) {
         let (Some(engine), Some(line)) = (self.engine.clone(), self.line.take()) else {
             return;
         };
@@ -734,11 +732,12 @@ impl Tx {
             proto: line.part(4),
             client_addr: line.part(5),
             headers: &headers,
-            body: &self.body,
+            body,
         };
         let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
         let mut found = vec![];
         let res = eval::evaluate_with_budget(
+            engine.id(),
             &engine.tables(),
             engine.hyperscan(),
             engine.regexes(),
@@ -759,6 +758,11 @@ impl Tx {
         }
         self.body = Vec::new();
         self.kept_headers = Vec::new();
+    }
+
+    fn evaluate_body(&mut self) {
+        let body = std::mem::take(&mut self.body);
+        self.evaluate_body_bytes(&body);
     }
 
     pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
@@ -806,19 +810,28 @@ impl Tx {
                 self.tail_has_s = memchr::memchr(b'S', &self.tail[..self.tail_len]).is_some();
             }
         }
-        if self.buffer_body && !self.matched && self.body.len() < MAX_BODY_KEEP {
-            let room = MAX_BODY_KEEP - self.body.len();
-            let to_take = data.len().min(room);
-            self.body.extend_from_slice(&data[..to_take]);
-        }
         if last {
             self.stage = Stage::BodyDone;
             if self.has_body_rules && !self.matched {
-                self.evaluate_body();
+                if self.body.is_empty() {
+                    let to_take = data.len().min(MAX_BODY_KEEP);
+                    self.evaluate_body_bytes(&data[..to_take]);
+                } else {
+                    if self.buffer_body && self.body.len() < MAX_BODY_KEEP {
+                        let room = MAX_BODY_KEEP - self.body.len();
+                        let to_take = data.len().min(room);
+                        self.body.extend_from_slice(&data[..to_take]);
+                    }
+                    self.evaluate_body();
+                }
                 if self.error == E_BUDGET {
                     return E_BUDGET;
                 }
             }
+        } else if self.buffer_body && !self.matched && self.body.len() < MAX_BODY_KEEP {
+            let room = MAX_BODY_KEEP - self.body.len();
+            let to_take = data.len().min(room);
+            self.body.extend_from_slice(&data[..to_take]);
         }
         OK
     }

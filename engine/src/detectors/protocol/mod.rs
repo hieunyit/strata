@@ -62,11 +62,6 @@ fn pct(b: &[u8], i: usize, hi: u8, lo: u8) -> bool {
 
 /// Checks the raw request URI (path and query).
 pub fn check_uri(raw: &[u8], report: &mut impl FnMut(Violation)) {
-    let raw = if raw.len() > 65536 {
-        &raw[..65536]
-    } else {
-        raw
-    };
     let path_end = memchr::memchr(b'?', raw).unwrap_or(raw.len());
     let path = &raw[..path_end];
 

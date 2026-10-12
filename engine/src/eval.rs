@@ -76,6 +76,7 @@ pub fn fallback_regex(pattern: &[u8]) -> Result<regex::bytes::Regex, String> {
 }
 
 struct DfaCacheSlot {
+    engine_id: u64,
     dfa_ptr: *const (),
     cache: regex_automata::hybrid::dfa::Cache,
 }
@@ -85,6 +86,7 @@ thread_local! {
 }
 
 pub fn dfa_is_match_with_budget(
+    engine_id: u64,
     dfa: &regex_automata::hybrid::dfa::DFA,
     re: &regex::bytes::Regex,
     haystack: &[u8],
@@ -93,8 +95,12 @@ pub fn dfa_is_match_with_budget(
     let outcome = DFA_CACHE.with(|cell| {
         let mut slot = cell.borrow_mut();
         let ptr = dfa as *const regex_automata::hybrid::dfa::DFA as *const ();
-        if slot.as_ref().is_none_or(|s| s.dfa_ptr != ptr) {
+        if slot
+            .as_ref()
+            .is_none_or(|s| s.engine_id != engine_id || s.dfa_ptr != ptr)
+        {
             *slot = Some(DfaCacheSlot {
+                engine_id,
                 dfa_ptr: ptr,
                 cache: dfa.create_cache(),
             });
@@ -112,7 +118,7 @@ pub fn dfa_is_match_with_budget(
         let mut bytes_since_check = 0;
         for &b in haystack {
             bytes_since_check += 1;
-            if bytes_since_check >= 128 {
+            if bytes_since_check >= 4096 {
                 bytes_since_check = 0;
                 if let Some(bgt) = budget.as_mut() {
                     match bgt.check() {
@@ -319,14 +325,29 @@ pub(crate) fn content_type<'a>(headers: &[(&'a [u8], &'a [u8])]) -> &'a [u8] {
 }
 
 /// `application/x-www-form-urlencoded` decoding: %XX and '+'.
-fn form_decode(s: &[u8]) -> Cow<'_, [u8]> {
-    if !s.iter().any(|&c| c == b'%' || c == b'+') {
-        return Cow::Borrowed(s);
+fn form_decode_with_budget<'a>(
+    s: &'a [u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Cow<'a, [u8]>, crate::budget::BudgetExceeded> {
+    if memchr::memchr2(b'%', b'+', s).is_none() {
+        if s.len() >= 8192
+            && let Some(bgt) = budget.as_deref_mut()
+        {
+            bgt.check()?;
+        }
+        return Ok(Cow::Borrowed(s));
     }
     let hex = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
-    let mut out = Vec::with_capacity(s.len());
+    let mut out = Vec::with_capacity(s.len().min(65536));
     let mut i = 0;
+    let mut next_check = 8192;
     while i < s.len() {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
         match s[i] {
             b'+' => out.push(b' '),
             b'%' if i + 2 < s.len() => match (hex(s[i + 1]), hex(s[i + 2])) {
@@ -340,32 +361,60 @@ fn form_decode(s: &[u8]) -> Cow<'_, [u8]> {
         }
         i += 1;
     }
-    Cow::Owned(out)
+    Ok(Cow::Owned(out))
+}
+
+#[cfg(test)]
+fn form_decode(s: &[u8]) -> Cow<'_, [u8]> {
+    form_decode_with_budget(s, None).unwrap()
 }
 
 type Pair<'a> = (Cow<'a, [u8]>, Cow<'a, [u8]>);
 
-fn position_8k(slice: &[u8], needle: u8) -> Option<usize> {
-    let mut curr = 0;
-    while curr < slice.len() {
-        let end = (curr + 8192).min(slice.len());
-        if let Some(i) = slice[curr..end].iter().position(|&c| c == needle) {
-            return Some(curr + i);
+fn parse_query_with_budget<'a>(
+    q: &'a [u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Vec<Pair<'a>>, crate::budget::BudgetExceeded> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut next_check = 8192;
+    while start < q.len() {
+        if start >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = start + 8192;
         }
-        curr = end;
+        if out.len() >= MAX_ARGS {
+            break;
+        }
+        let end = match memchr::memchr(b'&', &q[start..]) {
+            Some(pos) => start + pos,
+            None => q.len(),
+        };
+        let p = &q[start..end];
+        start = end + 1;
+        if p.is_empty() {
+            continue;
+        }
+        let pair = match memchr::memchr(b'=', p) {
+            Some(eq) => (
+                form_decode_with_budget(&p[..eq], budget.as_deref_mut())?,
+                form_decode_with_budget(&p[eq + 1..], budget.as_deref_mut())?,
+            ),
+            None => (
+                form_decode_with_budget(p, budget.as_deref_mut())?,
+                Cow::Borrowed(&p[..0]),
+            ),
+        };
+        out.push(pair);
     }
-    None
+    Ok(out)
 }
 
+#[cfg(test)]
 fn parse_query(q: &[u8]) -> Vec<Pair<'_>> {
-    q.split(|&c| c == b'&')
-        .filter(|p| !p.is_empty())
-        .take(MAX_ARGS)
-        .map(|p| match position_8k(p, b'=') {
-            Some(eq) => (form_decode(&p[..eq]), form_decode(&p[eq + 1..])),
-            None => (form_decode(p), Cow::Borrowed(&p[..0])),
-        })
-        .collect()
+    parse_query_with_budget(q, None).unwrap()
 }
 
 fn trim(v: &[u8]) -> &[u8] {
@@ -388,7 +437,7 @@ fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
         .map(trim)
         .filter(|p| !p.is_empty())
         .take(MAX_COOKIES)
-        .map(|p| match position_8k(p, b'=') {
+        .map(|p| match memchr::memchr(b'=', p) {
             Some(eq) => (Cow::Borrowed(&p[..eq]), Cow::Borrowed(&p[eq + 1..])),
             None => (Cow::Borrowed(p), Cow::Borrowed(&p[..0])),
         })
@@ -423,6 +472,7 @@ fn make_scan_key(v: &[u8], chain: &[u8]) -> ScanKey {
 }
 
 struct Ctx<'t, 'b, 'a> {
+    engine_id: u64,
     tables: &'t Tables<'b>,
     regexes: &'t Regexes,
     operators: &'t CompiledOperators,
@@ -771,36 +821,52 @@ fn condition(
             }
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
-                let tv = || transform::apply_chain(chain, v.val);
+                let tv = match transform::apply_chain_with_budget(
+                    chain,
+                    v.val,
+                    ctx.budget.as_deref_mut(),
+                ) {
+                    Ok(res) => res,
+                    Err(crate::budget::BudgetExceeded) => {
+                        ctx.budget_exceeded = true;
+                        break 'values;
+                    }
+                };
                 let hit = if numeric {
                     // on the transformed value; one that is not a number
                     // counts as 0, as atoi does
-                    tv().is_some_and(|tv| {
-                        let x = std::str::from_utf8(trim(&tv))
+                    tv.as_deref().is_some_and(|tv_ref| {
+                        let x = std::str::from_utf8(trim(tv_ref))
                             .ok()
                             .and_then(|s| s.parse::<i64>().ok())
                             .unwrap_or(0);
                         compare(op, x, y)
                     })
                 } else if detect {
-                    tv().is_some_and(|tv| {
+                    tv.as_deref().is_some_and(|tv_ref| {
                         if op == "detect_sqli" {
-                            detect_sqli(&tv).is_some()
+                            detect_sqli(tv_ref).is_some()
                         } else {
-                            detect_xss(&tv)
+                            detect_xss(tv_ref)
                         }
                     })
                 } else if operator_v2 {
-                    tv().is_some_and(|tv| match op {
-                        "validate_byte_range" => ctx.operators.check_byte_range(ci, &tv),
-                        "validate_url_encoding" => operators::validate_url_encoding(&tv),
-                        "validate_utf8_encoding" => operators::validate_utf8_encoding(&tv),
-                        "ip_match" => ctx.operators.check_ip_match(ci, &tv),
+                    tv.as_deref().is_some_and(|tv_ref| match op {
+                        "validate_byte_range" => ctx.operators.check_byte_range(ci, tv_ref),
+                        "validate_url_encoding" => operators::validate_url_encoding(tv_ref),
+                        "validate_utf8_encoding" => operators::validate_utf8_encoding(tv_ref),
+                        "ip_match" => ctx.operators.check_ip_match(ci, tv_ref),
                         _ => false,
                     })
                 } else if let Some(fb) = fallback {
-                    tv().is_some_and(|val| {
-                        match dfa_is_match_with_budget(&fb.dfa, &fb.re, &val, &mut ctx.budget) {
+                    tv.as_deref().is_some_and(|val| {
+                        match dfa_is_match_with_budget(
+                            ctx.engine_id,
+                            &fb.dfa,
+                            &fb.re,
+                            val,
+                            &mut ctx.budget,
+                        ) {
                             Ok(h) => h,
                             Err(_) => {
                                 ctx.budget_exceeded = true;
@@ -809,13 +875,19 @@ fn condition(
                         }
                     })
                 } else if from_prev {
-                    scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv()).contains(&ci)
+                    scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv).contains(&ci)
                 } else {
-                    matched(ctx, v.val, chain).contains(&ci)
+                    matched(ctx, v.val, chain, tv.as_deref()).contains(&ci)
                 };
+                if ctx.budget_exceeded
+                    || ctx.budget.as_mut().is_some_and(|bgt| bgt.check().is_err())
+                {
+                    ctx.budget_exceeded = true;
+                    break 'values;
+                }
                 if hit != neg {
                     if !any {
-                        let window = match tv() {
+                        let window = match tv.as_deref() {
                             Some(b) => {
                                 let len = b.len().min(crate::event::MASK_WINDOW);
                                 b[..len].to_vec()
@@ -835,7 +907,7 @@ fn condition(
                     any = true;
                     match collect.as_deref_mut() {
                         Some(m) => {
-                            if let Some(tv) = tv() {
+                            if let Some(tv) = tv {
                                 m.push(tv.into_owned());
                             }
                             continue 'values;
@@ -854,17 +926,23 @@ fn condition(
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
 /// (value, chain).
-fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
+fn matched<'c>(
+    ctx: &'c mut Ctx<'_, '_, '_>,
+    v: &[u8],
+    chain: &[u8],
+    tv: Option<&[u8]>,
+) -> &'c [u32] {
     let key = make_scan_key(v, chain);
     if !ctx.scans.contains_key(&key) {
-        let hits = match transform::apply_chain(chain, v) {
-            Some(tv) => scan(
+        let hits = if let Some(tv) = tv {
+            scan(
                 &ctx.hs,
                 &mut ctx.budget,
                 &mut ctx.budget_exceeded,
-                &Some(tv),
-            ),
-            None => vec![],
+                &Some(Cow::Borrowed(tv)),
+            )
+        } else {
+            vec![]
         };
         ctx.scans.insert(key, hits);
     }
@@ -894,7 +972,7 @@ fn scan(
                     true
                 }
             };
-            match db.scan_stream_chunks(tv, 8192, check_budget, &mut on_match) {
+            match db.scan_stream_chunks(tv, 2048, check_budget, &mut on_match) {
                 Ok(true) => {}
                 Ok(false) | Err(_) => {
                     if budget.as_mut().is_some_and(|bgt| bgt.check().is_err()) {
@@ -946,6 +1024,9 @@ fn rule_matches(
         match condition(ctx, d, ci, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m, cand) => {
+                if ctx.budget_exceeded {
+                    return Some((false, None));
+                }
                 if let (true, Some(mut cand)) = (m, cand) {
                     // matched_vars holds values the previous condition matched:
                     // they keep that condition's name, so a password matched
@@ -996,14 +1077,16 @@ pub fn evaluate(
     stage: u8,
     report: &mut impl FnMut(Violation),
 ) {
+    let engine_id = db.as_ref().map(|d| d.id()).unwrap_or(0);
     let _ = evaluate_with_budget(
-        tables, db, regexes, operators, req, stage, false, None, report,
+        engine_id, tables, db, regexes, operators, req, stage, false, None, report,
     );
 }
 
 /// Evaluates every rule of `stage` against the request with CPU budget tracking.
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_with_budget(
+    engine_id: u64,
     tables: &Tables<'_>,
     db: Option<MappedDb<'_>>,
     regexes: &Regexes,
@@ -1025,7 +1108,7 @@ pub fn evaluate_with_budget(
     } else {
         Cow::Owned([req.uri, b"?", req.args].concat())
     };
-    let mut args = parse_query(req.args);
+    let mut args = parse_query_with_budget(req.args, budget.as_deref_mut())?;
     let n_get = args.len();
     let mut files = vec![];
     let mut xml_body = None;
@@ -1034,15 +1117,25 @@ pub fn evaluate_with_budget(
     let processor = body_processor(ct);
     if !req.body.is_empty() {
         match processor {
-            b"URLENCODED" => args.extend(parse_query(req.body).into_iter().take(room)),
+            b"URLENCODED" => {
+                args.extend(
+                    parse_query_with_budget(req.body, budget.as_deref_mut())?
+                        .into_iter()
+                        .take(room),
+                );
+            }
             b"JSON" => args.extend(
-                json::args(req.body, room)
+                json::args_with_budget(req.body, room, budget.as_deref_mut())?
                     .into_iter()
                     .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))),
             ),
-            b"XML" => xml_body = Some(xml::parse(req.body)),
+            b"XML" => xml_body = Some(xml::parse_with_budget(req.body, budget.as_deref_mut())?),
             b"MULTIPART" => {
-                for p in multipart::parts(req.body, multipart::boundary(ct).unwrap_or(b"")) {
+                for p in multipart::parts_with_budget(
+                    req.body,
+                    multipart::boundary(ct).unwrap_or(b""),
+                    budget.as_deref_mut(),
+                )? {
                     match p.filename {
                         Some(f) => files.push((p.name, f)),
                         None if args.len() < MAX_ARGS => {
@@ -1068,6 +1161,7 @@ pub fn evaluate_with_budget(
     };
     let hs = tables.hyperscan().zip(db);
     let mut ctx = Ctx {
+        engine_id,
         tables,
         regexes,
         operators,

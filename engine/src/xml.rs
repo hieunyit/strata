@@ -31,102 +31,134 @@ pub fn media_type(ct: &[u8]) -> &[u8] {
     trim(&ct[..end])
 }
 
-fn memchr_8k(needle: u8, slice: &[u8]) -> Option<usize> {
+fn memchr_8k(
+    needle: u8,
+    slice: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let mut curr = 0;
     while curr < slice.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192).min(slice.len());
         if let Some(pos) = memchr::memchr(needle, &slice[curr..end]) {
-            return Some(curr + pos);
+            return Ok(Some(curr + pos));
         }
         curr = end;
     }
-    None
+    Ok(None)
 }
 
-fn memmem_8k(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+fn memmem_8k(
+    haystack: &[u8],
+    needle: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     if needle.is_empty() {
-        return Some(0);
+        return Ok(Some(0));
     }
     let finder = memchr::memmem::Finder::new(needle);
     let mut curr = 0;
     while curr < haystack.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192 + needle.len() - 1).min(haystack.len());
         if end < curr + needle.len() {
             break;
         }
         if let Some(pos) = finder.find(&haystack[curr..end]) {
-            return Some(curr + pos);
+            return Ok(Some(curr + pos));
         }
         curr += 8192;
     }
-    None
+    Ok(None)
 }
 
-pub fn parse(b: &[u8]) -> Xml {
+pub fn parse_with_budget(
+    b: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Xml, crate::budget::BudgetExceeded> {
     let mut x = Xml::default();
     let mut i = 0;
     while i < b.len() {
         if b[i] != b'<' {
-            let end = memchr_8k(b'<', &b[i..]).map_or(b.len(), |e| i + e);
-            decode_into(&b[i..end], &mut x.text);
+            let end = memchr_8k(b'<', &b[i..], budget.as_deref_mut())?.map_or(b.len(), |e| i + e);
+            decode_into(&b[i..end], &mut x.text, budget.as_deref_mut())?;
             i = end;
             continue;
         }
         let rest = &b[i..];
-        let skip_to = |open: usize, close: &[u8]| {
-            memmem_8k(&rest[open..], close).map(|e| i + open + e + close.len())
-        };
         let next = if rest.starts_with(b"<?") {
-            skip_to(2, b"?>")
+            memmem_8k(&rest[2..], b"?>", budget.as_deref_mut())?.map(|e| i + 2 + e + 2)
         } else if rest.starts_with(b"<!--") {
-            skip_to(4, b"-->")
+            memmem_8k(&rest[4..], b"-->", budget.as_deref_mut())?.map(|e| i + 4 + e + 3)
         } else if rest.starts_with(b"<![CDATA[") {
-            memmem_8k(&rest[9..], b"]]>").map(|e| {
+            memmem_8k(&rest[9..], b"]]>", budget.as_deref_mut())?.map(|e| {
                 x.text.extend_from_slice(&rest[9..9 + e]);
                 i + 9 + e + 3
             })
         } else if rest.starts_with(b"<!") {
-            doctype_end(rest).map(|e| i + e)
+            doctype_end(rest, budget.as_deref_mut())?.map(|e| i + e)
         } else if rest.starts_with(b"</") {
-            memchr_8k(b'>', rest).map(|e| i + e + 1)
+            memchr_8k(b'>', rest, budget.as_deref_mut())?.map(|e| i + e + 1)
         } else {
-            start_tag(rest, &mut x.attrs).map(|e| i + e)
+            start_tag(rest, &mut x.attrs, budget.as_deref_mut())?.map(|e| i + e)
         };
         match next {
             Some(n) => i = n,
             None => break,
         }
     }
-    x
+    Ok(x)
+}
+
+pub fn parse(b: &[u8]) -> Xml {
+    parse_with_budget(b, None).unwrap()
 }
 
 /// End of `<!DOCTYPE ...>`, with an internal subset `[...]` skipped.
-fn doctype_end(rest: &[u8]) -> Option<usize> {
-    let gt = memchr_8k(b'>', rest)?;
-    match memchr_8k(b'[', &rest[..gt]) {
-        Some(open) => memmem_8k(&rest[open..], b"]>").map(|e| open + e + 2),
-        None => Some(gt + 1),
+fn doctype_end(
+    rest: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
+    let Some(gt) = memchr_8k(b'>', rest, budget.as_deref_mut())? else {
+        return Ok(None);
+    };
+    match memchr_8k(b'[', &rest[..gt], budget.as_deref_mut())? {
+        Some(open) => Ok(memmem_8k(&rest[open..], b"]>", budget)?.map(|e| open + e + 2)),
+        None => Ok(Some(gt + 1)),
     }
 }
 
 /// A start tag at `rest[0] == '<'`: its attribute values go to `attrs`;
 /// returns the length of the tag.
-fn start_tag(rest: &[u8], attrs: &mut Vec<Vec<u8>>) -> Option<usize> {
+fn start_tag(
+    rest: &[u8],
+    attrs: &mut Vec<Vec<u8>>,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let mut j = 1;
     // element name
     while j < rest.len() && !is_space(rest[j]) && rest[j] != b'>' && rest[j] != b'/' {
         j += 1;
     }
     if j == 1 {
-        return None;
+        return Ok(None);
     }
     loop {
         while j < rest.len() && is_space(rest[j]) {
             j += 1;
         }
-        match rest.get(j)? {
-            b'>' => return Some(j + 1),
-            b'/' if rest.get(j + 1) == Some(&b'>') => return Some(j + 2),
+        match rest.get(j) {
+            Some(&b'>') => return Ok(Some(j + 1)),
+            Some(&b'/') if rest.get(j + 1) == Some(&b'>') => return Ok(Some(j + 2)),
+            None => return Ok(None),
             _ => {}
         }
         // name = "value"
@@ -135,26 +167,31 @@ fn start_tag(rest: &[u8], attrs: &mut Vec<Vec<u8>>) -> Option<usize> {
             j += 1;
         }
         if j == name_start {
-            return None;
+            return Ok(None);
         }
         while j < rest.len() && is_space(rest[j]) {
             j += 1;
         }
         if rest.get(j) != Some(&b'=') {
-            return None;
+            return Ok(None);
         }
         j += 1;
         while j < rest.len() && is_space(rest[j]) {
             j += 1;
         }
-        let q = *rest.get(j)?;
+        let Some(&q) = rest.get(j) else {
+            return Ok(None);
+        };
         if q != b'"' && q != b'\'' {
-            return None;
+            return Ok(None);
         }
-        let close = memchr_8k(q, &rest[j + 1..])? + j + 1;
+        let Some(c) = memchr_8k(q, &rest[j + 1..], budget.as_deref_mut())? else {
+            return Ok(None);
+        };
+        let close = c + j + 1;
         if attrs.len() < MAX_ATTRS {
             let mut v = Vec::with_capacity(close - j - 1);
-            decode_into(&rest[j + 1..close], &mut v);
+            decode_into(&rest[j + 1..close], &mut v, budget.as_deref_mut())?;
             attrs.push(v);
         }
         j = close + 1;
@@ -163,12 +200,16 @@ fn start_tag(rest: &[u8], attrs: &mut Vec<Vec<u8>>) -> Option<usize> {
 
 /// Appends `s` with `&lt; &gt; &amp; &quot; &apos; &#N; &#xH;` decoded;
 /// anything else is kept as written.
-fn decode_into(s: &[u8], out: &mut Vec<u8>) {
+fn decode_into(
+    s: &[u8],
+    out: &mut Vec<u8>,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<(), crate::budget::BudgetExceeded> {
     let mut i = 0;
     while i < s.len() {
-        let Some(amp) = memchr_8k(b'&', &s[i..]) else {
+        let Some(amp) = memchr_8k(b'&', &s[i..], budget.as_deref_mut())? else {
             out.extend_from_slice(&s[i..]);
-            return;
+            return Ok(());
         };
         out.extend_from_slice(&s[i..i + amp]);
         i += amp;
@@ -186,6 +227,7 @@ fn decode_into(s: &[u8], out: &mut Vec<u8>) {
             }
         }
     }
+    Ok(())
 }
 
 fn reference(name: &[u8]) -> Option<char> {

@@ -21,6 +21,8 @@ pub struct TxBudget {
     call_deadline: Option<Instant>,
     /// Sticky flag: once exceeded, always returns BudgetExceeded.
     exceeded: bool,
+    /// Whether an external timer (e.g. FFI CallTimer) manages this call's entry/exit.
+    external_timer: bool,
 }
 
 impl TxBudget {
@@ -31,7 +33,13 @@ impl TxBudget {
             call_start: None,
             call_deadline: None,
             exceeded: false,
+            external_timer: false,
         }
+    }
+
+    #[inline]
+    pub fn is_external_timer(&self) -> bool {
+        self.external_timer
     }
 
     /// Called at the entry of each call with eager timestamping.
@@ -43,6 +51,7 @@ impl TxBudget {
     /// Called at the entry of FFI calls when an external timer (e.g. TSC) is used.
     /// Does not query `Instant::now()` eagerly unless a loop inside invokes `check()`.
     pub fn enter_lazy(&mut self) -> Result<(), BudgetExceeded> {
+        self.external_timer = true;
         if self.exceeded {
             return Err(BudgetExceeded);
         }
@@ -113,6 +122,7 @@ impl TxBudget {
     /// Records elapsed time for the call in nanoseconds.
     #[inline]
     pub fn exit_with_ns(&mut self, nanos: u64) {
+        self.external_timer = false;
         self.call_start = None;
         self.prior_elapsed_ns = self.prior_elapsed_ns.saturating_add(nanos);
         self.call_deadline = None;

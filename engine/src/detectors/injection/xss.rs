@@ -300,7 +300,6 @@ pub fn is_xss_in(s: &[u8], flags: Flags) -> bool {
 
 /// `libinjection_xss`: XSS in any of the five contexts.
 pub fn detect(s: &[u8]) -> bool {
-    let s = if s.len() > 65536 { &s[..65536] } else { s };
     [
         Flags::DataState,
         Flags::ValueNoQuote,

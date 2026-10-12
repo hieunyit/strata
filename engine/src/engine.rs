@@ -16,7 +16,10 @@ use strata_hs::MappedDb;
 pub trait Mapping: AsRef<[u8]> + Send + Sync {}
 impl<T: AsRef<[u8]> + Send + Sync> Mapping for T {}
 
+static NEXT_ENGINE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 pub struct Engine {
+    id: u64,
     bytes: Box<dyn Mapping>,
     info: Info,
     /// some rule runs at stage request_body: transactions keep the request
@@ -118,7 +121,9 @@ impl Engine {
         })?;
         let operators =
             crate::operators::CompiledOperators::build(&tables).map_err(|e| (E_BUNDLE, e))?;
+        let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(Engine {
+            id,
             bytes: bundle,
             info,
             body_rules,
@@ -127,6 +132,11 @@ impl Engine {
             regexes,
             operators,
         })
+    }
+
+    /// Unique engine instance ID.
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     /// rx patterns evaluated without Hyperscan.
@@ -162,7 +172,7 @@ impl Engine {
     pub fn hyperscan(&self) -> Option<MappedDb<'_>> {
         self.tables()
             .hyperscan()
-            .map(|h| MappedDb::assume_valid(h.image))
+            .map(|h| MappedDb::assume_valid_with_id(h.image, self.id))
     }
 
     /// Warms up thread-local Hyperscan scratch and stream state.

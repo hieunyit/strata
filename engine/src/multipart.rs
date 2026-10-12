@@ -20,38 +20,53 @@ pub struct Part<'a> {
     pub content: &'a [u8],
 }
 
-fn position_8k<F>(slice: &[u8], mut pred: F) -> Option<usize>
+fn position_8k<F>(
+    slice: &[u8],
+    mut pred: F,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded>
 where
     F: FnMut(u8) -> bool,
 {
     let mut curr = 0;
     while curr < slice.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192).min(slice.len());
         if let Some(i) = slice[curr..end].iter().position(|&c| pred(c)) {
-            return Some(curr + i);
+            return Ok(Some(curr + i));
         }
         curr = end;
     }
-    None
+    Ok(None)
 }
 
 fn find_8k(
     finder: &memchr::memmem::Finder<'_>,
     haystack: &[u8],
     needle_len: usize,
-) -> Option<usize> {
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let mut curr = 0;
     while curr < haystack.len() {
+        if curr > 0
+            && let Some(bgt) = budget.as_mut()
+        {
+            bgt.check()?;
+        }
         let end = (curr + 8192 + needle_len.saturating_sub(1)).min(haystack.len());
         if end < curr + needle_len {
             break;
         }
         if let Some(pos) = finder.find(&haystack[curr..end]) {
-            return Some(curr + pos);
+            return Ok(Some(curr + pos));
         }
         curr += 8192;
     }
-    None
+    Ok(None)
 }
 
 /// The boundary of a `multipart/form-data` Content-Type, if it is one.
@@ -63,7 +78,7 @@ pub fn boundary(content_type: &[u8]) -> Option<&[u8]> {
     }
     for p in params {
         let p = trim(p);
-        let Some(eq) = position_8k(p, |c| c == b'=') else {
+        let Some(eq) = position_8k(p, |c| c == b'=', None).ok().flatten() else {
             continue;
         };
         if !trim(&p[..eq]).eq_ignore_ascii_case(b"boundary") {
@@ -78,8 +93,12 @@ pub fn boundary(content_type: &[u8]) -> Option<&[u8]> {
     None
 }
 
-/// The parts of `body`, at most [`MAX_PARTS`].
-pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
+/// The parts of `body`, at most [`MAX_PARTS`], with cooperative budget tracking.
+pub fn parts_with_budget<'a>(
+    body: &'a [u8],
+    boundary: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Vec<Part<'a>>, crate::budget::BudgetExceeded> {
     let delim = [b"--".as_slice(), boundary].concat();
     // after the first, a delimiter starts a line
     let line_delim = [b"\n".as_slice(), &delim].concat();
@@ -89,9 +108,9 @@ pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
         0
     } else {
         // after a preamble
-        match find_8k(&next_delim, body, line_delim.len()) {
+        match find_8k(&next_delim, body, line_delim.len(), budget.as_deref_mut())? {
             Some(i) => i + 1,
-            None => return out,
+            None => return Ok(out),
         }
     };
     let mut at = first + delim.len();
@@ -101,14 +120,18 @@ pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
             break; // close delimiter
         }
         // the rest of the delimiter line (transport padding), then CRLF
-        let Some(eol) = position_8k(rest, |c| c == b'\n') else {
+        let Some(eol) = position_8k(rest, |c| c == b'\n', budget.as_deref_mut())? else {
             break;
         };
         let part_start = at + eol + 1;
         // content ends at the CRLF (or LF) of the next delimiter's line
-        let Some(next) =
-            find_8k(&next_delim, &body[part_start..], line_delim.len()).map(|i| part_start + i)
-        else {
+        let Some(next) = find_8k(
+            &next_delim,
+            &body[part_start..],
+            line_delim.len(),
+            budget.as_deref_mut(),
+        )?
+        .map(|i| part_start + i) else {
             break;
         };
         let mut end = next;
@@ -119,8 +142,16 @@ pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
             out.push(p);
         }
         at = next + line_delim.len();
+        if let Some(bgt) = budget.as_mut() {
+            bgt.check()?;
+        }
     }
-    out
+    Ok(out)
+}
+
+/// The parts of `body`, at most [`MAX_PARTS`].
+pub fn parts<'a>(body: &'a [u8], boundary: &[u8]) -> Vec<Part<'a>> {
+    parts_with_budget(body, boundary, None).unwrap_or_default()
 }
 
 /// One part: headers, an empty line, the content.
@@ -130,7 +161,7 @@ fn part(p: &[u8]) -> Option<Part<'_>> {
     let mut filename = None;
     for line in head.split(|&c| c == b'\n') {
         let line = strip_cr(line);
-        let Some(colon) = position_8k(line, |c| c == b':') else {
+        let Some(colon) = position_8k(line, |c| c == b':', None).ok().flatten() else {
             continue;
         };
         if !trim(&line[..colon]).eq_ignore_ascii_case(b"content-disposition") {

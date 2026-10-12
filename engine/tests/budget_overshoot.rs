@@ -115,7 +115,7 @@ fn budget_overshoot_pathological_payloads() {
             "6. Regex fallback lazy DFA (1 MB)",
             &|bgt| {
                 let mut b_opt = Some(bgt);
-                let _ = dfa_is_match_with_budget(&dfa, &re, &payload, &mut b_opt);
+                let _ = dfa_is_match_with_budget(1, &dfa, &re, &payload, &mut b_opt);
             },
         ));
     }
