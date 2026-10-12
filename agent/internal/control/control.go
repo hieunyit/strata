@@ -7,6 +7,7 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"sync"
@@ -14,6 +15,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/enroll"
@@ -26,6 +28,10 @@ type Options struct {
 	BackoffMin time.Duration // default 1 s
 	BackoffMax time.Duration // default 60 s
 	Node       *fleetv1.NodeInfo
+	// Connector, when set, gives the proxy and module versions sent in
+	// Hello; when they change (the module started, or was upgraded), the
+	// stream is opened again so the control plane learns them.
+	Connector func() *fleetv1.Connector
 	// Counters, when set, fills each heartbeat.
 	Counters func() *fleetv1.NodeCounters
 	// BundleVersion is the active bundle version reported in Hello and
@@ -154,8 +160,9 @@ func (c *Controller) stream(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	node, sent := c.node()
 	if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_Hello{Hello: &fleetv1.Hello{
-		Node: c.opts.Node, ActiveBundleVersion: c.opts.BundleVersion(),
+		Node: node, ActiveBundleVersion: c.opts.BundleVersion(),
 	}}}); err != nil {
 		return recvErr(st, err)
 	}
@@ -207,6 +214,10 @@ func (c *Controller) stream(ctx context.Context) error {
 				return recvErr(st, err)
 			}
 		case <-tick.C:
+			if _, now := c.node(); now != sent {
+				slog.Info("connector versions changed; reconnecting to report them", "versions", now)
+				return nil
+			}
 			hb := &fleetv1.Heartbeat{ActiveBundleVersion: c.opts.BundleVersion()}
 			if c.opts.Counters != nil {
 				hb.Counters = c.opts.Counters()
@@ -250,6 +261,24 @@ func actionName(cmd *fleetv1.Command) string {
 		return "diagnostics"
 	}
 	return "unknown"
+}
+
+// node is the NodeInfo for Hello, with the connector versions now, and
+// those versions as one string to compare.
+func (c *Controller) node() (*fleetv1.NodeInfo, string) {
+	if c.opts.Connector == nil || c.opts.Node == nil {
+		return c.opts.Node, ""
+	}
+	n := proto.Clone(c.opts.Node).(*fleetv1.NodeInfo)
+	cn := c.opts.Connector()
+	if cn == nil {
+		return n, ""
+	}
+	if n.Connector == nil {
+		n.Connector = &fleetv1.Connector{}
+	}
+	n.Connector.ProxyVersion, n.Connector.ModuleVersion, n.Connector.AbiVersion = cn.GetProxyVersion(), cn.GetModuleVersion(), cn.GetAbiVersion()
+	return n, fmt.Sprintf("%s/%s/%#x", cn.GetProxyVersion(), cn.GetModuleVersion(), cn.GetAbiVersion())
 }
 
 // recvErr returns the stream's status once Send fails with io.EOF.

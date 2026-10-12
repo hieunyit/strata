@@ -175,6 +175,15 @@ func New(cfg Config) (*Agent, error) {
 			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
 		},
 	}
+	if cfg.MetricsFile != "" {
+		copts.Connector = func() *fleetv1.Connector {
+			snap, err := shmmetrics.Read(cfg.MetricsFile)
+			if err != nil {
+				return nil
+			}
+			return &fleetv1.Connector{ProxyVersion: snap.ProxyVersion, ModuleVersion: snap.ModuleVersion, AbiVersion: snap.ABIVersion}
+		}
+	}
 	if bm != nil {
 		copts.BundleVersion = bm.Active
 		copts.OnBundle = bm.Offer
