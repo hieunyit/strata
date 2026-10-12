@@ -14,6 +14,7 @@ rule:
         value: '(?i)^\s*(?:unknown|[0-9a-f.:\[\]]+)(?:\s*,\s*(?:unknown|[0-9a-f.:\[\]]+))*\s*$'
         negate: true
   score: 20
+  action_mode: score
   severity: notice
   metadata:
     source: strata

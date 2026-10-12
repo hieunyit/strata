@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '(?i)(?:^|,)\s*chunked\s*(?:[;,]|$)'
   score: 20
+  action_mode: block_alone
   severity: notice
   metadata:
     source: strata

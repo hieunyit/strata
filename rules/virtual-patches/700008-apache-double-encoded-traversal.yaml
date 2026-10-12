@@ -10,6 +10,7 @@ rule:
       transforms: [ lowercase ]
       operator: { type: rx, value: '%%32%65|%2%65|%%32e|\.%%32%65' }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

@@ -13,6 +13,7 @@ rule:
         value: '^HTTP/(?:1\.[01]|2(?:\.0)?|3(?:\.0)?)$'
         negate: true
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

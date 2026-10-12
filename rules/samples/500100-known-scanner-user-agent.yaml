@@ -19,6 +19,7 @@ rule:
         - nuclei
         - masscan
   score: 20
+  action_mode: score
   severity: warning
   metadata:
     source: crawler-user-agents

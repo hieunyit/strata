@@ -10,6 +10,7 @@ rule:
       transforms: [ lowercase ]
       operator: { type: rx, value: '[%$]\{.*(?:#_memberaccess|@ognl|#context|java\.lang|#cmd)' }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

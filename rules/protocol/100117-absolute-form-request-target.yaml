@@ -12,6 +12,7 @@ rule:
         type: rx
         value: '(?i)^[a-z][a-z0-9+.-]*://'
   score: 30
+  action_mode: score
   severity: warning
   metadata:
     source: strata

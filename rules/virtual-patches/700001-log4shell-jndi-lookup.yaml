@@ -15,6 +15,7 @@ rule:
       multi_match: true
       operator: { type: rx, value: '\$\{[^}]{0,40}\$\{(?:lower|upper|::-|env:|sys:|date:|base64:)' }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

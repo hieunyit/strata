@@ -13,6 +13,7 @@ rule:
         type: gt
         value: 100
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

@@ -14,6 +14,7 @@ rule:
         type: gt
         value: 4096
   score: 30
+  action_mode: score
   severity: warning
   metadata:
     source: strata

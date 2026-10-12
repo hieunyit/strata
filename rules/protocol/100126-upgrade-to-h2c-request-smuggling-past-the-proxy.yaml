@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '(?i)(?:^|,)\s*h2c\s*(?:,|$)'
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

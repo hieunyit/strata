@@ -12,6 +12,7 @@ rule:
         type: rx
         value: '^(?:TRACE|TRACK)$'
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

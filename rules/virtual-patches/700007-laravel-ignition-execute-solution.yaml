@@ -10,6 +10,7 @@ rule:
       transforms: [ lowercase ]
       operator: { type: ends_with, value: /_ignition/execute-solution }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

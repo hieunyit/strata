@@ -13,6 +13,7 @@ rule:
         type: gt
         value: 50
   score: 20
+  action_mode: score
   severity: notice
   metadata:
     source: strata

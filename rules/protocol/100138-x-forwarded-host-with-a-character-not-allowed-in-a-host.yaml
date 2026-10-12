@@ -13,6 +13,7 @@ rule:
         type: rx
         value: '[\s/\\?#@%\"''<>]'
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata

@@ -10,6 +10,7 @@ rule:
       transforms: [ lowercase ]
       operator: { type: rx, value: '(?:^|\[)#(?:post_render|pre_render|lazy_builder|access_callback|markup)' }
   score: 100
+  action_mode: block_alone
   severity: critical
   metadata:
     source: strata

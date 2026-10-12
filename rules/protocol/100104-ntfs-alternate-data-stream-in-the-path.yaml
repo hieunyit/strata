@@ -15,6 +15,7 @@ rule:
         type: rx
         value: '::\$(?:data|index_allocation)'
   score: 100
+  action_mode: score
   severity: critical
   metadata:
     source: strata

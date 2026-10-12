@@ -19,6 +19,7 @@ rule:
         type: streq
         value: c99shell
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: sigma

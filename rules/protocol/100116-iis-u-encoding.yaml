@@ -12,6 +12,7 @@ rule:
         type: rx
         value: '(?i)%u[0-9a-f]{4}'
   score: 50
+  action_mode: score
   severity: error
   metadata:
     source: strata
