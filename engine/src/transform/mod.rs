@@ -90,6 +90,12 @@ pub fn apply_chain_with_budget<'a>(
     input: &'a [u8],
     mut budget: Option<&mut TxBudget>,
 ) -> Result<Option<Cow<'a, [u8]>>, BudgetExceeded> {
+    if codes.is_empty() {
+        return Ok(Some(Cow::Borrowed(input)));
+    }
+    if codes.len() == 1 {
+        return apply_with_budget(codes[0], input, budget);
+    }
     let mut cur = Cow::Borrowed(input);
     for &c in codes {
         cur = match cur {
@@ -370,21 +376,48 @@ pub fn lowercase_with_budget<'a>(
     input: &'a [u8],
     mut budget: Option<&mut TxBudget>,
 ) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
-    if input.is_ascii() {
-        if input.len() >= 8192
-            && let Some(bgt) = budget.as_deref_mut()
-        {
-            bgt.check()?;
-        }
-        if !input.iter().any(u8::is_ascii_uppercase) {
-            return Ok(Cow::Borrowed(input));
-        }
-        return Ok(Cow::Owned(input.to_ascii_lowercase()));
-    }
-    let mut out = Vec::with_capacity(input.len());
+    let n = input.len();
     let mut i = 0;
     let mut next_check = 8192;
-    while i < input.len() {
+
+    // Fast path: find first byte that is non-ASCII or uppercase ASCII
+    while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
+        let b = input[i];
+        if b >= 0x80 || b.is_ascii_uppercase() {
+            break;
+        }
+        i += 1;
+    }
+
+    if i == n {
+        return Ok(Cow::Borrowed(input));
+    }
+
+    if input[i] < 0x80 && input[i..].is_ascii() {
+        let mut out = Vec::with_capacity(n);
+        out.extend_from_slice(&input[..i]);
+        while i < n {
+            if i >= next_check {
+                if let Some(bgt) = budget.as_deref_mut() {
+                    bgt.check()?;
+                }
+                next_check = i + 8192;
+            }
+            out.push(input[i].to_ascii_lowercase());
+            i += 1;
+        }
+        return Ok(Cow::Owned(out));
+    }
+
+    let mut out = Vec::with_capacity(n);
+    out.extend_from_slice(&input[..i]);
+    while i < n {
         if i >= next_check {
             if let Some(bgt) = budget.as_deref_mut() {
                 bgt.check()?;
@@ -668,5 +701,44 @@ mod tests {
             js_decode_with_budget(&input_js, Some(&mut budget_js)).unwrap();
         assert_eq!(decoded_js_no_budget, decoded_js_with_budget);
         assert_eq!(&decoded_js_with_budget[8190..], b"Ab");
+    }
+
+    #[test]
+    fn transform_lowercase_budget_chunks() {
+        // 1. Existing vectors: matches lowercase()
+        for s in [
+            &b""[..],
+            b"abc",
+            b"ABC",
+            b"AbCdEf",
+            b"Hello World!",
+            "Tiếng Việt".as_bytes(),
+            "TIẾNG VIỆT".as_bytes(),
+            b"\x80\xFF",
+        ] {
+            let expected = lowercase(s);
+            let with_budget = lowercase_with_budget(s, None).unwrap();
+            assert_eq!(expected, with_budget, "mismatch on {:?}", s);
+            if !s.iter().any(u8::is_ascii_uppercase) && s.is_ascii() {
+                assert!(matches!(with_budget, Cow::Borrowed(_)));
+            }
+        }
+
+        // 2. Small budget on 8 MiB ASCII returns BudgetExceeded
+        let big_ascii = vec![b'a'; 8 << 20];
+        let mut budget = TxBudget::new(10); // 10 µs budget
+        let _ = budget.enter();
+        std::thread::sleep(std::time::Duration::from_micros(100)); // ensure budget is expired
+        let res = lowercase_with_budget(&big_ascii, Some(&mut budget));
+        assert!(matches!(res, Err(BudgetExceeded)));
+
+        // 3. Small budget on 8 MiB ASCII with uppercase also returns BudgetExceeded
+        let mut big_ascii_upper = vec![b'a'; 8 << 20];
+        big_ascii_upper[10_000] = b'A';
+        let mut budget2 = TxBudget::new(10);
+        let _ = budget2.enter();
+        std::thread::sleep(std::time::Duration::from_micros(100));
+        let res2 = lowercase_with_budget(&big_ascii_upper, Some(&mut budget2));
+        assert!(matches!(res2, Err(BudgetExceeded)));
     }
 }

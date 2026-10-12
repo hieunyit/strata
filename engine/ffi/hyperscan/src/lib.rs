@@ -306,12 +306,18 @@ impl<'a> MappedDb<'a> {
                 panicked: false,
             };
 
-            if data.is_empty() {
+            if data.len() <= chunk_size {
+                let len = c_uint::try_from(data.len()).map_err(|_| Error::Scan(-1))?;
+                let ptr = if data.is_empty() {
+                    std::ptr::null()
+                } else {
+                    data.as_ptr().cast()
+                };
                 let rc = unsafe {
                     hs_scan_stream(
                         stream,
-                        std::ptr::null(),
-                        0,
+                        ptr,
+                        len,
                         0,
                         scratch,
                         on_event,
