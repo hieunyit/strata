@@ -37,7 +37,7 @@ curl -i -H 'Host: api.example.test' 'http://127.0.0.1:18080/files/%2e%2e/etc/pas
 docker compose -f deploy/lab/compose.yaml exec agent-1 strata-emit -n 5
 ```
 
-`strata-emit` gửi sự kiện thử vào event socket thay cho worker; module NGINX chỉ gửi sự kiện và ghi file metrics từ W07-N-01, nên trước đó `strata_metrics_file_up` là 0 và Grafana chỉ có các metric `strata_agent_*`.
+Mỗi worker NGINX gửi sự kiện của request bị chặn hoặc ghi nhận (shadow, fail mode) vào `/run/strata/events.sock` và ghi bộ đếm vào `/run/strata/metrics` (volume chung với agent); agent đọc file đó cho `strata_*` (`strata_metrics_file_up` = 1) và để báo bundle ACTIVE. Block ID trong header `X-Strata-Block-Id` tìm được qua `GET /v1/events/{id}` và trang Sự kiện. `strata-emit` vẫn dùng được để gửi sự kiện thử.
 
 Mọi route `/v1/` của control plane cần access token của realm `strata` (`aud` = `strata-api`); token phát cho `127.0.0.1:18180`, control plane đọc metadata qua `keycloak:8080` (`-oidc-discovery-url`).
 
