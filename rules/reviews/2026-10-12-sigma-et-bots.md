@@ -43,3 +43,7 @@ Cách duyệt:
 
 - `make test-rules`: test của pack đạt 100%, mỗi pack khớp 0 request benign. CI có thêm bước kiểm `make signatures-import` không tạo diff.
 - Nâng phiên bản nguồn (`sources.lock`) cần một lượt duyệt mới cho rule mới hoặc đổi. `exclude.txt` chỉ thêm kèm lý do và số request benign khớp.
+
+## Bổ sung: virtual patch 700001–700010 (12/10/2026)
+
+Rule Strata tự viết, không phải nhập. Từng rule được đối chiếu với payload khai thác công khai của CVE: mẫu `match` là payload thật, có biến thể mã hóa và che giấu (Log4Shell `${${lower:j}…}`, URL-encode); mẫu `no_match` là request hợp lệ gần với payload nhất (`$100 jndi`, `class=economy`, `#post render` trong giá trị, Exchange autodiscover thường). Kết quả: 0/2.000 request benign khớp; `make test-rules` 56/56 rule pass. Điểm 100 vì mỗi rule chỉ khớp đúng dấu hiệu khai thác. Duyệt.

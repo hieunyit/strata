@@ -26,7 +26,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W07-N-01 | Fail mode, event sink, metrics, RST_STREAM | Antigravity, Claude Code | L3 | W07-R-03, W07-R-01 | ✅ Done |
 | W07-G1-01 | Lệnh ForceShadow, chẩn đoán, test mất mạng | Claude Code | L3 | W07-N-01 | ✅ Done |
 | W07-G2-01 | Signer KMS và cost unit | Claude Code | L3 | — | ✅ Done |
-| W07-S-01 | Nhập Sigma, ET Open, danh sách bot | Claude Code | L2 | — | ✅ Done (virtual patch 700000 ⛔ chờ Q4) |
+| W07-S-01 | Nhập Sigma, ET Open, danh sách bot | Claude Code | L2 | — | ✅ Done (virtual patch: bộ khởi đầu 700001–700010; patch theo stack thí điểm khi có Q4) |
 | W07-F-01 | Trang Fleet | Claude Code | L1 | — | ✅ Done |
 | W07-Q-01 | Phân tích tĩnh cho C (clang-tidy, CodeQL CLI) | Claude Code | L1 | — | ✅ Done |
 
