@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Download } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
+import { useAuth } from '../context/AuthContext';
+import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell, ErrorBanner, formatTime } from './PageShell';
 
 const modeClass: Record<string, string> = {
@@ -12,6 +15,7 @@ const modeClass: Record<string, string> = {
 // Read only (W04-F-01): editing, diff and deploy come with the policy editor.
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { isViewer } = useAuth();
   const { data, error, loading } = usePolling(() => apiClient.listPolicies(), 0);
   const [selected, setSelected] = useState<Policy | null>(null);
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
@@ -34,10 +38,34 @@ export const PoliciesPage: React.FC = () => {
     </span>
   );
 
+  const exportCsv = () => {
+    const rows = (data ?? []).map((p) => [
+      p.name ?? '', p.spec?.mode ?? '', p.spec?.oversize ?? '',
+      p.version ?? 0, p.update_time ?? '', p.created_by ?? '',
+    ]);
+    downloadCsv(`strata-policies-${csvDate()}.csv`,
+      ['Name', 'Mode', 'Oversize', 'Version', 'Updated', 'Updated by'], rows);
+  };
+
   return (
     <PageShell active="policies">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('policies.title')}</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t('policies.subtitle')}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('policies.title')}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t('policies.subtitle')}</p>
+        </div>
+        {!isViewer && (data ?? []).length > 0 && (
+          <button
+            type="button"
+            data-testid="export-csv-btn"
+            onClick={exportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{t('common.exportCsv')}</span>
+          </button>
+        )}
+      </div>
       <ErrorBanner message={error && t('common.refreshError', { error })} />
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full text-sm" data-testid="policies-table">

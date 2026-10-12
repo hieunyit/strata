@@ -1,7 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Download } from 'lucide-react';
 import { apiClient, FleetNode, Group, Rollout } from '../api/client';
 import { usePolling } from '../usePolling';
+import { useAuth } from '../context/AuthContext';
+import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell, ErrorBanner, formatTime } from './PageShell';
 
 type Status = 'online' | 'offline' | 'revoked';
@@ -105,6 +108,7 @@ const RolloutPanel: React.FC<{ rollout?: Rollout; names: Map<string, string> }> 
 // seconds, so a node's DOWNLOADING → VERIFIED → ACTIVE shows as it happens.
 export const FleetPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { isViewer } = useAuth();
   const { data, error, loading } = usePolling(load, 3000);
   const nodes = data?.nodes ?? [];
   const groups = data?.groups ?? [];
@@ -120,10 +124,38 @@ export const FleetPage: React.FC = () => {
     ...[...byGroup.keys()].filter((id) => !groups.some((g) => g.id === id)).map((id) => ({ id, name: id || t('fleet.noGroup') })),
   ];
 
+  const exportCsv = () => {
+    downloadCsv(
+      `strata-fleet-${csvDate()}.csv`,
+      ['Node ID', 'Hostname', 'Group', 'Status', 'NGINX', 'Module', 'Bundle', 'Bundle state', 'Last seen', 'Cert expires'],
+      nodes.map((n) => [
+        n.id ?? '', n.hostname ?? '', n.group_id ?? '', statusOf(n),
+        n.proxy_version ?? '', n.module_version ?? '',
+        n.bundle_version ? `v${n.bundle_version}` : '', n.bundle_state ?? '',
+        n.last_seen_time ?? '', n.cert_expire_time ?? '',
+      ]),
+    );
+  };
+
   return (
     <PageShell active="fleet">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('fleet.title')}</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{t('fleet.subtitle')}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('fleet.title')}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{t('fleet.subtitle')}</p>
+        </div>
+        {!isViewer && nodes.length > 0 && (
+          <button
+            type="button"
+            data-testid="export-csv-btn"
+            onClick={exportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{t('common.exportCsv')}</span>
+          </button>
+        )}
+      </div>
       <p className="text-sm text-slate-700 dark:text-slate-200 mb-6" data-testid="fleet-summary">
         {t('fleet.summary', { online, total: nodes.length, groups: groups.length })}
       </p>
