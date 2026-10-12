@@ -152,7 +152,7 @@ jobs:
         env:
           STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
-      - name: CRS go-ftw tests of the injection groups pass at least 90% (and the report is current)
+      - name: CRS go-ftw tests pass at least 95% overall and per injection group (and the report is current)
         run: |
           deploy/dev/run.sh make test-crs-ftw
           git diff --exit-code -- docs/crs-ftw-report.md
