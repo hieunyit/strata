@@ -82,6 +82,8 @@ pub const VARS: &[&str] = &[
     "xml",
     "xml_attributes",
     "body_processor",
+    // appended (W08 review): codes above keep their meaning
+    "multipart_part_headers",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -110,6 +112,7 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("remote_addr") => "REMOTE_ADDR",
         Some("matched_vars") => "MATCHED_VARS",
         Some("body_processor") => "REQBODY_PROCESSOR",
+        Some("multipart_part_headers") => "MULTIPART_PART_HEADERS",
         Some("response_status") => "RESPONSE_STATUS",
         Some("response_headers") => "RESPONSE_HEADERS",
         Some("response_body") => "RESPONSE_BODY",
@@ -913,7 +916,15 @@ mod tests {
                 r.cond_first,
                 r.cond_count
             ),
-            (942_100, &b"SQLi via libinjection"[..], 5, false, false, 0, 1)
+            (
+                942_100,
+                &b"SQLi via libinjection"[..],
+                5,
+                false,
+                false,
+                0,
+                1
+            )
         );
         let r = t.rule(1).unwrap();
         assert_eq!(

@@ -252,6 +252,7 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "xml",
     "xml_attributes",
     "body_processor",
+    "multipart_part_headers",
 ];
 
 /// Operators and transformations this evaluator runs; a rule using
@@ -461,6 +462,8 @@ struct Data<'a> {
     cookies: Vec<Pair<'a>>,
     /// uploaded files of a multipart body: (field name, file name)
     files: Vec<(&'a [u8], &'a [u8])>,
+    /// header lines of the parts of a multipart body: (part name, line)
+    part_headers: Vec<(&'a [u8], &'a [u8])>,
     /// an XML body
     xml: Option<xml::Xml>,
 }
@@ -744,6 +747,17 @@ fn values<'d>(
                 .map(|(n, f)| TargetVal {
                     name: Some(*n),
                     val: f,
+                })
+                .collect(),
+        )
+    } else if v == var("multipart_part_headers") {
+        TargetVals::Many(
+            d.part_headers
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, h)| TargetVal {
+                    name: Some(*n),
+                    val: h,
                 })
                 .collect(),
         )
@@ -1243,6 +1257,7 @@ pub fn evaluate_with_budget(
     let mut args = parse_query_with_budget(req.args, budget.as_deref_mut())?;
     let n_get = args.len();
     let mut files = vec![];
+    let mut part_headers = vec![];
     let mut xml_body = None;
     let room = MAX_ARGS.saturating_sub(n_get);
     let ct = content_type(req.headers);
@@ -1268,6 +1283,7 @@ pub fn evaluate_with_budget(
                     multipart::boundary(ct).unwrap_or(b""),
                     budget.as_deref_mut(),
                 )? {
+                    part_headers.extend(p.headers.iter().map(|h| (p.name, *h)));
                     match p.filename {
                         Some(f) => files.push((p.name, f)),
                         None if args.len() < MAX_ARGS => {
@@ -1289,6 +1305,7 @@ pub fn evaluate_with_budget(
         n_get,
         cookies: parse_cookies(req.headers),
         files,
+        part_headers,
         xml: xml_body,
     };
     let hs = tables.hyperscan().zip(db);

@@ -69,7 +69,10 @@ fn authoring_schema_requires_action_mode() {
             "rules": [ rule(action_mode) ]
         })
     };
-    assert!(ir_validator.is_valid(&ir_doc(None)), "IR keeps action_mode optional");
+    assert!(
+        ir_validator.is_valid(&ir_doc(None)),
+        "IR keeps action_mode optional"
+    );
     assert!(ir_validator.is_valid(&ir_doc(Some("score"))));
 
     // the authoring requirement: the IR rule, plus required action_mode
@@ -98,7 +101,10 @@ fn authoring_schema_requires_action_mode() {
         .iter_errors(&rule(Some("block_alone")))
         .map(|e| e.to_string())
         .collect();
-    assert!(errors.is_empty(), "a rule with action_mode should pass: {errors:?}");
+    assert!(
+        errors.is_empty(),
+        "a rule with action_mode should pass: {errors:?}"
+    );
 }
 
 fn rule(action_mode: Option<&str>) -> serde_json::Value {
