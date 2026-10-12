@@ -32,6 +32,7 @@ type memRegistry struct {
 	seen     map[string]int
 	desired  map[string]store.Bundle
 	statuses []string // node/version/state
+	commands []store.Command
 }
 
 type memToken struct {
@@ -126,6 +127,62 @@ func (m *memRegistry) RenewCertificate(_ context.Context, id, old string, iss st
 	n.CertSerial, n.CertNotAfter = iss.Serial, &iss.NotAfter
 	m.nodes[id] = n
 	return nil
+}
+
+func (m *memRegistry) CompleteCommand(_ context.Context, node, id string, ok bool, msg, output string, now time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, c := range m.commands {
+		if c.ID == id && c.NodeID == node && (c.State == store.CommandPending || c.State == store.CommandSent) {
+			c.State, c.Error, c.Output, c.UpdatedAt = store.CommandDone, msg, output, now
+			if !ok {
+				c.State = store.CommandFailed
+			}
+			m.commands[i] = c
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
+func (m *memRegistry) PendingCommands(_ context.Context, nodes []string, now time.Time) ([]store.Command, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []store.Command
+	for i, c := range m.commands {
+		if (c.State == store.CommandPending || c.State == store.CommandSent) && !now.Before(c.ExpiresAt) {
+			m.commands[i].State = store.CommandExpired
+			continue
+		}
+		for _, n := range nodes {
+			if c.NodeID == n && c.State == store.CommandPending {
+				out = append(out, c)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (m *memRegistry) MarkCommandSent(_ context.Context, id string, _ time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, c := range m.commands {
+		if c.ID == id && c.State == store.CommandPending {
+			m.commands[i].State = store.CommandSent
+		}
+	}
+	return nil
+}
+
+func (m *memRegistry) command(id string) store.Command {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.commands {
+		if c.ID == id {
+			return c
+		}
+	}
+	return store.Command{}
 }
 
 func (m *memRegistry) revoke(id string) {

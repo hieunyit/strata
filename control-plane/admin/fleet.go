@@ -46,6 +46,8 @@ type fleetAdmin struct {
 	adminv1.UnimplementedFleetAdminServiceServer
 	store    FleetStore
 	presence NodePresence
+	commands CommandStore // nil: the command routes answer FailedPrecondition
+	kick     Kicker       // wakes the command dispatcher
 	now      func() time.Time
 }
 

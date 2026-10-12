@@ -161,6 +161,9 @@ func main() {
 		rollouts = fleet.NewRollouts(pg, presence, waves, *rolloutSoak)
 		deps.Kicker = rollouts
 		go rollouts.Run(ctx)
+		commands := fleet.NewCommands(pg, presence)
+		deps.Commands, deps.CommandKicker = pg, commands
+		go commands.Run(ctx)
 		if *s3Endpoint != "" {
 			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
 				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
