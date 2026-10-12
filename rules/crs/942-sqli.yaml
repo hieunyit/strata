@@ -29,6 +29,7 @@ rules:
             - url_decode_uni
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -57,6 +58,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -85,6 +87,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -115,6 +118,7 @@ rules:
             - url_decode_uni
             - replace_comments
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -143,6 +147,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -172,6 +177,7 @@ rules:
             - url_decode_uni
             - remove_comments_char
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -200,6 +206,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -228,6 +235,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -256,6 +264,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -284,6 +293,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -312,6 +322,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -344,6 +355,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -372,6 +384,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -400,6 +413,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -429,6 +443,7 @@ rules:
             - url_decode_uni
             - replace_comments
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -457,6 +472,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -486,6 +502,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -515,6 +532,7 @@ rules:
             - url_decode_uni
             - replace_comments
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -545,6 +563,7 @@ rules:
             - url_decode_uni
             - remove_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -574,6 +593,7 @@ rules:
             - url_decode_uni
             - replace_comments
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

@@ -23,6 +23,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -57,6 +58,7 @@ rules:
             - remove_nulls
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1064,6 +1066,7 @@ rules:
             - url_decode_uni
             - normalize_path_win
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1610,6 +1613,7 @@ rules:
             - url_decode_uni
             - normalize_path_win
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1660,6 +1664,7 @@ rules:
             - url_decode_uni
             - normalize_path_win
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

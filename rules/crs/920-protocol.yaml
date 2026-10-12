@@ -17,6 +17,7 @@ rules:
           targets:
             - var: request_line
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:
@@ -42,6 +43,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -65,6 +67,7 @@ rules:
             - key: Content-Length
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -93,6 +96,7 @@ rules:
             - key: Content-Length
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -122,6 +126,7 @@ rules:
               key: Transfer-Encoding
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -130,6 +135,48 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920171"
+      upstream_version: 4.25.2
+  - id: 920180
+    name: POST without Content-Length and Transfer-Encoding headers
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            negate: true
+            type: rx
+            value: ^(?:HTTP/2|HTTP/2\.0|HTTP/3|HTTP/3\.0)$
+          targets:
+            - var: protocol
+        - operator:
+            type: streq
+            value: POST
+          targets:
+            - var: method
+        - operator:
+            type: eq
+            value: 0
+          targets:
+            - count: true
+              key: Content-Length
+              var: request_headers
+        - operator:
+            type: eq
+            value: 0
+          targets:
+            - count: true
+              key: Transfer-Encoding
+              var: request_headers
+    score: 60
+    action_mode: score
+    severity: warning
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920180"
       upstream_version: 4.25.2
   - id: 920181
     name: Content-Length and Transfer-Encoding headers present
@@ -154,6 +201,7 @@ rules:
               key: Content-Length
               var: request_headers
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:
@@ -176,6 +224,7 @@ rules:
             - key: Connection
               var: request_headers
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:
@@ -198,6 +247,7 @@ rules:
             - var: uri
             - var: request_body
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:
@@ -224,6 +274,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -247,6 +298,7 @@ rules:
               key: Host
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -269,6 +321,7 @@ rules:
             - key: Host
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -309,6 +362,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 40
+    action_mode: score
     severity: notice
     paranoia_level: 1
     metadata:
@@ -344,6 +398,7 @@ rules:
               key: User-Agent
               var: request_headers
     score: 40
+    action_mode: score
     severity: notice
     paranoia_level: 1
     metadata:
@@ -366,6 +421,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 40
+    action_mode: score
     severity: notice
     paranoia_level: 1
     metadata:
@@ -396,6 +452,7 @@ rules:
               key: Content-Type
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -418,6 +475,7 @@ rules:
             - key: Host
               var: request_headers
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:
@@ -426,6 +484,111 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920350"
+      upstream_version: 4.25.2
+  - id: 920420
+    name: Request content type is not allowed by policy
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: ^[^;\s]+
+          targets:
+            - key: Content-Type
+              var: request_headers
+          transforms:
+            - lowercase
+        - operator:
+            negate: true
+            type: rx
+            value: ^(?:application/x-www-form-urlencoded|multipart/form-data|text/xml|application/xml|application/soap\+xml|application/json)(?:[;\s]|$)
+          targets:
+            - key: Content-Type
+              var: request_headers
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920420"
+      upstream_version: 4.25.2
+  - id: 920430
+    name: HTTP protocol version is not allowed by policy
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            negate: true
+            type: rx
+            value: ^(?:HTTP/1\.0|HTTP/1\.1|HTTP/2|HTTP/2\.0|HTTP/3|HTTP/3\.0)$
+          targets:
+            - var: protocol
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920430"
+      upstream_version: 4.25.2
+  - id: 920440
+    name: URL file extension is restricted by policy
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: \.(?:ani|asa|asax|ascx|back|backup|bak|bck|bk|bkp|bat|cdx|cer|cfg|cmd|cnf|com|compositefont|config|conf|copy|crt|cs|csproj|csr|dat|db|dbf|dist|dll|dos|dpkg-dist|drv|gadget|hta|htr|htw|ida|idc|idq|inc|inf|ini|jks|jse|key|licx|lnk|log|mdb|msc|ocx|old|pass|pdb|pfx|pif|pem|pol|prf|printer|pwd|rdb|rdp|reg|resources|resx|sav|save|scr|sct|sh|shs|sql|sqlite|sqlite3|swap|swo|swp|sys|temp|tfstate|tlb|tmp|vb|vbe|vbs|vbproj|vsdisco|vxd|webinfo|ws|wsc|wsf|wsh|xsd|xsx)$
+          targets:
+            - var: path
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920440"
+      upstream_version: 4.25.2
+  - id: 920450
+    name: HTTP header is restricted by policy (%{MATCHED_VAR})
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: ^(?:content-encoding|proxy|lock-token|content-range|if|x-http-method-override|x-http-method|x-method-override|x-middleware-subrequest|expect)$
+          targets:
+            - var: request_headers_names
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920450"
       upstream_version: 4.25.2
   - id: 920470
     name: Illegal Content-Type header
@@ -443,6 +606,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -451,6 +615,40 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920470"
+      upstream_version: 4.25.2
+  - id: 920480
+    name: Request content type charset is not allowed by policy
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: charset\s*=\s*["']?[^;"'\s]+
+          targets:
+            - key: Content-Type
+              var: request_headers
+          transforms:
+            - lowercase
+        - operator:
+            negate: true
+            type: rx
+            value: charset\s*=\s*["']?(?:utf-8|iso-8859-1|iso-8859-15|windows-1252)(?:[;"'\s]|$)
+          targets:
+            - key: Content-Type
+              var: request_headers
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920480"
       upstream_version: 4.25.2
   - id: 920500
     name: Attempt to access a backup or working file
@@ -466,6 +664,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -491,6 +690,7 @@ rules:
             - lowercase
             - length
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -515,6 +715,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -545,6 +746,7 @@ rules:
           targets:
             - var: body_processor
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -570,6 +772,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -591,6 +794,7 @@ rules:
           targets:
             - var: uri_raw
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -614,6 +818,7 @@ rules:
               key: Content-Type
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -637,6 +842,7 @@ rules:
               key: Request-Range
               var: request_headers
     score: 60
+    action_mode: score
     severity: warning
     paranoia_level: 1
     metadata:

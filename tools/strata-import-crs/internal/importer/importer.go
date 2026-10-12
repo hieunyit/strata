@@ -36,7 +36,8 @@ var vars = map[string]string{
 	"ARGS": "args", "ARGS_NAMES": "args_names", "ARGS_GET": "args_get", "ARGS_POST": "args_post",
 	"ARGS_GET_NAMES": "args_names", "ARGS_POST_NAMES": "args_names",
 	"REQUEST_HEADERS": "request_headers", "REQUEST_HEADERS_NAMES": "request_headers_names",
-	"REQUEST_COOKIES": "request_cookies", "REQUEST_COOKIES_NAMES": "request_cookies_names",
+	"MULTIPART_PART_HEADERS": "multipart_part_headers",
+	"REQUEST_COOKIES":        "request_cookies", "REQUEST_COOKIES_NAMES": "request_cookies_names",
 	"REQUEST_URI": "uri", "REQUEST_URI_RAW": "uri_raw", "REQUEST_FILENAME": "path",
 	"REQUEST_METHOD": "method", "REQUEST_PROTOCOL": "protocol", "REMOTE_ADDR": "remote_addr",
 	"REQUEST_BODY": "request_body", "FILES": "files", "FILES_NAMES": "files_names",
@@ -91,6 +92,9 @@ type Options struct {
 	MaxPL      int    // paranoia levels imported, default 1
 	Compile    string // strata-compile binary; empty: no compile check
 	PoliciesIR string // policies file for the compile check (temporary if empty)
+	// Defaults: the tx.* lists REQUEST-901-INITIALIZATION sets when the
+	// operator does not (allowed methods, content types...), read by Import.
+	Defaults map[string]string
 }
 
 // Skip is a rule not imported.
@@ -129,7 +133,10 @@ type target struct {
 }
 
 // convertLink turns one chain link into an IR condition.
-func convertLink(l seclang.Link, dataDir string, notes *[]string) (map[string]any, string) {
+func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *[]string) (map[string]any, string) {
+	if l.Operator == "within" {
+		return withinLink(l, defs)
+	}
 	var ts []*target
 	excludes := map[string][]string{} // IR var -> names
 	for _, raw := range l.Variables {
@@ -294,7 +301,7 @@ func skipGate(r seclang.Rule, dataDir string) map[string]any {
 		return nil
 	}
 	var notes []string
-	c, reason := convertLink(r.Chain[0], dataDir, &notes)
+	c, reason := convertLink(r.Chain[0], dataDir, nil, &notes)
 	if reason != "" || len(notes) > 0 {
 		return nil
 	}
@@ -354,12 +361,20 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 		return nil, "severity " + r.Severity
 	}
 	var conds []any
-	for _, l := range r.Chain {
-		c, reason := convertLink(l, filepath.Join(opts.CRSDir, "rules"), notes)
+	if cs, ok, reason := configList(r, opts.Defaults); ok {
 		if reason != "" {
 			return nil, reason
 		}
-		conds = append(conds, c)
+		conds = cs
+		*notes = append(*notes, "list of crs-setup checked with its REQUEST-901 default")
+	} else {
+		for _, l := range r.Chain {
+			c, reason := convertLink(l, filepath.Join(opts.CRSDir, "rules"), opts.Defaults, notes)
+			if reason != "" {
+				return nil, reason
+			}
+			conds = append(conds, c)
+		}
 	}
 	name := r.Msg
 	if name == "" {
@@ -372,6 +387,7 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 		"id": r.ID, "name": name, "layer": g.Layer, "stage": stage,
 		"match":          map[string]any{"all": conds},
 		"score":          pts * ScoreFactor,
+		"action_mode":    "score", // CRS is anomaly scoring: no rule blocks alone
 		"severity":       severityIR[r.Severity],
 		"paranoia_level": max(r.ParanoiaLevel(), 1),
 		"metadata": map[string]any{
@@ -390,6 +406,13 @@ func Import(groups []Group, opts Options) (*Result, error) {
 		opts.MaxPL = 1
 	}
 	res := &Result{}
+	if opts.Defaults == nil {
+		d, err := ReadDefaults(filepath.Join(opts.CRSDir, "rules", "REQUEST-901-INITIALIZATION.conf"))
+		if err != nil {
+			return nil, err
+		}
+		opts.Defaults = d
+	}
 	for _, g := range groups {
 		src, err := os.ReadFile(filepath.Join(opts.CRSDir, "rules", g.File))
 		if err != nil {
@@ -509,4 +532,197 @@ func (r *Result) Sorted() []Skip {
 		return s[i].Rule < s[j].Rule
 	})
 	return s
+}
+
+// strataDefaults replace REQUEST-901 defaults where they do not suit what
+// Strata protects. CRS's allowed_methods (GET HEAD POST OPTIONS) blocks every
+// REST API (PUT, PATCH, DELETE); CRS's own crs-setup asks to widen it for
+// them. Recorded in docs/crs-import-report.md.
+var strataDefaults = map[string]string{
+	"allowed_methods": "GET HEAD POST OPTIONS PUT PATCH DELETE",
+}
+
+var defaultRe = regexp.MustCompile(`setvar:'tx\.([a-z0-9_]+)=([^']*)'`)
+
+// ReadDefaults reads the tx.* values REQUEST-901-INITIALIZATION.conf sets
+// when crs-setup does not: the first assignment of each (later ones add to
+// it under conditions, e.g. extra content types for some hosts).
+func ReadDefaults(path string) (map[string]string, error) {
+	out := map[string]string{}
+	src, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return out, nil // a partial tree (tests): rules needing a list are left out
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range defaultRe.FindAllStringSubmatch(string(src), -1) {
+		if _, seen := out[m[1]]; !seen && !strings.Contains(m[2], "%{") {
+			out[m[1]] = m[2]
+		}
+	}
+	for k, v := range strataDefaults {
+		out[k] = v
+	}
+	return out, nil
+}
+
+// listOf expands an @within argument (literal or %{tx.name}) into its
+// items, delimiters (| or /, a leading .) dropped.
+func listOf(arg string, defs map[string]string) ([]string, string) {
+	arg = strings.TrimSpace(arg)
+	if m := regexp.MustCompile(`^%\{tx\.([a-z0-9_]+)\}$`).FindStringSubmatch(strings.ToLower(arg)); m != nil {
+		v, ok := defs[m[1]]
+		if !ok {
+			return nil, "@within %{tx." + m[1] + "} without a REQUEST-901 default"
+		}
+		arg = v
+	} else if macro.MatchString(arg) {
+		return nil, "macro in the operator argument (" + arg + ")"
+	}
+	var items []string
+	for _, f := range strings.Fields(arg) {
+		f = strings.Trim(f, "|/")
+		f = strings.TrimPrefix(f, ".")
+		if f != "" {
+			items = append(items, f)
+		}
+	}
+	if len(items) == 0 {
+		return nil, "@within with an empty list"
+	}
+	return items, ""
+}
+
+func alternation(items []string) string {
+	q := make([]string, len(items))
+	for i, it := range items {
+		q[i] = regexp.QuoteMeta(it)
+	}
+	return "(?:" + strings.Join(q, "|") + ")"
+}
+
+// withinLink: @within on a request variable (REQUEST_METHOD,
+// REQUEST_PROTOCOL...) is "the value is one of the items": an anchored
+// alternation. (ModSecurity looks for the value inside the list string;
+// with CRS's delimited lists that is the same.)
+func withinLink(l seclang.Link, defs map[string]string) (map[string]any, string) {
+	if len(l.Variables) != 1 || strings.HasPrefix(l.Variables[0], "TX") {
+		return nil, "@within on " + strings.Join(l.Variables, "|")
+	}
+	name, sel, _ := strings.Cut(strings.TrimPrefix(l.Variables[0], "!"), ":")
+	v, ok := vars[name]
+	if !ok || strings.HasPrefix(l.Variables[0], "&") {
+		return nil, "variable " + name
+	}
+	items, reason := listOf(l.Argument, defs)
+	if reason != "" {
+		return nil, reason
+	}
+	t := map[string]any{"var": v}
+	if sel != "" {
+		t["key"] = sel
+	}
+	op := map[string]any{"type": "rx", "value": "^" + alternation(items) + "$"}
+	if l.Negated {
+		op["negate"] = true
+	}
+	return map[string]any{"targets": []map[string]any{t}, "operator": op}, ""
+}
+
+// configList translates the CRS rules that capture a part of the request
+// into a TX variable and check it @within a crs-setup list: content type
+// (920420), its charset (920480), the file extension (920440) and header
+// names (920450). The capture and the list check become conditions on the
+// request value itself. ok is false for any other rule.
+func configList(r seclang.Rule, defs map[string]string) ([]any, bool, string) {
+	if cs, ok, reason := multipartForms(r, defs); ok {
+		return cs, ok, reason
+	}
+	if len(r.Chain) != 2 || r.Chain[1].Operator != "within" || len(r.Chain[1].Variables) != 1 {
+		return nil, false, ""
+	}
+	tv := strings.ToLower(r.Chain[1].Variables[0])
+	items, reason := listOf(r.Chain[1].Argument, defs)
+	alt := ""
+	if reason == "" {
+		alt = alternation(lower(items))
+	}
+	neg := r.Chain[1].Negated
+	rx := func(target map[string]any, value string, negate bool) map[string]any {
+		op := map[string]any{"type": "rx", "value": value}
+		if negate {
+			op["negate"] = true
+		}
+		return map[string]any{"targets": []map[string]any{target}, "transforms": []string{"lowercase"}, "operator": op}
+	}
+	ct := map[string]any{"var": "request_headers", "key": "Content-Type"}
+	switch {
+	case tv == "tx:content_type" && neg:
+		if reason != "" {
+			return nil, true, reason
+		}
+		return []any{rx(ct, `^[^;\s]+`, false), rx(ct, `^`+alt+`(?:[;\s]|$)`, true)}, true, ""
+	case tv == "tx:content_type_charset" && neg:
+		if reason != "" {
+			return nil, true, reason
+		}
+		has := `charset\s*=\s*["']?[^;"'\s]+`
+		return []any{rx(ct, has, false), rx(ct, `charset\s*=\s*["']?`+alt+`(?:[;"'\s]|$)`, true)}, true, ""
+	case tv == "tx:extension" && !neg:
+		if reason != "" {
+			return nil, true, reason
+		}
+		return []any{rx(map[string]any{"var": "path"}, `\.`+alt+`$`, false)}, true, ""
+	case strings.HasPrefix(tv, "tx:/^header_name_") && !neg:
+		if reason != "" {
+			return nil, true, reason
+		}
+		return []any{rx(map[string]any{"var": "request_headers_names"}, `^`+alt+`$`, false)}, true, ""
+	}
+	return nil, false, ""
+}
+
+func lower(s []string) []string {
+	out := make([]string, len(s))
+	for i, x := range s {
+		out[i] = strings.ToLower(x)
+	}
+	return out
+}
+
+// multipartForms translates the two CRS 922 rules that check values other
+// rules captured into TX: 922110 (a part's Content-Type, captured by the
+// pass rule 922150) and 922100 (the _charset_ field of a multipart body).
+func multipartForms(r seclang.Rule, defs map[string]string) ([]any, bool, string) {
+	ch := r.Chain
+	switch {
+	case len(ch) == 1 && strings.EqualFold(ch[0].Variables[0], "TX:/MULTIPART_HEADERS_CONTENT_TYPES_*/") && ch[0].Operator == "rx" && ch[0].Negated:
+		// the line of each part's Content-Type, then that value (matched_vars)
+		// against the allowed form; per value, so only Content-Type lines
+		pat := strings.TrimPrefix(ch[0].Argument, "^")
+		full := `^content-type\s*:\s*` + pat
+		if _, err := regexp.Compile(full); err != nil {
+			return nil, true, "regex is not RE2: " + err.Error()
+		}
+		return []any{
+			map[string]any{"targets": []map[string]any{{"var": "multipart_part_headers"}}, "transforms": []string{"lowercase"},
+				"operator": map[string]any{"type": "rx", "value": `^content-type\s*:\s*(.*)$`}},
+			map[string]any{"targets": []map[string]any{{"var": "matched_vars"}},
+				"operator": map[string]any{"type": "rx", "value": full, "negate": true}},
+		}, true, ""
+	case len(ch) == 3 && strings.EqualFold(ch[0].Variables[0], "&MULTIPART_PART_HEADERS:_charset_") &&
+		strings.EqualFold(ch[1].Variables[0], "ARGS:_charset_") && ch[2].Operator == "within":
+		items, reason := listOf(ch[2].Argument, defs)
+		if reason != "" {
+			return nil, true, reason
+		}
+		return []any{
+			map[string]any{"targets": []map[string]any{{"var": "multipart_part_headers", "key": "_charset_", "count": true}},
+				"operator": map[string]any{"type": "gt", "value": 0}},
+			map[string]any{"targets": []map[string]any{{"var": "args", "key": "_charset_"}}, "transforms": []string{"lowercase"},
+				"operator": map[string]any{"type": "rx", "value": "^" + alternation(lower(items)) + "$", "negate": true}},
+		}, true, ""
+	}
+	return nil, false, ""
 }

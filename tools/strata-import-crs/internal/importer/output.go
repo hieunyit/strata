@@ -13,7 +13,7 @@ import (
 // Marshal writes a group as an IR document (YAML), rules in id order and
 // keys in the IR's order.
 func Marshal(im *Imported, version string) ([]byte, error) {
-	order := []string{"id", "name", "layer", "stage", "match", "score", "severity", "paranoia_level", "metadata"}
+	order := []string{"id", "name", "layer", "stage", "match", "score", "action_mode", "severity", "paranoia_level", "metadata"}
 	rules := &yaml.Node{Kind: yaml.SequenceNode}
 	sorted := append([]map[string]any(nil), im.Rules...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i]["id"].(int) < sorted[j]["id"].(int) })

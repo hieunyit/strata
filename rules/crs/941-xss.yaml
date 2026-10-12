@@ -29,6 +29,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -66,6 +67,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -103,6 +105,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -139,6 +142,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -178,6 +182,7 @@ rules:
             - remove_nulls
             - remove_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -216,6 +221,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -254,6 +260,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -299,6 +306,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -333,6 +341,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -367,6 +376,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -401,6 +411,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -435,6 +446,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -469,6 +481,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -504,6 +517,7 @@ rules:
             - lowercase
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -538,6 +552,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -572,6 +587,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -606,6 +622,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -640,6 +657,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -674,6 +692,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -708,6 +727,7 @@ rules:
             - css_decode
             - remove_nulls
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -745,6 +765,7 @@ rules:
           targets:
             - var: matched_vars
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -776,6 +797,7 @@ rules:
             - html_entity_decode
             - js_decode
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -803,6 +825,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -832,6 +855,7 @@ rules:
             - url_decode_uni
             - compress_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -862,6 +886,7 @@ rules:
             - html_entity_decode
             - js_decode
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -892,6 +917,7 @@ rules:
             - url_decode_uni
             - compress_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

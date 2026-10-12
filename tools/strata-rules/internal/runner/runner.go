@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Tools are the two binaries.
@@ -174,7 +175,7 @@ func (t Tools) Eval(b *Bundle, reqs []Request) ([]Verdict, error) {
 	var in bytes.Buffer
 	enc := json.NewEncoder(&in)
 	for _, r := range reqs {
-		if err := enc.Encode(r); err != nil {
+		if err := enc.Encode(Framed(r)); err != nil {
 			return nil, err
 		}
 	}
@@ -200,4 +201,25 @@ func (t Tools) Eval(b *Bundle, reqs []Request) ([]Verdict, error) {
 		return nil, errors.New("strata-eval: one verdict per request expected")
 	}
 	return vs, sc.Err()
+}
+
+// Framed gives a request with a body the Content-Length a client sends
+// (HTTP/1.1 has no body without it or Transfer-Encoding): corpus and sample
+// requests often leave it out, and rules such as CRS 920180 check it.
+func Framed(r Request) Request {
+	if r.Body == "" {
+		return r
+	}
+	for k := range r.Headers {
+		if strings.EqualFold(k, "Content-Length") || strings.EqualFold(k, "Transfer-Encoding") {
+			return r
+		}
+	}
+	h := make(map[string]any, len(r.Headers)+1)
+	for k, v := range r.Headers {
+		h[k] = v
+	}
+	h["Content-Length"] = strconv.Itoa(len(r.Body))
+	r.Headers = h
+	return r
 }

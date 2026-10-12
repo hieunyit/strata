@@ -75,6 +75,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

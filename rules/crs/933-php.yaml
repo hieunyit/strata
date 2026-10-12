@@ -21,6 +21,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -53,6 +54,7 @@ rules:
             - lowercase
             - remove_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -81,6 +83,7 @@ rules:
           transforms:
             - normalize_path
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -131,6 +134,7 @@ rules:
             - normalize_path
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -158,6 +162,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -184,6 +189,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -452,6 +458,7 @@ rules:
           targets:
             - var: matched_vars
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -479,6 +486,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -506,6 +514,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -533,6 +542,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -564,6 +574,7 @@ rules:
             - remove_nulls
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -595,6 +606,7 @@ rules:
             - replace_comments
             - remove_whitespace
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -627,6 +639,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

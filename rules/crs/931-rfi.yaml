@@ -20,6 +20,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -44,6 +45,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -65,6 +67,7 @@ rules:
           targets:
             - var: args
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
