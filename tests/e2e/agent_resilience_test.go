@@ -329,6 +329,12 @@ func (tp *toxiproxy) create(t *testing.T, name, upstream string) string {
 	return listen
 }
 
+// untoxic removes a toxic.
+func (tp *toxiproxy) untoxic(t *testing.T, proxy, name string) {
+	t.Helper()
+	tp.do(t, http.MethodDelete, "/proxies/"+proxy+"/toxics/"+name, "")
+}
+
 // enable turns the proxy on or off; off closes its connections and
 // refuses new ones.
 func (tp *toxiproxy) enable(t *testing.T, name string, on bool) {
