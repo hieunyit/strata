@@ -44,7 +44,7 @@ Hai loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** 
 | bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 
-Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit khác phải = 0. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
 
 ### Section 7 `HYPERSCAN` (`SHS1` và `SHS2`)
 

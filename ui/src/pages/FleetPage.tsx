@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Download } from 'lucide-react';
 import { apiClient, FleetNode, Group, Rollout } from '../api/client';
 import { usePolling } from '../usePolling';
-import { useAuth } from '../context/AuthContext';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell, ErrorBanner, formatTime } from './PageShell';
 
@@ -108,7 +107,6 @@ const RolloutPanel: React.FC<{ rollout?: Rollout; names: Map<string, string> }> 
 // seconds, so a node's DOWNLOADING → VERIFIED → ACTIVE shows as it happens.
 export const FleetPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { isViewer } = useAuth();
   const { data, error, loading } = usePolling(load, 3000);
   const nodes = data?.nodes ?? [];
   const groups = data?.groups ?? [];
@@ -144,7 +142,7 @@ export const FleetPage: React.FC = () => {
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('fleet.title')}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{t('fleet.subtitle')}</p>
         </div>
-        {!isViewer && nodes.length > 0 && (
+        {nodes.length > 0 && (
           <button
             type="button"
             data-testid="export-csv-btn"

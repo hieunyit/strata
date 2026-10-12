@@ -316,6 +316,19 @@ func Groups(results []Result) []Group {
 	return out
 }
 
+// Total sums the groups into one.
+func Total(results []Result) Group {
+	t := Group{Name: "Total"}
+	for _, g := range Groups(results) {
+		t.Tests += g.Tests
+		t.Passed += g.Passed
+		t.Failed += g.Failed
+		t.Missing += g.Missing
+		t.AboveMax += g.AboveMax
+	}
+	return t
+}
+
 // Markdown writes the per-group table, then failed tests and the rules
 // whose tests could not run.
 func Markdown(w io.Writer, results []Result, maxPL int) {
@@ -325,6 +338,9 @@ func Markdown(w io.Writer, results []Result, maxPL int) {
 	fmt.Fprintf(w, "| Group | Tests | Pass | Fail | Rule missing | Pass %% | Above PL%d (not run) |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: |\n", maxPL)
 	for _, g := range Groups(results) {
 		fmt.Fprintf(w, "| %s | %d | %d | %d | %d | %.1f | %d |\n", g.Name, g.Tests, g.Passed, g.Failed, g.Missing, g.Rate(), g.AboveMax)
+	}
+	if t := Total(results); len(Groups(results)) > 1 {
+		fmt.Fprintf(w, "| **%s** | %d | %d | %d | %d | %.1f | %d |\n", t.Name, t.Tests, t.Passed, t.Failed, t.Missing, t.Rate(), t.AboveMax)
 	}
 	missing := map[string]int{}
 	var failed []Result

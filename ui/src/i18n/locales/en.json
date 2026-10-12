@@ -112,7 +112,7 @@
       "blockIp": "Block this IP",
       "close": "Close"
     },
-    "viewerNotice": "You are logged in as Viewer. Sensitive request info (IP, payload snippet) is redacted; export and write actions are disabled."
+    "viewerNotice": "You are logged in as Viewer. Sensitive request info (IP, payload snippet) is redacted, also in CSV exports; write actions are disabled."
   },
   "login": {
     "title": "Sign in to Strata",

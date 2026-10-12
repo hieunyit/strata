@@ -18,6 +18,9 @@ pub struct Part<'a> {
     pub name: &'a [u8],
     pub filename: Option<&'a [u8]>,
     pub content: &'a [u8],
+    /// the part's header lines, as sent ("Content-Type: text/plain"),
+    /// for ModSecurity's MULTIPART_PART_HEADERS
+    pub headers: Vec<&'a [u8]>,
 }
 
 fn position_8k<F>(
@@ -159,8 +162,12 @@ fn part(p: &[u8]) -> Option<Part<'_>> {
     let (head, content) = split_headers(p)?;
     let mut name = None;
     let mut filename = None;
+    let mut headers = vec![];
     for line in head.split(|&c| c == b'\n') {
         let line = strip_cr(line);
+        if !line.is_empty() {
+            headers.push(line);
+        }
         let Some(colon) = position_8k(line, |c| c == b':', None).ok().flatten() else {
             continue;
         };
@@ -175,6 +182,7 @@ fn part(p: &[u8]) -> Option<Part<'_>> {
         name: name?,
         filename,
         content,
+        headers,
     })
 }
 
@@ -302,7 +310,8 @@ x\n--XyZ--\r\nepilogue";
             Part {
                 name: b"title",
                 filename: None,
-                content: b"hello"
+                content: b"hello",
+                headers: vec![&b"Content-Disposition: form-data; name=\"title\""[..]],
             }
         );
         assert_eq!(p[1].name, b"file");

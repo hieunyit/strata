@@ -90,7 +90,7 @@ func TestBuildPackage(t *testing.T) {
 		t.Errorf("sources: %v", m.BySource)
 	}
 
-	for _, f := range []string{"strata-signatures-2026.w42.sbn", "strata-signatures-2026.w42.pub", "manifest.json", "CHANGELOG.md", "NOTICE"} {
+	for _, f := range []string{"strata-signatures-2026.w42.sbn", "strata-signatures-2026.w42.pub", "manifest.json", "manifest.json.sig", "CHANGELOG.md", "NOTICE"} {
 		if _, err := os.Stat(filepath.Join(out, f)); err != nil {
 			t.Errorf("missing %s: %v", f, err)
 		}
@@ -107,6 +107,26 @@ func TestBuildPackage(t *testing.T) {
 			t.Errorf("CHANGELOG lacks %q:\n%s", want, cl)
 		}
 	}
+	// the signed manifest covers the whole package: verify passes, and
+	// fails once any file (or the manifest) is changed
+	if _, err := Verify(out, pub); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if _, err := Verify(out, make([]byte, 32)); err == nil {
+		t.Error("verify accepted another public key")
+	}
+	for _, f := range []string{"NOTICE", "CHANGELOG.md", "strata-signatures-2026.w42.sbn", "manifest.json"} {
+		p := filepath.Join(out, f)
+		orig, _ := os.ReadFile(p)
+		if err := os.WriteFile(p, append(append([]byte{}, orig...), ' '), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Verify(out, pub); err == nil {
+			t.Errorf("verify accepted a changed %s", f)
+		}
+		_ = os.WriteFile(p, orig, 0o644)
+	}
+
 	// NOTICE comes from the repo and records the sources
 	notice, _ := os.ReadFile(filepath.Join(out, "NOTICE"))
 	if !strings.Contains(string(notice), "OWASP CRS") {

@@ -23,6 +23,7 @@ rules:
             - html_entity_decode
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -51,6 +52,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -80,6 +82,7 @@ rules:
             - html_entity_decode
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -104,6 +107,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -125,6 +129,7 @@ rules:
           targets:
             - var: args_names
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -149,6 +154,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -172,6 +178,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -200,6 +207,7 @@ rules:
           transforms:
             - html_entity_decode
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -224,6 +232,7 @@ rules:
             - url_decode_uni
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -248,6 +257,7 @@ rules:
           transforms:
             - lowercase
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

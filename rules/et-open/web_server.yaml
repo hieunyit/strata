@@ -25,6 +25,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -56,6 +57,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -87,6 +89,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -122,6 +125,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -153,6 +157,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -188,6 +193,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -219,6 +225,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -250,6 +257,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -281,6 +289,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -312,6 +321,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -343,6 +353,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -374,6 +385,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -405,6 +417,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -434,6 +447,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -456,6 +470,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -481,6 +496,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -506,6 +522,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -531,6 +548,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -554,6 +572,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -579,6 +598,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -602,6 +622,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -640,6 +661,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -678,6 +700,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -712,6 +735,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -745,6 +769,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -768,6 +793,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: scanner
@@ -814,6 +840,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: rce
@@ -849,6 +876,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -886,6 +914,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -918,6 +947,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -958,6 +988,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -998,6 +1029,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1028,6 +1060,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -1060,6 +1093,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -1092,6 +1126,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -1133,6 +1168,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -1154,6 +1190,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -1197,6 +1234,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -1224,6 +1262,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -1255,6 +1294,7 @@ rules:
           transforms:
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -1286,6 +1326,7 @@ rules:
           transforms:
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -1310,6 +1351,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1332,6 +1374,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1371,6 +1414,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -1412,6 +1456,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -1453,6 +1498,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -1485,6 +1531,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -1522,6 +1569,7 @@ rules:
           targets:
             - var: uri_raw
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -1547,6 +1595,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -1572,6 +1621,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -1603,6 +1653,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -1625,6 +1676,7 @@ rules:
           targets:
             - var: request_body
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: rce
@@ -1650,6 +1702,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1674,6 +1727,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1711,6 +1765,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1738,6 +1793,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -1768,6 +1824,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -1802,6 +1859,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1832,6 +1890,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1864,6 +1923,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1918,6 +1978,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -1969,6 +2030,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2009,6 +2071,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -2033,6 +2096,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2057,6 +2121,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: scanner
@@ -2082,6 +2147,7 @@ rules:
           transforms:
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: file-inclusion
@@ -2105,6 +2171,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2160,6 +2227,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -2181,6 +2249,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2239,6 +2308,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2270,6 +2340,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2290,6 +2361,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2320,6 +2392,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2350,6 +2423,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2407,6 +2481,7 @@ rules:
           targets:
             - var: request_body
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: rce
@@ -2440,6 +2515,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2463,6 +2539,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2492,6 +2569,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2521,6 +2599,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2552,6 +2631,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -2602,6 +2682,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2647,6 +2728,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2672,6 +2754,7 @@ rules:
           transforms:
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: file-inclusion
@@ -2710,6 +2793,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -2743,6 +2827,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -2774,6 +2859,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -2797,6 +2883,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2820,6 +2907,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2843,6 +2931,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2880,6 +2969,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2921,6 +3011,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -2957,6 +3048,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -2979,6 +3071,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -3006,6 +3099,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: rce
@@ -3054,6 +3148,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -3100,6 +3195,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -3157,6 +3253,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -3187,6 +3284,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -3233,6 +3331,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -3259,6 +3358,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -3290,6 +3390,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -3328,6 +3429,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3359,6 +3461,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3397,6 +3500,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3428,6 +3532,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3459,6 +3564,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3490,6 +3596,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3536,6 +3643,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -3574,6 +3682,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -3607,6 +3716,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -3640,6 +3750,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -3679,6 +3790,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: sql-injection
@@ -3717,6 +3829,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -3765,6 +3878,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -3805,6 +3919,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -3835,6 +3950,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -3867,6 +3983,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -3899,6 +4016,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -3931,6 +4049,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -3963,6 +4082,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -3995,6 +4115,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -4027,6 +4148,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -4059,6 +4181,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -4090,6 +4213,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: rce
@@ -4136,6 +4260,7 @@ rules:
             - key: Host
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4160,6 +4285,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -4185,6 +4311,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -4210,6 +4337,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -4241,6 +4369,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -4270,6 +4399,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -4299,6 +4429,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -4340,6 +4471,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -4369,6 +4501,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4400,6 +4533,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4431,6 +4565,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4462,6 +4597,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4493,6 +4629,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4524,6 +4661,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4548,6 +4686,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -4578,6 +4717,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -4609,6 +4749,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4638,6 +4779,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4673,6 +4815,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4704,6 +4847,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4733,6 +4877,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4762,6 +4907,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4791,6 +4937,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4820,6 +4967,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4849,6 +4997,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4880,6 +5029,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4907,6 +5057,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4934,6 +5085,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4961,6 +5113,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -4988,6 +5141,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5015,6 +5169,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5042,6 +5197,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5069,6 +5225,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5102,6 +5259,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -5134,6 +5292,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5156,6 +5315,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5179,6 +5339,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -5222,6 +5383,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5247,6 +5409,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5279,6 +5442,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5307,6 +5471,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5332,6 +5497,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5362,6 +5528,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5392,6 +5559,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5422,6 +5590,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -5465,6 +5634,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -5504,6 +5674,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: ssrf
@@ -5540,6 +5711,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5576,6 +5748,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5610,6 +5783,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5644,6 +5818,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5675,6 +5850,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5704,6 +5880,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5727,6 +5904,7 @@ rules:
           transforms:
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -5760,6 +5938,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -5793,6 +5972,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -5829,6 +6009,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5871,6 +6052,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -5910,6 +6092,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5937,6 +6120,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -5967,6 +6151,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6000,6 +6185,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6033,6 +6219,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6065,6 +6252,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6097,6 +6285,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6140,6 +6329,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6184,6 +6374,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6212,6 +6403,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6254,6 +6446,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -6279,6 +6472,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -6308,6 +6502,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6337,6 +6532,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6366,6 +6562,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6390,6 +6587,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6419,6 +6617,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6448,6 +6647,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6477,6 +6677,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6506,6 +6707,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6535,6 +6737,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6564,6 +6767,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6601,6 +6805,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6652,6 +6857,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6696,6 +6902,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -6719,6 +6926,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6744,6 +6952,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -6769,6 +6978,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6809,6 +7019,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -6849,6 +7060,7 @@ rules:
           transforms:
             - url_decode
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -6872,6 +7084,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6895,6 +7108,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6918,6 +7132,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6941,6 +7156,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6964,6 +7180,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -6987,6 +7204,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7010,6 +7228,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7033,6 +7252,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7056,6 +7276,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7079,6 +7300,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7123,6 +7345,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -7175,6 +7398,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7198,6 +7422,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -7221,6 +7446,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -7244,6 +7470,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -7289,6 +7516,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7365,6 +7593,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -7444,6 +7673,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -7498,6 +7728,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -7538,6 +7769,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7578,6 +7810,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7618,6 +7851,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7643,6 +7877,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -7666,6 +7901,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -7709,6 +7945,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -7739,6 +7976,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -7762,6 +8000,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -7788,6 +8027,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -7814,6 +8054,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: sql-injection
@@ -7844,6 +8085,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -7876,6 +8118,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -7908,6 +8151,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -7933,6 +8177,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -7981,6 +8226,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -8014,6 +8260,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -8036,6 +8283,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8058,6 +8306,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8080,6 +8329,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8102,6 +8352,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8139,6 +8390,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8159,6 +8411,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8179,6 +8432,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8199,6 +8453,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8219,6 +8474,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8239,6 +8495,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8259,6 +8516,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8279,6 +8537,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8299,6 +8558,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8319,6 +8579,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8339,6 +8600,7 @@ rules:
           targets:
             - var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8367,6 +8629,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8404,6 +8667,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8444,6 +8708,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8467,6 +8732,7 @@ rules:
             - key: Referer
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8511,6 +8777,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8551,6 +8818,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8591,6 +8859,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8631,6 +8900,7 @@ rules:
           targets:
             - var: request_body
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8662,6 +8932,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -8685,6 +8956,7 @@ rules:
             - url_decode
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: sql-injection
@@ -8715,6 +8987,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8744,6 +9017,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8769,6 +9043,7 @@ rules:
             - url_decode
             - lowercase
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -8793,6 +9068,7 @@ rules:
           transforms:
             - lowercase
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -8842,6 +9118,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8882,6 +9159,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8911,6 +9189,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -8948,6 +9227,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -8971,6 +9251,7 @@ rules:
             - key: Host
               var: request_headers
     score: 80
+    action_mode: score
     severity: critical
     metadata:
       attack_type: other
@@ -8992,6 +9273,7 @@ rules:
             - key: Host
               var: request_headers
     score: 80
+    action_mode: score
     severity: critical
     metadata:
       attack_type: other
@@ -9035,6 +9317,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9055,6 +9338,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9077,6 +9361,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9101,6 +9386,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9125,6 +9411,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9149,6 +9436,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9180,6 +9468,7 @@ rules:
           transforms:
             - url_decode
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: ssrf
@@ -9221,6 +9510,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9258,6 +9548,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9281,6 +9572,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9314,6 +9606,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9337,6 +9630,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -9360,6 +9654,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -9406,6 +9701,7 @@ rules:
             - key: Cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9428,6 +9724,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9450,6 +9747,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9486,6 +9784,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9509,6 +9808,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9552,6 +9852,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xxe
@@ -9575,6 +9876,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -9614,6 +9916,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -9637,6 +9940,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 10
+    action_mode: score
     severity: notice
     metadata:
       attack_type: other
@@ -9671,6 +9975,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9692,6 +9997,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: other
@@ -9724,6 +10030,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9745,6 +10052,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 30
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -9775,6 +10083,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -9812,6 +10121,7 @@ rules:
             - key: Host
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9842,6 +10152,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9865,6 +10176,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9893,6 +10205,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -9916,6 +10229,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9941,6 +10255,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -9966,6 +10281,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -9991,6 +10307,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -10016,6 +10333,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: file-inclusion
@@ -10037,6 +10355,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -10060,6 +10379,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -10083,6 +10403,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10117,6 +10438,7 @@ rules:
           targets:
             - var: request_body
     score: 80
+    action_mode: score
     severity: critical
     metadata:
       attack_type: rce
@@ -10150,6 +10472,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -10179,6 +10502,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10212,6 +10536,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10245,6 +10570,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10276,6 +10602,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10300,6 +10627,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -10324,6 +10652,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -10349,6 +10678,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -10388,6 +10718,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -10412,6 +10743,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10441,6 +10773,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10470,6 +10803,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10499,6 +10833,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10528,6 +10863,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10552,6 +10888,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10576,6 +10913,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10600,6 +10938,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10638,6 +10977,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10669,6 +11009,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10698,6 +11039,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10729,6 +11071,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10760,6 +11103,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10789,6 +11133,7 @@ rules:
           targets:
             - var: request_line
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10820,6 +11165,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10851,6 +11197,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10875,6 +11222,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10906,6 +11254,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10937,6 +11286,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -10968,6 +11318,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11004,6 +11355,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11044,6 +11396,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11084,6 +11437,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11121,6 +11475,7 @@ rules:
           targets:
             - var: uri_raw
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -11156,6 +11511,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -11183,6 +11539,7 @@ rules:
           targets:
             - var: uri_raw
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -11238,6 +11595,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -11283,6 +11641,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11323,6 +11682,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11363,6 +11723,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11387,6 +11748,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11411,6 +11773,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11449,6 +11812,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11489,6 +11853,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11529,6 +11894,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11553,6 +11919,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11582,6 +11949,7 @@ rules:
           targets:
             - var: request_line
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11606,6 +11974,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: sql-injection
@@ -11654,6 +12023,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11702,6 +12072,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11745,6 +12116,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11788,6 +12160,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11820,6 +12193,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -11859,6 +12233,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -11902,6 +12277,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -11945,6 +12321,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -11984,6 +12361,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12034,6 +12412,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12077,6 +12456,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12116,6 +12496,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12162,6 +12543,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12200,6 +12582,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12239,6 +12622,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -12278,6 +12662,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12328,6 +12713,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12378,6 +12764,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12428,6 +12815,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12477,6 +12865,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -12508,6 +12897,7 @@ rules:
             - key: Host
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12580,6 +12970,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12613,6 +13004,7 @@ rules:
           targets:
             - var: uri_raw
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12659,6 +13051,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12704,6 +13097,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -12744,6 +13138,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -12790,6 +13185,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12822,6 +13218,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12854,6 +13251,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12891,6 +13289,7 @@ rules:
           targets:
             - var: method
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12928,6 +13327,7 @@ rules:
           targets:
             - var: method
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: command-injection
@@ -12972,6 +13372,7 @@ rules:
           targets:
             - var: method
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13011,6 +13412,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -13048,6 +13450,7 @@ rules:
             - key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -13091,6 +13494,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13136,6 +13540,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13168,6 +13573,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13226,6 +13632,7 @@ rules:
               key: cookie
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13265,6 +13672,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13289,6 +13697,7 @@ rules:
               key: x-silock-comment
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13328,6 +13737,7 @@ rules:
               key: x-silock-step3
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13399,6 +13809,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13434,6 +13845,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13490,6 +13902,7 @@ rules:
           transforms:
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -13527,6 +13940,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -13566,6 +13980,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -13605,6 +14020,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -13643,6 +14059,7 @@ rules:
             - url_decode
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: path-traversal
@@ -13679,6 +14096,7 @@ rules:
           targets:
             - var: request_headers
     score: 80
+    action_mode: score
     severity: critical
     metadata:
       attack_type: other
@@ -13703,6 +14121,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13741,6 +14160,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -13788,6 +14208,7 @@ rules:
           targets:
             - var: method
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13831,6 +14252,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13879,6 +14301,7 @@ rules:
           targets:
             - var: request_body
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -13915,6 +14338,7 @@ rules:
           targets:
             - var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce

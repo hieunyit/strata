@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, Download, Pause, Play, RefreshCw, RotateCcw } from 'lucide-react';
 import { SearchEventsRequest } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
 
 interface FilterBarProps {
   initialFilters: SearchEventsRequest;
@@ -24,7 +23,6 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({
   onManualRefresh,
 }) => {
   const { t } = useTranslation();
-  const { isViewer } = useAuth();
 
   const [action, setAction] = useState<string>(initialFilters.action || '');
   const [clientIp, setClientIp] = useState<string>(initialFilters.client_ip || '');
@@ -116,7 +114,7 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({
           </button>
 
           {/* Bulk CSV export is an operator+ action; hidden for viewer. */}
-          {!isViewer && (
+          {(
             <button
               type="button"
               data-testid="export-csv-btn"

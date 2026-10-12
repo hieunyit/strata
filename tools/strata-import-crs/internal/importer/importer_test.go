@@ -173,7 +173,6 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 		942101: "paranoia level 2",
 		942102: "does not block or score",
 		942103: "variable TX",
-		942104: "operator @within",
 		942105: "macro in the operator argument",
 		942106: "transformation sqlHexDecode",
 		942107: "pattern selector ARGS:/^id/",
@@ -190,7 +189,7 @@ func TestRulesLeftOutHaveAReason(t *testing.T) {
 			t.Errorf("%d: reason %q, want %q", id, got[id], w)
 		}
 	}
-	if len(got) != len(want) || res.Groups[0].Read != len(want)+8 || len(res.Groups[0].Rules) != 8 {
+	if len(got) != len(want) || res.Groups[0].Read != len(want)+9 || len(res.Groups[0].Rules) != 9 { // 942104 (@within) imported since the W08 review
 		t.Errorf("read %d, imported %d, skipped %v", res.Groups[0].Read, len(res.Groups[0].Rules), got)
 	}
 }
@@ -254,4 +253,69 @@ SecRule REMOTE_ADDR "@ipMatch 10.0.0.0/8, 192.168.1.1" "id:920350,phase:1,block,
 	if !reflect.DeepEqual(c350["operator"], map[string]any{"type": "ip_match", "value": []string{"10.0.0.0/8", "192.168.1.1"}}) {
 		t.Errorf("920350 op: %+v", c350["operator"])
 	}
+}
+
+// W08 review: the crs-setup lists come from REQUEST-901's defaults;
+// @within on a request variable and the four capture-then-@within chains
+// become conditions on the request value.
+const conf901 = `SecRule &TX:allowed_methods "@eq 0" "id:901160,phase:1,pass,nolog,setvar:'tx.allowed_methods=GET HEAD POST OPTIONS'"
+SecRule &TX:allowed_request_content_type "@eq 0" "id:901162,phase:1,pass,nolog,setvar:'tx.allowed_request_content_type=|application/x-www-form-urlencoded| |application/json|'"
+SecRule REQUEST_HEADERS:Host "@rx ^x$" "id:901500,phase:1,pass,nolog,setvar:'tx.allowed_request_content_type=%{tx.allowed_request_content_type} |text/x|'"
+SecRule &TX:allowed_request_content_type_charset "@eq 0" "id:901168,phase:1,pass,nolog,setvar:'tx.allowed_request_content_type_charset=|utf-8| |iso-8859-1|'"
+SecRule &TX:restricted_extensions "@eq 0" "id:901163,phase:1,pass,nolog,setvar:'tx.restricted_extensions=.bak/ .config/'"
+SecRule &TX:restricted_headers_basic "@eq 0" "id:901164,phase:1,pass,nolog,setvar:'tx.restricted_headers_basic=/proxy/ /lock-token/'"
+`
+
+const confLists = `SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" "id:911100,phase:1,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule REQUEST_HEADERS:Content-Type "@rx ^[^;\s]+" "id:920420,phase:1,block,capture,severity:'CRITICAL',tag:'paranoia-level/1',setvar:'tx.content_type=|%{tx.0}|',chain"
+    SecRule TX:content_type "!@within %{tx.allowed_request_content_type}" "t:lowercase"
+SecRule REQUEST_HEADERS:Content-Type "@rx charset\s*=\s*[\"']?([^;\"'\s]+)" "id:920480,phase:1,block,capture,severity:'CRITICAL',tag:'paranoia-level/1',setvar:'tx.content_type_charset=|%{tx.1}|',chain"
+    SecRule TX:content_type_charset "!@within %{tx.allowed_request_content_type_charset}" "t:lowercase"
+SecRule REQUEST_BASENAME "@rx \.([^.]+)$" "id:920440,phase:1,block,capture,severity:'CRITICAL',tag:'paranoia-level/1',setvar:'tx.extension=.%{tx.1}/',chain"
+    SecRule TX:EXTENSION "@within %{tx.restricted_extensions}" "t:lowercase"
+SecRule REQUEST_HEADERS_NAMES "@rx ^.*$" "id:920450,phase:1,block,capture,severity:'CRITICAL',tag:'paranoia-level/1',setvar:'tx.header_name_920450_%{tx.0}=/%{tx.0}/',chain"
+    SecRule TX:/^header_name_920450_/ "@within %{tx.restricted_headers_basic}" "t:lowercase"
+SecRule REQUEST_METHOD "@within %{tx.unknown_list}" "id:911101,phase:1,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+`
+
+func TestConfigListsFrom901(t *testing.T) {
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "rules")
+	_ = os.MkdirAll(rules, 0o755)
+	_ = os.WriteFile(filepath.Join(rules, "REQUEST-901-INITIALIZATION.conf"), []byte(conf901), 0o644)
+	_ = os.WriteFile(filepath.Join(rules, "x.conf"), []byte(confLists), 0o644)
+	d, err := ReadDefaults(filepath.Join(rules, "REQUEST-901-INITIALIZATION.conf"))
+	if err != nil || d["allowed_request_content_type"] != "|application/x-www-form-urlencoded| |application/json|" {
+		t.Fatalf("defaults %v %v (the conditional addition must not replace the default)", d, err)
+	}
+	res, err := Import([]Group{{File: "x.conf", Out: "x.yaml", Ruleset: "crs-x", AttackType: "protocol", Layer: "protocol"}},
+		Options{CRSDir: dir, Version: "4.25.2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := func(c any) map[string]any { return c.(map[string]any)["operator"].(map[string]any) }
+	if c := conds(rule(t, res, 911100)); op(c[0])["value"] != "^(?:GET|HEAD|POST|OPTIONS|PUT|PATCH|DELETE)$" || op(c[0])["negate"] != true {
+		t.Errorf("911100: %+v", c)
+	}
+	if c := conds(rule(t, res, 920420)); len(c) != 2 || op(c[1])["value"] != `^(?:application/x-www-form-urlencoded|application/json)(?:[;\s]|$)` || op(c[1])["negate"] != true {
+		t.Errorf("920420: %+v", c)
+	}
+	if c := conds(rule(t, res, 920480)); len(c) != 2 || !strings.Contains(op(c[1])["value"].(string), "(?:utf-8|iso-8859-1)") {
+		t.Errorf("920480: %+v", c)
+	}
+	if c := conds(rule(t, res, 920440)); op(c[0])["value"] != `\.(?:bak|config)$` {
+		t.Errorf("920440: %+v", c)
+	}
+	if c := conds(rule(t, res, 920450)); op(c[0])["value"] != `^(?:proxy|lock-token)$` {
+		t.Errorf("920450: %+v", c)
+	}
+	if r := rule(t, res, 920420); r["action_mode"] != "score" {
+		t.Errorf("action_mode: %v", r["action_mode"])
+	}
+	for _, s := range res.Skipped {
+		if s.Rule == 911101 && strings.Contains(s.Reason, "without a REQUEST-901 default") {
+			return
+		}
+	}
+	t.Errorf("911101 with an unknown list not refused: %+v", res.Skipped)
 }

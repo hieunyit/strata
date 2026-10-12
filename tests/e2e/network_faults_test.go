@@ -59,44 +59,40 @@ func TestEventsSurviveNetworkFaults(t *testing.T) {
 
 	const n = 100
 	ids := make([]string, n)
-	// Feed events while the link is cut and restored twice. The worker talks
-	// to the agent over a local socket, so sends keep succeeding; the agent
-	// spools and resends what it cannot deliver yet.
-	go func() {
-		for i := range n {
-			if i == 20 {
-				proxy.enable(t, "cp", false)
-			}
-			if i == 40 {
-				proxy.enable(t, "cp", true)
-			}
-			if i == 60 {
-				proxy.enable(t, "cp", false)
-			}
-			if i == 80 {
-				proxy.enable(t, "cp", true)
-			}
-			// Crockford base32 (no I/L/O/U); the ingest validates the format.
-			id := fmt.Sprintf("STR-FT00-0000-0000-%04d", i)
-			ids[i] = id
-			_ = w.send(&eventv1.Event{
-				BlockId: id, TimeUnixMs: uint64(time.Now().UnixMilli()), NodeId: nd.id,
-				PolicyId: "example-api", Method: "GET", Host: "api.example.test", Path: "/",
-				Status: 403, Action: eventv1.Action_ACTION_BLOCK,
-			})
-			time.Sleep(20 * time.Millisecond)
+	for i := range ids {
+		// Crockford base32 (no I/L/O/U); the ingest validates the format.
+		ids[i] = fmt.Sprintf("STR-FT00-0000-0000-%04d", i)
+	}
+	// Feed the events while the link is cut and restored twice, and while
+	// connections are reset mid-stream (data in flight lost). The worker
+	// talks to the agent over a local socket, so sends keep succeeding; the
+	// agent spools and resends what was not acknowledged.
+	for i, id := range ids {
+		switch i {
+		case 20, 60:
+			proxy.enable(t, "cp", false)
+		case 40, 80:
+			proxy.enable(t, "cp", true)
+		case 45:
+			proxy.toxic(t, "cp", `{"name":"reset","type":"reset_peer","attributes":{"timeout":300}}`)
+		case 55:
+			proxy.untoxic(t, "cp", "reset")
 		}
-	}()
+		if err := w.send(&eventv1.Event{
+			BlockId: id, TimeUnixMs: uint64(time.Now().UnixMilli()), NodeId: nd.id,
+			PolicyId: "example-api", Method: "GET", Host: "api.example.test", Path: "/",
+			Status: 403, Action: eventv1.Action_ACTION_BLOCK,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
-	// Every event eventually reaches the control plane: none is lost.
+	// Every event reaches the control plane: none is lost...
 	deadline := time.Now().Add(120 * time.Second)
 	for {
 		missing := 0
 		for _, id := range ids {
-			if id == "" {
-				missing++
-				continue
-			}
 			if ev, err := e.events.GetEvent(context.Background(), id); err != nil || ev == nil {
 				missing++
 			}
@@ -110,7 +106,13 @@ func TestEventsSurviveNetworkFaults(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Logf("all %d events delivered across two network cuts", n)
+	// ...and none is stored twice: resent batches are dropped by the ingest
+	// (sequence per node), so the store saw exactly n events.
+	time.Sleep(3 * time.Second)
+	if got := e.events.Count(); got != n {
+		t.Fatalf("%d events stored for %d sent: duplicates after the resends", got, n)
+	}
+	t.Logf("all %d events delivered exactly once across two network cuts and connection resets", n)
 }
 
 // A bundle rolled out while the link is slow and cut once is downloaded,

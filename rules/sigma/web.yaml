@@ -19,6 +19,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -46,6 +47,7 @@ rules:
           transforms:
             - lowercase
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -73,6 +75,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -100,6 +103,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -173,6 +177,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -202,6 +207,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: scanner
@@ -230,6 +236,7 @@ rules:
           transforms:
             - lowercase
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -257,6 +264,7 @@ rules:
           transforms:
             - lowercase
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: command-injection
@@ -284,6 +292,7 @@ rules:
           transforms:
             - lowercase
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -319,6 +328,7 @@ rules:
             - lowercase
             - url_decode
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: command-injection
@@ -358,6 +368,7 @@ rules:
             - lowercase
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: other
@@ -408,6 +419,7 @@ rules:
             - lowercase
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -442,6 +454,7 @@ rules:
             - lowercase
             - url_decode
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: path-traversal
@@ -471,6 +484,7 @@ rules:
             - lowercase
             - url_decode
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -516,6 +530,7 @@ rules:
             - lowercase
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: template-injection
@@ -556,6 +571,7 @@ rules:
           transforms:
             - lowercase
     score: 40
+    action_mode: score
     severity: warning
     metadata:
       attack_type: scanner
@@ -590,6 +606,7 @@ rules:
             - lowercase
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -662,6 +679,7 @@ rules:
           transforms:
             - lowercase
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce
@@ -713,6 +731,7 @@ rules:
             - lowercase
             - url_decode
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: xss
@@ -767,6 +786,7 @@ rules:
               key: User-Agent
               var: request_headers
     score: 60
+    action_mode: score
     severity: error
     metadata:
       attack_type: rce

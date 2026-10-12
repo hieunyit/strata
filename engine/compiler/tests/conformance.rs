@@ -1,93 +1,166 @@
-//! W08-Q-01: the conformance corpus v1. Every request in
-//! conformance/corpus/v1.jsonl is run through a real compiled bundle and the
-//! engine's decision (allow vs block) must match the expectation. It pins the
-//! shared decision of the engine and the connectors: the built-in protocol
-//! layer (null byte, encoded dot-segment), the stub rule and representative
-//! score / block_alone rules. Run on every engine/ and connectors/ PR
-//! (`make test-conformance`).
+//! Conformance corpus v1 (W08-Q-01, reworked by the W08 review): every
+//! request of conformance/corpus/v1.jsonl runs through the engine with the
+//! bundle the NGINX test suite uses (connectors/nginx/t/fixtures, compiled
+//! from engine/compiler/examples/rules.yaml), policy example-api, as the
+//! NGINX connector would call it; the action and the set of matched rules
+//! must be the expectation. connectors/nginx/t/080-conformance.t (generated
+//! from the same corpus) checks the same through NGINX. Run on every
+//! engine/ and connectors/ PR (`make test-conformance`).
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use libstrata::bundle::public_key;
 use libstrata::engine::Engine;
 use libstrata::tx::Tx;
 use libstrata::verdict::{ACTION_ALLOW, ACTION_BLOCK};
 use serde_json::Value;
-use strata_compiler::{Build, compile, from_yaml, policies_from, rules_from_ir};
 
-const SEED: [u8; 32] = [8; 32];
-
-const RULES: &str = r#"
-ir_version: 1
-ruleset: { name: conformance, version: "1" }
-rules:
-  - { id: 800300, name: sqli union select, layer: managed, stage: request_headers, score: 100,
-      action_mode: score, severity: critical,
-      match: { all: [ { targets: [ { var: args } ], transforms: [url_decode_uni, lowercase],
-                        operator: { type: rx, value: 'union\s+select' } } ] },
-      metadata: { source: organization, license: Apache-2.0 } }
-  - { id: 700300, name: virtual patch evil exploit, layer: managed, stage: request_headers, score: 10,
-      action_mode: block_alone, severity: critical,
-      match: { all: [ { targets: [ { var: uri_raw } ], operator: { type: contains, value: "/evil/exploit" } } ] },
-      metadata: { source: strata, license: Apache-2.0 } }
-"#;
-
-fn engine() -> Arc<Engine> {
-    let rules = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
-    let pol = policies_from(&from_yaml("policies: []").unwrap(), std::path::Path::new(".")).unwrap();
-    let b = compile(&rules, &pol, &Build { version: 1, created_at_ms: 0, rollback: false }, &SEED).unwrap();
-    let mapped = strata_hs::AlignedBuf::from_bytes(&b);
-    Arc::new(Engine::map(Box::new(mapped), &public_key(&SEED)).unwrap())
+fn repo() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn corpus_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/corpus/v1.jsonl")
+fn engine() -> Arc<Engine> {
+    let fx = repo().join("connectors/nginx/t/fixtures");
+    let b = std::fs::read(fx.join("bundle/bundle-1.sbn")).unwrap();
+    let key: [u8; 32] = std::fs::read(fx.join("bundle.pub"))
+        .unwrap()
+        .try_into()
+        .unwrap();
+    Arc::new(Engine::map(Box::new(strata_hs::AlignedBuf::from_bytes(&b)), &key).unwrap())
+}
+
+/// The request target as the corpus writes it, with @ARGS<n>@ expanded.
+pub fn expand(uri: &str) -> String {
+    match (uri.find("@ARGS"), uri.rfind('@')) {
+        (Some(i), Some(j)) if j > i + 5 => {
+            let n: usize = uri[i + 5..j].parse().unwrap();
+            let args: Vec<String> = (0..n).map(|k| format!("a{k}=1")).collect();
+            format!("{}{}{}", &uri[..i], args.join("&"), &uri[j + 1..])
+        }
+        _ => uri.to_string(),
+    }
+}
+
+/// NGINX's normalized path (r->uri): percent-decoded, slashes merged, dot
+/// segments resolved.
+fn normalize(path: &str) -> Vec<u8> {
+    let raw = path.as_bytes();
+    let mut dec = Vec::with_capacity(raw.len());
+    let mut i = 0;
+    while i < raw.len() {
+        let hex = raw
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok());
+        if let (b'%', Some(Ok(b))) = (raw[i], hex.map(|h| u8::from_str_radix(h, 16))) {
+            dec.push(b);
+            i += 3;
+            continue;
+        }
+        dec.push(raw[i]);
+        i += 1;
+    }
+    let mut segs: Vec<&[u8]> = vec![];
+    for s in dec.split(|&c| c == b'/') {
+        match s {
+            b"" | b"." => {}
+            b".." => {
+                segs.pop();
+            }
+            s => segs.push(s),
+        }
+    }
+    let mut out = vec![b'/'];
+    out.extend(segs.join(&b'/'));
+    if dec.ends_with(b"/") && out.len() > 1 {
+        out.push(b'/');
+    }
+    out
 }
 
 #[test]
-fn conformance_corpus_v1() {
+fn corpus_v1() {
     let e = engine();
-    let text = std::fs::read_to_string(corpus_path()).expect("read corpus");
+    let corpus = std::fs::read_to_string(repo().join("conformance/corpus/v1.jsonl")).unwrap();
     let mut checked = 0;
-
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let c: Value = serde_json::from_str(line).unwrap_or_else(|e| panic!("bad corpus line {line:?}: {e}"));
-        let name = c["name"].as_str().unwrap_or("?");
-        let method = c["method"].as_str().unwrap_or("GET");
-        let uri = c["uri"].as_str().unwrap_or("/");
-        let want = c["expect"].as_str().unwrap_or("allow");
-        let (path, args) = uri.split_once('?').unwrap_or((uri, ""));
-
-        let mut headers: Vec<(&[u8], &[u8])> = Vec::new();
-        if let Some(obj) = c["headers"].as_object() {
-            for (k, v) in obj {
-                headers.push((k.as_bytes(), v.as_str().unwrap_or("").as_bytes()));
+    for line in corpus.lines().filter(|l| !l.trim().is_empty()) {
+        let c: Value = serde_json::from_str(line).unwrap();
+        let name = c["name"].as_str().unwrap();
+        let uri = expand(c["uri"].as_str().unwrap());
+        let (path, args) = uri.split_once('?').unwrap_or((&uri, ""));
+        let mut headers: Vec<(String, String)> = vec![("Host".into(), "api.example.test".into())];
+        if let Some(h) = c["headers"].as_object() {
+            for (k, v) in h {
+                match v {
+                    Value::Array(vs) => headers.extend(
+                        vs.iter()
+                            .map(|x| (k.clone(), x.as_str().unwrap().to_string())),
+                    ),
+                    v => headers.push((k.clone(), v.as_str().unwrap().to_string())),
+                }
             }
         }
-        let body = c["body"].as_str().unwrap_or("");
+        // the body NGINX hands over: none for a request it frames itself
+        // (framed), and a Content-Length when the corpus leaves it out
+        let framed = c["framed"].as_bool().unwrap_or(false);
+        let body = if framed {
+            ""
+        } else {
+            c["body"].as_str().unwrap_or("")
+        };
+        let chunked = headers
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("Transfer-Encoding"));
+        if !body.is_empty()
+            && !chunked
+            && !headers
+                .iter()
+                .any(|(k, _)| k.eq_ignore_ascii_case("Content-Length"))
+        {
+            headers.push(("Content-Length".into(), body.len().to_string()));
+        }
 
         let mut t = Tx::new(Some(e.clone()), b"node", 0);
-        t.set_client_addr(b"192.0.2.1");
-        t.request_line(method.as_bytes(), uri.as_bytes(), path.as_bytes(), args.as_bytes(), b"HTTP/1.1");
-        t.request_headers(&headers);
-        if !body.is_empty() {
-            t.request_body_chunk(body.as_bytes(), true);
-        }
+        t.set_policy(b"example-api");
+        t.set_client_addr(b"127.0.0.1");
+        let method = c["method"].as_str().unwrap_or("GET");
+        t.request_line(
+            method.as_bytes(),
+            uri.as_bytes(),
+            &normalize(path),
+            args.as_bytes(),
+            b"HTTP/1.1",
+        );
+        let hs: Vec<(&[u8], &[u8])> = headers
+            .iter()
+            .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
+            .collect();
+        t.request_headers(&hs);
+        t.request_body_chunk(body.as_bytes(), true);
         let v = t.verdict();
 
-        let want_action = if want == "block" { ACTION_BLOCK } else { ACTION_ALLOW };
+        let mut got: Vec<u32> = v.rules[..v.n_rules as usize].to_vec();
+        got.sort_unstable();
+        got.dedup();
+        let mut want: Vec<u32> = c["expect"]["rules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r.as_u64().unwrap() as u32)
+            .collect();
+        want.sort_unstable();
+        let action = match c["expect"]["action"].as_str().unwrap() {
+            "allow" => ACTION_ALLOW,
+            "block" => ACTION_BLOCK,
+            a => panic!("{name}: unknown expected action {a}"),
+        };
         assert_eq!(
-            v.action, want_action,
-            "conformance {name:?}: action {} (score {}, rules {:?}), want {want}",
-            v.action, v.score, &v.rules[..v.n_rules as usize]
+            (v.action, &got),
+            (action, &want),
+            "{name}: action {} score {} rules {got:?}, want action {action} rules {want:?}",
+            v.action,
+            v.score
         );
         checked += 1;
     }
-    assert!(checked >= 10, "corpus v1 should have at least 10 cases, ran {checked}");
-    println!("conformance corpus v1: {checked} cases pass");
+    assert!(checked >= 30, "corpus has {checked} cases");
 }

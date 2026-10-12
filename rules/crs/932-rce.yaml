@@ -444,6 +444,7 @@ rules:
           transforms:
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -471,6 +472,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -500,6 +502,7 @@ rules:
           transforms:
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -529,6 +532,7 @@ rules:
           transforms:
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1267,6 +1271,7 @@ rules:
             - cmd_line
             - normalize_path
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1291,6 +1296,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1316,6 +1322,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1343,6 +1350,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1794,6 +1802,7 @@ rules:
           targets:
             - var: matched_vars
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1821,6 +1830,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1848,6 +1858,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1875,6 +1886,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1902,6 +1914,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1931,6 +1944,7 @@ rules:
           transforms:
             - cmd_line
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1958,6 +1972,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -1985,6 +2000,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -2016,6 +2032,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -2043,6 +2060,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -2070,6 +2088,7 @@ rules:
             - var: xml
             - var: xml_attributes
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

@@ -35,7 +35,11 @@ rules:
 
 fn engine() -> Arc<Engine> {
     let rules = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
-    let pol = policies_from(&from_yaml("policies: []").unwrap(), std::path::Path::new(".")).unwrap();
+    let pol = policies_from(
+        &from_yaml("policies: []").unwrap(),
+        std::path::Path::new("."),
+    )
+    .unwrap();
     let b = compile(
         &rules,
         &pol,
@@ -55,8 +59,17 @@ fn run(e: &Arc<Engine>, uri: &str, headers: &[(&str, &str)]) -> Verdict {
     let (path, args) = uri.split_once('?').unwrap_or((uri, ""));
     let mut t = Tx::new(Some(e.clone()), b"node", 0);
     t.set_client_addr(b"192.0.2.1");
-    t.request_line(b"GET", uri.as_bytes(), path.as_bytes(), args.as_bytes(), b"HTTP/1.1");
-    let h: Vec<(&[u8], &[u8])> = headers.iter().map(|(k, v)| (k.as_bytes(), v.as_bytes())).collect();
+    t.request_line(
+        b"GET",
+        uri.as_bytes(),
+        path.as_bytes(),
+        args.as_bytes(),
+        b"HTTP/1.1",
+    );
+    let h: Vec<(&[u8], &[u8])> = headers
+        .iter()
+        .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
+        .collect();
     t.request_headers(&h);
     t.verdict()
 }

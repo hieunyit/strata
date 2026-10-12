@@ -23,6 +23,7 @@ rules:
           transforms:
             - url_decode_uni
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:
@@ -53,6 +54,7 @@ rules:
               key: Referer
               var: request_headers
     score: 100
+    action_mode: score
     severity: critical
     paranoia_level: 1
     metadata:

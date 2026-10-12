@@ -151,6 +151,19 @@ sub h3_get {
     return ($h->{headers}{':status'}, $h->{headers});
 }
 
+# One HTTP/3 POST, the body sent as several DATA frames.
+sub h3_post {
+    my ($path, $body, $split) = @_;
+    my $s = eval { Test::Strata::HTTP3->new($qport, sni => "localhost") };
+    return undef unless $s;
+    my $sid = $s->new_stream({ method => "POST", path => $path, body => $body,
+                               body_split => $split });
+    my $frames = eval { $s->read(all => [{ sid => $sid, fin => 1 }]) } || [];
+    my ($h) = grep { ($_->{type} // "") eq "HEADERS" } @$frames;
+    return undef unless $h;
+    return ($h->{headers}{':status'}, $h->{headers});
+}
+
 # retries the first request until the QUIC listener answers
 sub h3_get_ready {
     my ($path) = @_;
@@ -207,6 +220,21 @@ like($v, qr/--with-http_v3_module/, "nginx built with the HTTP/3 module");
     is($status, "403", "HTTP/3 request with the test string is blocked");
     like($hdr->{'x-block-id'} // "", qr/^STR-/,
         "blocked HTTP/3 request carries a Block ID");
+}
+
+# the request body over HTTP/3 (DATA frames) is read and inspected in
+# enforce: a clean body passes, the test string in the body (split across
+# DATA frames, so only the reassembled body has it) blocks
+{
+    my $clean = "a=1&b=" . ("x" x 4000);
+    my ($status, $hdr) = h3_post("/t", $clean, [1000, 1000]);
+    is($status, "200", "clean HTTP/3 POST body passes");
+    is($hdr->{'x-action'}, "allow", "and was inspected (action allow)");
+
+    my $bad = ("x" x 3000) . "STRATA-TEST-BLOCK" . ("y" x 100);
+    ($status, $hdr) = h3_post("/t", $bad, [3008]);
+    is($status, "403", "HTTP/3 POST with the test string in the body is blocked");
+    like($hdr->{'x-block-id'} // "", qr/^STR-/, "and carries a Block ID");
 }
 
 my $log = errlog();

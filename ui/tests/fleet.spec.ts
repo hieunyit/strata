@@ -63,8 +63,8 @@ test('a node goes VERIFIED then ACTIVE, the next wave starts', async ({ page }) 
   await expect(page.getByTestId('rollout-wave')).toHaveText('đợt 2/2');
   const b = page.locator('[data-testid="rollout-node"][data-node="node-b"]');
   await expect(b).toHaveAttribute('data-state', 'ACTIVE', { timeout: 10_000 });
-  // read-only: the page has no action
-  await expect(page.locator('main button')).toHaveCount(0);
+  // read-only: no action besides exporting what is shown
+  await expect(page.locator('main button:not([data-testid="export-csv-btn"])')).toHaveCount(0);
 });
 
 test('a FAILED node stops the rollout and shows why', async ({ page }) => {
