@@ -52,4 +52,16 @@ RUN curl -fsSL -o /tmp/go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.
     && rm -rf /tmp/gopath /tmp/gocache
 ENV GOTOOLCHAIN=local
 
+# HTTP/3 (W08-N-01): a static quictls so NGINX can build with
+# --with-http_v3_module (the stock OpenSSL 3.0 has no QUIC API), and CryptX
+# for the pure-Perl QUIC client in connectors/nginx/t/lib/Test/Strata/HTTP3.pm.
+# connectors/nginx/scripts/build.sh uses /opt/quictls when STRATA_HTTP3=1.
+ARG QUICTLS_TAG=openssl-3.1.7+quic
+RUN git clone --depth 1 -b ${QUICTLS_TAG} https://github.com/quictls/openssl /tmp/quictls \
+    && cd /tmp/quictls \
+    && ./config --prefix=/opt/quictls --libdir=lib no-shared no-tests \
+    && make -j"$(nproc)" && make install_sw \
+    && cd / && rm -rf /tmp/quictls
+RUN cpanm --notest CryptX && rm -rf /root/.cpanm
+
 WORKDIR /src

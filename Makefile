@@ -15,6 +15,8 @@ RUST_LIBS  := -lstdc++ -lpthread -ldl -lm
 
 NGX_ASAN_OBJS := $(BUILD)/nginx-$(NGINX_VERSION)-asan/objs
 ASAN_LOGS     := $(CURDIR)/$(BUILD)/asan
+NGX_H3_OBJS   := $(BUILD)/nginx-$(NGINX_VERSION)-h3/objs
+PERL5LIB_H3   := $(CURDIR)/$(BUILD)/quic/perl5/lib/perl5
 
 MKBUNDLE := target/release/mkbundle
 COMPILE  := target/release/strata-compile
@@ -123,6 +125,21 @@ test-nginx-valgrind: $(MKBUNDLE) $(COMPILE)
 		ls -l connectors/nginx/vgcore.*; \
 		echo "nginx died on a signal under valgrind (vgcore written)"; exit 1; fi
 	@echo "no valgrind reports"
+
+# HTTP/3 (W08-N-01): NGINX built with --with-http_v3_module against a static
+# quictls (build.sh builds it into build/quic or uses /opt/quictls from the
+# image). t/070-http3.t drives the module over HTTP/3 with a pure-Perl QUIC
+# client (CryptX); PERL5LIB_H3 points at a locally built CryptX when the image
+# does not already have it.
+nginx-h3: lib
+	STRATA_HTTP3=1 connectors/nginx/scripts/build.sh $(NGINX_VERSION) $(BUILD)
+
+test-nginx-h3: $(MKBUNDLE) $(COMPILE) nginx-h3
+	TEST_NGINX_STRATA_MKBUNDLE="$(CURDIR)/$(MKBUNDLE)" TEST_NGINX_STRATA_COMPILE="$(CURDIR)/$(COMPILE)" \
+	TEST_NGINX_STRATA_H3_NGINX="$(CURDIR)/$(NGX_H3_OBJS)/nginx" \
+	TEST_NGINX_STRATA_H3_MODULE="$(CURDIR)/$(NGX_H3_OBJS)/ngx_http_strata_module.so" \
+	PERL5LIB="$(PERL5LIB_H3):$$PERL5LIB" \
+		sh -c "cd connectors/nginx && prove t/070-http3.t"
 
 # W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
 bench-reload: $(MKBUNDLE) $(COMPILE)
