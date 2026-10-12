@@ -29,17 +29,30 @@ type Header struct {
 	CreatedMs uint64
 }
 
-// Verify checks data's signature with pub (32 raw bytes) and returns the
-// header.
+// MaxKeys trusted at once: the current signing key and, while it is
+// rotated, the next one (docs/design/control-file.md, "Xoay khóa ký").
+const MaxKeys = 2
+
+// ValidKeys: one Ed25519 public key, or two concatenated.
+func ValidKeys(pub []byte) bool {
+	return len(pub) == ed25519.PublicKeySize || len(pub) == MaxKeys*ed25519.PublicKeySize
+}
+
+// Verify checks data's signature with pub (one or two 32-byte keys: the
+// bundle may be signed by either) and returns the header.
 func Verify(data, pub []byte) (Header, error) {
-	if len(pub) != ed25519.PublicKeySize {
-		return Header{}, fmt.Errorf("bundle: public key of %d bytes, want %d", len(pub), ed25519.PublicKeySize)
+	if !ValidKeys(pub) {
+		return Header{}, fmt.Errorf("bundle: public keys of %d bytes, want %d or %d", len(pub), ed25519.PublicKeySize, MaxKeys*ed25519.PublicKeySize)
 	}
 	if len(data) < headerSize+sigSize {
 		return Header{}, errors.New("bundle: too short")
 	}
 	body, sig := data[:len(data)-sigSize], data[len(data)-sigSize:]
-	if !ed25519.Verify(ed25519.PublicKey(pub), body, sig) {
+	ok := false
+	for k := 0; k+ed25519.PublicKeySize <= len(pub) && !ok; k += ed25519.PublicKeySize {
+		ok = ed25519.Verify(ed25519.PublicKey(pub[k:k+ed25519.PublicKeySize]), body, sig)
+	}
+	if !ok {
 		return Header{}, errors.New("bundle: signature does not verify")
 	}
 	if string(data[:8]) != string(magic) {
