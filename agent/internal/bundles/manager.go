@@ -357,8 +357,9 @@ func (m *Manager) waitActive(ctx context.Context, v uint64) error {
 		snap, err := shmmetrics.Read(m.opts.MetricsFile)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				// The module does not write worker metrics yet (W07-N-01):
-				// the workers pick the control file up within a second.
+				// No metrics file (NGINX not started yet, or a module
+				// without strata_metrics_file): the workers pick the
+				// control file up within a second.
 				slog.Info("no worker metrics: reporting ACTIVE after the reload delay", "version", v)
 				return sleep(m.opts.ActiveDelay)
 			}
