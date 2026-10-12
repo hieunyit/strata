@@ -92,6 +92,9 @@ pub fn dfa_is_match_with_budget(
     haystack: &[u8],
     budget: &mut Option<&mut crate::budget::TxBudget>,
 ) -> Result<bool, crate::budget::BudgetExceeded> {
+    if budget.is_none() || haystack.len() <= 8192 {
+        return Ok(re.is_match(haystack));
+    }
     let outcome = DFA_CACHE.with(|cell| {
         let mut slot = cell.borrow_mut();
         let ptr = dfa as *const regex_automata::hybrid::dfa::DFA as *const ();
@@ -462,15 +465,49 @@ struct Data<'a> {
     xml: Option<xml::Xml>,
 }
 
-type ScanKey = (usize, usize, [u8; crate::rules::MAX_TRANSFORMS], u8);
+type ScanKey = (usize, usize, u128, u8);
 
+#[inline(always)]
 fn make_scan_key(v: &[u8], chain: &[u8]) -> ScanKey {
-    // the whole chain: two chains sharing a prefix must not share a scan
-    let mut buf = [0u8; crate::rules::MAX_TRANSFORMS];
-    let len = chain.len().min(buf.len());
-    buf[..len].copy_from_slice(&chain[..len]);
-    (v.as_ptr() as usize, v.len(), buf, len as u8)
+    let mut packed = 0u128;
+    for &c in chain {
+        packed = (packed << 8) | (c as u128);
+    }
+    (v.as_ptr() as usize, v.len(), packed, chain.len() as u8)
 }
+
+#[derive(Default)]
+struct ScanKeyHasher(u64);
+
+impl std::hash::Hasher for ScanKeyHasher {
+    #[inline(always)]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    #[inline(always)]
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = self.0.rotate_left(5) ^ (b as u64);
+        }
+    }
+    #[inline(always)]
+    fn write_usize(&mut self, i: usize) {
+        self.0 = self.0.wrapping_mul(0x517cc1b727220a95) ^ (i as u64);
+    }
+    #[inline(always)]
+    fn write_u128(&mut self, i: u128) {
+        let lo = i as u64;
+        let hi = (i >> 64) as u64;
+        self.0 = self.0.wrapping_mul(0x517cc1b727220a95) ^ lo;
+        self.0 = self.0.wrapping_mul(0x517cc1b727220a95) ^ hi;
+    }
+    #[inline(always)]
+    fn write_u8(&mut self, i: u8) {
+        self.0 = self.0.wrapping_mul(0x517cc1b727220a95) ^ (i as u64);
+    }
+}
+
+type FastBuildHasher = std::hash::BuildHasherDefault<ScanKeyHasher>;
 
 struct Ctx<'t, 'b, 'a> {
     engine_id: u64,
@@ -479,7 +516,7 @@ struct Ctx<'t, 'b, 'a> {
     operators: &'t CompiledOperators,
     hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
-    scans: HashMap<ScanKey, Vec<u32>>,
+    scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
     budget: Option<&'a mut crate::budget::TxBudget>,
     budget_exceeded: bool,
 }
@@ -494,59 +531,112 @@ pub struct TargetVal<'d> {
     pub val: &'d [u8],
 }
 
+pub enum TargetVals<'d> {
+    Empty,
+    One(TargetVal<'d>),
+    Many(Vec<TargetVal<'d>>),
+}
+
+impl<'d> TargetVals<'d> {
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        match self {
+            TargetVals::Empty => 0,
+            TargetVals::One(_) => 1,
+            TargetVals::Many(v) => v.len(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+pub enum TargetValsIter<'a, 'd> {
+    Empty,
+    One(Option<TargetVal<'d>>),
+    Many(std::slice::Iter<'a, TargetVal<'d>>),
+}
+
+impl<'a, 'd> Iterator for TargetValsIter<'a, 'd> {
+    type Item = TargetVal<'d>;
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            TargetValsIter::Empty => None,
+            TargetValsIter::One(opt) => opt.take(),
+            TargetValsIter::Many(iter) => iter.next().copied(),
+        }
+    }
+}
+
+impl<'a, 'd> IntoIterator for &'a TargetVals<'d> {
+    type Item = TargetVal<'d>;
+    type IntoIter = TargetValsIter<'a, 'd>;
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            TargetVals::Empty => TargetValsIter::Empty,
+            TargetVals::One(val) => TargetValsIter::One(Some(*val)),
+            TargetVals::Many(vec) => TargetValsIter::Many(vec.iter()),
+        }
+    }
+}
+
 /// Values of one target (key and exclude filters applied).
 fn values<'d>(
     d: &'d Data<'d>,
     t: &TargetView<'_>,
     excluded: &dyn Fn(&[u8]) -> bool,
-) -> Vec<TargetVal<'d>> {
+) -> TargetVals<'d> {
     let r = d.req;
     let keyed = |name: &[u8]| t.key.is_none_or(|k| k.eq_ignore_ascii_case(name)) && !excluded(name);
     let v = t.var;
     if v == var("method") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: r.method,
-        }]
+        })
     } else if v == var("uri_raw") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: r.raw_uri,
-        }]
+        })
     } else if v == var("uri") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: &d.full_uri,
-        }]
+        })
     } else if v == var("path") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: r.uri,
-        }]
+        })
     } else if v == var("protocol") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: r.proto,
-        }]
+        })
     } else if v == var("request_line") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: &d.request_line,
-        }]
+        })
     } else if v == var("query_string") {
         if r.args.is_empty() {
-            vec![]
+            TargetVals::Empty
         } else {
-            vec![TargetVal {
+            TargetVals::One(TargetVal {
                 name: None,
                 val: r.args,
-            }]
+            })
         }
     } else if v == var("remote_addr") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: r.client_addr,
-        }]
+        })
     } else if v == var("args") || v == var("args_get") || v == var("args_post") {
         let fields = if v == var("args_get") {
             &d.args[..d.n_get]
@@ -555,99 +645,118 @@ fn values<'d>(
         } else {
             &d.args[..]
         };
-        fields
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, val)| TargetVal {
-                name: Some(&**n),
-                val,
-            })
-            .collect()
+        TargetVals::Many(
+            fields
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, val)| TargetVal {
+                    name: Some(&**n),
+                    val,
+                })
+                .collect(),
+        )
     } else if v == var("request_body") {
         if r.body.is_empty() {
-            vec![]
+            TargetVals::Empty
         } else {
-            vec![TargetVal {
+            TargetVals::One(TargetVal {
                 name: None,
                 val: r.body,
-            }]
+            })
         }
     } else if v == var("args_names") {
-        d.args
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| TargetVal { name: None, val: n })
-            .collect()
+        TargetVals::Many(
+            d.args
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, _)| TargetVal { name: None, val: n })
+                .collect(),
+        )
     } else if v == var("request_headers") {
-        r.headers
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, val)| TargetVal {
-                name: Some(*n),
-                val,
-            })
-            .collect()
+        TargetVals::Many(
+            r.headers
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, val)| TargetVal {
+                    name: Some(*n),
+                    val,
+                })
+                .collect(),
+        )
     } else if v == var("request_headers_names") {
-        r.headers
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| TargetVal { name: None, val: n })
-            .collect()
+        TargetVals::Many(
+            r.headers
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, _)| TargetVal { name: None, val: n })
+                .collect(),
+        )
     } else if v == var("request_cookies") {
-        d.cookies
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, val)| TargetVal {
-                name: Some(&**n),
-                val,
-            })
-            .collect()
+        TargetVals::Many(
+            d.cookies
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, val)| TargetVal {
+                    name: Some(&**n),
+                    val,
+                })
+                .collect(),
+        )
     } else if v == var("request_cookies_names") {
-        d.cookies
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| TargetVal { name: None, val: n })
-            .collect()
+        TargetVals::Many(
+            d.cookies
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, _)| TargetVal { name: None, val: n })
+                .collect(),
+        )
     } else if v == var("body_processor") {
-        vec![TargetVal {
+        TargetVals::One(TargetVal {
             name: None,
             val: d.processor,
-        }]
+        })
     } else if v == var("xml") {
-        d.xml
-            .iter()
-            .map(|x| TargetVal {
-                name: None,
-                val: &x.text[..],
-            })
-            .collect()
+        TargetVals::Many(
+            d.xml
+                .iter()
+                .map(|x| TargetVal {
+                    name: None,
+                    val: &x.text[..],
+                })
+                .collect(),
+        )
     } else if v == var("xml_attributes") {
-        d.xml
-            .iter()
-            .flat_map(|x| {
-                x.attrs.iter().map(|a| TargetVal {
+        TargetVals::Many(
+            d.xml
+                .iter()
+                .flat_map(|x| x.attrs.iter())
+                .map(|a| TargetVal {
                     name: None,
                     val: &a[..],
                 })
-            })
-            .collect()
+                .collect(),
+        )
     } else if v == var("files") {
-        d.files
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, f)| TargetVal {
-                name: Some(*n),
-                val: f,
-            })
-            .collect()
+        TargetVals::Many(
+            d.files
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, f)| TargetVal {
+                    name: Some(*n),
+                    val: f,
+                })
+                .collect(),
+        )
     } else if v == var("files_names") {
-        d.files
-            .iter()
-            .filter(|(n, _)| keyed(n))
-            .map(|(n, _)| TargetVal { name: None, val: n })
-            .collect()
+        TargetVals::Many(
+            d.files
+                .iter()
+                .filter(|(n, _)| keyed(n))
+                .map(|(n, _)| TargetVal { name: None, val: n })
+                .collect(),
+        )
     } else {
-        vec![] // response variables: later
+        TargetVals::Empty
     }
 }
 
@@ -788,12 +897,14 @@ fn condition(
         // addresses are not stable keys for the scan cache
         let from_prev = t.var == var("matched_vars");
         let vals = if from_prev {
-            prev.iter()
-                .map(|v| TargetVal {
-                    name: None,
-                    val: &v[..],
-                })
-                .collect()
+            TargetVals::Many(
+                prev.iter()
+                    .map(|v| TargetVal {
+                        name: None,
+                        val: &v[..],
+                    })
+                    .collect(),
+            )
         } else {
             values(d, &t, &excluded)
         };
@@ -816,36 +927,27 @@ fn condition(
         } else {
             c.transforms.len()..=c.transforms.len()
         };
-        'values: for v in vals {
+        'values: for v in &vals {
             if ctx.budget_exceeded {
                 break;
             }
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
-                // already scanned with this chain and not a match: no need to
-                // transform the value again (the transformed form is only
-                // needed for a match, in the match detail)
-                if pattern
-                    && fallback.is_none()
-                    && !from_prev
-                    && ctx
-                        .scans
-                        .get(&make_scan_key(v.val, chain))
-                        .is_some_and(|hits| hits.contains(&ci) == neg)
-                {
-                    continue;
+                let is_pattern_scan = pattern && fallback.is_none() && !from_prev;
+                let mut tv: Option<Cow<'_, [u8]>> = None;
+                if !is_pattern_scan {
+                    tv = match transform::apply_chain_with_budget(
+                        chain,
+                        v.val,
+                        ctx.budget.as_deref_mut(),
+                    ) {
+                        Ok(res) => res,
+                        Err(crate::budget::BudgetExceeded) => {
+                            ctx.budget_exceeded = true;
+                            break 'values;
+                        }
+                    };
                 }
-                let tv = match transform::apply_chain_with_budget(
-                    chain,
-                    v.val,
-                    ctx.budget.as_deref_mut(),
-                ) {
-                    Ok(res) => res,
-                    Err(crate::budget::BudgetExceeded) => {
-                        ctx.budget_exceeded = true;
-                        break 'values;
-                    }
-                };
                 let hit = if numeric {
                     // on the transformed value; one that is not a number
                     // counts as 0, as atoi does
@@ -891,15 +993,25 @@ fn condition(
                 } else if from_prev {
                     scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv).contains(&ci)
                 } else {
-                    matched(ctx, v.val, chain, tv.as_deref()).contains(&ci)
+                    matched(ctx, v.val, chain).contains(&ci)
                 };
-                if ctx.budget_exceeded
-                    || ctx.budget.as_mut().is_some_and(|bgt| bgt.check().is_err())
-                {
-                    ctx.budget_exceeded = true;
+                if ctx.budget_exceeded {
                     break 'values;
                 }
                 if hit != neg {
+                    if is_pattern_scan && tv.is_none() {
+                        tv = match transform::apply_chain_with_budget(
+                            chain,
+                            v.val,
+                            ctx.budget.as_deref_mut(),
+                        ) {
+                            Ok(res) => res,
+                            Err(crate::budget::BudgetExceeded) => {
+                                ctx.budget_exceeded = true;
+                                break 'values;
+                            }
+                        };
+                    }
                     if !any {
                         let window = match tv.as_deref() {
                             Some(b) => {
@@ -940,27 +1052,31 @@ fn condition(
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
 /// (value, chain).
-fn matched<'c>(
-    ctx: &'c mut Ctx<'_, '_, '_>,
-    v: &[u8],
-    chain: &[u8],
-    tv: Option<&[u8]>,
-) -> &'c [u32] {
+fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
     let key = make_scan_key(v, chain);
-    if !ctx.scans.contains_key(&key) {
-        let hits = if let Some(tv) = tv {
-            scan(
-                &ctx.hs,
-                &mut ctx.budget,
-                &mut ctx.budget_exceeded,
-                &Some(Cow::Borrowed(tv)),
-            )
-        } else {
-            vec![]
-        };
-        ctx.scans.insert(key, hits);
+    match ctx.scans.entry(key) {
+        std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+        std::collections::hash_map::Entry::Vacant(e) => {
+            let tv = match transform::apply_chain_with_budget(chain, v, ctx.budget.as_deref_mut()) {
+                Ok(res) => res,
+                Err(crate::budget::BudgetExceeded) => {
+                    ctx.budget_exceeded = true;
+                    None
+                }
+            };
+            let hits = if let Some(tv) = tv {
+                scan(
+                    &ctx.hs,
+                    &mut ctx.budget,
+                    &mut ctx.budget_exceeded,
+                    &Some(tv),
+                )
+            } else {
+                vec![]
+            };
+            e.insert(hits)
+        }
     }
-    &ctx.scans[&key]
 }
 
 /// Conditions matched by a transformed value, without the cache.
@@ -1003,8 +1119,10 @@ fn scan(
             });
         }
     }
-    hits.sort_unstable();
-    hits.dedup();
+    if hits.len() > 1 {
+        hits.sort_unstable();
+        hits.dedup();
+    }
     hits
 }
 
@@ -1180,7 +1298,7 @@ pub fn evaluate_with_budget(
         regexes,
         operators,
         hs,
-        scans: HashMap::new(),
+        scans: HashMap::with_hasher(FastBuildHasher::default()),
         budget,
         budget_exceeded: false,
     };
