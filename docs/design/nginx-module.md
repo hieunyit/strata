@@ -822,7 +822,7 @@ Không chuyển thẳng từ shadow sang enforce: enforce tăng dần 1% → 5% 
 
 ## Bảo mật của module
 
-Phần C được giữ nhỏ nhất có thể (mục tiêu dưới 2.500 dòng code thực, không tính dòng trống và comment; nâng từ 2.000 sau W06-N-01) vì đó là phần duy nhất không memory-safe; mọi việc parse input không tin cậy nằm trong Rust.
+Phần C được giữ nhỏ nhất có thể (tối đa 3.000 dòng code thực, không tính dòng trống và comment, `make check-c-lines`; nâng từ 2.000 sau W06-N-01, lên 2.500 rồi 3.000 ngày 12/10/2026) vì đó là phần duy nhất không memory-safe; mọi việc parse input không tin cậy nằm trong Rust.
 
 - **Không parse trong C**: C chỉ lấy con trỏ và độ dài từ cấu trúc NGINX đã có, rồi chuyển cho libstrata.
 - **Kiểm tra độ dài trước mọi copy**; chỉ dùng hàm có giới hạn kích thước (`ngx_cpymem` với độ dài đã kiểm, không `strcpy`/`sprintf`).

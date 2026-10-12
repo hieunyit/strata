@@ -35,7 +35,7 @@ Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đ�
 - Kiểm tra độ dài trước mọi copy; không `strcpy`/`sprintf`; dùng API cấp phát của NGINX (`ngx_palloc`, `ngx_pcalloc`).
 - Không I/O, không khóa, không cấp phát lớn trên đường đi của request.
 - Build với `-Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2`.
-- Mục tiêu phần C dưới 2.500 dòng code thực (`connectors/nginx/src/*.c`, `*.h`, không tính dòng trống và comment).
+- Phần C tối đa 3.000 dòng code thực (`connectors/nginx/src/*.c`, `*.h`, không tính dòng trống và comment); `make check-c-lines` kiểm trong CI. Nâng từ 2.500 ngày 12/10/2026 (PO duyệt) khi đã dùng 2.499: chỗ cho xoay khóa bundle và các tuần sau. Logic mới vẫn ưu tiên đặt trong libstrata.
 
 ### Rust (libstrata)
 - Không `unsafe` ngoài `engine/ffi/`.

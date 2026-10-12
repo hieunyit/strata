@@ -22,7 +22,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures clang-tidy
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures clang-tidy check-c-lines
 
 all: lib nginx
 
@@ -75,6 +75,11 @@ test-nginx: $(MKBUNDLE) $(COMPILE)
 		sh -c "cd connectors/nginx && prove -r t/"
 
 test: rust-check check-header check-fixtures abi-test nginx test-nginx
+
+# Size budget of the C connector (CLAUDE.md)
+C_LINES_MAX ?= 3000
+check-c-lines:
+	connectors/nginx/scripts/count-lines.sh $(C_LINES_MAX)
 
 # clang-tidy on the module (W07-Q-01; checks in .clang-tidy), with the exact
 # compile commands of the NGINX build of `make nginx`.
