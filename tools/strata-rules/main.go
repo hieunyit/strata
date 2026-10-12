@@ -225,12 +225,25 @@ func ftwCmd() {
 	groups := fs.String("group", "", "comma-separated CRS groups to run (930,942); default all")
 	minRate := fs.Float64("min", 0, "fail when a group passes under this percentage")
 	maxPL := fs.Int("pl", 1, "paranoia levels imported")
+	testsDir := fs.String("tests", "", "test requests (default <repo>/corpus/crs-ftw)")
+	rulesDir := fs.String("rules", "", "rules the tests are for (default <repo>/rules/crs)")
+	inventory := fs.String("inventory", "", "rule paranoia levels (default <repo>/docs/crs-inventory.csv; none: every rule is level 1)")
 	_ = fs.Parse(os.Args[2:])
+	crs := *testsDir == ""
+	if crs {
+		*testsDir = filepath.Join(*repo, "corpus", "crs-ftw")
+	}
+	if *rulesDir == "" {
+		*rulesDir = filepath.Join(*repo, "rules", "crs")
+	}
+	if *inventory == "" && crs {
+		*inventory = filepath.Join(*repo, "docs", "crs-inventory.csv")
+	}
 	tools, err := runner.Find(*repo)
 	if err != nil {
 		die(err)
 	}
-	tests, err := ftw.Load(filepath.Join(*repo, "corpus", "crs-ftw"))
+	tests, err := ftw.Load(*testsDir)
 	if err != nil {
 		die(err)
 	}
@@ -239,7 +252,7 @@ func ftwCmd() {
 		kept := tests[:0]
 		for _, t := range tests {
 			for _, g := range want {
-				if strings.HasPrefix(t.Group, "REQUEST-"+strings.TrimSpace(g)+"-") {
+				if g = strings.TrimSpace(g); t.Group == g || strings.HasPrefix(t.Group, "REQUEST-"+g+"-") {
 					kept = append(kept, t)
 					break
 				}
@@ -247,11 +260,13 @@ func ftwCmd() {
 		}
 		tests = kept
 	}
-	pl, err := ftw.ParanoiaLevels(filepath.Join(*repo, "docs", "crs-inventory.csv"))
-	if err != nil {
-		die(err)
+	pl := map[int]int{}
+	if *inventory != "" {
+		if pl, err = ftw.ParanoiaLevels(*inventory); err != nil {
+			die(err)
+		}
 	}
-	results, err := ftw.Run(tools, filepath.Join(*repo, "rules", "crs"), tests, pl, *maxPL)
+	results, err := ftw.Run(tools, *rulesDir, tests, pl, *maxPL)
 	if err != nil {
 		die(err)
 	}
