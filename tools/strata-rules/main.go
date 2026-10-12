@@ -5,6 +5,8 @@
 //	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file] [--max-fp N]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90]  CRS go-ftw tests of rules/crs, as Markdown
+//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json]
+//	                                          signed signature package: bundle + manifest + changelog + NOTICE
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
 //	strata-rules corpus benign [--repo <root>] [--n N] [--seed S]   corpus/benign/synthetic.jsonl
 //
@@ -22,6 +24,7 @@ import (
 	"github.com/strata/strata/tools/strata-rules/internal/corpus"
 	"github.com/strata/strata/tools/strata-rules/internal/ftw"
 	"github.com/strata/strata/tools/strata-rules/internal/lint"
+	"github.com/strata/strata/tools/strata-rules/internal/release"
 	"github.com/strata/strata/tools/strata-rules/internal/report"
 	"github.com/strata/strata/tools/strata-rules/internal/ruletest"
 	"github.com/strata/strata/tools/strata-rules/internal/runner"
@@ -42,13 +45,15 @@ func main() {
 		corpusCmd()
 	case "ftw":
 		ftwCmd()
+	case "release":
+		releaseCmd()
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|corpus ... (see the package comment)")
+	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|corpus ... (see the package comment)")
 	os.Exit(2)
 }
 
@@ -188,6 +193,36 @@ func corpusCmd() {
 	default:
 		usage()
 	}
+}
+
+// releaseCmd builds a signed signature package (bundle + manifest +
+// changelog + NOTICE) from the rule repository.
+func releaseCmd() {
+	fs := flag.NewFlagSet("release", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository root")
+	rules := fs.String("rules", "", "rules directory (default <repo>/rules)")
+	version := fs.String("version", "", "package version label, e.g. 2026.w42")
+	bundleVersion := fs.Uint64("bundle-version", 1, "numeric bundle version (monotonic)")
+	key := fs.String("key", "", "ed25519 seed file to sign the bundle (strata-compile --key)")
+	out := fs.String("out", "", "output directory for the package")
+	baseline := fs.String("baseline", "", "previous manifest.json for the changelog diff")
+	_ = fs.Parse(os.Args[2:])
+	if *out == "" {
+		die(fmt.Errorf("--out is required"))
+	}
+	m, err := release.Build(release.Options{
+		Repo:          *repo,
+		RulesDir:      *rules,
+		Version:       *version,
+		BundleVersion: *bundleVersion,
+		KeyFile:       *key,
+		Out:           *out,
+		Baseline:      *baseline,
+	})
+	if err != nil {
+		die(err)
+	}
+	fmt.Fprintf(os.Stderr, "strata-rules release: %s (%d rules) -> %s\n", m.Version, m.Rules, *out)
 }
 
 func lintCmd() {

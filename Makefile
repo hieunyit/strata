@@ -24,7 +24,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures clang-tidy check-c-lines
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release nginx-h3 test-nginx-h3 clang-tidy check-c-lines
 
 all: lib nginx
 
@@ -218,11 +218,22 @@ crs-ftw:
 crs-import: rules-tools
 	cd tools/strata-import-crs && go run . import --crs "$$(./fetch-crs.sh)" --out ../../rules/crs --report ../../docs/crs-import-report.md --compile ../../target/release/strata-compile
 
-# go-ftw tests of the injection groups through libstrata (W06-S-01): at
-# least 90% per group; the result is docs/crs-ftw-report.md.
+# go-ftw tests of the injection groups through libstrata (W06-S-01, W08-S-01):
+# at least 95% per group; the result is docs/crs-ftw-report.md.
 CRS_FTW_GROUPS ?= 930,931,932,933,941,942,944
+CRS_FTW_MIN    ?= 95
 test-crs-ftw: rules-tools
-	cd tools/strata-rules && go run . ftw --repo ../.. --group $(CRS_FTW_GROUPS) --min 90 > ../../docs/crs-ftw-report.md
+	cd tools/strata-rules && go run . ftw --repo ../.. --group $(CRS_FTW_GROUPS) --min $(CRS_FTW_MIN) > ../../docs/crs-ftw-report.md
+
+# Signature package (W08-S-01): all rules in one signed bundle, with a
+# manifest, changelog and NOTICE. Needs a key: make signatures-release
+# SIG_VERSION=2026.w42 SIG_KEY=path/to/seed [SIG_BASELINE=prev/manifest.json].
+SIG_VERSION ?= 0.0.0-dev
+SIG_OUT     ?= build/signatures/$(SIG_VERSION)
+signatures-release: rules-tools
+	cd tools/strata-rules && go run . release --repo ../.. --version "$(SIG_VERSION)" \
+		--key "$(abspath $(SIG_KEY))" --out "$(abspath $(SIG_OUT))" \
+		$(if $(SIG_BASELINE),--baseline "$(abspath $(SIG_BASELINE))",)
 
 # CRS release pinned in tools/strata-import-crs/crs.lock, into build/crs/.
 crs-fetch:
