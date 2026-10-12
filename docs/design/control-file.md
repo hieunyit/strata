@@ -31,6 +31,8 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 
 Không bao giờ thay control file bằng `rename`: worker đang map inode cũ và sẽ không thấy bản mới. Tạo file lần đầu (generation chẵn) rồi chỉ cập nhật tại chỗ.
 
+Hai loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** chỉ ghi offset 0..15 và 24..321 (khối force-shadow giữ nguyên); **force-shadow** chỉ ghi offset 324..2127. Agent giữ hạn chót force-shadow trong `force-shadow.json` của `--bundle-dir` (qua được agent khởi động lại, không kéo dài hạn), và mỗi giây ghi lại khối nếu khác với các hạn còn chạy: khi hạn qua, và khi control file được tạo sau lệnh (chưa có bundle lúc nhận lệnh).
+
 **Worker đọc**: đọc generation g1; nếu lẻ thì bỏ qua lượt này; copy các trường; đọc lại generation g2; chỉ dùng khi g1 == g2. Generation chẵn khác lần trước → nạp bundle mới.
 
 ## Bundle v1 (`bundle-<version>.sbn` trong `strata_bundle_dir`)
