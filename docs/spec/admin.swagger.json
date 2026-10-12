@@ -298,6 +298,39 @@
         ]
       }
     },
+    "/v1/nodes:clearForceShadow": {
+      "post": {
+        "summary": "REST: POST /v1/nodes:clearForceShadow. Ends a force shadow before its\ndeadline: of policy_id, or every one of the nodes when it is empty\nSame permission and audit.",
+        "operationId": "FleetAdminService_ClearForceShadow",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ClearForceShadowResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ClearForceShadowRequest"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
     "/v1/nodes:forceShadow": {
       "post": {
         "summary": "REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy\n(or every policy) on one node or every node of a group, for a while\n(nginx-module.md › Fallback). Needs policies:deploy; audited. Nodes\napply it within seconds while connected; a node that connects later\ngets it if the duration has not run out.",
@@ -909,6 +942,34 @@
         }
       }
     },
+    "v1ClearForceShadowRequest": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Exactly one of node_id and group_id."
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "policy_id": {
+          "type": "string",
+          "title": "empty: every force shadow of the nodes"
+        }
+      }
+    },
+    "v1ClearForceShadowResponse": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          }
+        }
+      }
+    },
     "v1CollectDiagnosticsResponse": {
       "type": "object",
       "properties": {
@@ -1206,7 +1267,7 @@
         },
         "kind": {
           "type": "string",
-          "title": "FORCE_SHADOW, DIAGNOSTICS"
+          "title": "FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS"
         },
         "policy_id": {
           "type": "string",

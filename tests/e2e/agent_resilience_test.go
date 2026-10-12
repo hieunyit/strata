@@ -149,6 +149,16 @@ func TestForceShadowAndDiagnosticsReachTheAgent(t *testing.T) {
 		t.Fatal("force shadow lost across an agent restart")
 	}
 
+	// Cleared before its deadline.
+	var cl struct {
+		Commands []commandJSON `json:"commands"`
+	}
+	if c := e.call(t, "operator", http.MethodPost, "/v1/nodes:clearForceShadow", `{"node_id":"`+nd.id+`"}`, &cl); c != http.StatusOK || len(cl.Commands) != 1 {
+		t.Fatalf("clear: %d %+v", c, cl)
+	}
+	waitFor(t, "cleared", 5*time.Second, func() bool { all, names := forced(nd.control); return !all && len(names) == 0 })
+	waitFor(t, "clear DONE", 5*time.Second, func() bool { return e.command(t, cl.Commands[0].ID).State == "DONE" })
+
 	// The audit log names who did it.
 	entries, _ := e.st.AuditEntries(context.Background(), 20)
 	found := false

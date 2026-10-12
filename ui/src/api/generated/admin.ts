@@ -45,6 +45,14 @@ export interface paths {
      */
     post: operations["FleetAdminService_CollectDiagnostics"];
   };
+  "/v1/nodes:clearForceShadow": {
+    /**
+     * REST: POST /v1/nodes:clearForceShadow. Ends a force shadow before its
+     * deadline: of policy_id, or every one of the nodes when it is empty
+     * Same permission and audit.
+     */
+    post: operations["FleetAdminService_ClearForceShadow"];
+  };
   "/v1/nodes:forceShadow": {
     /**
      * REST: POST /v1/nodes:forceShadow. Emergency shadow mode for one policy
@@ -170,6 +178,16 @@ export interface components {
       /** Format: date-time */
       create_time?: string;
     };
+    v1ClearForceShadowRequest: {
+      /** @description Exactly one of node_id and group_id. */
+      node_id?: string;
+      group_id?: string;
+      /** empty: every force shadow of the nodes */
+      policy_id?: string;
+    };
+    v1ClearForceShadowResponse: {
+      commands?: components["schemas"]["v1NodeCommand"][];
+    };
     v1CollectDiagnosticsResponse: {
       command?: components["schemas"]["v1NodeCommand"];
     };
@@ -284,7 +302,7 @@ export interface components {
     v1NodeCommand: {
       id?: string;
       node_id?: string;
-      /** FORCE_SHADOW, DIAGNOSTICS */
+      /** FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS */
       kind?: string;
       /** FORCE_SHADOW: empty = every policy */
       policy_id?: string;
@@ -597,6 +615,32 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1CollectDiagnosticsResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/nodes:clearForceShadow. Ends a force shadow before its
+   * deadline: of policy_id, or every one of the nodes when it is empty
+   * Same permission and audit.
+   */
+  FleetAdminService_ClearForceShadow: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["v1ClearForceShadowRequest"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ClearForceShadowResponse"];
         };
       };
       /** @description An unexpected error response. */

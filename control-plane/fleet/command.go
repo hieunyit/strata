@@ -81,6 +81,8 @@ func CommandMessage(cmd store.Command) *fleetv1.ControlMessage {
 		pc.Action = &fleetv1.Command_ForceShadow{ForceShadow: &fleetv1.ForceShadow{
 			PolicyId: cmd.PolicyID, DurationSeconds: uint32(cmd.DurationSeconds),
 		}}
+	case store.CommandClearShadow:
+		pc.Action = &fleetv1.Command_ForceShadow{ForceShadow: &fleetv1.ForceShadow{PolicyId: cmd.PolicyID, Clear: true}}
 	case store.CommandDiagnostics:
 		pc.Action = &fleetv1.Command_Diagnostics{Diagnostics: &fleetv1.CollectDiagnostics{}}
 	}
