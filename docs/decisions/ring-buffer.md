@@ -133,3 +133,26 @@ deploy/dev/run.sh connectors/nginx/scripts/bench-events.sh 10 2 10000 25000 5000
 STRATA_DEV_DOCKER_ARGS="--sysctl net.unix.max_dgram_qlen=8192" \
   deploy/dev/run.sh connectors/nginx/scripts/bench-events.sh 10 2 10000 25000 50000 100000
 ```
+
+## Đo lại trên Linux thật (13/10/2026)
+
+Máy: VM Xeon E5-2696 v4 2,2 GHz. Chi tiết ở `docs/reports/w09-q-01.md`, mục 7.
+
+- Đặt `max_dgram_qlen` = 8.192, ở 50.000 sự kiện/giây vẫn **bỏ 5,2%**. Như vậy điều kiện
+  "bỏ hơn 0,1% dù đã đặt sysctl" đã xảy ra trên máy này.
+- Nhưng phía nhận mới là nút thắt: một goroutine của agent chỉ đọc và decode được
+  khoảng 47.000 sự kiện/giây trên nhân 2,2 GHz. Ring buffer bộ nhớ chung không làm phía
+  nhận nhanh hơn, nó chỉ bỏ được syscall ở phía gửi.
+- Network namespace mới có `max_dgram_qlen` = 10, nên container phải tự đặt sysctl.
+
+Quyết định cập nhật:
+
+1. **Chưa chuyển sang ring buffer.** Trước tiên làm phía nhận của agent nhanh hơn:
+   - nhiều goroutine cùng đọc socket;
+   - `SO_RCVBUF` lớn hơn;
+   - decode tách khỏi vòng đọc.
+
+   Sau đó đo lại bằng `make bench-events`.
+2. Nếu sau bước 1, ở 50.000/s vẫn bỏ hơn 0,1%, hoặc `sendto` vẫn chiếm hơn 5% CPU của
+   worker, thì ring buffer vào v1 (W17-N-01), như điều kiện ban đầu.
+3. Sysctl (8.192) là bắt buộc, kể cả trong container. Phần này thuộc #29 và W10-N-01.
