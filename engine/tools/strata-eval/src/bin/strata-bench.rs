@@ -106,7 +106,13 @@ fn requests() -> Vec<Req> {
     ]
 }
 
-fn run_one(e: &Arc<Engine>, policy: &[u8], budget_us: u64, event: bool, r: &Req) -> (u32, Vec<u32>) {
+fn run_one(
+    e: &Arc<Engine>,
+    policy: &[u8],
+    budget_us: u64,
+    event: bool,
+    r: &Req,
+) -> (u32, Vec<u32>) {
     let (path, args) = r.uri.split_once('?').unwrap_or((&r.uri, ""));
     let mut t = Tx::new(Some(e.clone()), b"bench", 0);
     if budget_us > 0 {
