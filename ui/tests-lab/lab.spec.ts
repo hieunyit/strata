@@ -49,12 +49,10 @@ async function signIn(page: Page, user: string): Promise<void> {
 async function openTrace(page: Page, blockId: string): Promise<void> {
   // The event reaches ClickHouse after the agent's next push and flush.
   await expect(async () => {
-    // a "not found" from the previous try covers the search box
-    const close = page.getByTestId('modal-close-btn');
-    if (await close.isVisible()) await close.click();
     await page.getByTestId('block-id-search-input').fill(blockId);
     await page.getByTestId('block-id-search-btn').click();
-    await expect(page.getByTestId('decision-trace-modal').getByText(blockId)).toBeVisible({ timeout: 2000 });
+    await expect(page.getByTestId('event-detail')).toBeVisible({ timeout: 2000 });
+    await expect(page.getByTestId('detail-block-id')).toHaveText(blockId);
   }).toPass({ timeout: 30_000 });
 }
 
@@ -65,8 +63,7 @@ test('operator signs in, reads a full decision trace, and signs out', async ({ p
   await expect(page.getByTestId('cp-version')).toBeVisible();
 
   await openTrace(page, id);
-  await expect(page.getByTestId('modal-client-ip')).toHaveText(/^\d+\.\d+\.\d+\.\d+$/);
-  await page.getByTestId('modal-close-btn').click();
+  await expect(page.getByTestId('detail-client-ip')).toHaveText(/^\d+\.\d+\.\d+\.\d+$/);
 
   await page.getByTestId('logout-btn').click();
   await expect(page.getByTestId('login-btn')).toBeVisible();
@@ -79,7 +76,7 @@ test('viewer sees the trace with the IP masked by the API', async ({ page, reque
   const id = await blocked(request);
   await signIn(page, 'lab-viewer');
   await openTrace(page, id);
-  await expect(page.getByTestId('modal-client-ip')).toHaveText(/^\d+\.\d+\.\d+\.0\/24$/);
+  await expect(page.getByTestId('detail-client-ip')).toHaveText(/^\d+\.\d+\.\d+\.0\/24$/);
   await expect(page.getByTestId('viewer-notice')).toBeVisible();
 });
 
