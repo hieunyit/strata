@@ -320,3 +320,76 @@ rules:
         "800702 took the scan of another chain: {rules:?}"
     );
 }
+
+/// W09 review: fallback regexes are compiled on first use (W09-R-01), once
+/// per worker and bundle. That compile must not count against the budget
+/// of the request that happens to need it first: with the signature
+/// package it took 86 ms, so the first requests after every bundle load
+/// took the fail mode (an attack passed under fail-open on staging).
+#[test]
+fn first_use_regex_compile_is_not_charged_to_the_request() {
+    // a selective gate, and a secondary condition the compiler moves out
+    // of Hyperscan (lower_loose): an rx compiled by the regex crate
+    let words: Vec<String> = (0..4000)
+        .map(|i| format!("w{i}x{}", i * 7919 % 1000))
+        .collect();
+    let rules = format!(
+        r#"
+ir_version: 1
+ruleset: {{ name: p, version: "1" }}
+rules:
+  - {{ id: 800602, name: lazy-rx, layer: managed, stage: request_headers, score: 100, severity: critical,
+      match: {{ all: [
+        {{ targets: [ {{ var: args }} ], operator: {{ type: contains, value: "zzgate" }} }},
+        {{ targets: [ {{ var: args }} ], operator: {{ type: rx, value: "(?:{})" }} }} ] }},
+      metadata: {{ source: organization, license: Apache-2.0 }} }}
+"#,
+        words.join("|")
+    );
+    // as the FFI runs a call (with_tx): enter lazily, time the whole call,
+    // then account it; the verdict carries E_BUDGET when it ran over
+    let get = |e: &Arc<Engine>, budget_us: u64, args: &str| {
+        let uri = format!("/p?{args}");
+        let mut t = Tx::new(Some(e.clone()), b"node", 0);
+        t.set_policy(b"example-api");
+        t.set_budget(budget_us);
+        let _ = t.request_line(b"GET", uri.as_bytes(), b"/p", args.as_bytes(), b"HTTP/1.1");
+        let start = Instant::now();
+        assert!(t.budget_enter_lazy().is_ok());
+        let _ = t.request_headers(&[(b"Host", b"api.example.test")]);
+        let took = start.elapsed();
+        t.budget_exit_with(took);
+        let v = t.verdict();
+        (v.error, took, v.rules[..v.n_rules as usize].to_vec())
+    };
+    // what one compile of that regex costs here
+    let probe = engine_from(&[], &rules);
+    assert_eq!(probe.regexes().len(), 1, "the rx is not a fallback regex");
+    let t = Instant::now();
+    assert_eq!(probe.regexes().compile_all(), 1);
+    let compile = t.elapsed();
+    let budget_us = 1_000;
+    assert!(
+        compile.as_micros() > 2 * budget_us as u128,
+        "precondition: the compile ({compile:?}) must outlast the budget for this test to mean anything"
+    );
+
+    // first request of a fresh engine passes the gate, so the rx is
+    // compiled, and does not match: no verdict is reached before the end,
+    // so a charged compile would end it in the fail mode
+    let e = engine_from(&[], &rules);
+    let (rc, took, rules_hit) = get(&e, budget_us, "q=zzgate-benign");
+    assert!(
+        took > compile / 2,
+        "the first request did not compile ({took:?})"
+    );
+    assert_ne!(
+        rc, E_BUDGET,
+        "compile time charged to the request ({took:?})"
+    );
+    assert!(rules_hit.is_empty());
+    // warm: the attack is found, within budget
+    let (rc, _, rules_hit) = get(&e, budget_us, &format!("q=zzgate-{}", words[17]));
+    assert_ne!(rc, E_BUDGET);
+    assert_eq!(rules_hit, vec![800602]);
+}
