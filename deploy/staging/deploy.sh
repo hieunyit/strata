@@ -74,7 +74,7 @@ git -C "$root" archive "$tag" | tar -x -C "$src"
 lab="$src/deploy/lab"
 for f in compose.yaml smoke.sh keycloak/strata-realm.json; do
     sed -i -E \
-        -e "s/\b1(8080|8081|8088|8090|8091|8123|8180|8428|3000|9000|9001)\b/2\1/g" \
+        -e "s/\b1(8080|8081|8088|8090|8091|8123|8180|8428|8880|3000|9000|9001)\b/2\1/g" \
         -e 's/^name: strata-lab$/name: strata-staging/' \
         -e "s/strata-lab-runtime:dev/strata-staging-runtime:$tag/g" \
         -e "s/strata-lab-ui:dev/strata-staging-ui:$tag/g" \

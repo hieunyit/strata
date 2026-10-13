@@ -3,3 +3,7 @@ scrape_configs:
     scrape_interval: 15s
     static_configs:
       - targets: ["agent-1:9469", "agent-2:9469"]
+  - job_name: strata-control-plane
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["control-plane:9470"]

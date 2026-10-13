@@ -17,7 +17,8 @@ make lab-clean   # xóa cả volume và deploy/lab/.state
 | Web UI | http://127.0.0.1:18088 |
 | Control plane REST (admin + event API) | http://127.0.0.1:18090, cần token |
 | Control plane admin gRPC (không TLS, chỉ lab) | 127.0.0.1:18091 |
-| Grafana (dashboard "Strata node") | http://127.0.0.1:13000, user `admin` |
+| Grafana (dashboard "Strata module", "Strata agent", "Strata control plane") | http://127.0.0.1:13000, user `admin` |
+| vmalert (cảnh báo `deploy/monitoring/alerts.yml`) | http://127.0.0.1:18880 |
 | VictoriaMetrics | http://127.0.0.1:18428 |
 | Keycloak (realm `strata`) | http://127.0.0.1:18180, user `admin` |
 | MinIO API / console | http://127.0.0.1:19000 / :19001, user `strata` |
