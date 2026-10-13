@@ -15,6 +15,10 @@ RUN --mount=type=bind,source=packages,target=/tmp/pkgs \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i '1i load_module modules/ngx_http_strata_module.so;' /etc/nginx/nginx.conf \
     && nginx -t -q
+# one NGINX worker per CPU the container may use (the official image's
+# entrypoint reads the cgroup), not per CPU of the host: every worker maps
+# the bundle and warms up on its own (#49)
+ENV NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE=1
 COPY entrypoint.sh /usr/local/bin/strata-entrypoint
 ENTRYPOINT ["strata-entrypoint"]
 CMD ["nginx", "-g", "daemon off;"]
