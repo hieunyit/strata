@@ -43,7 +43,7 @@ EOF
 echo "MIGTEST_SECRET=s3cret" > "$state/env" && chmod 600 "$state/env"
 echo "release-key" > "$keys/signatures-release.key" && chmod 600 "$keys/signatures-release.key"
 export MIGRATE_PROJECTS="$p|$tree/deploy/lab/compose.yaml|$state|$tree" MIGRATE_KEYS_DIR="$keys"
-compose=(docker compose -p $p -f "$tree/deploy/lab/compose.yaml" --env-file "$state/env")
+compose=(docker compose -p "$p" -f "$tree/deploy/lab/compose.yaml" --env-file "$state/env")
 
 "${compose[@]}" up -d --build --wait >/dev/null 2>&1
 "${compose[@]}" exec -T app sh -ec '
@@ -83,4 +83,4 @@ check "import: volume labels kept" test "$(docker volume inspect -f '{{json .Lab
 check "import: release key back, 0600" test "$(stat -c %a "$keys/signatures-release.key")" = 600
 refuses "import: twice" "$here/migrate.sh" import --no-up "$work/out"
 
-[ "$fail" = 0 ] && echo "migrate: all checks passed" || { echo "migrate: failures"; exit 1; }
+if [ "$fail" = 0 ]; then echo "migrate: all checks passed"; else echo "migrate: failures"; exit 1; fi
