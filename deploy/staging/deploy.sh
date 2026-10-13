@@ -6,7 +6,7 @@
 #   - the sources are taken from the tag itself (git archive), never from
 #     the working tree, and everything is built from them.
 # Staging is the lab stack (deploy/lab of that tag) under the project
-# strata-staging: host ports 1xxxx become 2xxxx (UI 28088, NGINX 28080 and
+# strata-staging: the lab's host ports 1xxxx become 2xxxx (UI 28088, NGINX 28080 and
 # 28081, control plane 28090, Keycloak 28180, Grafana 23000...), images
 # are tagged with the release, passwords and data stay in
 # deploy/staging/.state and the strata-staging volumes across deploys.
@@ -56,7 +56,7 @@ git -C "$root" archive "$tag" | tar -x -C "$src"
 lab="$src/deploy/lab"
 for f in compose.yaml smoke.sh keycloak/strata-realm.json; do
     sed -i -E \
-        -e 's/(127\.0\.0\.1|localhost):1([0-9]{4})\b/\1:2\2/g' \
+        -e "s/\b1(8080|8081|8088|8090|8091|8123|8180|8428|3000|9000|9001)\b/2\1/g" \
         -e 's/^name: strata-lab$/name: strata-staging/' \
         -e "s/strata-lab-runtime:dev/strata-staging-runtime:$tag/g" \
         -e "s/strata-lab-ui:dev/strata-staging-ui:$tag/g" \
