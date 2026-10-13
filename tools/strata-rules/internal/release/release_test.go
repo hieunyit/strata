@@ -90,7 +90,7 @@ func TestBuildPackage(t *testing.T) {
 		t.Errorf("sources: %v", m.BySource)
 	}
 
-	for _, f := range []string{"strata-signatures-2026.w42.sbn", "strata-signatures-2026.w42.pub", "manifest.json", "manifest.json.sig", "CHANGELOG.md", "NOTICE"} {
+	for _, f := range []string{"strata-signatures-2026.w42.sbn", "strata-signatures-2026.w42.pub", "strata-signatures-2026.w42.rules.json", "cost.json", "manifest.json", "manifest.json.sig", "CHANGELOG.md", "NOTICE"} {
 		if _, err := os.Stat(filepath.Join(out, f)); err != nil {
 			t.Errorf("missing %s: %v", f, err)
 		}
@@ -115,7 +115,7 @@ func TestBuildPackage(t *testing.T) {
 	if _, err := Verify(out, make([]byte, 32)); err == nil {
 		t.Error("verify accepted another public key")
 	}
-	for _, f := range []string{"NOTICE", "CHANGELOG.md", "strata-signatures-2026.w42.sbn", "manifest.json"} {
+	for _, f := range []string{"NOTICE", "CHANGELOG.md", "strata-signatures-2026.w42.sbn", "strata-signatures-2026.w42.rules.json", "cost.json", "manifest.json"} {
 		p := filepath.Join(out, f)
 		orig, _ := os.ReadFile(p)
 		if err := os.WriteFile(p, append(append([]byte{}, orig...), ' '), 0o644); err != nil {

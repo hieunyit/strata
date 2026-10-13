@@ -145,7 +145,7 @@ func Build(o Options) (*Manifest, error) {
 		return nil, err
 	}
 	m.Files = map[string]string{}
-	for _, f := range []string{name + ".pub", "NOTICE", "CHANGELOG.md"} {
+	for _, f := range []string{name + ".pub", name + ".rules.json", "cost.json", "NOTICE", "CHANGELOG.md"} {
 		b, err := os.ReadFile(filepath.Join(o.Out, f))
 		if err != nil {
 			return nil, err
@@ -221,7 +221,9 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 		"ruleset":    map[string]any{"name": "strata-signatures", "version": o.Version},
 		"rules":      rules,
 	}
-	irFile := filepath.Join(tmp, "rules.json")
+	// the IR goes into the package: a control plane compiles it with its
+	// own policies (-rules), as staging does with the v0 package
+	irFile := strings.TrimSuffix(out, ".sbn") + ".rules.json"
 	if err := writeJSON(irFile, doc); err != nil {
 		return err
 	}
@@ -237,6 +239,7 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 		"--version", strconv.FormatUint(o.BundleVersion, 10),
 		"--created-at", strconv.FormatInt(createdMS, 10),
 		"--out", out,
+		"--cost-report", filepath.Join(filepath.Dir(out), "cost.json"),
 	}
 	cmd := exec.Command(bin, args...)
 	if b, err := cmd.CombinedOutput(); err != nil {
