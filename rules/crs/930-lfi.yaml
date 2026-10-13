@@ -937,7 +937,7 @@ rules:
               - proc/vmallocinfo
               - proc/vmstat
               - proc/zoneinfo
-              - program files
+              - program files/
               - psa/admin
               - pureftpd/etc
               - root/anaconda-ks.cfg

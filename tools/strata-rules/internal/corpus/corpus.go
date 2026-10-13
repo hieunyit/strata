@@ -47,6 +47,47 @@ type Sources struct {
 	} `yaml:"sources"`
 }
 
+// Clean returns the payload a line of a payload list holds, and false for a
+// line that holds none (W09-S-01): an empty line, a comment, the
+// descriptions of the RSnake list ("Exploit Name:", "Exploit
+// Description:"; "Exploit String:" is followed by the payload), and plain
+// text (letters, digits, spaces and .,:_- only: a lone SQL keyword, a
+// title), which cannot inject anything.
+func Clean(line string) (string, bool) {
+	t := strings.TrimSpace(line)
+	switch {
+	case t == "", strings.HasPrefix(t, "#"),
+		strings.HasPrefix(t, "Exploit Name:"), strings.HasPrefix(t, "Exploit Description:"):
+		return "", false
+	case strings.HasPrefix(t, "Exploit String:"):
+		line = strings.TrimSpace(strings.TrimPrefix(t, "Exploit String:"))
+		t = line
+	}
+	if strings.Trim(t, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,:_-") == "" {
+		return "", false
+	}
+	return line, true
+}
+
+// preEncoded: the payload is written URL-encoded already (%XX escapes, no
+// raw space), the way it is to be put in a request: escaping it again would
+// test a double encoding the list does not mean.
+func preEncoded(p string) bool {
+	if strings.ContainsAny(p, " \t\r\n") {
+		return false
+	}
+	for i := 0; i+2 < len(p); i++ {
+		if p[i] == '%' && isHex(p[i+1]) && isHex(p[i+2]) {
+			return true
+		}
+	}
+	return false
+}
+
+func isHex(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
 // Fetch downloads the payload files of sources and writes
 // <out>/<attack type>.jsonl, deduplicated and sorted, so a rerun at the
 // same commits gives the same files.
@@ -79,8 +120,8 @@ func Fetch(sourcesFile, out string) (map[string]int, error) {
 			}
 			var list []Payload
 			for i, line := range strings.Split(string(body), "\n") {
-				line = strings.TrimRight(line, "\r")
-				if strings.TrimSpace(line) == "" || len(line) > src.MaxLength {
+				line, ok := Clean(strings.TrimRight(line, "\r"))
+				if !ok || len(line) > src.MaxLength {
 					continue
 				}
 				key := f.Type + "\x00" + line
@@ -187,6 +228,9 @@ func Load(dir string) (*Corpus, error) {
 // Requests turns a payload into the requests that carry it.
 func Requests(p Payload, id string) []runner.Request {
 	q := url.QueryEscape(p.Payload)
+	if preEncoded(p.Payload) {
+		q = p.Payload
+	}
 	reqs := []runner.Request{
 		{ID: id + "/query", URI: "/search?q=" + q, Headers: map[string]any{"Host": "api.example.test"}},
 		{ID: id + "/form", Method: "POST", URI: "/comments", Body: "comment=" + q,
