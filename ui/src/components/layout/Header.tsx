@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Moon, Sun, LogOut, Menu, Languages } from 'lucide-react';
+import { Search, Moon, Sun, LogOut, Menu, Languages, KeyRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
 import { navigate } from '../../router';
 import { useTheme } from '../../lib/theme';
+import { ChangePasswordDialog } from './ChangePasswordDialog';
 
 interface HeaderProps {
   /** default: open the event's page */
@@ -18,7 +19,8 @@ const BLOCK_ID = /^(STR|EVT)-[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/;
 // here; then the console's version, language, theme and the session.
 export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) => {
   const { t, i18n } = useTranslation();
-  const { role, username, logout } = useAuth();
+  const { role, username, logout, isLocal } = useAuth();
+  const [pwOpen, setPwOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const [version, setVersion] = useState('');
   const [input, setInput] = useState('');
@@ -129,6 +131,18 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
             {t(`header.roles.${role ?? 'none'}`)}
           </span>
         </div>
+        {isLocal && (
+          <button
+            type="button"
+            onClick={() => setPwOpen(true)}
+            data-testid="change-password-open"
+            title={t('account.title')}
+            aria-label={t('account.title')}
+            className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+          >
+            <KeyRound className="w-4 h-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={logout}
@@ -140,6 +154,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
           <LogOut className="w-4 h-4" />
         </button>
       </div>
+      {pwOpen && <ChangePasswordDialog onClose={() => setPwOpen(false)} />}
     </header>
   );
 };

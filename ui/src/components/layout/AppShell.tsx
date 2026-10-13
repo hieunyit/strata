@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, ScrollText, FileCog, Server, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { LayoutDashboard, ScrollText, FileCog, Server, Users, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { Header } from './Header';
 import { Page, href } from '../../router';
 import { readPref, writePref } from '../../lib/prefs';
@@ -20,7 +20,7 @@ interface NavItem {
   page: Page;
   icon: React.ComponentType<{ className?: string }>;
   /** shown only when this returns true */
-  visible?: (roles: string[]) => boolean;
+  visible?: (roles: string[], localAuth: boolean) => boolean;
 }
 
 export const navItems: NavItem[] = [
@@ -28,6 +28,8 @@ export const navItems: NavItem[] = [
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
   { page: 'fleet', icon: Server },
+  // local accounts: admins only, when the control plane has them
+  { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
 ];
 
 const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => void; onNavigate?: () => void }> = ({
@@ -37,7 +39,7 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
   onNavigate,
 }) => {
   const { t } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, methods } = useAuth();
   const current = active === 'event' ? 'events' : active;
   return (
     <nav aria-label={t('nav.main')} className="flex h-full flex-col bg-rail text-rail-ink">
@@ -52,7 +54,7 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
       </div>
       <ul className="mt-2 flex-1 space-y-0.5 px-2">
         {navItems
-          .filter((n) => !n.visible || n.visible(roles))
+          .filter((n) => !n.visible || n.visible(roles, methods.local))
           .map(({ page, icon: Icon }) => {
             const on = page === current;
             return (

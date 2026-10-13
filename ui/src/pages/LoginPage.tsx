@@ -1,14 +1,78 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Languages } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { StrataMark } from '../components/layout/AppShell';
+import { ApiError } from '../api/client';
 
-// Shown until the user has a session; signing in redirects to the OIDC
-// provider (authorization code with PKCE).
+// A local account: username and password checked by the control plane.
+const PasswordForm: React.FC = () => {
+  const { t } = useTranslation();
+  const { loginWithPassword } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await loginWithPassword(username.trim(), password);
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : 0;
+      setError(code === 401 ? t('login.badCredentials') : code === 429 ? t('login.throttled') : t('login.failed'));
+      setPassword('');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} data-testid="password-login-form" className="mt-6 space-y-3">
+      <div>
+        <label htmlFor="login-username" className="label">{t('login.username')}</label>
+        <input
+          id="login-username"
+          data-testid="login-username"
+          className="field h-10"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+      </div>
+      <div>
+        <label htmlFor="login-password" className="label">{t('login.password')}</label>
+        <input
+          id="login-password"
+          data-testid="login-password"
+          type="password"
+          className="field h-10"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      {error && (
+        <p data-testid="password-login-error" role="alert" className="text-[13px] text-block">{error}</p>
+      )}
+      <button type="submit" data-testid="password-login-btn" disabled={busy || !username.trim() || !password} className="btn-primary h-10 w-full text-sm">
+        {busy ? t('login.signingIn') : t('login.submit')}
+      </button>
+    </form>
+  );
+};
+
+// Shown until the user has a session: a local account's password form
+// and/or single sign-on, which redirects to the OIDC provider
+// (authorization code with PKCE), as GET /v1/auth/methods allows.
 export const LoginPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { status, error, login } = useAuth();
+  const { status, error, login, methods } = useAuth();
   const lang = i18n.language.startsWith('vi') ? 'vi' : 'en';
 
   return (
@@ -36,7 +100,9 @@ export const LoginPage: React.FC = () => {
             <span className="text-lg font-semibold">Strata</span>
           </div>
           <h1 className="text-[22px] font-semibold">{t('login.title')}</h1>
-          <p className="mt-1 text-[13px] text-muted">{t('login.subtitle')}</p>
+          <p className="mt-1 text-[13px] text-muted">
+            {methods.local ? (methods.oidc ? t('login.subtitleBoth') : t('login.subtitleLocal')) : t('login.subtitle')}
+          </p>
 
           {status === 'loading' && (
             <p data-testid="login-loading" className="mt-6 text-[13px] text-muted">
@@ -48,12 +114,23 @@ export const LoginPage: React.FC = () => {
               {t('login.error', { error })}
             </p>
           )}
-          {(status === 'anonymous' || status === 'error') && (
+
+          {status === 'anonymous' && methods.local && <PasswordForm />}
+
+          {status === 'anonymous' && methods.local && methods.oidc && (
+            <div className="my-5 flex items-center gap-3 text-xs text-faint" aria-hidden>
+              <span className="h-px flex-1 bg-line" />
+              {t('login.or')}
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          )}
+
+          {((status === 'anonymous' && methods.oidc) || status === 'error') && (
             <button
               type="button"
               data-testid="login-btn"
               onClick={status === 'error' ? () => window.location.reload() : login}
-              className="btn-primary mt-6 h-10 w-full text-sm"
+              className={`${methods.local && status !== 'error' ? 'btn w-full justify-center' : 'btn-primary mt-6 w-full'} h-10 text-sm`}
             >
               {status === 'error' ? t('login.retry') : t('login.button')}
             </button>

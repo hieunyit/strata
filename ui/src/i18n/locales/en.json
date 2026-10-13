@@ -202,7 +202,17 @@
     "button": "Sign in with SSO",
     "loading": "Checking your session…",
     "error": "Cannot reach the sign-in server: {{error}}",
-    "retry": "Try again"
+    "retry": "Try again",
+    "subtitleLocal": "Sign in with your Strata account.",
+    "subtitleBoth": "Sign in with your Strata account or your organization’s single sign-on.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "signingIn": "Signing in…",
+    "or": "or",
+    "badCredentials": "Wrong username or password, or the account is locked or disabled.",
+    "throttled": "Too many attempts from this address. Try again in a few minutes.",
+    "failed": "Sign-in failed. Check that the control plane is reachable."
   },
   "errors": {
     "apiUnreachable": "Cannot reach the control plane API. Check that it is running, then refresh.",
@@ -291,6 +301,52 @@
     "pause": "Pause",
     "resume": "Resume",
     "refresh": "Refresh",
-    "copied": "Copied"
+    "copied": "Copied",
+    "cancel": "Cancel"
+  },
+  "account": {
+    "title": "Change password",
+    "current": "Current password",
+    "next": "New password (at least {{min}} characters)",
+    "again": "New password again",
+    "mismatch": "The two new passwords differ.",
+    "submit": "Change password",
+    "done": "Password changed. Your other sessions have been signed out."
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Local accounts that sign in with a password. Every change is in the audit log.",
+    "subtitleBoth": "Local accounts that sign in with a password. Single sign-on accounts are managed at your identity provider.",
+    "loading": "Loading users…",
+    "empty": "No local accounts.",
+    "notEnabled": "Local accounts are not enabled on this control plane (-local-auth).",
+    "you": "(you)",
+    "never": "never",
+    "create": "New user",
+    "createBtn": "Create user",
+    "username": "Username",
+    "password": "Password (at least {{min}} characters)",
+    "roles": "Roles",
+    "edit": "Edit {{name}}",
+    "editBtn": "Edit",
+    "disabledLabel": "Disabled: cannot sign in, sessions end",
+    "resetPassword": "Set a new password (optional, at least {{min}} characters)",
+    "save": "Save",
+    "unlock": "Unlock",
+    "delete": "Delete user",
+    "deleteConfirm": "Delete {{name}}? Its sessions end now.",
+    "state": {
+      "active": "Active",
+      "locked": "Locked",
+      "disabled": "Disabled"
+    },
+    "col": {
+      "user": "User",
+      "roles": "Roles",
+      "status": "Status",
+      "lastLogin": "Last sign-in",
+      "created": "Created",
+      "actions": "Actions"
+    }
   }
 }

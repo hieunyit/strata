@@ -6,10 +6,11 @@ import { EventDetailPage } from './pages/EventDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { PoliciesPage } from './pages/PoliciesPage';
 import { FleetPage } from './pages/FleetPage';
+import { UsersPage } from './pages/UsersPage';
 import { useRoute } from './router';
 
 export const AppContent: React.FC = () => {
-  const { status } = useAuth();
+  const { status, roles } = useAuth();
   const route = useRoute();
   if (status !== 'authenticated') return <LoginPage />;
   switch (route.page) {
@@ -21,6 +22,11 @@ export const AppContent: React.FC = () => {
       return <PoliciesPage />;
     case 'fleet':
       return <FleetPage />;
+    case 'users':
+      // admins only (the nav hides it from others): a shared link or a
+      // previous user's tab falls back to the overview
+      if (roles.includes('admin')) return <UsersPage />;
+      return <OverviewPage route={{ page: 'overview' }} />;
     default:
       return <OverviewPage key={JSON.stringify(route.query ?? {})} route={route} />;
   }

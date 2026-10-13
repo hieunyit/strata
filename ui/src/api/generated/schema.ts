@@ -26,6 +26,75 @@ export interface paths {
      */
     get: operations["getOverview"];
   };
+  "/v1/auth/methods": {
+    /**
+     * Sign-in Methods
+     * @description How the console may sign in. Needs no token.
+     */
+    get: operations["getAuthMethods"];
+  };
+  "/v1/auth/login": {
+    /**
+     * Local Sign-in
+     * @description Signs in a local account (control plane flag -local-auth). Returns a bearer token prefixed stl_, valid until expires_at. Five wrong passwords in a row lock the account for 15 minutes; a client IP may try 20 times per 5 minutes. The answer does not tell an unknown user from a wrong password or a locked account. Needs no token.
+     */
+    post: operations["localLogin"];
+  };
+  "/v1/auth/logout": {
+    /**
+     * Local Sign-out
+     * @description Ends the caller's local session. Does nothing for an OIDC token.
+     */
+    post: operations["localLogout"];
+  };
+  "/v1/auth/me": {
+    /**
+     * Current Caller
+     * @description The caller as the API sees it (any valid token).
+     */
+    get: operations["getMe"];
+  };
+  "/v1/auth/password": {
+    /**
+     * Change Own Password
+     * @description A local account changes its password; its other sessions end.
+     */
+    post: operations["changeOwnPassword"];
+  };
+  "/v1/users": {
+    /**
+     * List Local Accounts
+     * @description Needs rolebindings:read.
+     */
+    get: operations["listUsers"];
+    /**
+     * Create Local Account
+     * @description Needs rolebindings:write. Written to the audit log.
+     */
+    post: operations["createUser"];
+  };
+  "/v1/users/{username}": {
+    /**
+     * Get Local Account
+     * @description Needs rolebindings:read.
+     */
+    get: operations["getUser"];
+    /**
+     * Delete Local Account
+     * @description Refused when it would leave no enabled admin. Needs rolebindings:write.
+     */
+    delete: operations["deleteUser"];
+    /**
+     * Update Local Account
+     * @description Changes roles, disables or enables, sets a new password or unlocks. Disabling or a new password ends the account's sessions. Refused when it would leave no enabled admin. Needs rolebindings:write.
+     */
+    patch: operations["updateUser"];
+    parameters: {
+      path: {
+        username: string;
+      };
+    };
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -229,6 +298,72 @@ export interface components {
         [key: string]: components["schemas"]["RuleInfo"];
       };
     };
+    AuthMethods: {
+      /** @description Local accounts (POST /v1/auth/login) are accepted. */
+      local: boolean;
+      /** @description OIDC access tokens are accepted. */
+      oidc: boolean;
+    };
+    LoginRequest: {
+      username: string;
+      password: string;
+    };
+    LocalSession: {
+      /** @description Bearer token, prefixed stl_. */
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
+      username: string;
+      roles: ("viewer" | "operator" | "approver" | "admin")[];
+    };
+    Me: {
+      username: string;
+      roles: string[];
+      /** @description A local account, which may change its password with POST /v1/auth/password. */
+      local: boolean;
+    };
+    ChangePasswordRequest: {
+      current_password: string;
+      /** @description 12 to 256 characters. */
+      new_password: string;
+    };
+    User: {
+      username: string;
+      roles: ("viewer" | "operator" | "approver" | "admin")[];
+      disabled: boolean;
+      /** @description Locked after wrong passwords, until the lock expires or an admin unlocks it. */
+      locked: boolean;
+      /** Format: date-time */
+      created_at: string;
+      created_by: string;
+      /** Format: date-time */
+      updated_at: string;
+      /** Format: date-time */
+      password_changed_at: string;
+      /** Format: date-time */
+      last_login_at?: string;
+    };
+    UserResponse: {
+      user: components["schemas"]["User"];
+    };
+    ListUsersResponse: {
+      users: components["schemas"]["User"][];
+    };
+    CreateUserRequest: {
+      /** @description 2 to 63 characters, lowercase letters, digits, dot, dash or underscore. */
+      username: string;
+      /** @description 12 to 256 characters. */
+      password: string;
+      roles: ("viewer" | "operator" | "approver" | "admin")[];
+    };
+    UpdateUserRequest: {
+      roles?: ("viewer" | "operator" | "approver" | "admin")[];
+      disabled?: boolean;
+      /** @description A new password set by an admin. */
+      password?: string;
+      /** @description Clears a lock after wrong passwords. */
+      unlock?: boolean;
+    };
     ErrorResponse: {
       error: string;
       block_id?: string;
@@ -374,6 +509,260 @@ export interface operations {
       };
       /** @description The event store does not aggregate. */
       501: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Sign-in Methods
+   * @description How the console may sign in. Needs no token.
+   */
+  getAuthMethods: {
+    responses: {
+      /** @description The methods this control plane accepts. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuthMethods"];
+        };
+      };
+    };
+  };
+  /**
+   * Local Sign-in
+   * @description Signs in a local account (control plane flag -local-auth). Returns a bearer token prefixed stl_, valid until expires_at. Five wrong passwords in a row lock the account for 15 minutes; a client IP may try 20 times per 5 minutes. The answer does not tell an unknown user from a wrong password or a locked account. Needs no token.
+   */
+  localLogin: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LoginRequest"];
+      };
+    };
+    responses: {
+      /** @description Signed in. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LocalSession"];
+        };
+      };
+      /** @description Invalid request body. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Wrong username or password, or the account is disabled or locked. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Too many attempts from this address (Retry-After). */
+      429: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Local Sign-out
+   * @description Ends the caller's local session. Does nothing for an OIDC token.
+   */
+  localLogout: {
+    responses: {
+      /** @description Signed out. */
+      204: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  /**
+   * Current Caller
+   * @description The caller as the API sees it (any valid token).
+   */
+  getMe: {
+    responses: {
+      /** @description The caller. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Me"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  /**
+   * Change Own Password
+   * @description A local account changes its password; its other sessions end.
+   */
+  changeOwnPassword: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChangePasswordRequest"];
+      };
+    };
+    responses: {
+      /** @description Password changed. */
+      204: {
+        content: never;
+      };
+      /** @description Wrong current password, weak new password, or not a local account. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  /**
+   * List Local Accounts
+   * @description Needs rolebindings:read.
+   */
+  listUsers: {
+    responses: {
+      /** @description Every local account. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ListUsersResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  /**
+   * Create Local Account
+   * @description Needs rolebindings:write. Written to the audit log.
+   */
+  createUser: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateUserRequest"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Invalid username, password or roles. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description The username is taken. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Local Account
+   * @description Needs rolebindings:read.
+   */
+  getUser: {
+    parameters: {
+      path: {
+        username: string;
+      };
+    };
+    responses: {
+      /** @description The account. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description No such user. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Local Account
+   * @description Refused when it would leave no enabled admin. Needs rolebindings:write.
+   */
+  deleteUser: {
+    parameters: {
+      path: {
+        username: string;
+      };
+    };
+    responses: {
+      /** @description Deleted. */
+      204: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description No such user. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description It would leave no enabled admin. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Local Account
+   * @description Changes roles, disables or enables, sets a new password or unlocks. Disabling or a new password ends the account's sessions. Refused when it would leave no enabled admin. Needs rolebindings:write.
+   */
+  updateUser: {
+    parameters: {
+      path: {
+        username: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateUserRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Invalid password or roles. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description No such user. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description It would leave no enabled admin. */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

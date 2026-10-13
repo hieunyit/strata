@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { UserManager, WebStorageStateStore, User } from 'oidc-client-ts';
 import { loadConfig } from '../auth/config';
-import { UserRole, rolesFromAccessToken, primaryRole } from '../auth/roles';
-import { setAuthHandlers } from '../api/client';
+import { UserRole, rolesFromAccessToken, primaryRole, knownRoles } from '../auth/roles';
+import { setAuthHandlers, fetchAuthMethods, localLogin, apiClient, AuthMethods, LocalSession } from '../api/client';
 
 export type { UserRole } from '../auth/roles';
 
@@ -16,7 +16,14 @@ interface AuthContextType {
   role?: UserRole;
   // No role that may see full client IPs and input snippets.
   isViewer: boolean;
+  /** how this control plane accepts sign-ins */
+  methods: AuthMethods;
+  /** signed in with a local account (it can change its password here) */
+  isLocal: boolean;
+  /** single sign-on: redirects to the OIDC provider */
   login: () => void;
+  /** a local account; throws the API's error (wrong password, throttled) */
+  loginWithPassword: (username: string, password: string) => Promise<void>;
   logout: () => void;
   maskIp: (ip: string) => string;
   maskSnippet: (snippet: string) => string;
@@ -43,16 +50,27 @@ function makeMasks(isViewer: boolean) {
   return { maskIp, maskSnippet };
 }
 
+interface SessionUser {
+  username?: string;
+  roles: UserRole[];
+}
+
+const oidcOnly: AuthMethods = { local: false, oidc: true };
+
 function valueFor(
   status: AuthStatus,
-  user: { username?: string; roles: UserRole[] } | null,
-  login: () => void,
-  logout: () => void,
+  user: SessionUser | null,
+  actions: Pick<AuthContextType, 'login' | 'loginWithPassword' | 'logout'>,
+  methods: AuthMethods = oidcOnly,
+  isLocal = false,
   error?: string,
 ): AuthContextType {
   const roles = user?.roles ?? [];
   const isViewer = !roles.some((r) => r !== 'viewer');
-  return { status, error, username: user?.username, roles, role: primaryRole(roles), isViewer, login, logout, ...makeMasks(isViewer) };
+  return {
+    status, error, username: user?.username, roles, role: primaryRole(roles), isViewer, methods, isLocal,
+    ...actions, ...makeMasks(isViewer),
+  };
 }
 
 async function createManager(): Promise<UserManager> {
@@ -71,7 +89,7 @@ async function createManager(): Promise<UserManager> {
   });
 }
 
-function fromUser(u: User | null): { username?: string; roles: UserRole[] } | null {
+function fromUser(u: User | null): SessionUser | null {
   if (!u || u.expired) return null;
   return {
     username: (u.profile.preferred_username as string | undefined) ?? u.profile.sub,
@@ -79,31 +97,98 @@ function fromUser(u: User | null): { username?: string; roles: UserRole[] } | nu
   };
 }
 
+// A local session lives in sessionStorage, like the OIDC tokens: it ends
+// with the tab, and storage that is unavailable only means signing in
+// again after a reload.
+const LOCAL_KEY = 'strata.localSession';
+
+function readLocal(): LocalSession | null {
+  try {
+    const raw = window.sessionStorage.getItem(LOCAL_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as LocalSession;
+    if (typeof s.token !== 'string' || !s.token.startsWith('stl_') || !(Date.parse(s.expires_at) > Date.now())) {
+      window.sessionStorage.removeItem(LOCAL_KEY);
+      return null;
+    }
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocal(s: LocalSession | null): void {
+  try {
+    if (s) window.sessionStorage.setItem(LOCAL_KEY, JSON.stringify(s));
+    else window.sessionStorage.removeItem(LOCAL_KEY);
+  } catch {
+    // the session then lasts until a reload
+  }
+}
+
+const localUser = (s: LocalSession): SessionUser => ({
+  username: s.username,
+  roles: knownRoles(s.roles ?? []),
+});
+
 export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserManager }> = ({ children, manager }) => {
   const [mgr, setMgr] = useState<UserManager | null>(manager ?? null);
   const [status, setStatus] = useState<AuthStatus>('loading');
-  const [user, setUser] = useState<{ username?: string; roles: UserRole[] } | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [error, setError] = useState<string | undefined>();
+  const [methods, setMethods] = useState<AuthMethods>(oidcOnly);
+  // The local session in memory too: storage may be unavailable.
+  const local = useRef<LocalSession | null>(null);
+  const [isLocal, setIsLocal] = useState(false);
+
+  const endLocal = useCallback(() => {
+    local.current = null;
+    writeLocal(null);
+    setIsLocal(false);
+    setUser(null);
+    setStatus('anonymous');
+  }, []);
+
+  const startLocal = useCallback((s: LocalSession) => {
+    local.current = s;
+    writeLocal(s);
+    setIsLocal(true);
+    setUser(localUser(s));
+    setError(undefined);
+    setStatus('authenticated');
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     let um: UserManager | null = manager ?? null;
     const onLoaded = (u: User) => {
+      if (local.current) return;
       setUser(fromUser(u));
       setStatus('authenticated');
     };
     const onGone = () => {
+      if (local.current) return;
       setUser(null);
       setStatus('anonymous');
     };
     (async () => {
       try {
+        const m = await fetchAuthMethods();
+        if (cancelled) return;
+        setMethods(m);
+        const saved = m.local ? readLocal() : null;
+        if (saved) startLocal(saved);
+        if (!m.oidc && !manager) {
+          if (!saved) setStatus('anonymous');
+          return;
+        }
         um = um ?? (await createManager());
         if (cancelled) return;
         setMgr(um);
         um.events.addUserLoaded(onLoaded);
         um.events.addUserUnloaded(onGone);
         um.events.addAccessTokenExpired(onGone);
+        if (saved) return;
         const params = new URLSearchParams(window.location.search);
         if (params.has('error') && params.has('state')) {
           // The provider refused the sign-in (RFC 6749 4.1.2.1).
@@ -134,36 +219,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserM
         um.events.removeAccessTokenExpired(onGone);
       }
     };
-  }, [manager]);
+  }, [manager, startLocal]);
+
+  // A local session ends on its own at expires_at.
+  useEffect(() => {
+    const s = local.current;
+    if (!isLocal || !s) return;
+    const left = Date.parse(s.expires_at) - Date.now();
+    const timer = window.setTimeout(endLocal, Math.max(0, Math.min(left, 2 ** 31 - 1)));
+    return () => window.clearTimeout(timer);
+  }, [isLocal, endLocal]);
 
   const value = useMemo(() => {
     const login = () => void mgr?.signinRedirect();
-    const logout = () => void mgr?.signoutRedirect();
-    return valueFor(status, user, login, logout, error);
-  }, [mgr, status, user, error]);
+    const loginWithPassword = async (username: string, password: string) => {
+      startLocal(await localLogin(username, password));
+    };
+    const logout = () => {
+      if (local.current) {
+        // End the session on the server too; the screen does not wait.
+        void apiClient.logout().catch(() => {}).finally(endLocal);
+        return;
+      }
+      void mgr?.signoutRedirect();
+    };
+    return valueFor(status, user, { login, loginWithPassword, logout }, methods, isLocal, error);
+  }, [mgr, status, user, error, methods, isLocal, startLocal, endLocal]);
 
   // The API client asks for the current token on every call and sends the
   // user back to the login page when the API answers 401.
   useEffect(() => {
     setAuthHandlers({
-      token: async () => (mgr ? (await mgr.getUser())?.access_token : undefined),
+      token: async () => local.current?.token ?? (mgr ? (await mgr.getUser())?.access_token : undefined),
       unauthorized: () => {
-        if (mgr) void mgr.removeUser().then(() => setStatus('anonymous'));
+        if (local.current) endLocal();
+        else if (mgr) void mgr.removeUser().then(() => setStatus('anonymous'));
       },
     });
-  }, [mgr]);
+  }, [mgr, endLocal]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // StaticAuthProvider is a signed-in user with fixed roles, for tests and
 // component previews.
-export const StaticAuthProvider: React.FC<{ children: React.ReactNode; roles: UserRole[]; username?: string }> = ({
-  children,
-  roles,
-  username = 'test-user',
-}) => {
-  const value = useMemo(() => valueFor('authenticated', { username, roles }, () => {}, () => {}), [roles, username]);
+export const StaticAuthProvider: React.FC<{
+  children: React.ReactNode;
+  roles: UserRole[];
+  username?: string;
+  isLocal?: boolean;
+  methods?: AuthMethods;
+}> = ({ children, roles, username = 'test-user', isLocal = false, methods = oidcOnly }) => {
+  const value = useMemo(
+    () => valueFor('authenticated', { username, roles }, { login: () => {}, loginWithPassword: async () => {}, logout: () => {} }, methods, isLocal),
+    [roles, username, isLocal, methods],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

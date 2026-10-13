@@ -197,7 +197,17 @@
     "button": "Đăng nhập bằng SSO",
     "loading": "Đang kiểm phiên đăng nhập…",
     "error": "Không kết nối được máy chủ đăng nhập: {{error}}",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "subtitleLocal": "Đăng nhập bằng tài khoản Strata.",
+    "subtitleBoth": "Đăng nhập bằng tài khoản Strata hoặc tài khoản đăng nhập một lần (SSO) của tổ chức.",
+    "username": "Tên đăng nhập",
+    "password": "Mật khẩu",
+    "submit": "Đăng nhập",
+    "signingIn": "Đang đăng nhập…",
+    "or": "hoặc",
+    "badCredentials": "Sai tên đăng nhập hoặc mật khẩu, hoặc tài khoản đang bị khóa hay vô hiệu.",
+    "throttled": "Quá nhiều lần thử từ địa chỉ này. Thử lại sau vài phút.",
+    "failed": "Không đăng nhập được. Kiểm tra control plane có truy cập được không."
   },
   "errors": {
     "apiUnreachable": "Không kết nối được API của control plane. Kiểm tra dịch vụ đang chạy rồi tải lại.",
@@ -285,6 +295,52 @@
     "pause": "Tạm dừng",
     "resume": "Tiếp tục",
     "refresh": "Làm mới",
-    "copied": "Đã chép"
+    "copied": "Đã chép",
+    "cancel": "Hủy"
+  },
+  "account": {
+    "title": "Đổi mật khẩu",
+    "current": "Mật khẩu hiện tại",
+    "next": "Mật khẩu mới (ít nhất {{min}} ký tự)",
+    "again": "Nhập lại mật khẩu mới",
+    "mismatch": "Hai mật khẩu mới không khớp.",
+    "submit": "Đổi mật khẩu",
+    "done": "Đã đổi mật khẩu. Các phiên đăng nhập khác của bạn đã bị đăng xuất."
+  },
+  "users": {
+    "title": "Người dùng",
+    "subtitle": "Tài khoản cục bộ đăng nhập bằng mật khẩu. Mọi thay đổi được ghi vào nhật ký kiểm toán.",
+    "subtitleBoth": "Tài khoản cục bộ đăng nhập bằng mật khẩu. Tài khoản SSO được quản lý ở nhà cung cấp định danh.",
+    "loading": "Đang tải người dùng…",
+    "empty": "Chưa có tài khoản cục bộ.",
+    "notEnabled": "Control plane này chưa bật tài khoản cục bộ (-local-auth).",
+    "you": "(bạn)",
+    "never": "chưa",
+    "create": "Thêm người dùng",
+    "createBtn": "Tạo người dùng",
+    "username": "Tên đăng nhập",
+    "password": "Mật khẩu (ít nhất {{min}} ký tự)",
+    "roles": "Vai trò",
+    "edit": "Sửa {{name}}",
+    "editBtn": "Sửa",
+    "disabledLabel": "Vô hiệu: không đăng nhập được, các phiên bị kết thúc",
+    "resetPassword": "Đặt mật khẩu mới (tùy chọn, ít nhất {{min}} ký tự)",
+    "save": "Lưu",
+    "unlock": "Mở khóa",
+    "delete": "Xóa người dùng",
+    "deleteConfirm": "Xóa {{name}}? Các phiên của tài khoản này kết thúc ngay.",
+    "state": {
+      "active": "Hoạt động",
+      "locked": "Bị khóa",
+      "disabled": "Vô hiệu"
+    },
+    "col": {
+      "user": "Người dùng",
+      "roles": "Vai trò",
+      "status": "Trạng thái",
+      "lastLogin": "Đăng nhập gần nhất",
+      "created": "Tạo lúc",
+      "actions": "Thao tác"
+    }
   }
 }

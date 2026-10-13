@@ -6,8 +6,12 @@ dir="$(cd "$(dirname "$0")" && pwd)/.state"
 mkdir -p "$dir"
 env="$dir/env"
 pw() { head -c 18 /dev/urandom | base64 | tr -d '/+='; }
-[ -f "$env" ] && exit 0
 umask 077
+# Added later: appended to an existing file too.
+if [ -f "$env" ]; then
+    grep -q '^LAB_LOCAL_ADMIN_PASSWORD=' "$env" || echo "LAB_LOCAL_ADMIN_PASSWORD=$(pw)" >> "$env"
+    exit 0
+fi
 cat > "$env" <<EOT
 CLICKHOUSE_PASSWORD=$(pw)
 POSTGRES_PASSWORD=$(pw)
@@ -19,5 +23,6 @@ LAB_VIEWER_PASSWORD=$(pw)
 LAB_OPERATOR_PASSWORD=$(pw)
 LAB_APPROVER_PASSWORD=$(pw)
 LAB_ADMIN_PASSWORD=$(pw)
+LAB_LOCAL_ADMIN_PASSWORD=$(pw)
 EOT
 echo "lab passwords written to $env"

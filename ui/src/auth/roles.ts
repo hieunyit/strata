@@ -27,3 +27,8 @@ export function primaryRole(roles: UserRole[]): UserRole | undefined {
   }
   return undefined;
 }
+
+// knownRoles keeps the four roles of a list (a local session's roles).
+export function knownRoles(roles: string[]): UserRole[] {
+  return known.filter((r) => roles.includes(r));
+}

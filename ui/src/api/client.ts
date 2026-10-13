@@ -17,6 +17,12 @@ export type ErrorResponse = components['schemas']['ErrorResponse'];
 export type Overview = components['schemas']['OverviewResponse'];
 export type OverviewBucket = components['schemas']['OverviewBucket'];
 export type RuleInfo = components['schemas']['RuleInfo'];
+export type AuthMethods = components['schemas']['AuthMethods'];
+export type LocalSession = components['schemas']['LocalSession'];
+export type Me = components['schemas']['Me'];
+export type LocalUser = components['schemas']['User'];
+export type CreateUserRequest = components['schemas']['CreateUserRequest'];
+export type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 
 export interface OverviewParams {
   from: string;
@@ -67,6 +73,45 @@ async function call<T>(path: string, init: RequestInit, fallback: string): Promi
     if (res.status === 401) handlers.unauthorized();
     throw new ApiError(errPayload.error || fallback, res.status, errPayload.block_id);
   }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+// The sign-in methods, asked before there is any session. An older control
+// plane without the route only knows OIDC.
+export async function fetchAuthMethods(fetchFn: typeof fetch = fetch): Promise<AuthMethods> {
+  try {
+    const res = await fetchFn(`${API_BASE}/auth/methods`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (!res.ok) return { local: false, oidc: true };
+    const body = (await res.json()) as Partial<AuthMethods>;
+    return { local: body.local === true, oidc: body.oidc !== false };
+  } catch {
+    return { local: false, oidc: true };
+  }
+}
+
+// POST /v1/auth/login: no token, and a 401 here is a wrong password, not
+// an expired session.
+export async function localLogin(username: string, password: string): Promise<LocalSession> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    ...json('POST', { username, password }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    let msg = `Request failed with status ${res.status}`;
+    try {
+      msg = ((await res.json()) as ErrorResponse).error || msg;
+    } catch {
+      // keep the default
+    }
+    throw new ApiError(msg, res.status);
+  }
   return res.json();
 }
 
@@ -91,6 +136,45 @@ export const apiClient = {
     const q = new URLSearchParams({ from: p.from, to: p.to });
     if (p.policy_id) q.set('policy_id', p.policy_id);
     return call(`/stats/overview?${q}`, { method: 'GET' }, 'Failed to load statistics');
+  },
+
+  /** POST /v1/auth/logout: ends a local session */
+  logout(): Promise<void> {
+    return call('/auth/logout', { method: 'POST' }, 'Failed to sign out');
+  },
+
+  /** GET /v1/auth/me */
+  me(): Promise<Me> {
+    return call('/auth/me', { method: 'GET' }, 'Failed to read the session');
+  },
+
+  /** POST /v1/auth/password: a local account changes its own password */
+  changePassword(current: string, next: string): Promise<void> {
+    return call('/auth/password', json('POST', { current_password: current, new_password: next }), 'Failed to change the password');
+  },
+
+  /** GET /v1/users: local accounts */
+  async listUsers(): Promise<LocalUser[]> {
+    const r = await call<components['schemas']['ListUsersResponse']>('/users', { method: 'GET' }, 'Failed to list users');
+    return r.users ?? [];
+  },
+
+  /** POST /v1/users */
+  async createUser(req: CreateUserRequest): Promise<LocalUser> {
+    const r = await call<components['schemas']['UserResponse']>('/users', json('POST', req), 'Failed to create the user');
+    return r.user;
+  },
+
+  /** PATCH /v1/users/{username} */
+  async updateUser(username: string, req: UpdateUserRequest): Promise<LocalUser> {
+    const r = await call<components['schemas']['UserResponse']>(
+      `/users/${encodeURIComponent(username)}`, json('PATCH', req), 'Failed to update the user');
+    return r.user;
+  },
+
+  /** DELETE /v1/users/{username} */
+  deleteUser(username: string): Promise<void> {
+    return call(`/users/${encodeURIComponent(username)}`, { method: 'DELETE' }, 'Failed to delete the user');
   },
 
   /** GET /v1/version */
