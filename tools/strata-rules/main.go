@@ -381,7 +381,11 @@ func fpReportCmd() {
 	}
 	clickhouse := fs.String("clickhouse", defaultCH, "ClickHouse HTTP URL")
 	database := fs.String("database", "default", "ClickHouse database")
-	user := fs.String("user", "", "ClickHouse user")
+	defaultUser := os.Getenv("STRATA_CLICKHOUSE_USER")
+	if defaultUser == "" {
+		defaultUser = "default"
+	}
+	user := fs.String("user", defaultUser, "ClickHouse user (env STRATA_CLICKHOUSE_USER)")
 	password := fs.String("password", os.Getenv("STRATA_CLICKHOUSE_PASSWORD"), "ClickHouse password")
 	since := fs.Duration("since", 24*time.Hour, "time window to inspect (e.g. 24h)")
 	var policies policyList

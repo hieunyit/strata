@@ -3,6 +3,7 @@ package fpreport
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -230,3 +231,45 @@ func TestMarkdown(t *testing.T) {
 		t.Errorf("empty report should not include table header: %s", emptyOutput)
 	}
 }
+
+func TestQuery_Authorization(t *testing.T) {
+	var gotAuth string
+	var hasAuth bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, hasAuth = r.Header["Authorization"]
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"day":"2026-10-13","rule_id":942100,"events":1,"sources":1,"top_policy":"pilot-verify"}` + "\n"))
+	}))
+	defer ts.Close()
+
+	// Case 1: user and password provided -> Authorization header present
+	_, err := Query(context.Background(), Options{
+		ClickHouseURL: ts.URL,
+		User:          "strata",
+		Password:      "secretpass",
+		Since:         24 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("strata:secretpass"))
+	if gotAuth != expectedAuth {
+		t.Errorf("expected Authorization header %q, got %q", expectedAuth, gotAuth)
+	}
+
+	// Case 2: empty user and password -> no Authorization header
+	gotAuth = ""
+	hasAuth = false
+	_, err = Query(context.Background(), Options{
+		ClickHouseURL: ts.URL,
+		Since:         24 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if hasAuth || gotAuth != "" {
+		t.Errorf("expected no Authorization header when user and password are empty, got %q", gotAuth)
+	}
+}
+
