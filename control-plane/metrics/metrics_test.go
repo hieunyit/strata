@@ -31,6 +31,9 @@ func TestRoute(t *testing.T) {
 		"/v1/policies/example-api/versions/3":   "/v1/policies/{id}/versions/{id}",
 		"/v1/policies/example-api/x-attacker-4": "/v1/policies/{id}/other",
 		"/v1/policies/a/versions/3/x/y":         "other",
+		"/v1/auth/login":                        "/v1/auth/login",
+		"/v1/auth/x-attacker-5":                 "other",
+		"/v1/users/alice":                       "/v1/users/{id}",
 		// made-up resources, verbs and paths do not make new labels
 		"/v1/x-attacker-1":        "other",
 		"/v1/nodes:x-attacker-2":  "/v1/nodes:other",

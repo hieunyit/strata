@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
@@ -31,6 +32,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/store"
@@ -57,7 +59,7 @@ func main() {
 	adminTLSCert := flag.String("admin-tls-cert", "", "Admin gRPC server certificate")
 	adminTLSKey := flag.String("admin-tls-key", "", "Admin gRPC server key")
 	adminPlaintext := flag.Bool("admin-grpc-plaintext", false, "Serve admin gRPC without TLS (lab only: tokens travel in clear)")
-	oidcIssuer := flag.String("oidc-issuer", "", "OIDC issuer whose access tokens are accepted (required)")
+	oidcIssuer := flag.String("oidc-issuer", "", "OIDC issuer whose access tokens are accepted (required unless -local-auth)")
 	oidcDiscovery := flag.String("oidc-discovery-url", "", "Where to read the issuer's metadata when it is reached under another name")
 	oidcAudience := flag.String("oidc-audience", "strata-api", "Audience access tokens must carry")
 	oidcRoles := flag.String("oidc-roles-claim", "realm_access.roles", "Dotted path of the roles list in the token")
@@ -83,6 +85,10 @@ func main() {
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
+	localAuth := flag.Bool("local-auth", false, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC")
+	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
+	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
+	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs of reverse proxies whose X-Forwarded-For gives the client IP (login throttling)")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
 	mx := metrics.New(version, commit)
@@ -92,11 +98,13 @@ func main() {
 
 	presence := fleet.NewPresence()
 	var pg *store.Store
+	var pool *pgxpool.Pool
 
 	// PostgreSQL: the DSN carries a password, so it comes from the
 	// environment, not from a flag visible in ps.
 	if dsn := os.Getenv("STRATA_POSTGRES_DSN"); dsn != "" {
-		pool, err := pgxpool.New(ctx, dsn)
+		var err error
+		pool, err = pgxpool.New(ctx, dsn)
 		if err != nil {
 			log.Fatalf("[FATAL] PostgreSQL: %v", err)
 		}
@@ -144,14 +152,59 @@ func main() {
 		store = chStore
 	}
 
-	vctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	verifier, err := auth.NewVerifier(vctx, auth.Config{
-		Issuer: *oidcIssuer, DiscoveryURL: *oidcDiscovery, Audience: *oidcAudience, RolesClaim: *oidcRoles,
-	})
-	cancel()
-	if err != nil {
-		log.Fatalf("[FATAL] %v", err)
+	if *oidcIssuer == "" && !*localAuth {
+		log.Fatal("[FATAL] no way to sign in: set -oidc-issuer, -local-auth, or both")
 	}
+	dispatch := auth.Dispatch{LocalPrefix: localauth.TokenPrefix}
+	if *oidcIssuer != "" {
+		vctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		v, err := auth.NewVerifier(vctx, auth.Config{
+			Issuer: *oidcIssuer, DiscoveryURL: *oidcDiscovery, Audience: *oidcAudience, RolesClaim: *oidcRoles,
+		})
+		cancel()
+		if err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
+		dispatch.OIDC = v
+	}
+	var local *localauth.Handler
+	if *localAuth {
+		if pool == nil {
+			log.Fatal("[FATAL] -local-auth keeps accounts in PostgreSQL: set STRATA_POSTGRES_DSN")
+		}
+		ls := localauth.NewStore(pool)
+		svc, err := localauth.NewService(ls, *localTTL)
+		if err != nil {
+			log.Fatalf("[FATAL] local accounts: %v", err)
+		}
+		if pw := os.Getenv("STRATA_LOCAL_ADMIN_PASSWORD"); pw != "" {
+			created, err := svc.Bootstrap(ctx, *localAdmin, pw)
+			if err != nil {
+				log.Fatalf("[FATAL] local accounts: %v", err)
+			}
+			if created {
+				log.Printf("[INFO] local accounts: created admin %q (STRATA_LOCAL_ADMIN_PASSWORD is not used again)", *localAdmin)
+			}
+		} else if n, err := ls.CountUsers(ctx); err == nil && n == 0 {
+			log.Println("[WARN] -local-auth without any account: set STRATA_LOCAL_ADMIN_PASSWORD to create the first admin")
+		}
+		var proxies []netip.Prefix
+		for _, c := range strings.Split(*trustedProxies, ",") {
+			if c = strings.TrimSpace(c); c == "" {
+				continue
+			}
+			p, err := netip.ParsePrefix(c)
+			if err != nil {
+				log.Fatalf("[FATAL] -trusted-proxies: %v", err)
+			}
+			proxies = append(proxies, p)
+		}
+		local = &localauth.Handler{Service: svc, Store: ls, TrustedProxies: proxies}
+		dispatch.Local = svc
+		go svc.CleanExpired(ctx, 10*time.Minute)
+		log.Printf("[INFO] local accounts enabled (sessions last %s)", *localTTL)
+	}
+	verifier := dispatch
 
 	var adminOpts []grpc.ServerOption
 	if *adminGRPCAddr != "" && !*adminPlaintext {
@@ -267,6 +320,8 @@ func main() {
 		Auth:         verifier,
 		Admin:        adm.Gateway,
 		Rules:        catalog,
+		Local:        local,
+		OIDC:         dispatch.OIDC != nil,
 	}, store)
 
 	allowedOrigins := map[string]bool{}

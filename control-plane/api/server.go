@@ -9,6 +9,7 @@ import (
 
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/localauth"
 )
 
 // ServerConfig defines HTTP server configuration options.
@@ -29,6 +30,25 @@ type ServerConfig struct {
 	// Rules is the catalog of the compiled rules (decision trace metadata);
 	// nil leaves it out.
 	Rules *rulecat.Catalog
+	// Local serves sign-in with local accounts and their administration;
+	// nil when -local-auth is off.
+	Local *localauth.Handler
+	// OIDC tells the UI whether single sign-on is configured.
+	OIDC bool
+}
+
+// AuthMethods is GET /v1/auth/methods: how the UI may sign in.
+type AuthMethods struct {
+	Local bool `json:"local"`
+	OIDC  bool `json:"oidc"`
+}
+
+// Me is GET /v1/auth/me: the caller as the API sees it.
+type Me struct {
+	Username string   `json:"username"`
+	Roles    []string `json:"roles"`
+	// Local: a local account (it can change its password here).
+	Local bool `json:"local"`
 }
 
 // Server provides the REST API server for Strata control plane.
@@ -96,9 +116,29 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		p := auth.FromContext(r.Context())
+		roles := make([]string, len(p.Roles))
+		for i, ro := range p.Roles {
+			roles[i] = string(ro)
+		}
+		name := p.Name
+		if name == "" {
+			name = p.Subject
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, Me{Username: name, Roles: roles, Local: localauth.LocalUsername(p) != ""})
+	})
+	if s.cfg.Local != nil {
+		s.cfg.Local.Authenticated(v1)
+		s.cfg.Local.Public(s.mux)
+	}
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)
 	}
+	s.mux.HandleFunc("/v1/auth/methods", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, AuthMethods{Local: s.cfg.Local != nil, OIDC: s.cfg.OIDC})
+	})
 
 	// Liveness for the container healthcheck; it reveals nothing.
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

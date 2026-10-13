@@ -3,8 +3,9 @@ info:
   title: Strata Control Plane API
   version: 1.0.0
   description: 'Security event API of the Strata control plane (plain HTTP handlers). The admin API (version, fleet,
-    policies) is generated from the protos into admin.swagger.json. Every route needs an OIDC access token (audience
-    strata-api) in Authorization: Bearer; roles come from realm_access.roles.'
+    policies) is generated from the protos into admin.swagger.json. Every route except /v1/auth/methods and /v1/auth/login
+    needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
+    or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login.'
 paths:
   /v1/events/{block_id}:
     get:
@@ -138,6 +139,245 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '501':
           description: The event store does not aggregate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/auth/methods:
+    get:
+      summary: Sign-in Methods
+      description: How the console may sign in. Needs no token.
+      operationId: getAuthMethods
+      security: []
+      responses:
+        '200':
+          description: The methods this control plane accepts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMethods'
+  /v1/auth/login:
+    post:
+      summary: Local Sign-in
+      description: 'Signs in a local account (control plane flag -local-auth). Returns a bearer token prefixed stl_,
+        valid until expires_at. Five wrong passwords in a row lock the account for 15 minutes; a client IP may try
+        20 times per 5 minutes. The answer does not tell an unknown user from a wrong password or a locked account.
+        Needs no token.'
+      operationId: localLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalSession'
+        '400':
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Wrong username or password, or the account is disabled or locked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many attempts from this address (Retry-After).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/logout:
+    post:
+      summary: Local Sign-out
+      description: Ends the caller's local session. Does nothing for an OIDC token.
+      operationId: localLogout
+      responses:
+        '204':
+          description: Signed out.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/auth/me:
+    get:
+      summary: Current Caller
+      description: The caller as the API sees it (any valid token).
+      operationId: getMe
+      responses:
+        '200':
+          description: The caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/auth/password:
+    post:
+      summary: Change Own Password
+      description: A local account changes its password; its other sessions end.
+      operationId: changeOwnPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed.
+        '400':
+          description: Wrong current password, weak new password, or not a local account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/users:
+    get:
+      summary: List Local Accounts
+      description: Needs rolebindings:read.
+      operationId: listUsers
+      responses:
+        '200':
+          description: Every local account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListUsersResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create Local Account
+      description: Needs rolebindings:write. Written to the audit log.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid username, password or roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The username is taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/users/{username}:
+    parameters:
+    - name: username
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      summary: Get Local Account
+      description: Needs rolebindings:read.
+      operationId: getUser
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      summary: Update Local Account
+      description: 'Changes roles, disables or enables, sets a new password or unlocks. Disabling or a new password
+        ends the account''s sessions. Refused when it would leave no enabled admin. Needs rolebindings:write.'
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid password or roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: It would leave no enabled admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      summary: Delete Local Account
+      description: Refused when it would leave no enabled admin. Needs rolebindings:write.
+      operationId: deleteUser
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: It would leave no enabled admin.
           content:
             application/json:
               schema:
@@ -470,6 +710,180 @@ components:
           description: Rule catalog entries of the top rules, keyed by Rule ID.
           additionalProperties:
             $ref: '#/components/schemas/RuleInfo'
+    AuthMethods:
+      type: object
+      required:
+      - local
+      - oidc
+      properties:
+        local:
+          type: boolean
+          description: Local accounts (POST /v1/auth/login) are accepted.
+        oidc:
+          type: boolean
+          description: OIDC access tokens are accepted.
+    LoginRequest:
+      type: object
+      required:
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    LocalSession:
+      type: object
+      required:
+      - token
+      - expires_at
+      - username
+      - roles
+      properties:
+        token:
+          type: string
+          description: Bearer token, prefixed stl_.
+        expires_at:
+          type: string
+          format: date-time
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - viewer
+            - operator
+            - approver
+            - admin
+    Me:
+      type: object
+      required:
+      - username
+      - roles
+      - local
+      properties:
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        local:
+          type: boolean
+          description: A local account, which may change its password with POST /v1/auth/password.
+    ChangePasswordRequest:
+      type: object
+      required:
+      - current_password
+      - new_password
+      properties:
+        current_password:
+          type: string
+        new_password:
+          type: string
+          description: 12 to 256 characters.
+    User:
+      type: object
+      required:
+      - username
+      - roles
+      - disabled
+      - locked
+      - created_at
+      - created_by
+      - updated_at
+      - password_changed_at
+      properties:
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - viewer
+            - operator
+            - approver
+            - admin
+        disabled:
+          type: boolean
+        locked:
+          type: boolean
+          description: Locked after wrong passwords, until the lock expires or an admin unlocks it.
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        password_changed_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+    UserResponse:
+      type: object
+      required:
+      - user
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+    ListUsersResponse:
+      type: object
+      required:
+      - users
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    CreateUserRequest:
+      type: object
+      required:
+      - username
+      - password
+      - roles
+      properties:
+        username:
+          type: string
+          description: 2 to 63 characters, lowercase letters, digits, dot, dash or underscore.
+        password:
+          type: string
+          description: 12 to 256 characters.
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - viewer
+            - operator
+            - approver
+            - admin
+    UpdateUserRequest:
+      type: object
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - viewer
+            - operator
+            - approver
+            - admin
+        disabled:
+          type: boolean
+        password:
+          type: string
+          description: A new password set by an admin.
+        unlock:
+          type: boolean
+          description: Clears a lock after wrong passwords.
     ErrorResponse:
       type: object
       required:

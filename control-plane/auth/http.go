@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Authenticator turns a raw bearer token into a caller.
@@ -46,4 +47,23 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": msg, "code": status})
+}
+
+// Dispatch sends a bearer token to the authenticator that issued it:
+// tokens starting with LocalPrefix to Local (the control plane's own
+// sessions), the others to OIDC. Either may be nil when not configured.
+type Dispatch struct {
+	LocalPrefix string
+	Local       Authenticator
+	OIDC        Authenticator
+}
+
+func (d Dispatch) Authenticate(ctx context.Context, raw string) (*Principal, error) {
+	if d.Local != nil && d.LocalPrefix != "" && strings.HasPrefix(raw, d.LocalPrefix) {
+		return d.Local.Authenticate(ctx, raw)
+	}
+	if d.OIDC == nil {
+		return nil, ErrUnauthenticated
+	}
+	return d.OIDC.Authenticate(ctx, raw)
 }
