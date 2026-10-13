@@ -123,7 +123,6 @@ up)
             -v "$work/$r.conf:/etc/nginx/conf.d/default.conf:ro" \
             --label "strata.pilot=$r" --label "org.opencontainers.image.version=$tag" \
             "${envs[@]}" "$image" >/dev/null
-        rm -f "$work/$r.token"
     done
     # 3. both online, then their agents in VictoriaMetrics
     start=$SECONDS
@@ -131,6 +130,8 @@ up)
         [ $((SECONDS - start)) -lt 120 ] || { status; die "pilot nodes not online in 120 s"; }
         sleep 2
     done
+    # the tokens are used once enrolled (not before: the entrypoint reads them)
+    rm -f "$work"/*.token
     scrape="$src/deploy/lab/vm/scrape.yml"
     if ! grep -q 'job_name: strata-agent-pilot' "$scrape"; then
         cat >> "$scrape" <<'EOF'

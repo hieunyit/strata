@@ -41,8 +41,11 @@ hs_pkg=$(hsver "$BUILDER" /usr/local/lib/libhs_runtime.a)
     || { echo "packaging: Hyperscan of the builder ($hs_pkg) is not the compiler's ($hs_dev)" >&2; exit 1; }
 echo "packaging: Hyperscan $hs_pkg, as the compiler"
 read -r -a extra <<< "${STRATA_DEV_DOCKER_ARGS:-}"
-docker run --rm "${extra[@]}" -u "$(id -u):$(id -g)" -v "$root:/src" -w /src \
-    -v "$root/build/cargo-registry:/usr/local/cargo/registry" "$BUILDER" sh -ec '
+# the crate cache, unless STRATA_DEV_DOCKER_ARGS mounts one already
+cache=(-v "$root/build/cargo-registry:/usr/local/cargo/registry")
+[[ " ${extra[*]} " == *":/usr/local/cargo/registry"* ]] && cache=()
+docker run --rm "${extra[@]}" "${cache[@]}" -u "$(id -u):$(id -g)" -v "$root:/src" -w /src \
+    "$BUILDER" sh -ec '
     # a clean target: nothing linked in another image may leak in
     rm -rf build/pkg-target
     cargo build --release -p libstrata-ffi --target-dir build/pkg-target
