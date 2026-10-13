@@ -27,13 +27,13 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W10-S-01 | Bảng FP theo Rule ID trong shadow, cập nhật hằng ngày | Antigravity (PO giao) | W10-G2-01 | 🔄 Code xong (PR #45), chờ số liệu shadow |
 | W10-F-01 | Trang Tổng quan v0 (bị chặn theo giờ, top rule, top route) | Claude Code | W10-G2-01 (dữ liệu thật) | ⏳ Chưa bắt đầu |
 
-**Nhiệm vụ tuần 9** (khối A3 · Benchmark, soak, staging; kế hoạch chi tiết `docs/plan/w09-plan.md`)
+**Nhiệm vụ tuần 9** (khối A3 · Benchmark, soak, staging; kế hoạch chi tiết `docs/plan/w09-plan.md`); review lại: `docs/reports/w09-review.md`
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
 | W09-Q-01 | Benchmark (p50/p99, throughput, event socket 50k/s, quyết định ring buffer) | Claude Code | — | ✅ Done |
 | W09-R-01 | Xử lý điểm nóng hiệu năng (p99 < 1 ms, throughput giảm ≤ 10%) | Claude Code | W09-Q-01 | ✅ Done (ticket #27, #28) |
-| W09-Q-02 | Soak 24 giờ + 1.000 lần đổi bundle; staging chỉ deploy bản đã tag | Claude Code | W09-R-01 | 🔄 Staging xong; soak 24 giờ tới 14/10 04:50 UTC |
+| W09-Q-02 | Soak 24 giờ + 1.000 lần đổi bundle; staging chỉ deploy bản đã tag | Claude Code | W09-R-01 | 🔄 Staging xong; soak 24 giờ chạy lại trên server mới, tới 14/10 10:35 UTC |
 | W09-G2-01 | ClickHouse cho vận hành (TTL, Block ID < 1 s, tìm 24 giờ < 2 s) | Claude Code | — | ✅ Done |
 | W09-F-01 | Decision trace dễ đọc (tô field vi phạm, tác giả rule Sigma) | Claude Code | — | ✅ Done |
 | W09-S-02 | Bộ sinh biến thể payload, chạy hằng đêm | Claude Code | — | ✅ Done (#34) |
