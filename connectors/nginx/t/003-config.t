@@ -9,6 +9,8 @@ run_tests();
 __DATA__
 
 === TEST 1: every directive is accepted in its documented contexts
+budgets large enough for ASan on a slow core: this block checks the
+directives, t/060 checks what the budget does
 --- http_config
     strata on;
     strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
@@ -25,7 +27,7 @@ __DATA__
     strata_response_body_limit 256k;
     strata_identity            $http_x_client_id;
     strata_block_page          $TEST_NGINX_STRATA_FIXTURES/block.html;
-    strata_cpu_budget          5ms;
+    strata_cpu_budget          5s;
 --- config
     strata_policy example-api;
     location /t {
@@ -37,7 +39,7 @@ __DATA__
         strata_response_inspect off;
         strata_response_body_limit 1m;
         strata_identity $remote_user;
-        strata_cpu_budget 1ms;
+        strata_cpu_budget 1s;
         add_header X-Policy $strata_policy always;
         proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
     }
