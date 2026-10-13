@@ -58,9 +58,9 @@ test('a node goes VERIFIED then ACTIVE, the next wave starts', async ({ page }) 
 
   // VERIFIED, then ACTIVE as the polls go
   await expect(a.getByTestId('node-bundle-state')).toHaveAttribute('data-state', 'VERIFIED');
-  await expect(page.getByTestId('rollout-wave')).toHaveText('đợt 1/2');
+  await expect(page.getByTestId('rollout-wave')).toHaveText('wave 1 of 2');
   await expect(a.getByTestId('node-bundle-state')).toHaveAttribute('data-state', 'ACTIVE', { timeout: 10_000 });
-  await expect(page.getByTestId('rollout-wave')).toHaveText('đợt 2/2');
+  await expect(page.getByTestId('rollout-wave')).toHaveText('wave 2 of 2');
   const b = page.locator('[data-testid="rollout-node"][data-node="node-b"]');
   await expect(b).toHaveAttribute('data-state', 'ACTIVE', { timeout: 10_000 });
   // read-only: no action besides exporting what is shown
@@ -89,13 +89,13 @@ test('a FAILED node stops the rollout and shows why', async ({ page }) => {
   await expect(page.locator('[data-testid="rollout-node"][data-node="node-a"]')).toHaveAttribute('title', 'signature does not verify');
 });
 
-test('Vietnamese by default, English on switch', async ({ page }) => {
+test('English by default, Vietnamese on switch', async ({ page }) => {
   await signedIn(page, ['viewer']);
   await scripted(page, [{ nodes: [node('node-a', 'edge-01', 'lab', '12', 'ACTIVE')], rollout: { id: '9', state: 'DONE' } }]);
   await page.goto('/#/fleet');
-  await expect(page.getByTestId('rollout-none')).toHaveText('Không có rollout đang chạy.');
-  await expect(page.getByTestId('node-bundle-state')).toHaveText('đang dùng');
-  await page.getByTestId('language-toggle-btn').click();
   await expect(page.getByTestId('rollout-none')).toHaveText('No rollout in progress.');
   await expect(page.getByTestId('node-bundle-state')).toHaveText('active');
+  await page.getByTestId('language-toggle-btn').click();
+  await expect(page.getByTestId('rollout-none')).toHaveText('Không có rollout đang chạy.');
+  await expect(page.getByTestId('node-bundle-state')).toHaveText('đang dùng');
 });

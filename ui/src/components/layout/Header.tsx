@@ -1,25 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Shield, Search, Globe, UserCheck, Moon, Sun, AlertCircle, LogOut } from 'lucide-react';
+import { Search, Moon, Sun, LogOut, Menu, Languages } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/client';
-import { Page, href } from '../../router';
+import { navigate } from '../../router';
+import { useTheme } from '../../lib/theme';
 
 interface HeaderProps {
-  onSearchBlockId: (blockId: string) => void;
-  isSearchingBlockId?: boolean;
-  active?: Page;
+  /** default: open the event's page */
+  onSearchBlockId?: (blockId: string) => void;
+  onOpenMenu?: () => void;
 }
 
-const pages: Page[] = ['events', 'policies', 'fleet'];
+const BLOCK_ID = /^(STR|EVT)-[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/;
 
-export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBlockId = false, active = 'events' }) => {
+// The top bar: the Block ID lookup, the helpdesk's first move, is always
+// here; then the console's version, language, theme and the session.
+export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) => {
   const { t, i18n } = useTranslation();
   const { role, username, logout } = useAuth();
-  const [version, setVersion] = useState<string>('');
-  const [searchInput, setSearchInput] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [theme, toggleTheme] = useTheme();
+  const [version, setVersion] = useState('');
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -32,160 +35,111 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, isSearchingBloc
     };
   }, []);
 
-  const toggleLanguage = () => {
-    const nextLang = i18n.language.startsWith('vi') ? 'en' : 'vi';
-    i18n.changeLanguage(nextLang);
-  };
-
-  const toggleTheme = () => {
-    const nextMode = !isDarkMode;
-    setIsDarkMode(nextMode);
-    if (nextMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSearchError('');
-    const trimmed = searchInput.trim().toUpperCase();
-    if (!trimmed) return;
-
-    // Check basic format
-    if (!trimmed.startsWith('STR-') && !trimmed.startsWith('EVT-')) {
-      setSearchError(t('header.blockIdPrefix'));
+    const id = input.trim().toUpperCase();
+    if (!id) return;
+    if (!id.startsWith('STR-') && !id.startsWith('EVT-')) {
+      setError(t('header.blockIdPrefix'));
       return;
     }
-
-    onSearchBlockId(trimmed);
+    if (!BLOCK_ID.test(id)) {
+      setError(t('header.blockIdFormat'));
+      return;
+    }
+    setError('');
+    setInput('');
+    (onSearchBlockId ?? ((b: string) => navigate({ page: 'event', blockId: b })))(id);
   };
 
+  const lang = i18n.language.startsWith('vi') ? 'vi' : 'en';
+
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-md shadow-sky-600/20">
-            <Shield className="w-6 h-6" />
+    <header className="sticky top-0 z-30 h-14 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-3 px-4 lg:px-6">
+      <button type="button" onClick={onOpenMenu} aria-label={t('nav.menu')} className="lg:hidden p-1.5 -ml-1.5 rounded text-muted hover:text-ink">
+        <Menu className="w-5 h-5" />
+      </button>
+
+      <form onSubmit={submit} className="relative flex-1 max-w-lg" data-testid="block-id-search-form" role="search">
+        <label htmlFor="block-id-search" className="sr-only">
+          {t('header.searchLabel')}
+        </label>
+        <Search className="w-4 h-4 text-faint absolute left-2.5 top-2" aria-hidden />
+        <input
+          id="block-id-search"
+          data-testid="block-id-search-input"
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            if (error) setError('');
+          }}
+          placeholder={t('header.searchPlaceholder')}
+          spellCheck={false}
+          autoComplete="off"
+          className="field pl-8 pr-20 font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-sans"
+          aria-invalid={!!error}
+          aria-describedby={error ? 'block-id-error' : undefined}
+        />
+        <button
+          type="submit"
+          data-testid="block-id-search-btn"
+          disabled={!input.trim()}
+          className="absolute right-1 top-1 h-6 px-2.5 rounded-sm text-xs font-medium bg-accent text-accent-ink disabled:opacity-40"
+        >
+          {t('header.searchBtn')}
+        </button>
+        {error && (
+          <div id="block-id-error" role="alert" className="absolute top-full left-0 mt-1 rounded border border-block/30 bg-surface px-2 py-1 text-xs text-block shadow-sm">
+            {error}
           </div>
-          <div>
-            <div className="font-bold text-lg leading-tight tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-              <span>Strata</span>
-              <span className="text-xs uppercase px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-semibold">
-                WAF
-              </span>
-            </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {t('app.subtitle')}
-            </div>
-          </div>
+        )}
+      </form>
+
+      <div className="ml-auto flex items-center gap-1">
+        {version && (
+          <span data-testid="cp-version" className="hidden xl:inline mr-2 text-xs text-faint">
+            {t('header.version', { version })}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => void i18n.changeLanguage(lang === 'en' ? 'vi' : 'en')}
+          data-testid="language-toggle-btn"
+          title={t('header.lang')}
+          aria-label={t('header.lang')}
+          className="h-8 px-2 inline-flex items-center gap-1 rounded text-xs font-medium text-muted hover:text-ink hover:bg-sunken"
+        >
+          <Languages className="w-4 h-4" />
+          {lang.toUpperCase()}
+        </button>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          data-testid="theme-toggle-btn"
+          title={t('header.theme')}
+          aria-label={t('header.theme')}
+          className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+        <div className="mx-2 h-6 w-px bg-line hidden sm:block" />
+        <div data-testid="current-user" title={t('header.signedInAs', { name: username ?? '' })} className="hidden sm:flex flex-col items-end leading-tight mr-1">
+          <span className="text-[13px] font-medium text-ink max-w-[14ch] truncate">{username}</span>
+          <span data-testid="current-role" className="text-[11px] text-muted">
+            {t(`header.roles.${role ?? 'none'}`)}
+          </span>
         </div>
-
-        {/* Global Block ID Search */}
-        <div className="flex-1 max-w-xl">
-          <form onSubmit={handleSearchSubmit} className="relative" data-testid="block-id-search-form">
-            <div className="relative">
-              <input
-                type="text"
-                data-testid="block-id-search-input"
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  if (searchError) setSearchError('');
-                }}
-                placeholder={t('header.searchPlaceholder')}
-                className="w-full pl-10 pr-24 py-2 text-sm bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-white transition-all shadow-inner"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <button
-                type="submit"
-                data-testid="block-id-search-btn"
-                disabled={isSearchingBlockId || !searchInput.trim()}
-                className="absolute right-1.5 top-1.5 px-3 py-1 text-xs font-medium bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded transition-colors shadow-sm"
-              >
-                {isSearchingBlockId ? '...' : t('header.searchBtn')}
-              </button>
-            </div>
-            {searchError && (
-              <div className="absolute top-full left-0 mt-1 text-xs text-rose-500 flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded shadow">
-                <AlertCircle className="w-3 h-3" />
-                <span>{searchError}</span>
-              </div>
-            )}
-          </form>
-        </div>
-
-        {/* Right Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Signed-in user; the role comes from the access token */}
-          <div
-            data-testid="current-user"
-            title={t('header.signedInAs', { name: username ?? '' })}
-            className="hidden md:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200"
-          >
-            <UserCheck className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <span className="font-medium">{username}</span>
-            <span data-testid="current-role" className="text-slate-500 dark:text-slate-400">
-              {t(`header.roles.${role ?? 'none'}`)}
-            </span>
-          </div>
-
-          {version && (
-            <span data-testid="cp-version" className="hidden lg:inline text-[11px] text-slate-400">
-              {t('header.version', { version })}
-            </span>
-          )}
-
-          {/* Language Switch */}
-          <button
-            onClick={toggleLanguage}
-            data-testid="language-toggle-btn"
-            title={t('header.lang')}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>{i18n.language.toUpperCase().slice(0, 2)}</span>
-          </button>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            data-testid="theme-toggle-btn"
-            title={t('header.theme')}
-            className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          <button
-            onClick={logout}
-            data-testid="logout-btn"
-            title={t('header.logout')}
-            className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={logout}
+          data-testid="logout-btn"
+          title={t('header.logout')}
+          aria-label={t('header.logout')}
+          className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 text-sm" aria-label="main">
-        {pages.map((p) => (
-          <a
-            key={p}
-            href={href({ page: p })}
-            data-testid={`nav-${p}`}
-            aria-current={p === active ? 'page' : undefined}
-            className={
-              p === active
-                ? 'px-3 py-2 border-b-2 border-sky-600 text-sky-700 dark:text-sky-300 font-medium'
-                : 'px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-            }
-          >
-            {t(`nav.${p}`)}
-          </a>
-        ))}
-      </nav>
     </header>
   );
 };

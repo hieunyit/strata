@@ -14,6 +14,15 @@ export type FleetNode = admin['schemas']['v1Node'];
 export type Rollout = admin['schemas']['v1Rollout'];
 export type RolloutNode = admin['schemas']['v1RolloutNode'];
 export type ErrorResponse = components['schemas']['ErrorResponse'];
+export type Overview = components['schemas']['OverviewResponse'];
+export type OverviewBucket = components['schemas']['OverviewBucket'];
+export type RuleInfo = components['schemas']['RuleInfo'];
+
+export interface OverviewParams {
+  from: string;
+  to: string;
+  policy_id?: string;
+}
 
 export class ApiError extends Error {
   code: number;
@@ -75,6 +84,13 @@ export const apiClient = {
   getEvent(blockId: string): Promise<GetEventResponse> {
     const id = encodeURIComponent(blockId.trim().toUpperCase());
     return call(`/events/${id}`, { method: 'GET' }, 'Failed to get event');
+  },
+
+  /** GET /v1/stats/overview: the Overview page's statistics (W10-F-01) */
+  getOverview(p: OverviewParams): Promise<Overview> {
+    const q = new URLSearchParams({ from: p.from, to: p.to });
+    if (p.policy_id) q.set('policy_id', p.policy_id);
+    return call(`/stats/overview?${q}`, { method: 'GET' }, 'Failed to load statistics');
   },
 
   /** GET /v1/version */

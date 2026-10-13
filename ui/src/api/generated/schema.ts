@@ -19,6 +19,13 @@ export interface paths {
      */
     post: operations["searchEvents"];
   };
+  "/v1/stats/overview": {
+    /**
+     * Overview Statistics
+     * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.
+     */
+    get: operations["getOverview"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -82,7 +89,7 @@ export interface components {
        * @example block
        * @enum {string}
        */
-      action: "block" | "shadow" | "allow";
+      action: "block" | "shadow" | "allow" | "pass" | "error";
       /** @example 20 */
       score_protocol?: number;
       /** @example 0 */
@@ -125,7 +132,7 @@ export interface components {
       to?: string;
       policy_id?: string;
       /** @enum {string} */
-      action?: "block" | "shadow" | "allow";
+      action?: "block" | "shadow" | "allow" | "pass" | "error";
       client_ip?: string;
       rule_id?: number;
       node_id?: string;
@@ -139,6 +146,88 @@ export interface components {
       next_page_token?: string;
       /** Format: int64 */
       total_matched: number;
+    };
+    OverviewBucket: {
+      /** Format: date-time */
+      start: string;
+      /** Format: int64 */
+      block: number;
+      /** Format: int64 */
+      shadow: number;
+      /**
+       * Format: int64
+       * @description pass and error
+       */
+      other: number;
+    };
+    OverviewTotals: {
+      /** Format: int64 */
+      events: number;
+      /** Format: int64 */
+      block: number;
+      /** Format: int64 */
+      shadow: number;
+      /** Format: int64 */
+      other: number;
+      /**
+       * Format: int64
+       * @description Distinct client IPs (approximate for large sets).
+       */
+      clients: number;
+      /** Format: int64 */
+      nodes: number;
+      /** Format: int64 */
+      policies: number;
+    };
+    OverviewRuleCount: {
+      rule_id: number;
+      /**
+       * Format: int64
+       * @description Events that matched the rule; an event matching it several times counts once.
+       */
+      events: number;
+      /** Format: int64 */
+      block: number;
+      /** Format: int64 */
+      shadow: number;
+    };
+    OverviewRouteCount: {
+      policy_id: string;
+      host: string;
+      /** @description The path without its query, first two segments (/v1/verify). */
+      path_prefix: string;
+      /** Format: int64 */
+      events: number;
+      /** Format: int64 */
+      block: number;
+      /** Format: int64 */
+      shadow: number;
+    };
+    OverviewClientCount: {
+      client_ip: string;
+      /** Format: int64 */
+      events: number;
+      /** Format: int64 */
+      block: number;
+    };
+    OverviewResponse: {
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** Format: int64 */
+      step_seconds: number;
+      totals: components["schemas"]["OverviewTotals"];
+      /** @description One bucket per step from the bucket holding from to the one before to, zeros included. */
+      series: components["schemas"]["OverviewBucket"][];
+      top_rules: components["schemas"]["OverviewRuleCount"][];
+      top_routes: components["schemas"]["OverviewRouteCount"][];
+      /** @description Absent for callers without events:read_sensitive. */
+      top_clients?: components["schemas"]["OverviewClientCount"][];
+      /** @description Rule catalog entries of the top rules, keyed by Rule ID. */
+      rules?: {
+        [key: string]: components["schemas"]["RuleInfo"];
+      };
     };
     ErrorResponse: {
       error: string;
@@ -239,6 +328,52 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       /** @description Internal server error. */
       500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Overview Statistics
+   * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.
+   */
+  getOverview: {
+    parameters: {
+      query?: {
+        /** @description Start of the window, RFC 3339. Default 24 hours before to. */
+        from?: string;
+        /** @description End of the window (exclusive), RFC 3339. Default now. The window is at most 31 days. */
+        to?: string;
+        /** @description Only the events of this policy. */
+        policy_id?: string;
+        /** @description Bucket width of the series. Default 1h up to 48 hours, 6h up to 8 days, 24h beyond. Buckets are aligned in UTC. */
+        step?: "1h" | "6h" | "24h";
+      };
+    };
+    responses: {
+      /** @description Statistics of the window. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OverviewResponse"];
+        };
+      };
+      /** @description Invalid window or step. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Internal server error. */
+      500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description The event store does not aggregate. */
+      501: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
