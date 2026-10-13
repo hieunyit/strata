@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -318,4 +319,48 @@ func TestConfigListsFrom901(t *testing.T) {
 		}
 	}
 	t.Errorf("911101 with an unknown list not refused: %+v", res.Skipped)
+}
+
+// Strata's tuning of two CRS rules (W09-S-01): 930120 lists "program
+// files/" instead of "program files", 942100 gets a condition on the value
+// libinjection flagged; other rules are left as they are.
+func TestTune(t *testing.T) {
+	cond := func(op string, v any) map[string]any {
+		return map[string]any{"operator": map[string]any{"type": op, "value": v}, "targets": []map[string]any{{"var": "args"}}}
+	}
+	lfi := map[string]any{"match": map[string]any{"all": []any{cond("pm", []string{".bashrc", "program files", "boot.ini"})}}}
+	var notes []string
+	tune(930120, lfi, &notes)
+	got := lfi["match"].(map[string]any)["all"].([]any)[0].(map[string]any)["operator"].(map[string]any)["value"]
+	if !reflect.DeepEqual(got, []string{".bashrc", "program files/", "boot.ini"}) || len(notes) != 1 {
+		t.Errorf("930120: %v %v", got, notes)
+	}
+	sqli := map[string]any{"match": map[string]any{"all": []any{cond("detect_sqli", nil)}}}
+	notes = nil
+	tune(942100, sqli, &notes)
+	all := sqli["match"].(map[string]any)["all"].([]any)
+	if len(all) != 2 || len(notes) != 1 {
+		t.Fatalf("942100: %v", all)
+	}
+	c := all[1].(map[string]any)
+	if c["operator"].(map[string]any)["value"] != sqlSignal || c["targets"].([]any)[0].(map[string]any)["var"] != "matched_vars" {
+		t.Errorf("942100 condition: %v", c)
+	}
+	re := regexp.MustCompile(sqlSignal)
+	for _, s := range []string{"1' or '1'='1", "1 union select", "x)--", "1;drop table t", "admin'--"} {
+		if !re.MatchString(s) {
+			t.Errorf("sqlSignal misses %q", s)
+		}
+	}
+	for _, s := range []string{"50% off -- today only", "see you -- bye"} {
+		if re.MatchString(s) {
+			t.Errorf("sqlSignal matches prose %q", s)
+		}
+	}
+	other := map[string]any{"match": map[string]any{"all": []any{cond("rx", "x")}}}
+	notes = nil
+	tune(941100, other, &notes)
+	if len(other["match"].(map[string]any)["all"].([]any)) != 1 || notes != nil {
+		t.Error("tune changed another rule")
+	}
 }

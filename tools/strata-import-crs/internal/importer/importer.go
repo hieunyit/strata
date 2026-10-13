@@ -459,6 +459,7 @@ func Import(groups []Group, opts Options) (*Result, error) {
 				m["all"] = append(m["all"].([]any), copyCond(gated))
 				notes = append(notes, fmt.Sprintf("condition added from control rule %d: it skips this rule when it matches", gatedBy))
 			}
+			tune(r.ID, ir, &notes)
 			for _, n := range notes {
 				im.Notes = append(im.Notes, Note{Rule: r.ID, Text: n})
 			}
@@ -472,6 +473,47 @@ func Import(groups []Group, opts Options) (*Result, error) {
 		res.Groups = append(res.Groups, im)
 	}
 	return res, nil
+}
+
+// sqlSignal: something SQL-like besides what libinjection fingerprints,
+// for 942100 (see tune).
+const sqlSignal = `(?i)[\x27"\x60()=;#]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b`
+
+// tune applies Strata's tuning of CRS PL1 (W09-S-01, rules/reviews): two
+// rules that, as CRS writes them, block common prose on their own (8.35%
+// of the benign corpus, Gate A asks under 1%). Each change keeps what the
+// rule is for; the go-ftw tests of both rules still pass.
+//   - 930120 (OS file access) lists "program files", which matches text
+//     such as "C:/Program Files is slow". Strata lists "program files/":
+//     a path into the directory still matches (normalize_path_win makes
+//     "C:\Program Files\x" "c:/program files/x").
+//   - 942100 (libinjection) flags "50% off -- today only" (fingerprint
+//     1c, as the C library does). Strata adds a condition on the value
+//     libinjection flagged: it must also hold a quote, a parenthesis,
+//     "=", ";", "#" or an SQL keyword.
+func tune(id int, ir map[string]any, notes *[]string) {
+	m, _ := ir["match"].(map[string]any)
+	all, _ := m["all"].([]any)
+	switch id {
+	case 930120:
+		for _, c := range all {
+			cm, _ := c.(map[string]any)
+			op, _ := cm["operator"].(map[string]any)
+			list, _ := op["value"].([]string)
+			for i, v := range list {
+				if v == "program files" {
+					list[i] = "program files/"
+					*notes = append(*notes, `Strata tuning: "program files" listed as "program files/", so that prose naming the directory does not match`)
+				}
+			}
+		}
+	case 942100:
+		m["all"] = append(all, map[string]any{
+			"operator": map[string]any{"type": "rx", "value": sqlSignal},
+			"targets":  []any{map[string]any{"var": "matched_vars"}},
+		})
+		*notes = append(*notes, "Strata tuning: the value libinjection flags must also hold a quote, a parenthesis, =, ;, # or an SQL keyword (prose such as \"50% off -- today only\" is flagged by libinjection alone)")
+	}
 }
 
 // checkCompile compiles the group and drops the rules the compiler
