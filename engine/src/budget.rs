@@ -23,6 +23,8 @@ pub struct TxBudget {
     exceeded: bool,
     /// Whether an external timer (e.g. FFI CallTimer) manages this call's entry/exit.
     external_timer: bool,
+    /// calls of `check_cheap` since the budget was made
+    ticks: u32,
 }
 
 impl TxBudget {
@@ -34,6 +36,7 @@ impl TxBudget {
             call_deadline: None,
             exceeded: false,
             external_timer: false,
+            ticks: 0,
         }
     }
 
@@ -110,6 +113,21 @@ impl TxBudget {
             return Err(BudgetExceeded);
         }
         Ok(())
+    }
+
+    /// Checkpoint for tight loops of cheap steps (one per rule): reads the
+    /// clock once every 64 calls, so a check costs a counter, not a clock
+    /// read (W09-R-01). Loops whose steps are expensive use `check`.
+    #[inline]
+    pub fn check_cheap(&mut self) -> Result<(), BudgetExceeded> {
+        if self.exceeded {
+            return Err(BudgetExceeded);
+        }
+        self.ticks = self.ticks.wrapping_add(1);
+        if !self.ticks.is_multiple_of(64) {
+            return Ok(());
+        }
+        self.check()
     }
 
     /// Called at exit of FFI call to record actual elapsed time.
