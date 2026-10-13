@@ -42,3 +42,33 @@ Gỡ staging:
 ```bash
 docker compose -p strata-staging down -v && rm -rf deploy/staging/.state
 ```
+
+## prod-sim và route thí điểm (W10-G1-01)
+
+Khi PO chưa có môi trường production và route thí điểm thật, có thêm hai thứ chạy trên
+máy này:
+
+- **prod-sim**: một môi trường thứ ba, deploy y như staging từ một tag. Mục đích là kiểm
+  quy trình triển khai trên một môi trường khác staging. Đây **không phải production**.
+
+  ```bash
+  deploy/staging/deploy.sh --env prod-sim --signatures build/signatures/v0.0.1 v0.10.0-rc.1
+  ```
+
+  Project `strata-prodsim`, cổng 3xxxx (NGINX 38080/38081, control plane 38090,
+  Keycloak 38180, Grafana 33000), state trong `deploy/staging/.state-prod-sim`.
+
+- **2 route thí điểm giả lập** trên mỗi môi trường: `pilot-verify`
+  (`POST /v1/verify`, JSON) và `pilot-upload` (`POST /v1/upload`, multipart). Mỗi route là
+  một node riêng: image node của gói (`deploy/packaging/image`), build từ mã nguồn của
+  chính tag đã deploy, enroll vào group `pilot`, đứng trước một backend giả lập.
+
+  ```bash
+  deploy/staging/pilot.sh [--env prod-sim] up        # dựng hoặc dựng lại node, enroll lần đầu
+  deploy/staging/pilot.sh [--env prod-sim] status
+  deploy/staging/pilot.sh [--env prod-sim] --inspect up   # bật kiểm tra (policy pilot-*, W10-G2-01)
+  ```
+
+  Cổng: 28480 (verify) và 28481 (upload); prod-sim dùng 38480 và 38481. Mỗi lần
+  `deploy.sh` cần chạy lại `pilot.sh up`: deploy dựng lại `scrape.yml` từ tag, nên mất job
+  `strata-agent-pilot`.

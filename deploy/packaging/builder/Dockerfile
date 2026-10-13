@@ -3,31 +3,31 @@
 # with a glibc at least as old as the one it was built on: Rocky Linux 9
 # (glibc 2.34, supported until 2032) covers RHEL/Rocky 9, Ubuntu 22.04 and
 # 24.04, Debian 12. The dev image (Ubuntu 24.04) would need glibc 2.39.
-# Hyperscan is the very version the bundle compiler uses (the dev image's
-# libhyperscan-dev 5.4.2): a serialized database only loads into the same
-# version. Built like the Debian package: static, fat runtime (code for each
-# x86 level, picked at run time).
+#
+# Hyperscan must be the very build the bundle compiler uses: a bundle
+# records hs_version() ("5.4.2 2024-04-19", build date included) and the
+# module refuses one made by another build ("bundle built for another
+# Hyperscan version"). The compiler runs in the dev image with Ubuntu's
+# libhyperscan-dev 5.4.2-2, so the static libraries come from that package;
+# they need glibc 2.34 at most. deploy/packaging/build.sh checks both the
+# glibc floor and that the version string matches the dev image's.
+FROM ubuntu:24.04 AS hs
+ARG HS_DEB_VERSION=5.4.2-2
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+        "libhyperscan-dev=${HS_DEB_VERSION}" >/dev/null \
+    && rm -rf /var/lib/apt/lists/*
+
 FROM rockylinux:9
 ARG RUST_VERSION=1.98.0
-ARG HS_VERSION=5.4.2
-ARG HS_SHA256=32b0f24b3113bbc46b6bfaa05cf7cf45840b6b59333d078cc1f624e4c40b2b99
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH HOME=/tmp
-RUN dnf install -y -q epel-release dnf-plugins-core && dnf config-manager --set-enabled crb \
-    && dnf install -y -q gcc gcc-c++ make cmake ragel boost-devel python3 pkgconf-pkg-config \
-        pcre2-devel zlib-devel openssl-devel binutils perl \
+RUN dnf install -y -q gcc gcc-c++ make pkgconf-pkg-config pcre2-devel zlib-devel openssl-devel binutils perl \
     && dnf clean all
-RUN curl -fsSL -o /tmp/hs.tgz https://github.com/intel/hyperscan/archive/refs/tags/v${HS_VERSION}.tar.gz \
-    && echo "${HS_SHA256}  /tmp/hs.tgz" | sha256sum -c - \
-    && mkdir /tmp/hs && tar -xzf /tmp/hs.tgz -C /tmp/hs --strip-components=1 \
-    && cmake -S /tmp/hs -B /tmp/hs/build -DCMAKE_BUILD_TYPE=Release -DFAT_RUNTIME=ON \
-        -DBUILD_STATIC_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null \
-    && make -C /tmp/hs/build -j"$(nproc)" hs hs_runtime >/dev/null \
-    && install -d /usr/local/include/hs /usr/local/lib/pkgconfig \
-    && install -m 0644 /tmp/hs/build/lib/libhs.a /tmp/hs/build/lib/libhs_runtime.a /usr/local/lib/ \
-    && install -m 0644 /tmp/hs/src/hs.h /tmp/hs/src/hs_common.h /tmp/hs/src/hs_compile.h /tmp/hs/src/hs_runtime.h /usr/local/include/hs/ \
-    && install -m 0644 /tmp/hs/build/libhs.pc /usr/local/lib/pkgconfig/ \
-    && rm -rf /tmp/hs /tmp/hs.tgz
+COPY --from=hs /usr/lib/x86_64-linux-gnu/libhs.a /usr/lib/x86_64-linux-gnu/libhs_runtime.a /usr/local/lib/
+COPY --from=hs /usr/include/hs /usr/local/include/hs
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain ${RUST_VERSION} \
     && chmod -R a+rwX ${CARGO_HOME} ${RUSTUP_HOME}
+# engine/ffi/hyperscan/build.rs links from here
+ENV HS_LIB_DIR=/usr/local/lib
 WORKDIR /src
