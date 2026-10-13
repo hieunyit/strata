@@ -22,7 +22,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | --- | --- | --- | --- | --- |
 | W09-Q-01 | Benchmark (p50/p99, throughput, event socket 50k/s, quyết định ring buffer) | Claude Code | — | ✅ Done |
 | W09-R-01 | Xử lý điểm nóng hiệu năng (p99 < 1 ms, throughput giảm ≤ 10%) | Claude Code | W09-Q-01 | ✅ Done (ticket #27, #28) |
-| W09-Q-02 | Soak 24 giờ + 1.000 lần đổi bundle; staging chỉ deploy bản đã tag | Claude Code | W09-R-01 | ⏳ Chưa bắt đầu |
+| W09-Q-02 | Soak 24 giờ + 1.000 lần đổi bundle; staging chỉ deploy bản đã tag | Claude Code | W09-R-01 | 🔄 Staging xong; soak 24 giờ tới 14/10 04:50 UTC |
 | W09-G2-01 | ClickHouse cho vận hành (TTL, Block ID < 1 s, tìm 24 giờ < 2 s) | Claude Code | — | ✅ Done |
 | W09-F-01 | Decision trace dễ đọc (tô field vi phạm, tác giả rule Sigma) | Claude Code | — | ✅ Done |
 | W09-S-02 | Bộ sinh biến thể payload, chạy hằng đêm | Claude Code | — | ✅ Done (#34) |
