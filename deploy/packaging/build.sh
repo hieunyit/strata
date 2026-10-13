@@ -32,9 +32,19 @@ rm -f "$out"/*.deb "$out"/*.rpm
 BUILDER=${BUILDER_IMAGE:-strata-pkg-builder:rocky9}
 docker build -q -t "$BUILDER" deploy/packaging/builder >/dev/null
 mkdir -p build/cargo-registry
+# the module refuses bundles made by another Hyperscan build: the builder's
+# must be the compiler's (the dev image)
+hsver() { docker run --rm --entrypoint sh "$1" -c "strings $2 | grep -m1 -E '^[0-9]+\.[0-9]+\.[0-9]+ [0-9]{4}-[0-9]{2}-[0-9]{2}\$'"; }
+hs_dev=$(hsver "${STRATA_DEV_IMAGE:-strata-dev:latest}" /usr/lib/x86_64-linux-gnu/libhs_runtime.a)
+hs_pkg=$(hsver "$BUILDER" /usr/local/lib/libhs_runtime.a)
+[ -n "$hs_dev" ] && [ "$hs_dev" = "$hs_pkg" ] \
+    || { echo "packaging: Hyperscan of the builder ($hs_pkg) is not the compiler's ($hs_dev)" >&2; exit 1; }
+echo "packaging: Hyperscan $hs_pkg, as the compiler"
 read -r -a extra <<< "${STRATA_DEV_DOCKER_ARGS:-}"
 docker run --rm "${extra[@]}" -u "$(id -u):$(id -g)" -v "$root:/src" -w /src \
     -v "$root/build/cargo-registry:/usr/local/cargo/registry" "$BUILDER" sh -ec '
+    # a clean target: nothing linked in another image may leak in
+    rm -rf build/pkg-target
     cargo build --release -p libstrata-ffi --target-dir build/pkg-target
     for n in "$@"; do
         STRATA_RELEASE=1 STRATA_LIB=/src/build/pkg-target/release/libstrata.a \
