@@ -118,7 +118,9 @@ cpscraped() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" \
     'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_cp_build_info' | grep -q control-plane; }
 if retry 60 cpscraped; then ok "grafana reads strata_cp_* (control plane scraped)"; else bad "grafana reads strata_cp_* (control plane scraped)"; fi
 check "vmalert loaded the Strata alert rules" sh -c "curl -fsS http://127.0.0.1:18880/api/v1/rules | grep -q StrataAgentDown"
-check "grafana reads strata_agent_* from VictoriaMetrics" sh -c "curl -fsS -u 'admin:$GRAFANA_ADMIN_PASSWORD' \
-    'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_agent_spool_bytes' | grep -q agent-1"
+# right after a restart the agents may not be scraped yet: retry like above
+agentseries() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" \
+    'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_agent_spool_bytes' | grep -q agent-1; }
+if retry 60 agentseries; then ok "grafana reads strata_agent_* from VictoriaMetrics"; else bad "grafana reads strata_agent_* from VictoriaMetrics"; fi
 
 [ $fail = 0 ] && echo "lab smoke: all checks passed" || { echo "lab smoke: FAILED"; exit 1; }
