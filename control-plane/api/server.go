@@ -16,6 +16,11 @@ type ServerConfig struct {
 	Addr         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	// DeployTimeout replaces both for POST …:deploy, which compiles and
+	// signs a bundle: with the whole signature package (9,000 rules) the
+	// compile alone takes 10–20 s on a 2 GHz core. Default 3 min, above
+	// the compiler's own limit (policy.Compiler.Timeout, 2 min).
+	DeployTimeout time.Duration
 	// Auth verifies bearer tokens; every route but /healthz requires one.
 	Auth auth.Authenticator
 	// Admin serves the other /v1/ routes (the grpc-gateway of
@@ -47,6 +52,9 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 	if cfg.WriteTimeout <= 0 {
 		cfg.WriteTimeout = 10 * time.Second
+	}
+	if cfg.DeployTimeout <= 0 {
+		cfg.DeployTimeout = 3 * time.Minute
 	}
 
 	eventHandler := NewEventHandler(store, cfg.Rules)
@@ -106,12 +114,28 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 
-		// Request timeout
-		ctx, cancel := context.WithTimeout(r.Context(), s.cfg.WriteTimeout)
+		// Request timeout. A deploy gets longer, and so does its
+		// connection: the server's read and write deadlines would otherwise
+		// cancel the request (and kill the compiler) after ReadTimeout.
+		timeout := s.cfg.WriteTimeout
+		if isDeploy(r) {
+			timeout = s.cfg.DeployTimeout
+			rc := http.NewResponseController(w)
+			deadline := time.Now().Add(timeout)
+			_ = rc.SetReadDeadline(deadline)
+			_ = rc.SetWriteDeadline(deadline)
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// isDeploy: POST /v1/policies/{id}:deploy, the one route that compiles.
+func isDeploy(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/policies/") &&
+		strings.HasSuffix(r.URL.Path, ":deploy")
 }
 
 // Start begins listening and serving HTTP requests.
