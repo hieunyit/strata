@@ -1,0 +1,43 @@
+# Nightly jobs (W09-S-02): payload variants against the signature package.
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 19 * * *"   # 02:00 in Vietnam
+  workflow_dispatch:
+
+env:
+  IMAGE: strata-dev:ci
+
+jobs:
+  mutate:
+    name: payload variants against the signature package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+          cache-to: type=gha,scope=dev-image,mode=max
+
+      - name: make mutate
+        run: deploy/dev/run.sh make mutate
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      - name: Report
+        run: cat docs/mutation-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: |
+            docs/mutation-report.md
+            build/mutate/summary.json
