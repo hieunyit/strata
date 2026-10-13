@@ -21,7 +21,7 @@ for line in open(path):
 
 def med(rs, k):
     v = [r[k] for r in rs if k in r]
-    return statistics.median(v) if v else None
+    return round(statistics.median(v), 1) if v else None
 
 
 def rng(rs, k):
