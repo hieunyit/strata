@@ -1,0 +1,39 @@
+== build/wt-main
+-- pkg-p01/strata-signatures-bench-p01.sbn
+strata-bench: bundle mapped in 1 ms
+strata-bench: after map VmRSS:	    7632 kB
+{"request":"small","n":5000,"mean_us":18.9,"p50_us":16.6,"p99_us":60.0,"max_us":447.0,"action":0
+{"request":"nul","n":5000,"mean_us":18.9,"p50_us":16.7,"p99_us":51.9,"max_us":268.9,"action":3
+{"request":"attack","n":5000,"mean_us":18.9,"p50_us":16.8,"p99_us":47.0,"max_us":325.8,"action":0
+{"request":"json","n":5000,"mean_us":20.0,"p50_us":17.5,"p99_us":53.4,"max_us":406.3,"action":0
+{"request":"64k","n":5000,"mean_us":175.2,"p50_us":158.4,"p99_us":395.1,"max_us":1408.3,"action":0
+{"request":"1m","n":250,"mean_us":211.2,"p50_us":202.4,"p99_us":337.3,"max_us":354.5,"action":0
+-- pkg/strata-signatures-bench.sbn
+strata-bench: bundle mapped in 86 ms
+strata-bench: after map VmRSS:	   57768 kB
+{"request":"small","n":200,"mean_us":11636.3,"p50_us":10841.0,"p99_us":23017.0,"max_us":24486.2,"action":0
+{"request":"nul","n":200,"mean_us":4185.4,"p50_us":4063.0,"p99_us":6129.1,"max_us":6346.1,"action":3
+{"request":"attack","n":200,"mean_us":14318.5,"p50_us":13788.3,"p99_us":20390.1,"max_us":25962.9,"action":3
+{"request":"json","n":200,"mean_us":11917.7,"p50_us":11427.8,"p99_us":20817.7,"max_us":23180.2,"action":0
+{"request":"64k","n":200,"mean_us":630677.5,"p50_us":610338.2,"p99_us":1040753.6,"max_us":1126182.8,"action":0
+{"request":"1m","n":20,"mean_us":1077696.5,"p50_us":1078839.6,"p99_us":1190535.6,"max_us":1190535.6,"action":0
+== .
+-- pkg-p01/strata-signatures-bench-p01.sbn
+strata-bench: bundle mapped in 6 ms
+strata-bench: after map VmRSS:	    4364 kB
+{"request":"small","n":5000,"mean_us":17.1,"p50_us":15.4,"p99_us":41.6,"max_us":135.8,"action":0
+{"request":"nul","n":5000,"mean_us":20.2,"p50_us":17.5,"p99_us":48.8,"max_us":179.0,"action":3
+{"request":"attack","n":5000,"mean_us":22.9,"p50_us":18.1,"p99_us":65.6,"max_us":357.3,"action":0
+{"request":"json","n":5000,"mean_us":18.4,"p50_us":17.0,"p99_us":41.2,"max_us":164.2,"action":0
+{"request":"64k","n":5000,"mean_us":209.2,"p50_us":196.7,"p99_us":382.2,"max_us":1387.4,"action":0
+{"request":"1m","n":250,"mean_us":219.5,"p50_us":207.4,"p99_us":383.3,"max_us":547.8,"action":0
+-- pkg/strata-signatures-bench.sbn
+strata-bench: bundle mapped in 50 ms
+strata-bench: after map VmRSS:	   46040 kB
+{"request":"small","n":200,"mean_us":533.2,"p50_us":469.3,"p99_us":1171.7,"max_us":1479.6,"action":0
+{"request":"nul","n":200,"mean_us":124.9,"p50_us":117.8,"p99_us":206.1,"max_us":215.1,"action":3
+{"request":"attack","n":200,"mean_us":492.8,"p50_us":467.6,"p99_us":939.7,"max_us":948.7,"action":3
+{"request":"json","n":200,"mean_us":524.3,"p50_us":495.3,"p99_us":1130.1,"max_us":1251.2,"action":0
+{"request":"64k","n":200,"mean_us":57693.0,"p50_us":56070.9,"p99_us":85745.0,"max_us":88366.1,"action":0
+{"request":"1m","n":20,"mean_us":154565.2,"p50_us":146700.1,"p99_us":205403.6,"max_us":205403.6,"action":0
+done
