@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"github.com/strata/strata/control-plane/rulecat"
 	"log"
 	"net/http"
 	"strings"
@@ -14,11 +15,13 @@ import (
 // EventHandler handles security event inspection and search HTTP endpoints.
 type EventHandler struct {
 	store ingest.EventStore
+	rules *rulecat.Catalog
 }
 
-// NewEventHandler creates an EventHandler with the provided EventStore.
-func NewEventHandler(store ingest.EventStore) *EventHandler {
-	return &EventHandler{store: store}
+// NewEventHandler creates an EventHandler with the provided EventStore and
+// rule catalog (nil: events come without rule metadata).
+func NewEventHandler(store ingest.EventStore, rules *rulecat.Catalog) *EventHandler {
+	return &EventHandler{store: store, rules: rules}
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
@@ -101,8 +104,13 @@ func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 
 	sanitized := sanitizeEvent(*event, auth.FromContext(r.Context()))
 
+	ids := append([]uint32(nil), sanitized.MatchedRules...)
+	for _, v := range sanitized.Violations {
+		ids = append(ids, v.RuleID)
+	}
 	writeJSON(w, http.StatusOK, GetEventResponse{
 		Event: sanitized,
+		Rules: h.rules.For(ids),
 	})
 }
 

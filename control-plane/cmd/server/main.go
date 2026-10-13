@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/strata/strata/control-plane/rulecat"
 	"log"
 	"net"
 	"net/http"
@@ -247,12 +248,22 @@ func main() {
 		}()
 	}
 
+	// what the decision trace shows about each rule: the rules compiled
+	// into bundles
+	catalog, err := rulecat.Load(strings.Split(*rulesFlag, ","))
+	if err != nil {
+		log.Printf("[WARN] rule catalog: %v (events are shown without rule names)", err)
+	} else {
+		log.Printf("[INFO] rule catalog: %d rules", catalog.Len())
+	}
+
 	srv := api.NewServer(api.ServerConfig{
 		Addr:         *addr,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		Auth:         verifier,
 		Admin:        adm.Gateway,
+		Rules:        catalog,
 	}, store)
 
 	allowedOrigins := map[string]bool{}

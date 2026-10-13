@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/strata/strata/control-plane/rulecat"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -304,4 +307,54 @@ func TestSearchEventsEndpoint(t *testing.T) {
 			t.Fatalf("expected status 405, got %d", rec.Code)
 		}
 	})
+}
+
+// The decision trace carries what the rule catalog knows about the event's
+// rules, the author of a Sigma rule among them (W09-F-01); without a
+// catalog the response has no "rules".
+func TestGetEventRuleCatalog(t *testing.T) {
+	store := ingest.NewMockEventStore()
+	_ = store.SaveEvents(context.Background(), []ingest.Event{{
+		BlockID: "STR-8F3K-Q2VD-7XNM-A1PC", Timestamp: time.Now().UTC(), NodeID: "node-01",
+		ConnectorType: "nginx", PolicyID: "example-api", Action: "block", HTTPMethod: "GET",
+		MatchedRules: []uint32{600001, 942100},
+		Violations:   []ingest.Violation{{RuleID: 600001, Layer: "managed", Field: "REQUEST_HEADERS:User-Agent", Snippet: "x"}},
+	}})
+	f := filepath.Join(t.TempDir(), "rules.yaml")
+	_ = os.WriteFile(f, []byte(`rules:
+  - { id: 600001, name: Webshell probe, metadata: { source: sigma, author: "A. Author (Example Org)", license: DRL-1.1 } }
+  - { id: 942100, name: SQL Injection via libinjection, metadata: { source: owasp-crs } }
+`), 0o644)
+	catalog, err := rulecat.Load([]string{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, withCatalog := range []bool{true, false} {
+		cfg := ServerConfig{Auth: tokenRoles{}}
+		if withCatalog {
+			cfg.Rules = catalog
+		}
+		server := NewServer(cfg, store)
+		rec := httptest.NewRecorder()
+		serve(server, rec, httptest.NewRequest(http.MethodGet, "/v1/events/STR-8F3K-Q2VD-7XNM-A1PC", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		var resp GetEventResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		if !withCatalog {
+			if resp.Rules != nil {
+				t.Errorf("rules without a catalog: %+v", resp.Rules)
+			}
+			continue
+		}
+		if r := resp.Rules["600001"]; r.Author != "A. Author (Example Org)" || r.Source != "sigma" || r.Name != "Webshell probe" {
+			t.Errorf("sigma rule: %+v", r)
+		}
+		if r := resp.Rules["942100"]; r.Source != "owasp-crs" {
+			t.Errorf("matched rule without a violation: %+v", r)
+		}
+	}
 }

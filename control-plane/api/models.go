@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/strata/strata/control-plane/rulecat"
 	"time"
 
 	"github.com/strata/strata/control-plane/ingest"
@@ -19,6 +20,9 @@ type ErrorResponse struct {
 // GetEventResponse represents the detailed decision trace returned for a single Block ID.
 type GetEventResponse struct {
 	Event ingest.Event `json:"event"`
+	// Rules: what the rule catalog knows about the rules of the event
+	// (name, source, author...), keyed by Rule ID (W09-F-01).
+	Rules map[string]rulecat.Rule `json:"rules,omitempty"`
 }
 
 // SearchEventsRequest defines search criteria for querying security events.
