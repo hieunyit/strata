@@ -8,3 +8,6 @@ connectors/nginx/vgcore.*
 
 # lab passwords and state
 deploy/lab/.state/
+
+# staging passwords, state and the deployed release
+deploy/staging/.state/
