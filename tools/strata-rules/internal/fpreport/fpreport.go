@@ -47,7 +47,7 @@ ARRAY JOIN arrayDistinct(matched_rules) AS rule_id
 WHERE action = 'shadow'
   AND timestamp >= now64(3) - toIntervalSecond({since_s:UInt32})
   AND (empty({policies:Array(String)}) OR has({policies:Array(String)}, policy_id))
-  AND NOT arrayExists(c -> isIPAddressInRange(client_ip, c), {exclude:Array(String)})
+  AND NOT ((isIPv4String(client_ip) OR isIPv6String(client_ip)) AND arrayExists(c -> isIPAddressInRange(client_ip, c), {exclude:Array(String)}))
 GROUP BY day, rule_id
 ORDER BY day DESC, events DESC, rule_id
 FORMAT JSONEachRow`
