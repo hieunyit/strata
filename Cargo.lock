@@ -830,6 +830,7 @@ version = "0.1.0"
 dependencies = [
  "jsonschema",
  "libstrata",
+ "regex-syntax",
  "serde_json",
  "strata-hs",
  "yaml-rust2",
