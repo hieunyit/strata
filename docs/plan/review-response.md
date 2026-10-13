@@ -4,9 +4,9 @@ Lập ngày 14/10/2026, giữa tuần 10 (Gate A). Nguồn: bài đánh giá bê
 (5 nhược điểm: hiệu năng, log thiếu ngữ cảnh, hạ tầng cồng kềnh, chống bot, duy trì
 9.000 rule) và phần đối chiếu bài đó với repo tại `dd45b9b`.
 
-File này **chưa thay** `plan.md`. Các nhiệm vụ mã `RV-*` dưới đây chỉ vào `plan.md`
-khi PO duyệt (mục 6). Việc đã có trong plan hoặc đã được PO duyệt thì ghi rõ, không
-lập lại nhiệm vụ.
+**PO duyệt 14/10/2026** mục 6.1–6.5; các nhiệm vụ `RV-*` đã vào `plan.md` ở tuần ghi
+trong từng đợt (mã giữ nguyên). Mục 6.6 (route thật) còn chờ PO. Việc đã có trong plan
+hoặc đã được PO duyệt từ trước thì ghi rõ, không lập lại nhiệm vụ.
 
 ## 1. Đối chiếu bài đánh giá với repo
 
@@ -92,14 +92,16 @@ Giai đoạn C thêm việc thì phải bớt việc: đề xuất chuyển GitO
   - Xong khi: VM sạch, cài 1 lệnh, chặn được request SQLi mẫu trong dưới 5 phút; cập nhật rule bằng `strata-rules` + hot reload, không `nginx -s reload`.
   - Cần trước: PO duyệt; cập nhật `nginx-module.md` (chế độ triển khai) và P-01 §2.
 
-## 6. Quyết định cần PO
+## 6. Quyết định của PO
 
-1. Đưa các nhiệm vụ `RV-*` vào `plan.md` theo các đợt trên (hay đổi thứ tự).
-2. Ngưỡng FP production và số ngày shadow để rule lên gói core (RV-S-01).
-3. Duyệt P-01 §3 rate limit (RV-R-03, RV-R-04).
-4. Chế độ Lite có vào v1 không (RV-G1-01); nếu có, đổi thiết kế.
-5. Thêm chống bot (RV-N-02, RV-R-04) vào giai đoạn C, đổi lại GitOps sang v1.1.
-6. Route thật cho RV-Q-03 và điều kiện bổ sung của Gate B.
+| # | Câu hỏi | Quyết định 14/10/2026 |
+| --- | --- | --- |
+| 1 | Đưa `RV-*` vào `plan.md` theo các đợt trên | Duyệt. RV-R-01, RV-N-01, RV-Q-01 → tuần 10; RV-G2-01, RV-S-01 → tuần 11; RV-S-02, RV-Q-03 → tuần 13; RV-R-03 → tuần 14; RV-N-02 → tuần 17; RV-R-04 → tuần 18; RV-G1-01 → tuần 19 |
+| 2 | Ngưỡng FP production, số ngày shadow | Duyệt: dưới 0,05% request theo route, 14 ngày; thêm vào chỉ tiêu luồng S và Gate B |
+| 3 | P-01 §3 rate limit | Duyệt (cả tầng 1 và tầng 2) |
+| 4 | Chế độ Lite vào v1 | Duyệt; nginx-module.md cập nhật trong RV-G1-01, trước khi code |
+| 5 | Chống bot vào giai đoạn C, GitOps sang v1.1 | Duyệt; W19-G1-01, W20-G1-01 bỏ khỏi v1 |
+| 6 | Route thật cho RV-Q-03 | **Chờ PO.** Route thật phải shadow 14 ngày trước canary: bắt đầu đầu tuần 11 thì canary sớm nhất tuần 13, Gate B lùi theo |
 
 ## 7. Không làm theo bài đánh giá
 
