@@ -613,6 +613,7 @@ Kết quả gồm decision trace đầy đủ: policy và phiên bản bundle, c
 **Xác thực và phân quyền**
 
 - Người dùng: OIDC (Keycloak, Azure AD…) hoặc LDAP qua OIDC bridge; token ngắn hạn.
+- Tài khoản cục bộ (tùy chọn, cờ `-local-auth`, W10): tên đăng nhập và mật khẩu argon2id trong PostgreSQL, cho cài đặt nhỏ không có IdP; dùng thay hoặc cùng OIDC. Token phiên `stl_…` (DB chỉ giữ SHA-256, hết hạn sau 8 giờ), khóa tài khoản sau 5 lần sai, giới hạn theo IP, mọi thay đổi vào audit. API: `POST /v1/auth/login`, `/v1/auth/logout`, `/v1/auth/password`, `GET /v1/auth/methods`, `GET /v1/auth/me`, `GET/POST/PATCH/DELETE /v1/users`.
 - Tự động hóa: service account với token có phạm vi (`policies:read`, `policies:deploy`, `events:read`…), có hạn dùng, thu hồi được.
 - RBAC theo vai trò `viewer`, `operator`, `approver`, `admin`, giới hạn theo connector group; người tạo bản nháp không tự duyệt được bản của mình (quy tắc 4 mắt).
 - Agent không dùng API này; agent chỉ được gọi `FleetService` bằng chứng chỉ node.
@@ -631,7 +632,7 @@ Kết quả gồm decision trace đầy đủ: policy và phiên bản bundle, c
 
 Web UI là nơi làm việc chính của SOC, SRE và helpdesk. UI chỉ gọi API quản trị, không có đường riêng vào database; mọi nút bấm đều tương ứng một lời gọi API có audit.
 
-**Công nghệ**: React + TypeScript, Vite, TanStack Query (cache, tự làm mới), client sinh từ OpenAPI, bản đồ MapLibre GL JS, biểu đồ Apache ECharts, giao diện sáng/tối, tiếng Việt và tiếng Anh (i18n), đăng nhập SSO qua OIDC. UI build tĩnh và được API server phục vụ, nên chạy được trong mạng nội bộ không có internet.
+**Công nghệ**: React + TypeScript, Vite, TanStack Query (cache, tự làm mới), client sinh từ OpenAPI, bản đồ MapLibre GL JS, biểu đồ Apache ECharts, giao diện sáng/tối, tiếng Anh (mặc định) và tiếng Việt (i18n), đăng nhập SSO qua OIDC hoặc tài khoản cục bộ. UI build tĩnh và được API server phục vụ, nên chạy được trong mạng nội bộ không có internet.
 
 **Màn hình**
 
