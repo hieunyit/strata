@@ -204,6 +204,30 @@ components:
       properties:
         event:
           $ref: '#/components/schemas/Event'
+        rules:
+          type: object
+          description: What the rule catalog (the rules compiled into bundles) knows about the event's rules, keyed by Rule ID. Absent when the control plane has no catalog.
+          additionalProperties:
+            $ref: '#/components/schemas/RuleInfo'
+    RuleInfo:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+        layer:
+          type: string
+        severity:
+          type: string
+        source:
+          type: string
+          description: Where the rule comes from (strata, owasp-crs, sigma, et-open, bots, organization).
+        author:
+          type: string
+          description: Author of the rule as its source credits it (Sigma rules).
+        license:
+          type: string
     SearchEventsRequest:
       type: object
       properties:

@@ -7,11 +7,14 @@ import {
   Eye,
   Lock,
 } from 'lucide-react';
-import { Event } from '../../api/client';
+import { Event, GetEventResponse } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { fieldLocation, markPath } from '../../lib/trace';
 
 interface DecisionTraceModalProps {
   event: Event | null;
+  /** the rule catalog's entries for the event's rules (GET /v1/events/{id}) */
+  rules?: GetEventResponse['rules'];
   isOpen: boolean;
   onClose: () => void;
   isLoading?: boolean;
@@ -19,6 +22,7 @@ interface DecisionTraceModalProps {
 
 export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
   event,
+  rules,
   isOpen,
   onClose,
   isLoading = false,
@@ -182,7 +186,19 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
                     <span className="text-slate-500">{t('detail.path')}:</span>{' '}
                     <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono break-all">
                       {event.http_host}
-                      {event.http_path}
+                      {markPath(event.http_path ?? '', (event.violations ?? []).map((v) => v.field ?? '')).map((seg, i) =>
+                        seg.mark ? (
+                          <mark
+                            key={i}
+                            data-testid="path-highlight"
+                            className="rounded px-0.5 bg-amber-200 text-amber-950 dark:bg-amber-500/40 dark:text-amber-100"
+                          >
+                            {seg.text}
+                          </mark>
+                        ) : (
+                          <React.Fragment key={i}>{seg.text}</React.Fragment>
+                        ),
+                      )}
                     </span>
                   </div>
                   <div>
@@ -243,9 +259,32 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
                             </span>
                           </div>
                           <span className="text-xs font-mono text-slate-500">
-                            {t('detail.field')}: <code className="text-slate-700 dark:text-slate-300 font-semibold">{violation.field}</code>
+                            {t('detail.field')}:{' '}
+                            <mark
+                              data-testid="field-highlight"
+                              className="rounded px-1 py-0.5 font-semibold bg-amber-200 text-amber-950 dark:bg-amber-500/40 dark:text-amber-100"
+                            >
+                              {violation.field}
+                            </mark>{' '}
+                            <span className="text-slate-400">({t(`detail.where.${fieldLocation(violation.field ?? '').kind}`)})</span>
                           </span>
                         </div>
+                        {(() => {
+                          const rule = rules?.[String(violation.rule_id)];
+                          if (!rule) return null;
+                          return (
+                            <div data-testid="rule-meta" className="mb-2 text-xs text-slate-600 dark:text-slate-300">
+                              <span className="font-medium">{rule.name}</span>
+                              {rule.source && <span className="text-slate-400"> · {t('detail.ruleSource')}: {rule.source}</span>}
+                              {rule.source === 'sigma' && rule.author && (
+                                <div data-testid="rule-author" className="text-slate-500 dark:text-slate-400">
+                                  {t('detail.ruleAuthor')}: {rule.author}
+                                  {rule.license && <span className="text-slate-400"> ({rule.license})</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         <div>
                           <div className="text-[11px] text-slate-400 mb-1">
@@ -253,7 +292,7 @@ export const DecisionTraceModal: React.FC<DecisionTraceModalProps> = ({
                           </div>
                           <pre
                             data-testid="violation-snippet"
-                            className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap break-all border border-slate-200/60 dark:border-slate-800"
+                            className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border-l-4 border-l-amber-400 text-slate-900 dark:text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap break-all border border-slate-200/60 dark:border-slate-800"
                           >
                             {maskSnippet(violation.snippet)}
                           </pre>

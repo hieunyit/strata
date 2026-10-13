@@ -103,6 +103,20 @@ export interface components {
     };
     GetEventResponse: {
       event: components["schemas"]["Event"];
+      /** @description What the rule catalog (the rules compiled into bundles) knows about the event's rules, keyed by Rule ID. Absent when the control plane has no catalog. */
+      rules?: {
+        [key: string]: components["schemas"]["RuleInfo"];
+      };
+    };
+    RuleInfo: {
+      name: string;
+      layer?: string;
+      severity?: string;
+      /** @description Where the rule comes from (strata, owasp-crs, sigma, et-open, bots, organization). */
+      source?: string;
+      /** @description Author of the rule as its source credits it (Sigma rules). */
+      author?: string;
+      license?: string;
     };
     SearchEventsRequest: {
       /** Format: date-time */

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/strata/strata/control-plane/rulecat"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +21,9 @@ type ServerConfig struct {
 	// Admin serves the other /v1/ routes (the grpc-gateway of
 	// strata.admin.v1), which authorize in their gRPC interceptors.
 	Admin http.Handler
+	// Rules is the catalog of the compiled rules (decision trace metadata);
+	// nil leaves it out.
+	Rules *rulecat.Catalog
 }
 
 // Server provides the REST API server for Strata control plane.
@@ -45,7 +49,7 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 		cfg.WriteTimeout = 10 * time.Second
 	}
 
-	eventHandler := NewEventHandler(store)
+	eventHandler := NewEventHandler(store, cfg.Rules)
 	mux := http.NewServeMux()
 
 	s := &Server{
