@@ -40,6 +40,37 @@ type Report struct {
 	Attacks     map[string]Type `json:"attacks"`
 }
 
+// GateAttackTypes are the attack types whose recall the quality targets
+// name (plan.md, "Chỉ tiêu chất lượng": SQLi, XSS, CMDi, LFI).
+var GateAttackTypes = []string{"sql-injection", "xss", "command-injection", "path-traversal"}
+
+// GateFailures checks the quality targets at the blocking threshold:
+// benign requests blocked at most maxFPPct percent (negative: not checked),
+// and for each of types at least minRecallPct percent of payloads blocked
+// (negative: not checked). One line per target missed; a type absent from
+// the corpus is a miss too, so a corpus change cannot pass the gate by
+// dropping a type.
+func (r *Report) GateFailures(maxFPPct, minRecallPct float64, types []string) []string {
+	var out []string
+	if maxFPPct >= 0 && pct(r.BenignBlock, r.Benign) >= maxFPPct {
+		out = append(out, fmt.Sprintf("benign requests blocked: %d of %d (%.2f%%), target under %g%%",
+			r.BenignBlock, r.Benign, pct(r.BenignBlock, r.Benign), maxFPPct))
+	}
+	if minRecallPct >= 0 {
+		for _, t := range types {
+			a, ok := r.Attacks[t]
+			if !ok || a.Payloads == 0 {
+				out = append(out, fmt.Sprintf("%s: no payloads in the corpus", t))
+				continue
+			}
+			if got := pct(a.Blocked, a.Payloads); got < minRecallPct {
+				out = append(out, fmt.Sprintf("%s: %.1f%% of payloads blocked, target at least %g%%", t, got, minRecallPct))
+			}
+		}
+	}
+	return out
+}
+
 // RulesUnder returns every rule of rules dir: rule files and IR rulesets.
 func RulesUnder(dir string) ([]map[string]any, error) {
 	var out []map[string]any

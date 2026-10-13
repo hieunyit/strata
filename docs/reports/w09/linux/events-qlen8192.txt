@@ -1,0 +1,4 @@
+{"target_rate": 10000, "senders": 2, "rate": 9999, "bytes": 196, "sent": 100000, "dropped_by_sender": 0, "received": 100000, "lost": 0, "drop_pct": 0.0, "cpu_us_per_event": 39.14}
+{"target_rate": 25000, "senders": 2, "rate": 23999, "bytes": 196, "sent": 239916, "dropped_by_sender": 84, "received": 239916, "lost": 0, "drop_pct": 0.035, "cpu_us_per_event": 32.34}
+{"target_rate": 50000, "senders": 2, "rate": 49985, "bytes": 196, "sent": 473916, "dropped_by_sender": 25984, "received": 473916, "lost": 0, "drop_pct": 5.198, "cpu_us_per_event": 32.24}
+{"target_rate": 100000, "senders": 2, "rate": 98613, "bytes": 196, "sent": 644730, "dropped_by_sender": 341470, "received": 644730, "lost": 0, "drop_pct": 34.625, "cpu_us_per_event": 19.83}

@@ -3,6 +3,7 @@
 //	strata-rules lint [--repo <root>] [dir]   schema, ids, RE2, licenses (default dir: rules)
 //	strata-rules test [--repo <root>] [dir]   match / no_match requests through libstrata
 //	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file] [--max-fp N]
+//	                    [--max-fp-block-pct P] [--min-recall-block P]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90] [--min-total 95]  CRS go-ftw tests of rules/crs, as Markdown
 //	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml]
@@ -130,6 +131,8 @@ func reportCmd() {
 	jsonOut := fs.String("json", "", "also write the report as JSON (a baseline for later runs)")
 	baseline := fs.String("baseline", "", "JSON report to compare with")
 	maxFP := fs.Int("max-fp", -1, "fail when more benign requests than this match some rule (-1: no limit)")
+	maxFPBlock := fs.Float64("max-fp-block-pct", -1, "fail unless benign requests blocked stay under this percentage (Gate A: 1; -1: not checked)")
+	minRecall := fs.Float64("min-recall-block", -1, "fail unless SQLi, XSS, CMDi and LFI payloads are each blocked at least this percentage (Gate A: 70; -1: not checked)")
 	_ = fs.Parse(os.Args[2:])
 	if *rules == "" {
 		*rules = filepath.Join(*repo, "rules")
@@ -163,6 +166,12 @@ func reportCmd() {
 	}
 	if *maxFP >= 0 && rep.BenignHit > *maxFP {
 		fmt.Fprintf(os.Stderr, "strata-rules report: %d benign requests matched, at most %d allowed\n", rep.BenignHit, *maxFP)
+		os.Exit(1)
+	}
+	if miss := rep.GateFailures(*maxFPBlock, *minRecall, report.GateAttackTypes); len(miss) > 0 {
+		for _, m := range miss {
+			fmt.Fprintln(os.Stderr, "strata-rules report:", m)
+		}
 		os.Exit(1)
 	}
 }

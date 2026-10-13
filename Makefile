@@ -263,6 +263,10 @@ test-signatures: rules-tools
 	cd tools/strata-rules && for p in sigma et-open bots; do \
 		go run . ftw --repo ../.. --tests ../../rules/$$p/tests --rules ../../rules/$$p --min 100 > ../../build/ftw-$$p.md || \
 		{ cat ../../build/ftw-$$p.md; exit 1; }; done
+	# Gate A quality targets on the whole package (plan.md, "Chỉ tiêu chất
+	# lượng"): FP at the blocking threshold under 1%, SQLi/XSS/CMDi/LFI
+	# blocked at least 70%
+	cd tools/strata-rules && go run . report --repo ../.. --max-fp-block-pct 1 --min-recall-block 70 > ../../build/signatures-gate.md
 
 # go-ftw tests of the pinned CRS, converted (W04-S-01).
 crs-ftw:

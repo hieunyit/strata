@@ -1,0 +1,54 @@
+## build/bench/pkg/strata-signatures-bench.sbn
+strata-bench: bundle mapped in 221 ms
+strata-bench: after map VmRSS:	   46592 kB
+strata-bench: 9054 rules, 9009 gated by the prefilter, 102 scan groups
+{"request":"small","n":2000,"mean_us":1188.5,"p50_us":1079.3,"p99_us":2763.5,"max_us":3405.6,"action":0,"rules":[]}
+{"request":"nul","n":2000,"mean_us":303.6,"p50_us":284.4,"p99_us":554.2,"max_us":1993.4,"action":3,"rules":[100013]}
+{"request":"attack","n":2000,"mean_us":1238.0,"p50_us":1087.0,"p99_us":2520.9,"max_us":3557.2,"action":3,"rules":[400219, 941100, 941110, 941160, 942100]}
+{"request":"json","n":2000,"mean_us":1346.1,"p50_us":1187.4,"p99_us":2534.8,"max_us":3813.2,"action":0,"rules":[]}
+{"request":"64k","n":2000,"mean_us":108357.3,"p50_us":100783.4,"p99_us":205915.3,"max_us":242432.5,"action":0,"rules":[800002]}
+{"request":"1m","n":100,"mean_us":283390.6,"p50_us":261552.1,"p99_us":585782.4,"max_us":585782.4,"action":0,"rules":[800002]}
+## build/bench/pkg/strata-signatures-bench.sbn budget 2000
+strata-bench: bundle mapped in 98 ms
+strata-bench: after map VmRSS:	   46464 kB
+strata-bench: 9054 rules, 9009 gated by the prefilter, 102 scan groups
+{"request":"small","n":2000,"mean_us":869.2,"p50_us":809.8,"p99_us":1860.9,"max_us":2574.3,"action":0,"rules":[]}
+{"request":"nul","n":2000,"mean_us":278.3,"p50_us":255.8,"p99_us":537.4,"max_us":2026.9,"action":3,"rules":[100013]}
+{"request":"attack","n":2000,"mean_us":973.7,"p50_us":923.0,"p99_us":1954.5,"max_us":2746.3,"action":3,"rules":[400219, 941100, 941110, 941160, 942100]}
+{"request":"json","n":2000,"mean_us":1191.9,"p50_us":929.8,"p99_us":2654.4,"max_us":4628.0,"action":0,"rules":[]}
+{"request":"64k","n":2000,"mean_us":2123.9,"p50_us":2112.8,"p99_us":2362.9,"max_us":3832.0,"action":0,"rules":[]}
+{"request":"1m","n":100,"mean_us":2097.7,"p50_us":2103.7,"p99_us":2203.9,"max_us":2203.9,"action":0,"rules":[]}
+## build/bench/pkg/strata-signatures-bench.sbn cold
+{"request":"small","cold":5,"first_p50_us":35015.7,"first_max_us":39021.7,"second_p50_us":1074.9,"action":0,"rules":[]}
+{"request":"nul","cold":5,"first_p50_us":2517.8,"first_max_us":2596.2,"second_p50_us":339.0,"action":3,"rules":[100013]}
+{"request":"attack","cold":5,"first_p50_us":36985.7,"first_max_us":38852.6,"second_p50_us":1161.3,"action":3,"rules":[400219, 941100, 941110, 941160, 942100]}
+{"request":"json","cold":5,"first_p50_us":34994.9,"first_max_us":56564.2,"second_p50_us":1168.4,"action":0,"rules":[]}
+{"request":"64k","cold":5,"first_p50_us":144733.4,"first_max_us":162955.2,"second_p50_us":105703.1,"action":0,"rules":[800002]}
+{"request":"1m","cold":5,"first_p50_us":298323.5,"first_max_us":300192.7,"second_p50_us":259833.1,"action":0,"rules":[800002]}
+## build/bench/pkg-p01/strata-signatures-bench-p01.sbn
+strata-bench: bundle mapped in 1 ms
+strata-bench: after map VmRSS:	    4352 kB
+strata-bench: 46 rules, 26 gated by the prefilter, 17 scan groups
+{"request":"small","n":2000,"mean_us":24.9,"p50_us":21.9,"p99_us":82.0,"max_us":120.0,"action":0,"rules":[]}
+{"request":"nul","n":2000,"mean_us":29.8,"p50_us":24.5,"p99_us":82.3,"max_us":160.5,"action":3,"rules":[100013]}
+{"request":"attack","n":2000,"mean_us":28.4,"p50_us":24.5,"p99_us":83.1,"max_us":122.4,"action":0,"rules":[]}
+{"request":"json","n":2000,"mean_us":24.4,"p50_us":23.9,"p99_us":37.7,"max_us":66.7,"action":0,"rules":[]}
+{"request":"64k","n":2000,"mean_us":475.1,"p50_us":446.9,"p99_us":770.6,"max_us":2187.3,"action":0,"rules":[800002]}
+{"request":"1m","n":100,"mean_us":641.4,"p50_us":645.7,"p99_us":718.0,"max_us":718.0,"action":0,"rules":[800002]}
+## build/bench/pkg-p01/strata-signatures-bench-p01.sbn budget 2000
+strata-bench: bundle mapped in 2 ms
+strata-bench: after map VmRSS:	    4352 kB
+strata-bench: 46 rules, 26 gated by the prefilter, 17 scan groups
+{"request":"small","n":2000,"mean_us":41.5,"p50_us":43.3,"p99_us":64.8,"max_us":144.7,"action":0,"rules":[]}
+{"request":"nul","n":2000,"mean_us":28.0,"p50_us":25.6,"p99_us":51.6,"max_us":1666.0,"action":3,"rules":[100013]}
+{"request":"attack","n":2000,"mean_us":38.3,"p50_us":26.6,"p99_us":79.3,"max_us":165.7,"action":0,"rules":[]}
+{"request":"json","n":2000,"mean_us":55.4,"p50_us":55.1,"p99_us":101.9,"max_us":327.2,"action":0,"rules":[]}
+{"request":"64k","n":2000,"mean_us":708.8,"p50_us":631.1,"p99_us":1260.2,"max_us":2998.2,"action":0,"rules":[800002]}
+{"request":"1m","n":100,"mean_us":878.9,"p50_us":889.2,"p99_us":2279.4,"max_us":2279.4,"action":0,"rules":[800002]}
+## build/bench/pkg-p01/strata-signatures-bench-p01.sbn cold
+{"request":"small","cold":5,"first_p50_us":201.3,"first_max_us":659.5,"second_p50_us":56.2,"action":0,"rules":[]}
+{"request":"nul","cold":5,"first_p50_us":221.9,"first_max_us":279.0,"second_p50_us":54.2,"action":3,"rules":[100013]}
+{"request":"attack","cold":5,"first_p50_us":199.2,"first_max_us":215.1,"second_p50_us":47.4,"action":0,"rules":[]}
+{"request":"json","cold":5,"first_p50_us":189.2,"first_max_us":198.0,"second_p50_us":46.1,"action":0,"rules":[]}
+{"request":"64k","cold":5,"first_p50_us":617.4,"first_max_us":779.5,"second_p50_us":368.5,"action":0,"rules":[800002]}
+{"request":"1m","cold":5,"first_p50_us":613.2,"first_max_us":2392.7,"second_p50_us":467.8,"action":0,"rules":[800002]}
