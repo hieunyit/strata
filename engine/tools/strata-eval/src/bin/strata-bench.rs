@@ -2,7 +2,7 @@
 //! of W09-Q-01, with a real bundle, as the NGINX connector calls it.
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
-//!              [--budget-us N] [--only small|nul|attack|json|64k|1m] [--event]
+//!              [--budget-us N] [--only small|nul|attack|json|64k|1m] [--event] [--diagnose]
 //!
 //! For each request kind (small GET, 64 KB and 1 MB urlencoded POST, JSON
 //! POST, an attack GET) prints one JSON line: mean, p50, p99 and max in µs,
@@ -189,6 +189,16 @@ fn main() {
         })
         .unwrap_or_default();
     eprintln!("strata-bench: after map {rss}");
+    let (gated, groups) = e.prefilter().stats();
+    eprintln!(
+        "strata-bench: {} rules, {gated} gated by the prefilter, {groups} scan groups",
+        e.n_rules()
+    );
+    if args.iter().any(|a| a == "--diagnose") {
+        for (k, n) in libstrata::eval::Prefilter::diagnose(&e.tables(), e.regexes()) {
+            eprintln!("  {n:6} {k}");
+        }
+    }
 
     for r in requests() {
         if only.as_deref().is_some_and(|o| o != r.name) {
