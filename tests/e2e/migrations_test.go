@@ -84,8 +84,8 @@ func TestMigrationsUpDownOnEmptyDatabase(t *testing.T) {
 	if err := db.Migrate(ctx, pool, latest); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	want := []string{"audit_log", "bundles", "connector_groups", "enrollment_tokens", "node_commands", "nodes",
-		"policies", "policy_versions", "role_bindings", "rollout_nodes", "rollouts", "service_accounts"}
+	want := []string{"audit_log", "bundles", "connector_groups", "enrollment_tokens", "local_sessions", "local_users",
+		"node_commands", "nodes", "policies", "policy_versions", "role_bindings", "rollout_nodes", "rollouts", "service_accounts"}
 	if got := userTables(t, pool); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tables after up: %v", got)
 	}

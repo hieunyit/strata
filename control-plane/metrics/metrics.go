@@ -88,7 +88,10 @@ func (m *Metrics) HTTP(next http.Handler) http.Handler {
 // a client cannot grow the label set by sending made-up paths.
 var (
 	resources = map[string]bool{"events": true, "policies": true, "nodes": true, "rollouts": true,
-		"commands": true, "bundles": true, "groups": true, "rules": true, "audit": true, "stats": true, "version": true}
+		"commands": true, "bundles": true, "groups": true, "rules": true, "audit": true, "stats": true, "version": true, "users": true}
+	// authPaths are fixed paths, not resources with ids.
+	authPaths = map[string]bool{"/v1/auth/login": true, "/v1/auth/logout": true, "/v1/auth/me": true,
+		"/v1/auth/methods": true, "/v1/auth/password": true}
 	subresources = map[string]bool{"versions": true, "enrollmentTokens": true}
 	verbs        = map[string]bool{"search": true, "deploy": true, "abort": true, "pause": true, "resume": true,
 		"forceShadow": true, "clearForceShadow": true, "collectDiagnostics": true}
@@ -97,7 +100,7 @@ var (
 // Route maps a request path to a bounded label: /v1/<resource>[:verb],
 // /v1/<resource>/{id}[/<sub-resource>[/{id}]][:verb], /healthz, or "other".
 func Route(path string) string {
-	if path == "/healthz" {
+	if path == "/healthz" || authPaths[path] {
 		return path
 	}
 	rest, ok := strings.CutPrefix(path, "/v1/")

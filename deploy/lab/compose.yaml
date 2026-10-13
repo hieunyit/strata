@@ -184,6 +184,12 @@ services:
       - -oidc-issuer=http://127.0.0.1:18180/realms/strata
       - -oidc-discovery-url=http://keycloak:8080/realms/strata
       - -oidc-audience=strata-api
+      # Local accounts next to Keycloak: user admin, password
+      # LAB_LOCAL_ADMIN_PASSWORD, created on the first start.
+      - -local-auth
+      # the UI container proxies the console's API calls: its
+      # X-Forwarded-For gives the user's address (resolved every 30 s)
+      - -trusted-proxies=ui
       - -admin-grpc-addr=:9090
       - -admin-grpc-plaintext
       # Deploys: compile with the lab rules, sign in Vault, store in MinIO.
@@ -202,6 +208,7 @@ services:
     environment:
       STRATA_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
       STRATA_POSTGRES_DSN: postgres://strata:${POSTGRES_PASSWORD}@postgres:5432/strata?sslmode=disable
+      STRATA_LOCAL_ADMIN_PASSWORD: ${LAB_LOCAL_ADMIN_PASSWORD:-}
       STRATA_S3_ACCESS_KEY: strata
       STRATA_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
     ports: ["127.0.0.1:18090:8080", "127.0.0.1:18091:9090"]

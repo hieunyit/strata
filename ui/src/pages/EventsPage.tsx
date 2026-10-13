@@ -1,255 +1,149 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Header } from '../components/layout/Header';
-import { EventFilterBar } from '../components/events/EventFilterBar';
+import { Download, Pause, Play, RefreshCw } from 'lucide-react';
+import { AppShell } from '../components/layout/AppShell';
+import { PageHeader, ErrorBanner } from '../components/ui';
+import { EventFilterBar, EventFilters, emptyFilters } from '../components/events/EventFilterBar';
 import { EventsTable } from '../components/events/EventsTable';
-import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
-import { apiClient, Event, GetEventResponse, SearchEventsRequest, ApiError } from '../api/client';
-import { AlertCircle } from 'lucide-react';
+import { apiClient, Event, SearchEventsRequest, ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { downloadCsv, csvDate } from '../lib/csv';
+import { eventRanges, isRange, windowOf } from '../lib/timeRange';
+import { Route, replaceQuery } from '../router';
 
-export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlockId }) => {
+const PAGE_SIZE = 25;
+const REFRESH_MS = 10_000;
+
+export function filtersFromQuery(q: Record<string, string> | undefined): EventFilters {
+  const f = { ...emptyFilters };
+  if (!q) return f;
+  if (isRange(q.range, eventRanges)) f.range = q.range;
+  for (const k of ['action', 'client_ip', 'rule_id', 'http_method', 'policy_id', 'node_id'] as const) {
+    if (q[k]) f[k] = q[k];
+  }
+  return f;
+}
+
+export function searchRequest(f: EventFilters): SearchEventsRequest {
+  return {
+    ...windowOf(f.range),
+    action: (f.action || undefined) as SearchEventsRequest['action'],
+    client_ip: f.client_ip || undefined,
+    rule_id: f.rule_id ? Number(f.rule_id) : undefined,
+    http_method: f.http_method || undefined,
+    policy_id: f.policy_id || undefined,
+    node_id: f.node_id || undefined,
+    page_size: PAGE_SIZE,
+  };
+}
+
+export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
   const { t } = useTranslation();
   const { maskIp } = useAuth();
-
-  // Query state
-  const [filters, setFilters] = useState<SearchEventsRequest>(() => {
-    const now = new Date();
-    return {
-      from: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-      to: now.toISOString(),
-      page_size: 20,
-    };
-  });
-
+  const [filters, setFilters] = useState<EventFilters>(() => filtersFromQuery(route?.query));
   const [events, setEvents] = useState<Event[]>([]);
-  const [totalMatched, setTotalMatched] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [isAutoRefresh, setIsAutoRefresh] = useState<boolean>(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [live, setLive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<string[]>(['']);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [next, setNext] = useState<string | undefined>();
 
-  // Pagination tokens history stack
-  const [pageTokens, setPageTokens] = useState<string[]>(['']);
-  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
-  const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
-
-  // Decision trace modal state
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [selectedRules, setSelectedRules] = useState<GetEventResponse['rules']>(undefined);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isModalLoading, setIsModalLoading] = useState<boolean>(false);
-  const [isSearchingBlockId, setIsSearchingBlockId] = useState<boolean>(false);
-
-  // Fetch events function
-  const fetchEvents = useCallback(async (isBackground = false) => {
-    if (isBackground) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-    setErrorMessage(null);
-
-    try {
-      const activeToken = pageTokens[currentPageIndex] || undefined;
-      const res = await apiClient.searchEvents({
-        ...filters,
-        page_token: activeToken,
-      });
-
-      setEvents(res.events || []);
-      setTotalMatched(res.total_matched || 0);
-      setNextPageToken(res.next_page_token);
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setErrorMessage(`${err.message} (HTTP ${err.code})`);
-      } else {
-        setErrorMessage(t('errors.apiUnreachable'));
+  const fetchEvents = useCallback(
+    async (background = false) => {
+      if (background) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const res = await apiClient.searchEvents({ ...searchRequest(filters), page_token: tokens[pageIndex] || undefined });
+        setEvents(res.events || []);
+        setTotal(res.total_matched || 0);
+        setNext(res.next_page_token);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof ApiError ? `${err.message} (HTTP ${err.code})` : t('errors.apiUnreachable'));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [filters, pageTokens, currentPageIndex, t]);
+    },
+    [filters, tokens, pageIndex, t],
+  );
 
-  // Initial and reactive fetch
   useEffect(() => {
-    fetchEvents();
+    void fetchEvents();
   }, [fetchEvents]);
 
-  // Auto-refresh timer (every 5 seconds when enabled and not paused)
+  // Only the first page follows new events; on later pages rows would
+  // shift under the reader.
   useEffect(() => {
-    if (!isAutoRefresh) return;
-    const interval = setInterval(() => {
-      fetchEvents(true);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isAutoRefresh, fetchEvents]);
+    if (!live || pageIndex > 0) return;
+    const id = setInterval(() => void fetchEvents(true), REFRESH_MS);
+    return () => clearInterval(id);
+  }, [live, pageIndex, fetchEvents]);
 
-  // Handle global Block ID search from Header
-  const handleGlobalBlockIdSearch = async (blockId: string) => {
-    setIsSearchingBlockId(true);
-    setIsModalLoading(true);
-    setIsModalOpen(true);
-    setErrorMessage(null);
-
-    try {
-      const res = await apiClient.getEvent(blockId);
-      setSelectedEvent(res.event);
-      setSelectedRules(res.rules);
-    } catch (err: unknown) {
-      setSelectedEvent(null);
-      setSelectedRules(undefined);
-      if (err instanceof ApiError) {
-        if (err.code === 404) {
-          setErrorMessage(t('errors.blockIdNotFound', { id: blockId }));
-        } else {
-          setErrorMessage(t('errors.blockIdLookup', { error: err.message }));
-        }
-      } else {
-        setErrorMessage(t('errors.blockIdConnection', { id: blockId }));
-      }
-    } finally {
-      setIsSearchingBlockId(false);
-      setIsModalLoading(false);
-    }
-  };
-
-  // A Block ID in the route (#/events/STR-...), e.g. searched from another page.
-  useEffect(() => {
-    if (initialBlockId) void handleGlobalBlockIdSearch(initialBlockId);
-    // Only when the Block ID changes, not on every render.
-  }, [initialBlockId]);
-
-  // Open modal for table row click
-  const handleSelectEvent = async (event: Event) => {
-    setSelectedEvent(event);
-    setSelectedRules(undefined);
-    setIsModalOpen(true);
-
-    // Also fetch full decision trace to ensure violations and details are completely loaded
-    try {
-      setIsModalLoading(true);
-      const res = await apiClient.getEvent(event.block_id);
-      setSelectedEvent(res.event);
-      setSelectedRules(res.rules);
-    } catch {
-      // If fetching fails, we still have the event from table
-    } finally {
-      setIsModalLoading(false);
-    }
+  const apply = (f: EventFilters) => {
+    setFilters(f);
+    setTokens(['']);
+    setPageIndex(0);
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(f)) if (v && !(k === 'range' && v === '24h')) query[k] = v;
+    replaceQuery({ page: 'events', query });
   };
 
   // Export CSV: what the table shows. A viewer gets the client IP masked
   // (by the API, and again here) and no input snippet.
-  const handleExportCsv = () => {
+  const exportCsv = () => {
     if (events.length === 0) return;
     downloadCsv(
       `strata-events-${csvDate()}.csv`,
-      ['Block ID', 'Timestamp', 'Action', 'Method', 'Host', 'Path', 'Client IP', 'Rules', 'Anomaly Score'],
+      ['Block ID', 'Timestamp', 'Action', 'Policy', 'Method', 'Host', 'Path', 'Client IP', 'Rules', 'Anomaly Score'],
       events.map((e) => [
-        e.block_id ?? '', e.timestamp ?? '', e.action ?? '', e.http_method ?? '', e.http_host ?? '',
+        e.block_id ?? '', e.timestamp ?? '', e.action ?? '', e.policy_id ?? '', e.http_method ?? '', e.http_host ?? '',
         e.http_path ?? '', maskIp(e.client_ip ?? ''), (e.matched_rules || []).join(';'), e.score_anomaly ?? 0,
       ]),
     );
   };
 
-  // Filter application
-  const handleApplyFilters = (newFilters: SearchEventsRequest) => {
-    setFilters(newFilters);
-    setPageTokens(['']);
-    setCurrentPageIndex(0);
-  };
-
-  // Next page
-  const handleNextPage = () => {
-    if (!nextPageToken) return;
-    const newTokens = [...pageTokens];
-    if (currentPageIndex + 1 >= newTokens.length) {
-      newTokens.push(nextPageToken);
-    }
-    setPageTokens(newTokens);
-    setCurrentPageIndex(currentPageIndex + 1);
-  };
-
-  // Previous page
-  const handlePrevPage = () => {
-    if (currentPageIndex > 0) {
-      setCurrentPageIndex(currentPageIndex - 1);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors">
-      <Header
-        active="events"
-        onSearchBlockId={handleGlobalBlockIdSearch}
-        isSearchingBlockId={isSearchingBlockId}
-      />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Title */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {t('events.title')}
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {t('events.subtitle')}
-          </p>
-        </div>
-
-        {/* Global Error Banner */}
-        {errorMessage && (
-          <div
-            data-testid="error-banner"
-            className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-sm text-rose-800 dark:text-rose-200 flex items-center justify-between shadow-sm animate-in fade-in"
-          >
-            <div className="flex items-center gap-2.5">
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />
-              <span>{errorMessage}</span>
-            </div>
-            <button
-              onClick={() => setErrorMessage(null)}
-              className="text-xs text-rose-500 hover:underline"
-            >
-              {t('errors.close')}
+    <AppShell active="events" wide>
+      <PageHeader
+        title={t('events.title')}
+        description={t('events.subtitle')}
+        actions={
+          <>
+            <button type="button" className="btn" data-testid="auto-refresh-toggle-btn" onClick={() => setLive(!live)} aria-pressed={!live}>
+              {live ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              {live ? t('common.pause') : t('common.resume')}
             </button>
-          </div>
-        )}
-
-        {/* Filter Bar */}
-        <EventFilterBar
-          initialFilters={filters}
-          onApplyFilters={handleApplyFilters}
-          onExportCsv={handleExportCsv}
-          isAutoRefresh={isAutoRefresh}
-          onToggleAutoRefresh={() => setIsAutoRefresh(!isAutoRefresh)}
-          isRefreshing={isRefreshing}
-          onManualRefresh={() => fetchEvents(true)}
-        />
-
-        {/* Events Table */}
-        <EventsTable
-          events={events}
-          isLoading={isLoading}
-          totalMatched={totalMatched}
-          onSelectEvent={handleSelectEvent}
-          onNextPage={handleNextPage}
-          onPrevPage={handlePrevPage}
-          hasNextPage={Boolean(nextPageToken)}
-          hasPrevPage={currentPageIndex > 0}
-        />
-      </main>
-
-      {/* Decision Trace Modal */}
-      <DecisionTraceModal
-        event={selectedEvent}
-        rules={selectedRules}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        isLoading={isModalLoading}
+            <button type="button" className="btn" data-testid="manual-refresh-btn" onClick={() => void fetchEvents(true)} disabled={refreshing}>
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              {t('common.refresh')}
+            </button>
+            <button type="button" className="btn" data-testid="export-csv-btn" onClick={exportCsv} disabled={events.length === 0}>
+              <Download className="w-3.5 h-3.5" />
+              {t('common.exportCsv')}
+            </button>
+          </>
+        }
       />
-    </div>
+      <ErrorBanner message={error} onClose={() => setError(null)} testId="error-banner" />
+      <EventFilterBar initial={filters} onApply={apply} />
+      <EventsTable
+        events={events}
+        isLoading={loading}
+        totalMatched={total}
+        offset={pageIndex * PAGE_SIZE}
+        hasNextPage={!!next}
+        hasPrevPage={pageIndex > 0}
+        onNextPage={() => {
+          if (!next) return;
+          if (pageIndex + 1 >= tokens.length) setTokens([...tokens, next]);
+          setPageIndex(pageIndex + 1);
+        }}
+        onPrevPage={() => pageIndex > 0 && setPageIndex(pageIndex - 1)}
+      />
+    </AppShell>
   );
 };

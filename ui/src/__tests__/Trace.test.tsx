@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StaticAuthProvider } from '../context/AuthContext';
-import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
+import { EventTrace } from '../components/events/EventTrace';
 import { Event } from '../api/client';
 import { fieldLocation, markPath } from '../lib/trace';
 import '../i18n';
@@ -64,11 +64,11 @@ const rules = {
   '600001': { name: 'Suspicious scanner User-Agent', source: 'sigma', author: 'A. Author (Example Org)', license: 'DRL-1.1' },
 };
 
-describe('DecisionTraceModal decision trace (W09-F-01)', () => {
+describe('EventTrace decision trace (W09-F-01)', () => {
   it('marks the violating fields and shows the author of a Sigma rule only', () => {
     render(
       <StaticAuthProvider roles={['operator']}>
-        <DecisionTraceModal event={event} rules={rules} isOpen={true} onClose={() => {}} />
+        <EventTrace event={event} rules={rules} />
       </StaticAuthProvider>,
     );
     expect(screen.getAllByTestId('field-highlight').map((e) => e.textContent)).toEqual([
@@ -87,7 +87,7 @@ describe('DecisionTraceModal decision trace (W09-F-01)', () => {
   it('without a catalog, shows the Rule IDs as before', () => {
     render(
       <StaticAuthProvider roles={['viewer']}>
-        <DecisionTraceModal event={event} isOpen={true} onClose={() => {}} />
+        <EventTrace event={event} />
       </StaticAuthProvider>,
     );
     expect(screen.queryByTestId('rule-meta')).not.toBeInTheDocument();

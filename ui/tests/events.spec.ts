@@ -109,6 +109,49 @@ const mockRules = {
   '942150': { name: 'Example Sigma rule on SQL keywords', source: 'sigma', author: 'A. Author (Example Org)', license: 'DRL-1.1' },
 };
 
+// GET /v1/stats/overview: 24 hourly buckets with a morning attack wave.
+function mockOverview() {
+  const now = Date.now() - (Date.now() % 3_600_000);
+  const series = Array.from({ length: 24 }, (_, i) => {
+    const wave = i > 14 && i < 19 ? 40 + i * 3 : 0;
+    return {
+      start: new Date(now - (23 - i) * 3_600_000).toISOString(),
+      block: 4 + (i % 5) + wave,
+      shadow: 2 + (i % 3) + Math.round(wave / 4),
+      other: 1 + (i % 2),
+    };
+  });
+  const sum = (k: 'block' | 'shadow' | 'other') => series.reduce((a, b) => a + b[k], 0);
+  return {
+    from: new Date(now - 23 * 3_600_000).toISOString(),
+    to: new Date(now + 3_600_000).toISOString(),
+    step_seconds: 3600,
+    totals: { events: sum('block') + sum('shadow') + sum('other'), block: sum('block'), shadow: sum('shadow'), other: sum('other'), clients: 214, nodes: 2, policies: 2 },
+    series,
+    top_rules: [
+      { rule_id: 942100, events: 212, block: 180, shadow: 32 },
+      { rule_id: 941100, events: 141, block: 120, shadow: 21 },
+      { rule_id: 930120, events: 66, block: 50, shadow: 16 },
+      { rule_id: 913100, events: 41, block: 0, shadow: 41 },
+    ],
+    top_routes: [
+      { policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 260, block: 230, shadow: 20 },
+      { policy_id: 'pilot-upload', host: 'api.example.test', path_prefix: '/v1/upload', events: 120, block: 0, shadow: 110 },
+      { policy_id: 'example-api', host: 'api.example.test', path_prefix: '/search', events: 48, block: 40, shadow: 4 },
+    ],
+    top_clients: [
+      { client_ip: '203.0.113.19', events: 151, block: 140 },
+      { client_ip: '198.51.100.42', events: 77, block: 60 },
+    ],
+    rules: {
+      '942100': { name: 'SQL Injection Attack Detected via libinjection', source: 'owasp-crs' },
+      '941100': { name: 'XSS Attack Detected via libinjection', source: 'owasp-crs' },
+      '930120': { name: 'OS File Access Attempt', source: 'owasp-crs' },
+      '913100': { name: 'Found User-Agent associated with security scanner', source: 'owasp-crs' },
+    },
+  };
+}
+
 async function mockApi(page: Page): Promise<void> {
     // Intercept API search requests
     await page.route('**/v1/events:search', async (route) => {
@@ -129,6 +172,24 @@ async function mockApi(page: Page): Promise<void> {
         }),
       });
     });
+
+    await page.route('**/v1/stats/overview*', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(mockOverview()) }),
+    );
+    await page.route('**/v1/nodes', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ nodes: [
+        { id: 'node-a', hostname: 'edge-01', group_id: 'lab', online: true },
+        { id: 'node-b', hostname: 'edge-02', group_id: 'lab', online: false, last_seen_time: new Date(Date.now() - 900_000).toISOString() },
+      ] }) }),
+    );
+    await page.route('**/v1/rollouts', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ rollouts: [] }) }),
+    );
+    await page.route('**/v1/policies', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ policies: [
+        { id: 'example-api', name: 'example-api', version: 2, spec: { mode: 'MODE_ENFORCE' } },
+      ] }) }),
+    );
 
     // Intercept individual Block ID requests
     await page.route('**/v1/events/*', async (route) => {
@@ -152,81 +213,91 @@ async function mockApi(page: Page): Promise<void> {
 
 }
 
-test.describe('Strata WAF - Security Events Management', () => {
+test.describe('Strata WAF console', () => {
   test.beforeEach(async ({ page }) => {
     await signedIn(page, ['operator']);
     await mockApi(page);
+  });
+
+  test('opens on the Overview, in English', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    await expect(page.getByTestId('nav-overview')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('top-rule')).toHaveCount(4);
+    await expect(page.getByTestId('top-route').first()).toContainText('/v1/verify');
+    await expect(page.getByTestId('strata-chart').locator('svg')).toBeVisible();
+    await expect(page.getByTestId('kpi-nodes')).toContainText('1/2');
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/overview.png`, fullPage: true });
+
+    // a top rule opens its events
+    await page.getByTestId('top-rule').first().getByRole('link').click();
+    await expect(page).toHaveURL(/#\/events\?range=24h&rule_id=942100/);
+    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
   });
 
-  test('displays events table with accurate columns and badges', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /Nhật ký Sự kiện Bảo mật|Security Events Log/i })).toBeVisible();
-
-    // Check table rows
-    const rows = page.getByTestId('event-row');
-    await expect(rows).toHaveCount(3);
-
-    // Verify first event details in table
-    await expect(page.getByText('STR-8F3K-Q2VD-7XNM-A1PC')).toBeVisible();
-    await expect(page.getByText('STR-3B9Y-K8P2-WM4C-9D0R')).toBeVisible();
-    await expect(page.getByText('EVT-7X2W-5M1Q-9H8K-L0P4')).toBeVisible();
+  test('asks for 7 and 30 days', async ({ page }) => {
+    const asked: string[] = [];
+    page.on('request', (r) => r.url().includes('/v1/stats/overview') && asked.push(r.url()));
+    await page.goto('/#/overview');
+    await page.getByTestId('range-7d').click();
+    await page.getByTestId('range-30d').click();
+    await expect.poll(() => asked.length).toBeGreaterThanOrEqual(3);
+    const span = (u: string) => {
+      const q = new URL(u).searchParams;
+      return Date.parse(q.get('to')!) - Date.parse(q.get('from')!);
+    };
+    expect(span(asked.at(-1)!)).toBe(30 * 24 * 3_600_000);
+    expect(asked.some((u) => span(u) === 7 * 24 * 3_600_000)).toBe(true);
+    await expect(page).toHaveURL(/range=30d/);
   });
 
-  test('global Block ID lookup opens Decision Trace modal directly', async ({ page }) => {
-    const searchInput = page.getByTestId('block-id-search-input');
-    await searchInput.fill('STR-8F3K-Q2VD-7XNM-A1PC');
-
-    const searchBtn = page.getByTestId('block-id-search-btn');
-    await searchBtn.click();
-
-    // Decision Trace modal opens
-    const modal = page.getByTestId('decision-trace-modal');
-    await expect(modal).toBeVisible();
-
-    // Verify Decision Trace content
-    await expect(modal.getByText('STR-8F3K-Q2VD-7XNM-A1PC')).toBeVisible();
-    await expect(modal.getByText('45').first()).toBeVisible(); // SQLi or anomaly score
-    await expect(modal.getByText('Rule 942100')).toBeVisible();
-    await expect(modal.getByText('Rule 942150')).toBeVisible();
-    await expect(modal.getByText("' OR 1=1 --")).toBeVisible();
-
-    // Close modal
-    const closeBtn = page.getByTestId('close-modal-btn');
-    await closeBtn.click();
-    await expect(modal).not.toBeVisible();
-  });
-
-  test('decision trace marks the violating field and credits the Sigma author', async ({ page }) => {
-    await page.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
-    const modal = page.getByTestId('decision-trace-modal');
-    await expect(modal).toBeVisible();
-    await expect(modal.getByTestId('field-highlight').first()).toHaveText('body.query');
-    await expect(modal.getByTestId('rule-meta').first()).toContainText('SQL Injection Attack Detected via libinjection');
+  test('lists events, and a row opens its decision trace page', async ({ page }) => {
+    await page.goto('/#/events');
+    await expect(page.getByTestId('event-row')).toHaveCount(3);
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/events.png`, fullPage: true });
+    await page.getByTestId('event-row').first().click();
+    await expect(page).toHaveURL(/#\/events\/STR-8F3K-Q2VD-7XNM-A1PC$/);
+    const detail = page.getByTestId('event-detail');
+    await expect(detail).toBeVisible();
+    await expect(page.getByTestId('detail-block-id')).toHaveText('STR-8F3K-Q2VD-7XNM-A1PC');
+    await expect(page.getByTestId('verdict-summary')).toContainText('Blocked by policy example-api');
+    await expect(detail.getByText('Rule 942100', { exact: true })).toBeVisible();
+    await expect(detail.getByText('Rule 942150', { exact: true })).toBeVisible();
+    await expect(detail.getByTestId('field-highlight').first()).toHaveText('body.query');
+    await expect(detail.getByTestId('rule-meta').first()).toContainText('SQL Injection Attack Detected via libinjection');
     // only the Sigma rule has an author line
-    await expect(modal.getByTestId('rule-author')).toHaveCount(1);
-    await expect(modal.getByTestId('rule-author')).toContainText('A. Author (Example Org)');
-    if (process.env.SCREENSHOT) {
-      await modal.getByTestId('rule-author').scrollIntoViewIfNeeded();
-      await modal.screenshot({ path: process.env.SCREENSHOT });
-    }
+    await expect(detail.getByTestId('rule-author')).toHaveCount(1);
+    await expect(detail.getByTestId('rule-author')).toContainText('A. Author (Example Org)');
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/event.png`, fullPage: true });
+    await page.getByTestId('back-to-events').click();
+    await expect(page.getByTestId('event-row')).toHaveCount(3);
+  });
+
+  test('the top bar Block ID lookup opens the event from any page', async ({ page }) => {
+    await page.goto('/#/fleet');
+    await page.getByTestId('block-id-search-input').fill('str-8f3k-q2vd-7xnm-a1pc');
+    await page.getByTestId('block-id-search-btn').click();
+    await expect(page.getByTestId('event-detail')).toBeVisible();
+    await expect(page.getByTestId('nav-events')).toHaveAttribute('aria-current', 'page');
+    await page.getByTestId('block-id-search-input').fill('STR-ZZZZ-ZZZZ-ZZZZ-ZZZZ');
+    await page.getByTestId('block-id-search-btn').click();
+    await expect(page.getByTestId('event-missing')).toContainText('No event with Block ID STR-ZZZZ-ZZZZ-ZZZZ-ZZZZ');
   });
 
   test('masks IPs and snippets for a viewer, not for an operator', async ({ page, browser }) => {
-    // This page is signed in as operator: full values.
-    await page.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
-    await expect(page.getByTestId('modal-client-ip')).toHaveText('198.51.100.42');
+    await page.goto('/#/events/STR-8F3K-Q2VD-7XNM-A1PC');
+    await expect(page.getByTestId('detail-client-ip')).toHaveText('198.51.100.42');
     await expect(page.getByTestId('violation-snippet').first()).toHaveText("' OR 1=1 --");
     await expect(page.getByTestId('viewer-notice')).not.toBeVisible();
 
-    // A second session signed in as viewer.
     const viewer = await browser.newPage();
     await signedIn(viewer, ['viewer'], 'lab-viewer');
     await mockApi(viewer);
-    await viewer.goto('/');
+    await viewer.goto('/#/events');
     await expect(viewer.getByTestId('current-user')).toContainText('lab-viewer');
     await expect(viewer.getByTestId('table-client-ip').first()).toContainText('198.51.***.***');
     await viewer.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
-    await expect(viewer.getByTestId('modal-client-ip')).toHaveText('198.51.***.***');
+    await expect(viewer.getByTestId('detail-client-ip')).toHaveText('198.51.***.***');
     await expect(viewer.getByTestId('violation-snippet').first()).toHaveText('[REDACTED FOR VIEWER ROLE]');
     await expect(viewer.getByTestId('viewer-notice')).toBeVisible();
     await viewer.close();
@@ -237,20 +308,17 @@ test.describe('Strata WAF - Security Events Management', () => {
     await anon.goto('/');
     await expect(anon.getByTestId('login-btn')).toBeVisible();
     await expect(anon.getByTestId('block-id-search-input')).not.toBeVisible();
+    if (process.env.SCREENSHOT_DIR) await anon.screenshot({ path: `${process.env.SCREENSHOT_DIR}/login.png` });
     await anon.close();
   });
 
-  test('filters events by action', async ({ page }) => {
-    const actionSelect = page.getByTestId('action-filter-select');
-    await actionSelect.selectOption('shadow');
-
-    const applyBtn = page.getByTestId('apply-filters-btn');
-    await applyBtn.click();
-
-    // Only shadow event should remain
-    const rows = page.getByTestId('event-row');
-    await expect(rows).toHaveCount(1);
+  test('filters events by verdict', async ({ page }) => {
+    await page.goto('/#/events');
+    await page.getByTestId('action-filter-select').selectOption('shadow');
+    await page.getByTestId('apply-filters-btn').click();
+    await expect(page.getByTestId('event-row')).toHaveCount(1);
     await expect(page.getByText('EVT-7X2W-5M1Q-9H8K-L0P4')).toBeVisible();
+    await expect(page).toHaveURL(/action=shadow/);
   });
 
   test('filters events by client IP and time window', async ({ page }) => {
@@ -258,8 +326,9 @@ test.describe('Strata WAF - Security Events Management', () => {
     page.on('request', (r) => {
       if (r.url().includes('/v1/events:search')) searches.push(r.postDataJSON() || {});
     });
+    await page.goto('/#/events');
     await page.getByTestId('client-ip-filter-input').fill('203.0.113');
-    await page.getByTestId('time-preset-select').selectOption('1h');
+    await page.getByTestId('range-1h').click();
     const before = Date.now();
     await page.getByTestId('apply-filters-btn').click();
 
@@ -273,49 +342,43 @@ test.describe('Strata WAF - Security Events Management', () => {
   });
 
   test('fleet and policies pages show the API data', async ({ page }) => {
-    await page.route('**/v1/nodes', (route) =>
-      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ nodes: [
-        { id: 'node-a', hostname: 'edge-01', group_id: 'lab', online: true },
-        { id: 'node-b', hostname: 'edge-02', group_id: 'lab', online: false },
-      ] }) }),
-    );
     await page.route('**/v1/groups', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({ groups: [{ id: 'lab', name: 'Lab' }] }) }),
     );
-    await page.route('**/v1/rollouts', (route) =>
-      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ rollouts: [] }) }),
-    );
-    await page.route('**/v1/policies', (route) =>
-      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ policies: [
-        { id: 'example-api', name: 'example-api', version: 2, spec: { mode: 'MODE_ENFORCE' } },
-      ] }) }),
-    );
+    await page.goto('/');
     await page.getByTestId('nav-fleet').click();
     await expect(page.getByTestId('node-row')).toHaveCount(2);
     await expect(page.getByTestId('node-status').first()).toHaveText('Online');
     await page.getByTestId('nav-policies').click();
     await expect(page.getByTestId('policy-row')).toHaveCount(1);
     await expect(page.getByTestId('policy-version').first()).toHaveText('2');
-
-    // The Block ID search on another page opens the trace on Events.
-    await page.getByTestId('block-id-search-input').fill('STR-8F3K-Q2VD-7XNM-A1PC');
-    await page.getByTestId('block-id-search-btn').click();
-    await expect(page.getByTestId('decision-trace-modal')).toBeVisible();
-    await expect(page.getByTestId('nav-events')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('switches language between Vietnamese and English', async ({ page }) => {
-    const langBtn = page.getByTestId('language-toggle-btn');
+  test('switches language to Vietnamese and back, and remembers it', async ({ page }) => {
+    await page.goto('/#/events');
+    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
+    await page.getByTestId('language-toggle-btn').click();
+    await expect(page.getByRole('heading', { name: 'Sự kiện' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Sự kiện' })).toBeVisible();
+    await page.getByTestId('language-toggle-btn').click();
+    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
+  });
 
-    // Default is Vietnamese
-    await expect(page.getByRole('heading', { name: 'Nhật ký Sự kiện Bảo mật' })).toBeVisible();
+  test('dark theme', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('theme-toggle-btn').click();
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.getByTestId('top-rule')).toHaveCount(4);
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/overview-dark.png`, fullPage: true });
+  });
 
-    // Switch to English
-    await langBtn.click();
-    await expect(page.getByRole('heading', { name: 'Security Events Log' })).toBeVisible();
-
-    // Switch back to Vietnamese
-    await langBtn.click();
-    await expect(page.getByRole('heading', { name: 'Nhật ký Sự kiện Bảo mật' })).toBeVisible();
+  test('works on a phone-sized screen', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.getByTestId('kpi-events')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/overview-phone.png`, fullPage: true });
   });
 });

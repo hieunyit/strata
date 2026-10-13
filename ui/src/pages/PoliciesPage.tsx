@@ -4,11 +4,13 @@ import { Download } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
-import { PageShell, ErrorBanner, formatTime } from './PageShell';
+import { PageShell } from './PageShell';
+import { PageHeader, ErrorBanner, SectionTitle, Empty, formatTime } from '../components/ui';
+import { href } from '../router';
 
 const modeClass: Record<string, string> = {
-  MODE_ENFORCE: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
-  MODE_SHADOW: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  MODE_ENFORCE: 'text-block border-block/30 bg-block/10',
+  MODE_SHADOW: 'text-shadow border-shadow/35 bg-shadow/10',
 };
 
 // Read only (W04-F-01): editing, diff and deploy come with the policy editor.
@@ -31,94 +33,111 @@ export const PoliciesPage: React.FC = () => {
   };
 
   const mode = (m?: string) => (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${modeClass[m ?? ''] ?? 'bg-slate-100 text-slate-600'}`}>
+    <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-medium ${modeClass[m ?? ''] ?? 'text-muted border-line'}`}>
       {t(`policies.mode.${m ?? 'MODE_UNSPECIFIED'}`)}
     </span>
   );
 
   const exportCsv = () => {
-    const rows = (data ?? []).map((p) => [
-      p.name ?? '', p.spec?.mode ?? '', p.spec?.oversize ?? '',
-      p.version ?? 0, p.update_time ?? '', p.created_by ?? '',
-    ]);
-    downloadCsv(`strata-policies-${csvDate()}.csv`,
-      ['Name', 'Mode', 'Oversize', 'Version', 'Updated', 'Updated by'], rows);
+    const rows = (data ?? []).map((p) => [p.name ?? '', p.spec?.mode ?? '', p.spec?.oversize ?? '', p.version ?? 0, p.update_time ?? '', p.created_by ?? '']);
+    downloadCsv(`strata-policies-${csvDate()}.csv`, ['Name', 'Mode', 'Oversize', 'Version', 'Updated', 'Updated by'], rows);
   };
 
+  const list = data ?? [];
   return (
     <PageShell active="policies">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t('policies.title')}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t('policies.subtitle')}</p>
-        </div>
-        {(data ?? []).length > 0 && (
-          <button
-            type="button"
-            data-testid="export-csv-btn"
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>{t('common.exportCsv')}</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={t('policies.title')}
+        description={t('policies.subtitle')}
+        actions={
+          list.length > 0 && (
+            <button type="button" data-testid="export-csv-btn" onClick={exportCsv} className="btn">
+              <Download className="w-3.5 h-3.5" />
+              {t('common.exportCsv')}
+            </button>
+          )
+        }
+      />
       <ErrorBanner message={error && t('common.refreshError', { error })} />
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm" data-testid="policies-table">
-          <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-2">{t('policies.col.name')}</th>
-              <th className="px-4 py-2">{t('policies.col.mode')}</th>
-              <th className="px-4 py-2">{t('policies.col.oversize')}</th>
-              <th className="px-4 py-2">{t('policies.col.version')}</th>
-              <th className="px-4 py-2">{t('policies.col.updated')}</th>
-              <th className="px-4 py-2">{t('policies.col.by')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">{t('policies.loading')}</td></tr>
-            )}
-            {!loading && (data ?? []).length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500" data-testid="policies-empty">{t('policies.empty')}</td></tr>
-            )}
-            {(data ?? []).map((p) => (
-              <tr
-                key={p.id}
-                data-testid="policy-row"
-                onClick={() => void open(p)}
-                className={`border-t border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 ${selected?.id === p.id ? 'bg-sky-50 dark:bg-sky-950/30' : ''}`}
-              >
-                <td className="px-4 py-2 font-medium text-slate-900 dark:text-white">{p.name}</td>
-                <td className="px-4 py-2">{mode(p.spec?.mode)}</td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{t(`policies.oversize.${p.spec?.oversize ?? 'OVERSIZE_UNSPECIFIED'}`)}</td>
-                <td className="px-4 py-2 tabular-nums" data-testid="policy-version">{p.version}</td>
-                <td className="px-4 py-2 text-slate-500">{formatTime(p.update_time, i18n.language, t('common.never'))}</td>
-                <td className="px-4 py-2 text-slate-500">{p.created_by}</td>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="panel overflow-x-auto">
+          <table className="w-full text-[13px]" data-testid="policies-table">
+            <thead>
+              <tr className="border-b border-line bg-sunken/50">
+                <th className="th">{t('policies.col.name')}</th>
+                <th className="th">{t('policies.col.mode')}</th>
+                <th className="th">{t('policies.col.oversize')}</th>
+                <th className="th text-right">{t('policies.col.version')}</th>
+                <th className="th">{t('policies.col.updated')}</th>
+                <th className="th">{t('policies.col.by')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="td py-8 text-center text-muted">{t('policies.loading')}</td>
+                </tr>
+              )}
+              {!loading && list.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="td py-8 text-center text-muted" data-testid="policies-empty">{t('policies.empty')}</td>
+                </tr>
+              )}
+              {list.map((p) => (
+                <tr
+                  key={p.id}
+                  data-testid="policy-row"
+                  tabIndex={0}
+                  onClick={() => void open(p)}
+                  onKeyDown={(e) => e.key === 'Enter' && void open(p)}
+                  aria-selected={selected?.id === p.id}
+                  className={`border-b border-line last:border-0 cursor-pointer hover:bg-sunken/70 ${selected?.id === p.id ? 'bg-accent/5' : ''}`}
+                >
+                  <td className="td font-medium">{p.name}</td>
+                  <td className="td">{mode(p.spec?.mode)}</td>
+                  <td className="td text-muted">{t(`policies.oversize.${p.spec?.oversize ?? 'OVERSIZE_UNSPECIFIED'}`)}</td>
+                  <td className="td text-right tabular-nums" data-testid="policy-version">{p.version}</td>
+                  <td className="td text-muted whitespace-nowrap">{formatTime(p.update_time, i18n.language, t('common.never'))}</td>
+                  <td className="td text-muted">{p.created_by}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      {selected && (
-        <section className="mt-6" data-testid="policy-versions">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">{t('policies.versions', { name: selected.name })}</h2>
-          <ErrorBanner message={versionsError && t('common.refreshError', { error: versionsError })} />
-          <ol className="space-y-1 text-sm">
-            {versions.map((v) => (
-              <li key={v.version} data-testid="policy-version-row" className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-                <span className="tabular-nums font-medium w-10">v{v.version}</span>
-                {mode(v.spec?.mode)}
-                <span className="text-slate-500">{formatTime(v.create_time, i18n.language, t('common.never'))}</span>
-                <span className="text-slate-500 ml-auto">{v.created_by}</span>
-              </li>
-            ))}
-          </ol>
+        <section className="panel self-start" data-testid={selected ? 'policy-versions' : undefined}>
+          {selected ? (
+            <>
+              <SectionTitle
+                aside={
+                  <a className="text-accent hover:underline" href={href({ page: 'overview', query: { policy_id: selected.id ?? '' } })}>
+                    {t('policies.openOverview')}
+                  </a>
+                }
+              >
+                {t('policies.versions', { name: selected.name })}
+              </SectionTitle>
+              <div className="px-4 pt-3">
+                <ErrorBanner message={versionsError && t('common.refreshError', { error: versionsError })} />
+              </div>
+              <ol className="divide-y divide-line px-4 pb-2 text-[13px]">
+                {versions.map((v) => (
+                  <li key={v.version} data-testid="policy-version-row" className="flex items-center gap-3 py-2">
+                    <span className="w-10 tabular-nums font-medium">v{v.version}</span>
+                    {mode(v.spec?.mode)}
+                    <span className="ml-auto text-right text-xs text-muted">
+                      {formatTime(v.create_time, i18n.language, t('common.never'))}
+                      {v.created_by && <div>{v.created_by}</div>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <Empty>{t('policies.pick')}</Empty>
+          )}
         </section>
-      )}
+      </div>
     </PageShell>
   );
 };

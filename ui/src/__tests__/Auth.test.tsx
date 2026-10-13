@@ -122,11 +122,14 @@ describe('sign in and out', () => {
 });
 
 describe('language', () => {
-  it('switches between Vietnamese and English', async () => {
+  it('starts in English, switches to Vietnamese and remembers it', async () => {
+    await i18n.changeLanguage('en');
     render(<StaticAuthProvider roles={['viewer']}><Header onSearchBlockId={() => {}} /></StaticAuthProvider>);
-    expect(screen.getByTestId('current-role')).toHaveTextContent('Chỉ xem');
-    fireEvent.click(screen.getByTestId('language-toggle-btn'));
-    await waitFor(() => expect(screen.getByTestId('current-role')).toHaveTextContent('read only'));
     expect(screen.getByTestId('logout-btn')).toHaveAttribute('title', 'Sign out');
+    expect(screen.getByTestId('language-toggle-btn')).toHaveTextContent('EN');
+    fireEvent.click(screen.getByTestId('language-toggle-btn'));
+    await waitFor(() => expect(screen.getByTestId('logout-btn')).toHaveAttribute('title', 'Đăng xuất'));
+    expect(window.localStorage.getItem('strata.lang')).toBe('vi');
+    await act(async () => { await i18n.changeLanguage('en'); });
   });
 });

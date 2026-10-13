@@ -1,118 +1,183 @@
 {
   "app": {
     "title": "Strata WAF",
-    "subtitle": "Security Management Console"
+    "subtitle": "WAF console"
   },
   "nav": {
-    "events": "Events",
+    "main": "Main",
+    "menu": "Open navigation",
+    "expand": "Expand navigation",
+    "collapse": "Collapse",
+    "skip": "Skip to content",
     "overview": "Overview",
+    "events": "Events",
     "policies": "Policies",
-    "rules": "Rules & Signatures",
-    "fleet": "Fleet"
+    "fleet": "Fleet",
+    "users": "Users"
   },
   "header": {
-    "searchPlaceholder": "Search Block ID (STR-... or EVT-...)",
-    "searchBtn": "Lookup",
+    "searchLabel": "Look up a Block ID",
+    "searchPlaceholder": "Block ID, e.g. STR-8F3K-Q2VD-7XNM-A1PC",
+    "searchBtn": "Open",
     "roles": {
-      "viewer": "Viewer (read only)",
+      "viewer": "Viewer",
       "operator": "Operator",
       "approver": "Approver",
       "admin": "Admin",
       "none": "No role"
     },
-    "lang": "Language",
-    "theme": "Theme",
+    "lang": "Switch language",
+    "theme": "Switch light or dark theme",
     "logout": "Sign out",
     "signedInAs": "Signed in as {{name}}",
     "version": "Control plane {{version}}",
-    "blockIdPrefix": "A Block ID starts with STR- or EVT-"
+    "blockIdPrefix": "A Block ID starts with STR- or EVT-",
+    "blockIdFormat": "A Block ID has four groups of four characters after the prefix"
+  },
+  "verdict": {
+    "block": "Blocked",
+    "shadow": "Shadow",
+    "pass": "Passed",
+    "error": "Error",
+    "other": "Passed or error"
+  },
+  "range": {
+    "label": "Time range",
+    "15m": "15 min",
+    "1h": "1 hour",
+    "24h": "24 hours",
+    "7d": "7 days",
+    "30d": "30 days"
+  },
+  "overview": {
+    "title": "Overview",
+    "subtitle": "What the WAF decided on your routes, from the events the nodes sent.",
+    "policy": "Policy",
+    "allPolicies": "All policies",
+    "totals": "Totals",
+    "kpi": {
+      "events": "Events",
+      "window": {
+        "24h": "in the last 24 hours",
+        "7d": "in the last 7 days",
+        "30d": "in the last 30 days"
+      },
+      "blocked": "Blocked",
+      "share": "{{pct}}% of events",
+      "shadow": "Shadow",
+      "shadowNote": "would have been blocked",
+      "clients": "Client IPs",
+      "policies_one": "across {{count}} policy",
+      "policies_other": "across {{count}} policies",
+      "nodes": "Nodes online",
+      "offline_one": "{{count}} node offline",
+      "offline_other": "{{count}} nodes offline",
+      "allOnline": "every enrolled node",
+      "noFleet": "fleet not available"
+    },
+    "series": {
+      "hourly": "Events per hour",
+      "sixHourly": "Events per 6 hours",
+      "daily": "Events per day"
+    },
+    "chartLabel": "Events per time bucket, stacked by verdict",
+    "noEvents": "No events in this window.",
+    "topRules": "Top rules",
+    "topNote": "events matched",
+    "topRoutes": "Top routes",
+    "routeNote": "host and first two path segments",
+    "topClients": "Top client IPs",
+    "clientsHidden": "Client IPs are shown to operators, approvers and admins.",
+    "unknownRule": "not in the rule catalog",
+    "noPolicy": "no policy",
+    "col": {
+      "rule": "Rule",
+      "route": "Route",
+      "client": "Client IP",
+      "events": "Events",
+      "blocked": "Blocked"
+    },
+    "fleet": "Fleet health",
+    "openFleet": "Open Fleet",
+    "rollout": "Rollout {{id}} of bundle v{{version}} is {{state}}.",
+    "allNodesOnline_one": "The enrolled node is online.",
+    "allNodesOnline_other": "All {{count}} enrolled nodes are online.",
+    "lastSeen": "seen {{when}}",
+    "updated": "Updated at {{when}}",
+    "autoRefresh": "refreshes every 30 seconds"
   },
   "events": {
-    "title": "Security Events Log",
-    "subtitle": "Monitor and inspect requests processed through NGINX connector and libstrata",
+    "title": "Events",
+    "subtitle": "Requests the WAF blocked, would have blocked in shadow, or logged. Select a row for its decision trace.",
     "filter": {
-      "title": "Filters",
-      "action": "Action",
-      "allActions": "All Actions",
+      "action": "Verdict",
+      "allActions": "Any verdict",
       "clientIp": "Client IP",
       "ruleId": "Rule ID",
       "nodeId": "Node ID",
-      "httpMethod": "HTTP Method",
-      "allMethods": "All Methods",
-      "timeRange": "Time Range",
-      "last15m": "Last 15m",
-      "last1h": "Last 1h",
-      "last24h": "Last 24h",
-      "apply": "Apply",
-      "reset": "Reset"
-    },
-    "actions": {
-      "block": "Block",
-      "shadow": "Shadow",
-      "allow": "Allow"
+      "policy": "Policy",
+      "httpMethod": "Method",
+      "allMethods": "Any method",
+      "apply": "Apply filters",
+      "reset": "Clear filters"
     },
     "table": {
-      "timestamp": "Timestamp",
+      "timestamp": "Time",
       "blockId": "Block ID",
-      "action": "Action",
-      "method": "Method",
-      "path": "Path",
-      "host": "Host",
+      "action": "Verdict",
+      "request": "Request",
       "clientIp": "Client IP",
-      "matchedRules": "Matched Rules",
-      "score": "Anomaly Score",
-      "actions": "Actions",
-      "viewTrace": "Decision Trace",
-      "empty": "No events matching your search criteria.",
-      "loading": "Loading events..."
-    },
-    "toolbar": {
-      "exportCsv": "Export CSV",
-      "autoRefresh": "Auto-refresh",
-      "paused": "Paused",
-      "pause": "Pause",
-      "resume": "Resume"
+      "matchedRules": "Rules",
+      "score": "Score",
+      "empty": "No events match these filters. Widen the time range or clear a filter.",
+      "loading": "Loading events…"
     },
     "pagination": {
-      "totalMatched": "Total matched: {{count}} events",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "totalMatched_one": "{{count}} event",
+      "totalMatched_other": "{{count}} events",
       "next": "Next",
       "prev": "Previous"
     }
   },
   "detail": {
-    "title": "Decision Trace Details",
-    "subtitle": "Detection layers and forensic analysis for event {{blockId}}",
-    "blockId": "Block ID",
-    "action": "Verdict",
-    "timestamp": "Timestamp",
-    "requestInfo": "Request Details",
-    "method": "Method",
-    "host": "Host",
-    "path": "Path",
-    "statusCode": "Status Code",
-    "clientIp": "Client IP",
-    "nodeId": "Node ID",
-    "policy": "Policy & Version",
-    "requestId": "Correlated Request ID",
-    "scoresTitle": "Layer Detection Scores",
-    "scoreProtocol": "Protocol Score",
-    "scoreSqli": "SQLi Score",
-    "scoreXss": "XSS Score",
-    "scoreAnomaly": "Total Anomaly Score",
-    "violationsTitle": "Matched Violations",
-    "noViolations": "No detailed violations recorded.",
-    "ruleId": "Rule ID",
-    "layer": "Layer",
-    "field": "Target Field",
-    "snippet": "Matched Payload Snippet",
-    "redacted": "[REDACTED FOR VIEWER ROLE]",
-    "actions": {
-      "markFp": "Mark False Positive",
-      "createException": "Create Exception",
-      "blockIp": "Block this IP",
-      "close": "Close"
+    "back": "Events",
+    "loading": "Loading the decision trace…",
+    "copyId": "Copy ID",
+    "copyJson": "Copy JSON",
+    "missingHelp": "The event may be older than the retention period (90 days), or the node has not sent it yet. Check the ID the user gave you, then try again in a minute.",
+    "verdictTitle": "Why",
+    "summary": {
+      "block": "Blocked by policy {{policy}} (version {{version}}) with an anomaly score of {{score}} from {{count}} matching rules.",
+      "shadow": "Policy {{policy}} (version {{version}}) is in shadow mode: this request would have been blocked with an anomaly score of {{score}} from {{count}} matching rules, and was let through.",
+      "pass": "Passed by policy {{policy}} (version {{version}}). Anomaly score {{score}} from {{count}} matching rules.",
+      "error": "The engine failed on this request under policy {{policy}} (version {{version}}); the fail mode decided its fate."
     },
-    "viewerNotice": "You are logged in as Viewer. Sensitive request info (IP, payload snippet) is redacted, also in CSV exports; write actions are disabled.",
+    "requestTitle": "Request",
+    "requestInfo": "Details",
+    "timestamp": "Time",
+    "statusCode": "Response",
+    "clientIp": "Client IP",
+    "identity": "Identity",
+    "nodeId": "Node",
+    "policy": "Policy",
+    "requestId": "Request ID",
+    "received": "Received",
+    "scoreProtocol": "Protocol",
+    "scoreSqli": "SQL injection",
+    "scoreXss": "XSS",
+    "scoreAnomaly": "Anomaly total",
+    "violationsTitle": "Matched rules",
+    "violationCount_one": "{{count}} match",
+    "violationCount_other": "{{count}} matches",
+    "noViolations": "No match details were recorded for this event.",
+    "rule": "Rule {{id}}",
+    "eventsWithRule": "Events that matched this rule",
+    "layerName": "{{layer}} layer",
+    "alsoMatched": "Also matched:",
+    "field": "Where",
+    "snippet": "Matched input",
+    "viewerNotice": "You are signed in as a viewer: client IPs and matched input are hidden, also in CSV exports.",
     "ruleAuthor": "Author",
     "ruleSource": "Source",
     "where": {
@@ -122,28 +187,46 @@
       "path": "path",
       "body": "body",
       "other": "request"
-    }
+    },
+    "raw": "Raw event",
+    "investigate": "Investigate",
+    "sameIp": "Events from this client IP, last 7 days",
+    "sameRule": "Events matching rule {{id}}, last 24 hours",
+    "policyOverview": "Overview of this policy"
   },
   "login": {
+    "tagline": "Every blocked request has an ID, and every ID has a reason.",
+    "taglineNote": "Look up a Block ID, see what matched and where, and decide what to do next.",
     "title": "Sign in to Strata",
-    "subtitle": "Use your organization’s SSO account (OIDC).",
-    "button": "Sign in",
+    "subtitle": "Use your organization’s single sign-on account.",
+    "button": "Sign in with SSO",
     "loading": "Checking your session…",
     "error": "Cannot reach the sign-in server: {{error}}",
-    "retry": "Retry"
+    "retry": "Try again",
+    "subtitleLocal": "Sign in with your Strata account.",
+    "subtitleBoth": "Sign in with your Strata account or your organization’s single sign-on.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "signingIn": "Signing in…",
+    "or": "or",
+    "badCredentials": "Wrong username or password, or the account is locked or disabled.",
+    "throttled": "Too many attempts from this address. Try again in a few minutes.",
+    "failed": "Sign-in failed. Check that the control plane is reachable."
   },
   "errors": {
-    "apiUnreachable": "Cannot reach the Strata Event API. Check the service.",
+    "apiUnreachable": "Cannot reach the control plane API. Check that it is running, then refresh.",
     "blockIdNotFound": "No event with Block ID {{id}}",
     "blockIdLookup": "Block ID lookup failed: {{error}}",
-    "blockIdConnection": "Connection error while looking up Block ID {{id}}",
-    "close": "Close"
+    "blockIdConnection": "Lost the connection while looking up {{id}}. Check your network, then try again."
   },
   "policies": {
     "title": "Policies",
-    "subtitle": "Policies and their version history (read only)",
+    "subtitle": "Policies and their version history. Read only: changes go through GitOps or the API.",
     "empty": "No policies yet.",
     "loading": "Loading policies…",
+    "pick": "Select a policy to see its versions.",
+    "openOverview": "Overview",
     "col": {
       "name": "Name",
       "mode": "Mode",
@@ -152,7 +235,7 @@
       "updated": "Updated",
       "by": "Created by"
     },
-    "versions": "Version history of {{name}}",
+    "versions": "Versions of {{name}}",
     "mode": {
       "MODE_SHADOW": "Shadow",
       "MODE_ENFORCE": "Enforce",
@@ -166,10 +249,10 @@
   },
   "fleet": {
     "title": "Fleet",
-    "subtitle": "Nodes by connector group, their versions and bundle, and the rollout in progress; refreshed every 3 seconds",
-    "empty": "No node has enrolled yet.",
+    "subtitle": "Nodes by connector group, their versions and bundle, and the rollout in progress. Refreshes every 3 seconds.",
+    "empty": "No node has enrolled yet. Create an enrollment token for a connector group, then run strata-agent enroll on the node.",
     "loading": "Loading nodes…",
-    "summary": "{{online}}/{{total}} nodes online · {{groups}} connector groups",
+    "summary": "{{online}}/{{total}} nodes online in {{groups}} connector groups",
     "groupCount_one": "{{count}} node",
     "groupCount_other": "{{count}} nodes",
     "groupEmpty": "No node in this group.",
@@ -203,7 +286,7 @@
     },
     "rollout": {
       "none": "No rollout in progress.",
-      "title": "Rollout {{id}} · bundle v{{version}}",
+      "title": "Rollout {{id}}, bundle v{{version}}",
       "wave": "wave {{current}} of {{total}}",
       "waveN": "Wave {{n}}"
     }
@@ -211,6 +294,59 @@
   "common": {
     "refreshError": "Could not load: {{error}}",
     "never": "never",
-    "exportCsv": "Export CSV"
+    "exportCsv": "Export CSV",
+    "dismiss": "Dismiss",
+    "close": "Close",
+    "loading": "Loading…",
+    "pause": "Pause",
+    "resume": "Resume",
+    "refresh": "Refresh",
+    "copied": "Copied",
+    "cancel": "Cancel"
+  },
+  "account": {
+    "title": "Change password",
+    "current": "Current password",
+    "next": "New password (at least {{min}} characters)",
+    "again": "New password again",
+    "mismatch": "The two new passwords differ.",
+    "submit": "Change password",
+    "done": "Password changed. Your other sessions have been signed out."
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Local accounts that sign in with a password. Every change is in the audit log.",
+    "subtitleBoth": "Local accounts that sign in with a password. Single sign-on accounts are managed at your identity provider.",
+    "loading": "Loading users…",
+    "empty": "No local accounts.",
+    "notEnabled": "Local accounts are not enabled on this control plane (-local-auth).",
+    "you": "(you)",
+    "never": "never",
+    "create": "New user",
+    "createBtn": "Create user",
+    "username": "Username",
+    "password": "Password (at least {{min}} characters)",
+    "roles": "Roles",
+    "edit": "Edit {{name}}",
+    "editBtn": "Edit",
+    "disabledLabel": "Disabled: cannot sign in, sessions end",
+    "resetPassword": "Set a new password (optional, at least {{min}} characters)",
+    "save": "Save",
+    "unlock": "Unlock",
+    "delete": "Delete user",
+    "deleteConfirm": "Delete {{name}}? Its sessions end now.",
+    "state": {
+      "active": "Active",
+      "locked": "Locked",
+      "disabled": "Disabled"
+    },
+    "col": {
+      "user": "User",
+      "roles": "Roles",
+      "status": "Status",
+      "lastLogin": "Last sign-in",
+      "created": "Created",
+      "actions": "Actions"
+    }
   }
 }
