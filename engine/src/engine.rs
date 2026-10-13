@@ -31,6 +31,9 @@ pub struct Engine {
     regexes: crate::eval::Regexes,
     /// byte ranges and ip match sets evaluated per bundle
     operators: crate::operators::CompiledOperators,
+    /// rules the Hyperscan prefilter may skip (W09-R-01)
+    prefilter: crate::eval::Prefilter,
+    prefilter_on: bool,
 }
 
 impl std::fmt::Debug for Engine {
@@ -121,6 +124,7 @@ impl Engine {
         })?;
         let operators =
             crate::operators::CompiledOperators::build(&tables).map_err(|e| (E_BUNDLE, e))?;
+        let prefilter = crate::eval::Prefilter::build(&tables, &regexes);
         let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(Engine {
             id,
@@ -131,6 +135,8 @@ impl Engine {
             parsed_body_rules,
             regexes,
             operators,
+            prefilter,
+            prefilter_on: true,
         })
     }
 
@@ -142,6 +148,23 @@ impl Engine {
     /// rx patterns evaluated without Hyperscan.
     pub fn regexes(&self) -> &crate::eval::Regexes {
         &self.regexes
+    }
+
+    /// Evaluates every rule on every request, as engines before W09 did: the
+    /// reference the prefilter differential test compares with.
+    pub fn disable_prefilter(&mut self) {
+        self.prefilter = crate::eval::Prefilter::default();
+        self.prefilter_on = false;
+    }
+
+    /// The Hyperscan prefilter of the rules (None once disabled).
+    pub fn prefilter_if_on(&self) -> Option<&crate::eval::Prefilter> {
+        self.prefilter_on.then_some(&self.prefilter)
+    }
+
+    /// The Hyperscan prefilter of the rules.
+    pub fn prefilter(&self) -> &crate::eval::Prefilter {
+        &self.prefilter
     }
 
     /// Pre-compiled operator structures (byte ranges, ip match sets).
