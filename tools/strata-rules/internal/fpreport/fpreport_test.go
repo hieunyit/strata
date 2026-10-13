@@ -389,6 +389,3 @@ func TestQuery_Timeout(t *testing.T) {
 		t.Errorf("expected Query to return error in < 1s, took %v", elapsed)
 	}
 }
-
-
-
