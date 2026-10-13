@@ -82,6 +82,70 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/stats/overview:
+    get:
+      summary: Overview Statistics
+      description: 'Events of a window by time bucket and action, totals, top rules, top routes and, for callers who
+        may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without
+        events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.'
+      operationId: getOverview
+      parameters:
+      - name: from
+        in: query
+        description: Start of the window, RFC 3339. Default 24 hours before to.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: End of the window (exclusive), RFC 3339. Default now. The window is at most 31 days.
+        schema:
+          type: string
+          format: date-time
+      - name: policy_id
+        in: query
+        description: Only the events of this policy.
+        schema:
+          type: string
+      - name: step
+        in: query
+        description: Bucket width of the series. Default 1h up to 48 hours, 6h up to 8 days, 24h beyond. Buckets are
+          aligned in UTC.
+        schema:
+          type: string
+          enum:
+          - 1h
+          - 6h
+          - 24h
+      responses:
+        '200':
+          description: Statistics of the window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewResponse'
+        '400':
+          description: Invalid window or step.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: The event store does not aggregate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
   schemas:
     Violation:
@@ -171,6 +235,8 @@ components:
           - block
           - shadow
           - allow
+          - pass
+          - error
           example: block
         score_protocol:
           type: integer
@@ -245,6 +311,8 @@ components:
           - block
           - shadow
           - allow
+          - pass
+          - error
         client_ip:
           type: string
         rule_id:
@@ -273,6 +341,135 @@ components:
         total_matched:
           type: integer
           format: int64
+    OverviewBucket:
+      type: object
+      required: [start, block, shadow, other]
+      properties:
+        start:
+          type: string
+          format: date-time
+        block:
+          type: integer
+          format: int64
+        shadow:
+          type: integer
+          format: int64
+        other:
+          type: integer
+          format: int64
+          description: pass and error
+    OverviewTotals:
+      type: object
+      required: [events, block, shadow, other, clients, nodes, policies]
+      properties:
+        events:
+          type: integer
+          format: int64
+        block:
+          type: integer
+          format: int64
+        shadow:
+          type: integer
+          format: int64
+        other:
+          type: integer
+          format: int64
+        clients:
+          type: integer
+          format: int64
+          description: Distinct client IPs (approximate for large sets).
+        nodes:
+          type: integer
+          format: int64
+        policies:
+          type: integer
+          format: int64
+    OverviewRuleCount:
+      type: object
+      required: [rule_id, events, block, shadow]
+      properties:
+        rule_id:
+          type: integer
+        events:
+          type: integer
+          format: int64
+          description: Events that matched the rule; an event matching it several times counts once.
+        block:
+          type: integer
+          format: int64
+        shadow:
+          type: integer
+          format: int64
+    OverviewRouteCount:
+      type: object
+      required: [policy_id, host, path_prefix, events, block, shadow]
+      properties:
+        policy_id:
+          type: string
+        host:
+          type: string
+        path_prefix:
+          type: string
+          description: The path without its query, first two segments (/v1/verify).
+        events:
+          type: integer
+          format: int64
+        block:
+          type: integer
+          format: int64
+        shadow:
+          type: integer
+          format: int64
+    OverviewClientCount:
+      type: object
+      required: [client_ip, events, block]
+      properties:
+        client_ip:
+          type: string
+        events:
+          type: integer
+          format: int64
+        block:
+          type: integer
+          format: int64
+    OverviewResponse:
+      type: object
+      required: [from, to, step_seconds, totals, series, top_rules, top_routes]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        step_seconds:
+          type: integer
+          format: int64
+        totals:
+          $ref: '#/components/schemas/OverviewTotals'
+        series:
+          type: array
+          description: One bucket per step from the bucket holding from to the one before to, zeros included.
+          items:
+            $ref: '#/components/schemas/OverviewBucket'
+        top_rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewRuleCount'
+        top_routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewRouteCount'
+        top_clients:
+          type: array
+          description: Absent for callers without events:read_sensitive.
+          items:
+            $ref: '#/components/schemas/OverviewClientCount'
+        rules:
+          type: object
+          description: Rule catalog entries of the top rules, keyed by Rule ID.
+          additionalProperties:
+            $ref: '#/components/schemas/RuleInfo'
     ErrorResponse:
       type: object
       required:

@@ -590,6 +590,7 @@ Mọi thao tác trên Web UI đều đi qua cùng một API: định nghĩa mộ
 | Bundle, rollout | `GET /v1/bundles`, `GET /v1/rollouts/{id}` | `:pause`, `:resume`, `:abort` |
 | Người dùng, vai trò | `GET/POST /v1/roleBindings` | — |
 | Audit | `GET /v1/audit` | — |
+| Thống kê | `GET /v1/stats/overview?from=&to=&policy_id=&step=` (trang Tổng quan, W10-F-01: theo giờ/6 giờ/ngày, top rule, top route, top IP chỉ cho vai trò xem được IP đầy đủ; cửa sổ tối đa 31 ngày) | — |
 
 **Ví dụ: tra một Block ID**
 

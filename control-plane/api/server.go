@@ -95,6 +95,7 @@ func (s *Server) registerRoutes() {
 		}
 		s.handler.HandleGetEvent(w, r)
 	}))
+	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)
 	}
