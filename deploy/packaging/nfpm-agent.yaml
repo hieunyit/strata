@@ -1,0 +1,42 @@
+# strata-agent (deploy/packaging/build.sh sets the variables). Shared by
+# every connector, so packaged apart from the NGINX module.
+name: strata-agent
+arch: amd64
+platform: linux
+version: ${STRATA_VERSION}
+release: 1
+version_schema: none
+section: net
+priority: optional
+maintainer: Strata <support@example.test>
+description: |
+  Strata agent: enrolls the node with the control plane, installs signed
+  bundles for the proxy module, forwards its events and exports metrics.
+vendor: Strata
+homepage: https://github.com/hieunyit/strata
+license: Apache-2.0
+contents:
+  - src: ${AGENT_BIN}
+    dst: /usr/bin/strata-agent
+    file_info: { mode: 0755 }
+  - src: deploy/packaging/files/strata-agent.service
+    dst: /usr/lib/systemd/system/strata-agent.service
+    file_info: { mode: 0644 }
+  - src: deploy/packaging/files/agent.env
+    dst: /etc/strata/agent.env
+    type: config|noreplace
+    file_info: { mode: 0640 }
+  - src: deploy/packaging/files/90-strata.conf
+    dst: /usr/lib/sysctl.d/90-strata.conf
+    file_info: { mode: 0644 }
+  - src: deploy/packaging/files/tmpfiles.conf
+    dst: /usr/lib/tmpfiles.d/strata.conf
+    file_info: { mode: 0644 }
+  - src: deploy/monitoring/alerts.yml
+    dst: /usr/share/strata/monitoring/alerts.yml
+    file_info: { mode: 0644 }
+  - src: deploy/monitoring/dashboards/
+    dst: /usr/share/strata/monitoring/dashboards/
+scripts:
+  postinstall: deploy/packaging/scripts/agent-postinst.sh
+  preremove: deploy/packaging/scripts/agent-prerm.sh
