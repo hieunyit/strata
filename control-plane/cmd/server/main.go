@@ -46,6 +46,7 @@ func main() {
 	chAddr := flag.String("clickhouse-addr", "127.0.0.1:9000", "ClickHouse native protocol address")
 	chUser := flag.String("clickhouse-user", "default", "ClickHouse user; the password is read from STRATA_CLICKHOUSE_PASSWORD")
 	seed := flag.Bool("seed", false, "With -in-memory, add sample events")
+	ttlDays := flag.Int("events-ttl-days", 90, "Retention of events in ClickHouse, in days (the table's TTL is set to it at start); 0 leaves the table as it is")
 	grpcAddr := flag.String("grpc-addr", "", "FleetService (PushEvents) listen address; empty disables it")
 	tlsCA := flag.String("tls-ca", "", "CA that signs node certificates (FleetService mTLS)")
 	tlsCert := flag.String("tls-cert", "", "FleetService server certificate")
@@ -133,6 +134,9 @@ func main() {
 			log.Fatalf("[FATAL] Failed to connect to ClickHouse: %v", err)
 		}
 		defer chStore.Close()
+		if err := chStore.EnsureTTL(ctx, *ttlDays); err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
 		store = chStore
 	}
 
