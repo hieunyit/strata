@@ -24,7 +24,7 @@ FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind mutate bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
-	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines
+	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines test-alerts
 
 all: lib nginx
 
@@ -227,6 +227,12 @@ test-go: test-agent
 	tools/strata-import-crs/fetch-crs.sh >/dev/null
 	cd tools/strata-import-crs && go vet ./... && go test -race ./... && golangci-lint run ./...
 	cd tools/strata-import-signatures && go vet ./... && go test -race ./... && golangci-lint run ./...
+
+# Alert rules of the lab, staging and packages, against their unit tests
+# (W10-Q-01); dashboards are valid JSON with the datasource variable.
+test-alerts:
+	vmalert-tool unittest --files=deploy/monitoring/alerts.test.yml --disableAlertgroupLabel
+	python3 deploy/monitoring/check-dashboards.py deploy/monitoring/dashboards
 
 # Rule tests and the corpus report through libstrata (W04-S-01).
 rules-tools:
