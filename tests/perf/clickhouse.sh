@@ -2,11 +2,14 @@
 # W09-G2-01: the event store on a real ClickHouse (the lab's version and
 # schema), with about RECENT events in the last 24 hours and OLDER over the
 # 29 days before (defaults 10 million each, ~115 events/s for a day), then
-# TestClickHousePerf and TestClickHouseTTL (control-plane/ingest).
+# TestClickHousePerf and TestClickHouseTTL (control-plane/ingest), and
+# TestClickHouseAPIPerf (control-plane/api: the same targets through the
+# REST API). The Go tests run in the dev image (deploy/dev/run.sh).
 # The data are made inside ClickHouse (numbers()): Block IDs carry their
 # time as libstrata's do; rule IDs, IPs, paths and actions are drawn with
 # skew (a few hot IPs and rules, most traffic on example-api).
 # Usage: tests/perf/clickhouse.sh [keep]   ("keep": leave the container running)
+# PERF_CPUS: pin ClickHouse and the tests to these CPUs (docker --cpuset-cpus).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 name=strata-ch-perf
@@ -14,7 +17,9 @@ recent="${RECENT:-10000000}"
 older="${OLDER:-10000000}"
 pw=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 docker rm -f "$name" >/dev/null 2>&1 || true
-docker run -d --name "$name" -p 127.0.0.1:39000:9000 \
+cpus=()
+[ -z "${PERF_CPUS:-}" ] || cpus=(--cpuset-cpus "$PERF_CPUS")
+docker run -d --name "$name" "${cpus[@]}" -p 127.0.0.1:39000:9000 \
     -e CLICKHOUSE_USER=strata -e CLICKHOUSE_PASSWORD="$pw" -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
     --ulimit nofile=262144:262144 \
     -v "$root/control-plane/ingest/schema.sql:/docker-entrypoint-initdb.d/10-events.sql:ro" \
@@ -59,7 +64,7 @@ fill "$recent" 86400 86400
 fill "$older" $((30 * 86400)) $((29 * 86400))
 q --query "OPTIMIZE TABLE events FINAL" || true
 echo "filled in $(( $(date +%s) - start )) s: $(q --query 'SELECT count(), formatReadableSize(sum(bytes_on_disk)) FROM system.parts WHERE table = '"'"'events'"'"' AND active' 2>/dev/null)"
-cd "$root/control-plane"
-export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
-CLICKHOUSE_PERF_ADDR=127.0.0.1:39000 CLICKHOUSE_PERF_PASSWORD="$pw" \
-    go test -count=1 -v -run 'TestClickHouse(Perf|TTL)' ./ingest/
+# the dev image, on the host network to reach the published port
+STRATA_DEV_DOCKER_ARGS="${STRATA_DEV_DOCKER_ARGS:-} --network host ${cpus[*]}" \
+    "$root/deploy/dev/run.sh" env CLICKHOUSE_PERF_ADDR=127.0.0.1:39000 CLICKHOUSE_PERF_PASSWORD="$pw" \
+    sh -c "cd control-plane && go test -count=1 -v -run 'TestClickHouseAPIPerf' ./api/ && go test -count=1 -v -run 'TestClickHouse(Perf|TTL)' ./ingest/" </dev/null
