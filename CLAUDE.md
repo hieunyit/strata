@@ -24,19 +24,21 @@ Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này v�
 
 - Tuần 8 (khối A3): `action_mode` (`block_alone | score`); Test::Nginx đầy đủ kể cả HTTP/3; fuzz libFuzzer FFI + differential `go-net-http`/`spring`; go-ftw toàn bộ CRS ≥ 95% + `strata-rules release`/`verify`; test tải Fleet 1.000 agent; toxiproxy; RBAC + CSV trên UI; conformance corpus v1 qua engine và NGINX. Review lại: `docs/reports/w08-review.md`.
 
-**Đang làm** (tuần 9 · Benchmark, soak, staging), theo thứ tự trong `docs/plan/w09-plan.md`, mỗi nhiệm vụ một nhánh tên theo mã:
+- Tuần 9 (khối A3, PR #26–#40): benchmark p50/p99/throughput + event socket, quyết định giữ datagram socket (`docs/decisions/ring-buffer.md`); prefilter + `lower_loose` (gói đầy đủ ×23 nhanh hơn, ticket #27 throughput, #28 body lớn); soak 24 giờ + staging chỉ deploy từ tag (`deploy/staging/deploy.sh`); ClickHouse TTL + tra Block ID < 1 s; decision trace tô field + tác giả Sigma; `strata-mutate` hằng đêm (#34); gói signature 0.0.1 (9.054 rule, FP 0,60%, recall ≥ 70%, #36 cost unit); di chuyển sang server mới (`deploy/migrate`), deploy outlives REST timeout. **Còn mở**: verdict soak 24 giờ, staging 7 ngày của gói 0.0.1, review tuần 9 (phiên khác, nhánh `w09-review`).
 
-1. **W09-Q-01** Benchmark: p50/p99 và throughput (nhỏ, 64 KB, 1 MB, HTTP/2) so với NGINX không module; event socket ~50.000 sự kiện/giây; `docs/decisions/ring-buffer.md`.
-2. **W09-R-01** Xử lý điểm nóng: p99 < 1 ms, throughput giảm ≤ 10%, hoặc ticket cho phần còn thiếu.
-3. **W09-Q-02** Soak 24 giờ + 1.000 lần đổi bundle (bộ nhớ, fd không tăng); staging chỉ deploy từ tag.
-4. **W09-G2-01** ClickHouse: TTL, tra Block ID < 1 s, tìm kiếm 24 giờ < 2 s.
-5. **W09-F-01** Decision trace: tô field vi phạm, hiện tác giả rule Sigma.
-6. **W09-S-02** Bộ sinh biến thể payload (`tools/strata-mutate/`), báo cáo lách theo loại tấn công, chạy hằng đêm.
-7. **W09-S-01** Gói signature v0: CRS PL1 + nguồn nhập + rule riêng, staging 7 ngày, review 2 người (người thứ hai là PO/SecOps), đạt Gate A.
+**Đang làm** (tuần 10 · Đóng gói và shadow · Gate A), theo thứ tự trong `docs/plan/w10-plan.md`, mỗi nhiệm vụ một nhánh tên theo mã, trong worktree `~/strata-w10`:
 
-Mỗi nhiệm vụ chỉ xong khi đạt đúng dòng "Xong khi" trong plan. Đổi interface chung (`strata.h`, `proto/`, OpenAPI, định dạng bundle, định dạng rule/IR) chỉ khi dòng "Làm" của nhiệm vụ ghi rõ (W08-R-02 được phép đổi định dạng rule + JSON Schema); ngoài ra dừng lại và đề xuất.
+1. **W10-Q-01** Giám sát: dashboard Grafana + cảnh báo VictoriaMetrics (vmalert) cho module, agent, control plane.
+2. **W10-N-01** Gói deb/rpm `nginx-module-strata` theo bản NGINX + `strata-agent`, cài 1 lệnh; image container; runbook (tắt module, ép shadow, rollback bundle) diễn tập trên staging; #29 (sysctl, socket đã `connect()`).
+3. **W10-G1-01** Control plane trên staging (+ `prod-sim`), node của 2 route thí điểm (giả lập nếu PO chưa có dữ liệu) enroll.
+4. **W10-G2-01** Policy shadow cho 2 route thí điểm; sự kiện có Event ID về ClickHouse.
+5. **W10-S-01** Bảng FP theo Rule ID cập nhật hằng ngày.
+6. **W10-F-01** Trang Tổng quan v0 (bị chặn theo giờ, top rule, top route).
+7. Báo cáo Gate A, rồi review tuần 10 (theo `docs/reports/w08-review.md`).
 
-**Chưa làm** trong khối này (tuần 10, hoặc tuần sau): đóng gói + shadow + Gate A (tuần 10); circuit breaker và canary (B1, tuần 11+).
+Ràng buộc phiên này: build/test chỉ trên nhân 6–10 (`STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=6-10"`), không chạy benchmark; không đụng staging, soak, tag `v0.9.0-rc.*` cho tới khi memory `w09-review.md` ghi "staging handed over to W10" (trước đó dùng lab); sau đó staging chỉ deploy tag `v0.10.0-rc.*` kèm `--signatures build/signatures/v0.0.1`, ghi mỗi lần deploy vào `docs/reports/w09-s-01.md`.
+
+**Chưa làm** trong khối này: circuit breaker và canary (B1, tuần 11+).
 
 ## Quy tắc code
 
