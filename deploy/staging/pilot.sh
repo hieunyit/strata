@@ -11,7 +11,7 @@
 # of the same NGINX). Inspection is off until W10-G2-01 deploys the pilot
 # policies and runs pilot.sh --inspect.
 #
-# Usage: deploy/staging/pilot.sh [--env staging|prod-sim] [--inspect] up|status|down
+# Usage: deploy/staging/pilot.sh [--env staging|prod-sim] [--inspect] up|status|down|policies
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -80,7 +80,34 @@ server {
 EOF
 }
 
+deploy_wait() { # policy: deploys (a bundle of every policy), waits for the rollout
+    local out ro st start=$SECONDS
+    out=$(api -X POST "$cp/v1/policies/$1:deploy" -d '{}') || die "deploy $1"
+    ro=$(sed -n 's/.*"rollout_id":"\{0,1\}\([0-9]*\).*/\1/p' <<< "$out")
+    [ -n "$ro" ] || die "deploy $1: $out"
+    until st=$(api "$cp/v1/rollouts/$ro" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+        case "$st" in FAILED|ABORTED) die "rollout $ro: $st" ;; esac
+        [ $((SECONDS - start)) -lt 300 ] || die "rollout $ro not done in 300 s ($st)"
+        sleep 2
+    done
+    say "$1 deployed, rollout $ro done in $((SECONDS - start)) s"
+}
+
 case "$cmd" in
+policies)
+    # W10-G2-01: one shadow policy per pilot route (fail mode stays the
+    # module's default, open; oversize bodies pass)
+    for r in "${routes[@]}"; do
+        c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $(new_token)" -H 'Content-Type: application/json' \
+            "$cp/v1/policies" -d "{\"id\":\"$r\",\"name\":\"$r\",\"spec\":{\"mode\":\"MODE_SHADOW\",\"oversize\":\"OVERSIZE_PASS\"}}")
+        case "$c" in
+            200) say "policy $r created in shadow" ;;
+            409) mode=$(api "$cp/v1/policies/$r" | sed -n 's/.*"mode":"\([A-Z_]*\)".*/\1/p')
+                 [ "$mode" = MODE_SHADOW ] || die "policy $r exists in $mode, not MODE_SHADOW" ;;
+            *) die "create policy $r: HTTP $c" ;;
+        esac
+    done
+    deploy_wait pilot-verify ;;
 status)
     say "tag $tag"; status ;;
 down)
@@ -149,5 +176,5 @@ EOF
     done
     say "pilot nodes up on :${d}8480 (verify) and :${d}8481 (upload), inspection $([ "$inspect" = 1 ] && echo on || echo off)"
     status ;;
-*) die "usage: pilot.sh [--env staging|prod-sim] [--inspect] up|status|down" ;;
+*) die "usage: pilot.sh [--env staging|prod-sim] [--inspect] up|status|down|policies" ;;
 esac
