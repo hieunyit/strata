@@ -34,9 +34,11 @@ conns="${5:-64}"
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 objs="$root/build/nginx-$version/objs"
 fx="$root/connectors/nginx/t/fixtures"
+# BENCH_FULL_BUNDLE / BENCH_P01_BUNDLE: another build of the same rules,
+# e.g. with the block-mode Hyperscan section (strata-rules release --hs-block)
 case "$mode" in
-    full) bundle="$root/build/bench/pkg/strata-signatures-bench.sbn" ;;
-    *) bundle="$root/build/bench/pkg-p01/strata-signatures-bench-p01.sbn" ;;
+    full) bundle="${BENCH_FULL_BUNDLE:-$root/build/bench/pkg/strata-signatures-bench.sbn}" ;;
+    *) bundle="${BENCH_P01_BUNDLE:-$root/build/bench/pkg-p01/strata-signatures-bench-p01.sbn}" ;;
 esac
 ncpus="${BENCH_NGINX_CPUS:-2,3}"
 ccpus="${BENCH_CLIENT_CPUS:-4-6}"
