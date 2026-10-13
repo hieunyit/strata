@@ -23,7 +23,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
+	nginx-asan test-nginx-asan test-nginx-valgrind bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines
 
 all: lib nginx
@@ -152,6 +152,28 @@ test-nginx-h3: $(MKBUNDLE) $(COMPILE) nginx-h3
 	TEST_NGINX_STRATA_H3_MODULE="$(CURDIR)/$(NGX_H3_OBJS)/ngx_http_strata_module.so" \
 	PERL5LIB="$(PERL5LIB_H3):$$PERL5LIB" \
 		sh -c "cd connectors/nginx && prove t/070-http3.t"
+
+# W09-Q-01 benchmark: NGINX without the module, with the phase 0-1 bundle and
+# with the whole signature package (bench-bundle.sh); small, 64 KB, 1 MB,
+# HTTP/2 and the event socket. JSON lines in build/bench/<version>.jsonl, the
+# table on stdout (docs/reports/w09-q-01.md). BENCH_SECONDS per run,
+# BENCH_RUNS runs a cell. bench-events: the event socket alone
+# (docs/decisions/ring-buffer.md).
+BENCH_SECONDS ?= 20
+BENCH_RUNS    ?= 3
+bench-bundle: rules-tools
+	connectors/nginx/scripts/bench-bundle.sh
+bench: nginx bench-bundle
+	cd agent && CGO_ENABLED=0 go build -o ../build/bench/strata-eventsink ./cmd/strata-eventsink
+	connectors/nginx/scripts/bench-all.sh $(NGINX_VERSION) $(BENCH_SECONDS) $(BENCH_RUNS)
+# the engine alone on the same requests (strata-bench), as NGINX calls it
+bench-events:
+	cd agent && CGO_ENABLED=0 go build -o ../build/bench/strata-eventsink ./cmd/strata-eventsink
+	connectors/nginx/scripts/bench-events.sh 10 2 10000 25000 50000 100000
+bench-engine: bench-bundle
+	cargo build --release -p strata-eval
+	target/release/strata-bench --bundle build/bench/pkg/strata-signatures-bench.sbn \
+		--pubkey connectors/nginx/t/fixtures/bundle.pub --budget-us 2000
 
 # W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
 bench-reload: $(MKBUNDLE) $(COMPILE)
