@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -71,6 +72,44 @@ not-a-valid-ip-or-cidr
 	}
 	if !strings.Contains(err.Error(), ":4:") && !strings.Contains(err.Error(), "line 4") {
 		t.Errorf("expected error to mention line 4, got: %v", err)
+	}
+}
+
+func findAttackSourcesExample() (string, error) {
+	candidates := []string{
+		"../../../../deploy/lab/attack-sources.example.txt",
+		"../../../deploy/lab/attack-sources.example.txt",
+		"deploy/lab/attack-sources.example.txt",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			abs, err := filepath.Abs(c)
+			if err == nil {
+				return abs, nil
+			}
+			return c, nil
+		}
+	}
+	return "", fmt.Errorf("deploy/lab/attack-sources.example.txt not found in candidate paths")
+}
+
+func TestLoadCIDRs_ExampleFile(t *testing.T) {
+	p, err := findAttackSourcesExample()
+	if err != nil {
+		t.Fatalf("locating attack-sources.example.txt: %v", err)
+	}
+	cidrs, err := LoadCIDRs(p)
+	if err != nil {
+		t.Fatalf("LoadCIDRs failed on example file: %v", err)
+	}
+	expected := []string{"203.0.113.0/24", "198.51.100.77/32"}
+	if len(cidrs) != len(expected) {
+		t.Fatalf("expected %d CIDRs, got %d: %v", len(expected), len(cidrs), cidrs)
+	}
+	for i, c := range cidrs {
+		if c != expected[i] {
+			t.Errorf("at index %d: expected %q, got %q", i, expected[i], c)
+		}
 	}
 }
 
