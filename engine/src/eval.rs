@@ -53,7 +53,20 @@ impl FallbackRegex {
     /// The regex and its lazy DFA; None if the pattern does not compile
     /// (the compiler checked it: a bundle signed for another build).
     pub fn compiled(&self) -> Option<(&regex::bytes::Regex, &regex_automata::hybrid::dfa::DFA)> {
-        self.compiled
+        self.compiled_timed().0
+    }
+
+    /// `compiled`, and the time spent compiling when this call did it.
+    #[allow(clippy::type_complexity)]
+    pub fn compiled_timed(
+        &self,
+    ) -> (
+        Option<(&regex::bytes::Regex, &regex_automata::hybrid::dfa::DFA)>,
+        Option<std::time::Duration>,
+    ) {
+        let start = self.compiled.get().is_none().then(std::time::Instant::now);
+        let c = self
+            .compiled
             .get_or_init(|| {
                 Some((
                     fallback_regex(&self.pattern).ok()?,
@@ -61,7 +74,8 @@ impl FallbackRegex {
                 ))
             })
             .as_ref()
-            .map(|(re, dfa)| (re, dfa))
+            .map(|(re, dfa)| (re, dfa));
+        (c, start.map(|s| s.elapsed()))
     }
 }
 
@@ -241,6 +255,12 @@ impl Regexes {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Compiles every pattern now (instead of on first use); returns how
+    /// many compiled.
+    pub fn compile_all(&self) -> usize {
+        self.0.iter().filter(|fb| fb.compiled().is_some()).count()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1320,7 +1340,12 @@ fn condition(
                         _ => false,
                     })
                 } else if let Some(fb) = fallback {
-                    let compiled = fb.compiled();
+                    // compiled on first use: once per worker and bundle,
+                    // so not this request's inspection time
+                    let (compiled, spent) = fb.compiled_timed();
+                    if let (Some(d), Some(b)) = (spent, ctx.budget.as_deref_mut()) {
+                        b.credit(d);
+                    }
                     tv.as_deref().is_some_and(|val| {
                         let Some((re, dfa)) = compiled else {
                             return false;

@@ -25,6 +25,9 @@ pub struct TxBudget {
     external_timer: bool,
     /// calls of `check_cheap` since the budget was made
     ticks: u32,
+    /// time of the current call that does not count: one-time work of the
+    /// bundle (a fallback regex compiled on first use), not of this request
+    credit_ns: u64,
 }
 
 impl TxBudget {
@@ -37,6 +40,7 @@ impl TxBudget {
             exceeded: false,
             external_timer: false,
             ticks: 0,
+            credit_ns: 0,
         }
     }
 
@@ -103,7 +107,7 @@ impl TxBudget {
             None => {
                 let start = *self.call_start.get_or_insert_with(Instant::now);
                 let remaining_ns = self.budget_ns.saturating_sub(self.prior_elapsed_ns);
-                let d = start + Duration::from_nanos(remaining_ns);
+                let d = start + Duration::from_nanos(remaining_ns.saturating_add(self.credit_ns));
                 self.call_deadline = Some(d);
                 d
             }
@@ -130,6 +134,18 @@ impl TxBudget {
         self.check()
     }
 
+    /// Excludes `spent` from the current call: work done once per bundle
+    /// and worker (a regex compiled on first use) that happened to fall in
+    /// this request. Without it the first requests after every bundle load
+    /// exceed the budget and take the fail mode (W09 review).
+    pub fn credit(&mut self, spent: Duration) {
+        let ns = spent.as_nanos().min(u64::MAX as u128) as u64;
+        self.credit_ns = self.credit_ns.saturating_add(ns);
+        if let Some(d) = self.call_deadline {
+            self.call_deadline = Some(d + spent);
+        }
+    }
+
     /// Called at exit of FFI call to record actual elapsed time.
     pub fn exit(&mut self) {
         if let Some(start) = self.call_start.take() {
@@ -142,6 +158,7 @@ impl TxBudget {
     pub fn exit_with_ns(&mut self, nanos: u64) {
         self.external_timer = false;
         self.call_start = None;
+        let nanos = nanos.saturating_sub(std::mem::take(&mut self.credit_ns));
         self.prior_elapsed_ns = self.prior_elapsed_ns.saturating_add(nanos);
         self.call_deadline = None;
         if self.budget_ns > 0 && self.prior_elapsed_ns >= self.budget_ns {
@@ -158,7 +175,8 @@ impl TxBudget {
     /// Total engine time spent so far in nanoseconds.
     pub fn elapsed_ns(&self) -> u64 {
         let current = self.call_start.map_or(0, |s| s.elapsed().as_nanos() as u64);
-        self.prior_elapsed_ns.saturating_add(current)
+        self.prior_elapsed_ns
+            .saturating_add(current.saturating_sub(self.credit_ns))
     }
 
     pub fn elapsed_us(&self) -> u64 {
@@ -203,6 +221,53 @@ mod tests {
 
         // Next enter immediately returns error
         assert_eq!(b.enter(), Err(BudgetExceeded));
+    }
+
+    #[test]
+    fn credited_time_does_not_count() {
+        // a 5 ms call with 4 ms of one-time work fits a 2 ms budget
+        let mut b = TxBudget::new(2_000);
+        assert!(b.enter().is_ok());
+        sleep(Duration::from_millis(5));
+        b.credit(Duration::from_millis(4));
+        assert!(b.check().is_ok(), "the deadline moves by the credit");
+        b.exit_with(Duration::from_millis(5));
+        assert!(!b.is_exceeded());
+        assert!(b.enter().is_ok(), "the credit is not counted later either");
+        b.exit_with(Duration::from_micros(500));
+        assert!(!b.is_exceeded());
+    }
+
+    #[test]
+    fn credit_is_per_call_and_only_what_was_spent() {
+        // negative: the same 5 ms call with only 1 ms credited is over
+        let mut b = TxBudget::new(2_000);
+        assert!(b.enter().is_ok());
+        sleep(Duration::from_millis(5));
+        b.credit(Duration::from_millis(1));
+        assert_eq!(b.check(), Err(BudgetExceeded));
+        // and a credit does not carry over into the next call
+        let mut b = TxBudget::new(2_000);
+        assert!(b.enter().is_ok());
+        b.credit(Duration::from_millis(4));
+        b.exit_with(Duration::from_millis(4));
+        assert!(b.enter().is_ok());
+        b.exit_with(Duration::from_millis(3));
+        assert!(b.is_exceeded());
+    }
+
+    #[test]
+    fn credit_with_a_lazy_deadline() {
+        // the FFI enters lazily (external timer): the deadline is made at
+        // the first check, credit included
+        let mut b = TxBudget::new(2_000);
+        assert!(b.enter_lazy().is_ok());
+        b.credit(Duration::from_millis(50));
+        let _ = b.check();
+        sleep(Duration::from_millis(1));
+        assert!(b.check().is_ok());
+        b.exit_with_ns(51_000_000);
+        assert!(!b.is_exceeded());
     }
 
     #[test]
