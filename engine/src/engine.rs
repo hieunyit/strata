@@ -70,6 +70,10 @@ impl Engine {
             }
             MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
         }
+        if let Some(hs) = tables.hyperscan_block() {
+            // same version as the stream section (Tables::validate)
+            MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
+        }
         let flagged: Vec<u32> = bundle::policies(bytes, &info)
             .filter(|p| p.privacy)
             .map(|p| p.index)
@@ -216,10 +220,21 @@ impl Engine {
             .map(|h| MappedDb::assume_valid_with_id(h.image, self.id))
     }
 
+    /// The block-mode copy of the database (HYPERSCAN_BLOCK), validated at
+    /// map time; its scratch ID is the one `eval` gives it.
+    pub fn hyperscan_block(&self) -> Option<MappedDb<'_>> {
+        self.tables()
+            .hyperscan_block()
+            .map(|h| MappedDb::assume_valid_with_id(h.image, self.id | crate::eval::BLOCK_DB_ID))
+    }
+
     /// Warms up thread-local Hyperscan scratch and stream state.
     pub fn warm_thread(&self) {
         if let Some(db) = self.hyperscan() {
             let _ = db.warm_thread();
+        }
+        if let Some(db) = self.hyperscan_block() {
+            let _ = db.warm_block();
         }
     }
 

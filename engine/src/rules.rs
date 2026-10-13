@@ -30,6 +30,10 @@
 //!                  | n_patterns x cond_index u32 | zero padding
 //!                  | database image at db_off (a multiple of 4096 from the
 //!                  section start), as produced by hs_deserialize_database_at
+//! HYPERSCAN_BLOCK  the layout of HYPERSCAN, magic "SHS1" only: the same
+//!                  patterns (cond_index byte for byte the one of a stream
+//!                  HYPERSCAN section) compiled in block mode, scanned for
+//!                  values up to BLOCK_SCAN_MAX bytes
 //! ```
 //!
 //! Conditions whose operator is one of `HS_OPERATORS` are compiled into the
@@ -180,6 +184,9 @@ pub const MAX_TRANSFORMS: usize = 16;
 /// begins_with, ends_with, streq.
 pub const HS_OPERATORS: std::ops::RangeInclusive<u8> = 0..=5;
 pub const HS_MAGIC: &[u8; 4] = b"SHS1";
+/// Longest value scanned with the HYPERSCAN_BLOCK database; longer ones go
+/// through the stream database in chunks, with budget checks in between.
+pub const BLOCK_SCAN_MAX: usize = 2048;
 pub const HS_MAGIC_V2: &[u8; 4] = b"SHS2";
 const HS_HEADER_LEN: usize = 56;
 pub const HS_VERSION_LEN: usize = 32;
@@ -448,6 +455,7 @@ pub struct Tables<'a> {
     strings: &'a [u8],
     page: Option<(&'a [u8], &'a [u8])>,
     hs: Option<Hyperscan<'a>>,
+    hs_block: Option<Hyperscan<'a>>,
 }
 
 /// The HYPERSCAN section: pattern id -> condition index, and the image.
@@ -468,6 +476,33 @@ impl Hyperscan<'_> {
     pub fn condition(&self, id: u32) -> Option<u32> {
         let at = id as usize * 4;
         self.cond_index.get(at..at + 4).map(|b| u32_at(b, 0))
+    }
+}
+
+/// Parses the HYPERSCAN_BLOCK section: absent, or block mode with exactly
+/// the patterns of a stream HYPERSCAN section (same version, same condition
+/// index), so that either database gives the same conditions for a value.
+fn parse_hyperscan_block<'a>(
+    sec: &'a [u8],
+    conds: &[u8],
+    stream: Option<Hyperscan<'a>>,
+) -> Result<Option<Hyperscan<'a>>, Error> {
+    // the index is compared with the stream section's, checked already
+    let Some(b) = parse_hyperscan_with(sec, conds, false)? else {
+        return Ok(None);
+    };
+    match stream {
+        Some(s)
+            if s.is_stream
+                && !b.is_stream
+                && s.version == b.version
+                && s.cond_index == b.cond_index =>
+        {
+            Ok(Some(b))
+        }
+        _ => Err(Error::BadLayout(
+            "hyperscan block section does not match the stream section",
+        )),
     }
 }
 
@@ -672,6 +707,8 @@ impl<'a> Tables<'a> {
         };
 
         let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
+        let hs_block =
+            parse_hyperscan_block(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, hs)?;
 
         Ok(Tables {
             rules,
@@ -682,6 +719,7 @@ impl<'a> Tables<'a> {
             strings,
             page,
             hs,
+            hs_block,
         })
     }
 
@@ -697,6 +735,7 @@ impl<'a> Tables<'a> {
             strings: &[],
             page: None,
             hs: None,
+            hs_block: None,
         })
     }
 
@@ -728,6 +767,10 @@ impl<'a> Tables<'a> {
             (&sec[8..8 + h], &sec[8 + h..8 + h + c])
         });
         let hs = parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN), conds, false)?;
+        // validate accepted it: the comparison with the stream section is
+        // not repeated on every view
+        let hs_block =
+            parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, false)?;
         Ok(Tables {
             rules,
             n_rules,
@@ -737,11 +780,17 @@ impl<'a> Tables<'a> {
             strings,
             page,
             hs,
+            hs_block,
         })
     }
 
     pub fn hyperscan(&self) -> Option<Hyperscan<'a>> {
         self.hs
+    }
+
+    /// The block-mode copy of the stream database, for short values.
+    pub fn hyperscan_block(&self) -> Option<Hyperscan<'a>> {
+        self.hs_block
     }
 
     pub fn cond(&self, i: u32) -> Option<CondView<'a>> {

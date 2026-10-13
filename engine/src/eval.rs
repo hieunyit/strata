@@ -20,7 +20,10 @@
 //!
 //! Each distinct (value, transformation chain) is scanned once with the
 //! bundle's Hyperscan database; the matches of every pattern-condition are
-//! collected from that one scan. An rx pattern Hyperscan does not take
+//! collected from that one scan. Values up to `BLOCK_SCAN_MAX` bytes go to
+//! the block-mode copy of the database when the bundle has one (#27): a
+//! block scan skips resetting a stream and flushing its end of data, which
+//! cost more than the scan itself on short values. An rx pattern Hyperscan does not take
 //! (CRS has a few too large for it) is left out of the database by the
 //! compiler and runs with the `regex` crate instead, also in linear time
 //! ([`Regexes`]).
@@ -35,8 +38,18 @@ use crate::detectors::Violation;
 use crate::detectors::injection::{detect_sqli, detect_xss};
 use crate::operators::{self, CompiledOperators};
 use crate::rules::{
-    CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS, ValueView, code,
+    BLOCK_SCAN_MAX, CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS,
+    ValueView, code,
 };
+
+/// The Hyperscan databases of a request: the condition index and the
+/// stream (or block) database of HYPERSCAN, and the block copy of
+/// HYPERSCAN_BLOCK when the bundle has it.
+type HsDbs<'b> = (Hyperscan<'b>, MappedDb<'b>, Option<MappedDb<'b>>);
+
+/// Set in the scratch ID of a HYPERSCAN_BLOCK database: it differs from the
+/// ID of the stream database of the same engine, whose scratch it shares.
+pub const BLOCK_DB_ID: u64 = 1 << 62;
 use crate::transform;
 use crate::{json, multipart, xml};
 
@@ -837,7 +850,7 @@ struct Ctx<'t, 'b, 'a> {
     tables: &'t Tables<'b>,
     regexes: &'t Regexes,
     operators: &'t CompiledOperators,
-    hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
+    hs: Option<HsDbs<'b>>,
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
     /// transformed values (owned) -> conditions matched by the scan
@@ -1471,14 +1484,23 @@ fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32
 
 /// Conditions matched by a transformed value, without the cache.
 fn scan(
-    hs: &Option<(Hyperscan<'_>, MappedDb<'_>)>,
+    hs: &Option<HsDbs<'_>>,
     budget: &mut Option<&mut crate::budget::TxBudget>,
     budget_exceeded: &mut bool,
     tv: &Option<Cow<'_, [u8]>>,
 ) -> Vec<u32> {
     let mut hits = vec![];
-    if let (Some((map, db)), Some(tv)) = (hs, tv) {
-        if map.is_stream {
+    if let (Some((map, db, block)), Some(tv)) = (hs, tv) {
+        let short_block = block.as_ref().filter(|_| tv.len() <= BLOCK_SCAN_MAX);
+        if let (true, Some(b)) = (map.is_stream, short_block) {
+            // same patterns and ids as the stream database (checked at load)
+            let _ = b.scan(tv, &mut |id| {
+                if let Some(c) = map.condition(id) {
+                    hits.push(c);
+                }
+                true
+            });
+        } else if map.is_stream {
             let mut on_match = |id: u32| -> bool {
                 if let Some(c) = map.condition(id) {
                     hits.push(c);
@@ -1691,7 +1713,13 @@ pub fn evaluate_with_budget(
         part_headers,
         xml: xml_body,
     };
-    let hs = tables.hyperscan().zip(db);
+    let hs = tables.hyperscan().zip(db).map(|(map, db)| {
+        // validated with the engine (Engine::map), like the stream image
+        let block = tables
+            .hyperscan_block()
+            .map(|b| MappedDb::assume_valid_with_id(b.image, db.id() | BLOCK_DB_ID));
+        (map, db, block)
+    });
     let mut ctx = Ctx {
         engine_id,
         tables,
