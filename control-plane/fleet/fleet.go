@@ -636,11 +636,32 @@ func (s *Server) PushEvents(st fleetv1.FleetService_PushEventsServer) error {
 	}
 }
 
-var actions = map[eventv1.Action]string{
-	eventv1.Action_ACTION_ALLOW:     "allow",
-	eventv1.Action_ACTION_LOG:       "log",
-	eventv1.Action_ACTION_CHALLENGE: "challenge",
-	eventv1.Action_ACTION_BLOCK:     "block",
+// ingestAction is the action stored for an event (ingest.ValidateAction:
+// block, shadow, pass, error), from what libstrata encodes (tx.rs,
+// encode_event):
+//   - a block: BLOCK with a Block ID STR-…;
+//   - an EVT-… id with LOG: in shadow, a request that would have been
+//     blocked; or rules that matched below the threshold (any mode); or,
+//     without any rule, an engine error or an exceeded CPU budget handled
+//     by the fail mode.
+//
+// The event does not say yet whether an EVT- event would have blocked, so
+// every EVT- event with rules is stored as "shadow": exact for shadow
+// policies, but it counts below-threshold findings of enforce policies as
+// shadow too (#47). Anything else is "" and the validator rejects it;
+// before #47 every EVT- event was stored as "log" and refused.
+func ingestAction(ev *eventv1.Event) string {
+	evt := strings.HasPrefix(ev.GetBlockId(), "EVT-")
+	switch a := ev.GetAction(); {
+	case !evt && a == eventv1.Action_ACTION_BLOCK:
+		return "block"
+	case evt && a == eventv1.Action_ACTION_LOG && len(ev.GetRuleIds()) > 0:
+		return "shadow"
+	case evt && (a == eventv1.Action_ACTION_LOG || a == eventv1.Action_ACTION_ALLOW || a == eventv1.Action_ACTION_BLOCK):
+		return "error"
+	default:
+		return ""
+	}
 }
 
 func toIngest(ev *eventv1.Event, node string, now time.Time) ingest.Event {
@@ -648,7 +669,7 @@ func toIngest(ev *eventv1.Event, node string, now time.Time) ingest.Event {
 	if ms := ev.GetTimeUnixMs(); ms > 0 && ms < 1<<62 {
 		t = time.UnixMilli(int64(ms)).UTC()
 	}
-	action := actions[ev.GetAction()] // "" for unknown: the validator rejects it
+	action := ingestAction(ev)
 	sc := ev.GetLayerScores()
 	out := ingest.Event{
 		BlockID:       ev.GetBlockId(),

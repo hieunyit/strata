@@ -229,3 +229,64 @@ func TestPushEventsRejectsHugeBatch(t *testing.T) {
 		t.Fatalf("huge batch: %v", err)
 	}
 }
+
+// #47: what libstrata encodes (tx.rs, encode_event) and what is stored.
+func TestIngestAction(t *testing.T) {
+	ev := func(id string, a eventv1.Action, rules ...uint32) *eventv1.Event {
+		return &eventv1.Event{BlockId: id, Action: a, RuleIds: rules}
+	}
+	for _, c := range []struct {
+		name string
+		ev   *eventv1.Event
+		want string
+	}{
+		{"enforce block", ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_BLOCK, 942100), "block"},
+		{"shadow, would block", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 942100, 941100), "shadow"},
+		{"fail open: engine error, no rule", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG), "error"},
+		{"fail closed (503)", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_BLOCK), "error"},
+		{"error reported as allow", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_ALLOW), "error"},
+		// negative: combinations libstrata never sends are refused
+		{"LOG with a Block ID", ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 1), ""},
+		{"allow with a Block ID", ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_ALLOW), ""},
+		{"challenge", ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_CHALLENGE, 1), ""},
+		{"unspecified", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_UNSPECIFIED, 1), ""},
+		{"no id", ev("", eventv1.Action_ACTION_BLOCK, 1), "block"},
+	} {
+		if got := ingestAction(c.ev); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// #47 end to end in the fleet service: a shadow event and an error event
+// pushed by an agent are stored (they were refused as "log" before).
+func TestPushShadowAndErrorEvents(t *testing.T) {
+	p := newPKI(t)
+	store := ingest.NewMockEventStore()
+	svc := ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), time.Hour)
+	t.Cleanup(func() { _ = svc.Close(context.Background()) })
+	cl := dial(t, p, serve(t, p, svc), func() *tls.Certificate { c := p.nodeCert(t, "node-1"); return &c }())
+
+	shadow := event("EVT-8F3K-Q2VD-7XNM-A1PC")
+	shadow.Action, shadow.Status = eventv1.Action_ACTION_LOG, 200
+	failOpen := event("EVT-3B9Y-K8P2-WM4C-9D0R")
+	failOpen.Action, failOpen.RuleIds, failOpen.Matches, failOpen.LayerScores = eventv1.Action_ACTION_LOG, nil, nil, nil
+	if _, err := push(t, cl, &fleetv1.EventBatch{Seq: 1, Events: []*eventv1.Event{shadow, failOpen}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st := svc.Stats(); st.TotalEventsInvalid != 0 || st.TotalEventsValid != 2 {
+		t.Fatalf("stats %+v", st)
+	}
+	for id, want := range map[string]string{"EVT-8F3K-Q2VD-7XNM-A1PC": "shadow", "EVT-3B9Y-K8P2-WM4C-9D0R": "error"} {
+		ev, err := store.GetEvent(context.Background(), id)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		if ev.Action != want {
+			t.Errorf("%s stored as %q, want %q", id, ev.Action, want)
+		}
+	}
+}
