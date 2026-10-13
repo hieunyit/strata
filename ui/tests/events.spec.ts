@@ -103,6 +103,12 @@ const mockEventsResponse = {
   total_matched: 3,
 };
 
+// what GET /v1/events/{id} returns from the rule catalog (W09-F-01)
+const mockRules = {
+  '942100': { name: 'SQL Injection Attack Detected via libinjection', source: 'owasp-crs', license: 'Apache-2.0' },
+  '942150': { name: 'Example Sigma rule on SQL keywords', source: 'sigma', author: 'A. Author (Example Org)', license: 'DRL-1.1' },
+};
+
 async function mockApi(page: Page): Promise<void> {
     // Intercept API search requests
     await page.route('**/v1/events:search', async (route) => {
@@ -133,7 +139,7 @@ async function mockApi(page: Page): Promise<void> {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ event: match }),
+          body: JSON.stringify({ event: match, rules: mockRules }),
         });
       } else {
         await route.fulfill({
@@ -188,6 +194,21 @@ test.describe('Strata WAF - Security Events Management', () => {
     const closeBtn = page.getByTestId('close-modal-btn');
     await closeBtn.click();
     await expect(modal).not.toBeVisible();
+  });
+
+  test('decision trace marks the violating field and credits the Sigma author', async ({ page }) => {
+    await page.getByText('STR-8F3K-Q2VD-7XNM-A1PC').click();
+    const modal = page.getByTestId('decision-trace-modal');
+    await expect(modal).toBeVisible();
+    await expect(modal.getByTestId('field-highlight').first()).toHaveText('body.query');
+    await expect(modal.getByTestId('rule-meta').first()).toContainText('SQL Injection Attack Detected via libinjection');
+    // only the Sigma rule has an author line
+    await expect(modal.getByTestId('rule-author')).toHaveCount(1);
+    await expect(modal.getByTestId('rule-author')).toContainText('A. Author (Example Org)');
+    if (process.env.SCREENSHOT) {
+      await modal.getByTestId('rule-author').scrollIntoViewIfNeeded();
+      await modal.screenshot({ path: process.env.SCREENSHOT });
+    }
   });
 
   test('masks IPs and snippets for a viewer, not for an operator', async ({ page, browser }) => {

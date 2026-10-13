@@ -4,7 +4,7 @@ import { Header } from '../components/layout/Header';
 import { EventFilterBar } from '../components/events/EventFilterBar';
 import { EventsTable } from '../components/events/EventsTable';
 import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
-import { apiClient, Event, SearchEventsRequest, ApiError } from '../api/client';
+import { apiClient, Event, GetEventResponse, SearchEventsRequest, ApiError } from '../api/client';
 import { AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { downloadCsv, csvDate } from '../lib/csv';
@@ -37,6 +37,7 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
 
   // Decision trace modal state
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedRules, setSelectedRules] = useState<GetEventResponse['rules']>(undefined);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isModalLoading, setIsModalLoading] = useState<boolean>(false);
   const [isSearchingBlockId, setIsSearchingBlockId] = useState<boolean>(false);
@@ -96,8 +97,10 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
     try {
       const res = await apiClient.getEvent(blockId);
       setSelectedEvent(res.event);
+      setSelectedRules(res.rules);
     } catch (err: unknown) {
       setSelectedEvent(null);
+      setSelectedRules(undefined);
       if (err instanceof ApiError) {
         if (err.code === 404) {
           setErrorMessage(t('errors.blockIdNotFound', { id: blockId }));
@@ -122,6 +125,7 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
   // Open modal for table row click
   const handleSelectEvent = async (event: Event) => {
     setSelectedEvent(event);
+    setSelectedRules(undefined);
     setIsModalOpen(true);
 
     // Also fetch full decision trace to ensure violations and details are completely loaded
@@ -129,6 +133,7 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
       setIsModalLoading(true);
       const res = await apiClient.getEvent(event.block_id);
       setSelectedEvent(res.event);
+      setSelectedRules(res.rules);
     } catch {
       // If fetching fails, we still have the event from table
     } finally {
@@ -240,6 +245,7 @@ export const EventsPage: React.FC<{ initialBlockId?: string }> = ({ initialBlock
       {/* Decision Trace Modal */}
       <DecisionTraceModal
         event={selectedEvent}
+        rules={selectedRules}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         isLoading={isModalLoading}
