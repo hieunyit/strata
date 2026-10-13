@@ -123,6 +123,10 @@ shadow**, vì shadow vẫn ghi sự kiện).
 
 Sau khi bật lại, kiểm bằng một request thử bị chặn (403 kèm Block ID).
 
+Lưu ý (#49): với gói signature đầy đủ, request đầu tiên trên mỗi worker mới (sau reload
+hoặc đổi bundle) có thể vượt CPU budget và đi theo `strata_fail_mode`. Gửi vài request
+thử sau reload, và đừng kết luận từ request đầu tiên.
+
 ## Rollback bundle
 
 Cảnh báo `StrataWorkersOnOldBundle`, `StrataRolloutStuck`, hoặc một deploy làm chặn
