@@ -557,6 +557,7 @@ message EventAck { uint64 acked_seq = 1; }
 2. Control plane gửi `BundleAvailable` tới các node thuộc connector group, theo đợt (ví dụ 1 node → 10% → 100%) nếu policy cấu hình rollout theo node.
 3. Agent gọi `FetchBundle`, kiểm `sha256` và chữ ký, ghi file nguyên tử, báo `VERIFIED`.
 4. Worker nạp xong, agent thấy qua event socket và báo `ACTIVE`; lỗi thì báo `FAILED` kèm lý do, control plane dừng đợt rollout. *Hiện trạng (W05-G1-01):* agent đọc phiên bản bundle của từng worker trong file metrics (`docs/design/control-file.md`); module chỉ ghi file đó từ W07-N-01, nên khi chưa có file agent báo `ACTIVE` sau 2 giây kể từ lúc cập nhật control file (worker đọc control file mỗi giây).
+5. Node enroll sau một lần deploy nhận ngay bundle của **rollout gần nhất đã xong** (`DONE`) ở `Hello` đầu tiên; rollout đang chạy, tạm dừng, lỗi hoặc đã hủy thì không được giao cho node mới (W10-N-01: trước đó node mới không có bundle cho tới lần deploy sau).
 
 **Độ tin cậy**
 
