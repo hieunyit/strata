@@ -21,7 +21,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
 | W10-Q-01 | Giám sát (dashboard Grafana, cảnh báo VictoriaMetrics cho module, agent, control plane) | Claude Code | — | ✅ Done |
-| W10-N-01 | Gói deb/rpm + image, cài 1 lệnh; runbook diễn tập trên staging; #29 | Claude Code | W10-Q-01 (runbook dẫn tới cảnh báo) | 🔄 Gói, image, runbook xong (lab); diễn tập staging chờ bàn giao |
+| W10-N-01 | Gói deb/rpm + image, cài 1 lệnh; runbook diễn tập trên staging; #29 | Claude Code | W10-Q-01 (runbook dẫn tới cảnh báo) | ✅ Done (#47, #49) |
 | W10-G1-01 | Control plane cho route thí điểm, node 2 route thí điểm enroll | Claude Code | nhận staging từ phiên review W09 | ⏳ Chưa bắt đầu |
 | W10-G2-01 | Policy shadow cho 2 route thí điểm, sự kiện có Event ID về ClickHouse | Claude Code | W10-G1-01 | ⏳ Chưa bắt đầu |
 | W10-S-01 | Bảng FP theo Rule ID trong shadow, cập nhật hằng ngày | Antigravity (PO giao) | W10-G2-01 | 🔄 Code xong (PR #45), chờ số liệu shadow |
