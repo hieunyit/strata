@@ -185,6 +185,38 @@ fn response_layer_flags() {
 }
 
 #[test]
+fn canary_percent() {
+    let doc = from_yaml(
+        "policies:\n\
+         - { name: a, mode: enforce, canary_percent: 1 }\n\
+         - { name: b, mode: enforce, canary_percent: 12.5 }\n\
+         - { name: c, mode: enforce, canary_percent: 0.01 }\n\
+         - { name: d, mode: enforce }",
+    )
+    .unwrap();
+    let got: Vec<u16> = policies_from(&doc, Path::new("."))
+        .unwrap()
+        .policies
+        .iter()
+        .map(|p| p.4)
+        .collect();
+    assert_eq!(got, [100, 1250, 1, 0]);
+    for bad in [
+        "policies: [{ name: a, mode: shadow, canary_percent: 1 }]",
+        "policies: [{ name: a, mode: enforce, canary_percent: 0 }]",
+        "policies: [{ name: a, mode: enforce, canary_percent: 100 }]",
+        "policies: [{ name: a, mode: enforce, canary_percent: 0.001 }]",
+        "policies: [{ name: a, mode: enforce, canary_percent: 1.234 }]",
+        "policies: [{ name: a, mode: enforce, canary_percent: '5' }]",
+    ] {
+        assert!(
+            policies_from(&from_yaml(bad).unwrap(), Path::new(".")).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
 fn operator_validation_in_compiler() {
     let good_byte_range = "
     - id: 800100

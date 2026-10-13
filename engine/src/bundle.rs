@@ -9,7 +9,8 @@
 //!          name [u8; 56] (1..55 chars [a-z0-9._-], NUL-padded) | mode u8
 //!          (0 shadow, 1 enforce) | oversize u8 (0 pass, 1 block: request
 //!          bodies larger than the connector inspects) | response u8 (flags,
-//!          `Response`) | reserved [u8; 5]
+//!          `Response`) | canary u16 (enforce share in basis points, 0 = no
+//!          canary; only with mode enforce, < 10000) | reserved [u8; 3]
 //! ...    zero padding up to sections_off (multiple of 4096)
 //! off    section directory: count u32 | reserved u32 |
 //!          count x { kind u32 | reserved u32 | offset u64 | len u64 }
@@ -90,7 +91,14 @@ pub struct Policy<'a> {
     pub mode: Mode,
     pub oversize: Oversize,
     pub response: Response,
+    /// Enforce canary (`crate::canary`): share of clients, in basis points,
+    /// whose requests an enforce policy blocks; the others run in shadow.
+    /// 0 = no canary (every request follows `mode`).
+    pub canary: u16,
 }
+
+/// Highest canary share: 100% is a plain enforce policy (canary 0).
+pub const MAX_CANARY: u16 = 9999;
 
 /// A policy to write (`build`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,6 +107,8 @@ pub struct PolicySpec<'a> {
     pub mode: Mode,
     pub oversize: Oversize,
     pub response: Response,
+    /// See `Policy::canary`.
+    pub canary: u16,
 }
 
 impl<'a> PolicySpec<'a> {
@@ -109,6 +119,7 @@ impl<'a> PolicySpec<'a> {
             mode,
             oversize,
             response: Response::default(),
+            canary: 0,
         }
     }
 }
@@ -191,7 +202,17 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && entry[POLICY_NAME_LEN] <= Mode::Enforce as u8
         && entry[POLICY_NAME_LEN + 1] <= Oversize::Block as u8
         && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
-        && entry[POLICY_NAME_LEN + 3..].iter().all(|&c| c == 0)
+        && valid_canary(entry_mode(entry), entry_canary(entry))
+        && entry[POLICY_NAME_LEN + 5..].iter().all(|&c| c == 0)
+}
+
+/// A canary share only makes sense on an enforce policy.
+fn valid_canary(mode: Mode, canary: u16) -> bool {
+    canary == 0 || (mode == Mode::Enforce && canary <= MAX_CANARY)
+}
+
+fn entry_canary(e: &[u8]) -> u16 {
+    u16_at(e, POLICY_NAME_LEN + 3)
 }
 
 fn entry_name(e: &[u8]) -> &[u8] {
@@ -334,6 +355,7 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             mode: entry_mode(e),
             oversize: entry_oversize(e),
             response: Response(e[POLICY_NAME_LEN + 2]),
+            canary: entry_canary(e),
         })
 }
 
@@ -395,7 +417,7 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
     out[16..24].copy_from_slice(&spec.version.to_le_bytes());
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
     for (i, p) in spec.policies.iter().enumerate() {
-        if p.response.0 & !Response::ALL != 0 {
+        if p.response.0 & !Response::ALL != 0 || !valid_canary(p.mode, p.canary) {
             return Err(Error::BadLayout("bad policy entry"));
         }
         let at = HEADER_LEN + i * POLICY_ENTRY_LEN;
@@ -403,6 +425,8 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
         out[at + POLICY_NAME_LEN] = p.mode as u8;
         out[at + POLICY_NAME_LEN + 1] = p.oversize as u8;
         out[at + POLICY_NAME_LEN + 2] = p.response.0;
+        out[at + POLICY_NAME_LEN + 3..at + POLICY_NAME_LEN + 5]
+            .copy_from_slice(&p.canary.to_le_bytes());
     }
 
     if spec.sections.len() > MAX_SECTIONS {
@@ -617,5 +641,51 @@ mod tests {
             verify(&b, &public_key(&SEED)),
             Err(Error::BadLayout("bad policy entry"))
         );
+    }
+
+    #[test]
+    fn canary_round_trip_and_bounds() {
+        let p = PolicySpec {
+            canary: 100,
+            ..PolicySpec::new("example-api", Mode::Enforce, Oversize::Pass)
+        };
+        let b = build(&spec(&[p]), &SEED).unwrap();
+        let info = verify(&b, &public_key(&SEED)).unwrap();
+        assert_eq!(find_policy(&b, &info, b"example-api").unwrap().canary, 100);
+        assert_eq!(
+            u16_at(&b, HEADER_LEN + POLICY_NAME_LEN + 3),
+            100,
+            "canary is u16 LE at entry offset 59"
+        );
+
+        // a shadow policy has no canary, and 100% is not a canary
+        for bad in [
+            PolicySpec {
+                canary: 100,
+                ..PolicySpec::new("example-api", Mode::Shadow, Oversize::Pass)
+            },
+            PolicySpec {
+                canary: MAX_CANARY + 1,
+                ..p
+            },
+        ] {
+            assert!(build(&spec(&[bad]), &SEED).is_err(), "{bad:?}");
+        }
+
+        // the same checks on signed bytes
+        for (mode, canary) in [(Mode::Shadow as u8, 100u16), (Mode::Enforce as u8, 10000)] {
+            let mut t = b.clone();
+            t.truncate(t.len() - SIG_LEN);
+            t[HEADER_LEN + POLICY_NAME_LEN] = mode;
+            t[HEADER_LEN + POLICY_NAME_LEN + 3..HEADER_LEN + POLICY_NAME_LEN + 5]
+                .copy_from_slice(&canary.to_le_bytes());
+            let sig = SigningKey::from_bytes(&SEED).sign(&t);
+            t.extend_from_slice(&sig.to_bytes());
+            assert_eq!(
+                verify(&t, &public_key(&SEED)),
+                Err(Error::BadLayout("bad policy entry")),
+                "mode {mode} canary {canary}"
+            );
+        }
     }
 }

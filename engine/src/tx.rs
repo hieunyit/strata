@@ -331,8 +331,11 @@ impl Tx {
     }
 
     /// Applies the policy's settings: its signed mode (a shadow policy
-    /// never blocks, whatever the connector asks), oversize handling and
-    /// response layer. An unknown policy keeps the defaults.
+    /// never blocks, whatever the connector asks), its enforce canary (a
+    /// client outside the canary group runs in shadow, `crate::canary`),
+    /// oversize handling and response layer. An unknown policy keeps the
+    /// defaults. Call after `set_identity` and `set_client_addr`: the
+    /// canary group comes from them.
     pub fn set_policy(&mut self, name: &[u8]) {
         let len = name.len().min(self.unmatched_policy.len());
         self.unmatched_policy[..len].copy_from_slice(&name[..len]);
@@ -341,6 +344,11 @@ impl Tx {
             self.policy_index = Some(p.index);
             // Only towards shadow: nothing lifts TXF_FORCE_SHADOW.
             self.shadow |= p.mode == crate::bundle::Mode::Shadow;
+            let key = crate::canary::key(
+                &self.identity[..self.identity_len],
+                &self.client_addr[..self.client_addr_len],
+            );
+            self.shadow |= !crate::canary::enforced(name, key, p.canary);
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
         } else {
@@ -1369,6 +1377,55 @@ mod tests {
             &[(b"Content-Length", b"1"), (b"Content-Length", b"2")],
         );
         assert_eq!(t.verdict().action, ACTION_LOG);
+    }
+
+    // An enforce policy with a 10% canary blocks the clients of its canary
+    // group and runs the others in shadow; identity decides over the
+    // address, and the same client always gets the same answer.
+    #[test]
+    fn canary_enforces_its_group_only() {
+        let run = |identity: &[u8], addr: &[u8]| {
+            let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", 0);
+            t.set_client_addr(addr);
+            t.set_identity(identity);
+            t.set_policy(b"example-canary");
+            line(&mut t, b"/STRATA-TEST-BLOCK");
+            let v = t.verdict();
+            let enforced = crate::canary::enforced(
+                b"example-canary",
+                crate::canary::key(identity, addr),
+                1000,
+            );
+            if enforced {
+                assert_eq!(v.action, ACTION_BLOCK);
+                assert!(id_str(&v).starts_with("STR-"));
+            } else {
+                assert_eq!(v.action, ACTION_LOG);
+                assert!(id_str(&v).starts_with("EVT-"));
+            }
+            enforced
+        };
+        let mut blocked = 0;
+        for i in 0..1000 {
+            let addr = format!("198.51.{}.{}", i / 256, i % 256);
+            let first = run(b"", addr.as_bytes());
+            assert_eq!(first, run(b"", addr.as_bytes()), "{addr}");
+            blocked += usize::from(first);
+        }
+        assert!(
+            (60..140).contains(&blocked),
+            "10% canary blocked {blocked}/1000"
+        );
+
+        // the identity, not the address, picks the group
+        let in_group = |k: &String| crate::canary::enforced(b"example-canary", k.as_bytes(), 1000);
+        let users: Vec<String> = (0..100).map(|i| format!("user-{i}")).collect();
+        let inside = users.iter().find(|k| in_group(k)).unwrap();
+        let outside = users.iter().find(|k| !in_group(k)).unwrap();
+        for addr in [&b"192.0.2.1"[..], b"192.0.2.2", b"192.0.2.3"] {
+            assert!(run(inside.as_bytes(), addr));
+            assert!(!run(outside.as_bytes(), addr));
+        }
     }
 
     // strata_mode shadow on an enforcing policy stays shadow.

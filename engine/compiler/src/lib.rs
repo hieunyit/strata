@@ -233,8 +233,8 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 #[derive(Debug)]
 pub struct Policies {
-    /// (name, mode, oversize, response flags)
-    pub policies: Vec<(String, Mode, Oversize, Response)>,
+    /// (name, mode, oversize, response flags, canary share in basis points)
+    pub policies: Vec<(String, Mode, Oversize, Response, u16)>,
     pub block_page: Option<BlockPage>,
 }
 
@@ -272,7 +272,24 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 _ => Response::GUARD_JWT,
             };
         }
-        policies.push((name, mode, oversize, Response(response)));
+        let canary = match p.get("canary_percent").and_then(Value::as_f64) {
+            None => 0,
+            Some(_) if mode != Mode::Enforce => {
+                return Err(format!(
+                    "policy {name:?}: canary_percent needs mode enforce"
+                ));
+            }
+            Some(pct) => {
+                let bp = (pct * 100.0).round();
+                if (pct * 100.0 - bp).abs() > 1e-6 || !(1.0..=9999.0).contains(&bp) {
+                    return Err(format!(
+                        "policy {name:?}: canary_percent {pct} is not 0.01..99.99 with two decimals"
+                    ));
+                }
+                bp as u16
+            }
+        };
+        policies.push((name, mode, oversize, Response(response), canary));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -674,8 +691,9 @@ fn compile_unsigned_with(
     let names: Vec<PolicySpec> = policies
         .policies
         .iter()
-        .map(|(n, m, o, r)| PolicySpec {
+        .map(|(n, m, o, r, c)| PolicySpec {
             response: *r,
+            canary: *c,
             ..PolicySpec::new(n, *m, *o)
         })
         .collect();

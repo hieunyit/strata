@@ -252,6 +252,10 @@ pub(crate) mod tests {
                     response: Response(Response::ALL),
                     ..PolicySpec::new("example-guard", Mode::Enforce, Oversize::Pass)
                 },
+                PolicySpec {
+                    canary: 1000,
+                    ..PolicySpec::new("example-canary", Mode::Enforce, Oversize::Pass)
+                },
             ],
             sections: &[],
         };
@@ -266,7 +270,7 @@ pub(crate) mod tests {
     fn maps_signed_bundle() {
         let e = test_engine();
         assert_eq!(e.info().version, 1);
-        assert_eq!(e.info().n_policies, 3);
+        assert_eq!(e.info().n_policies, 4);
     }
 
     #[test]

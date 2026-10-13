@@ -809,6 +809,8 @@ Không chuyển thẳng từ shadow sang enforce: enforce tăng dần 1% → 5% 
 
 **Chọn request vào nhóm canary**: hash ổn định của (identity hoặc IP, tên policy) so với tỉ lệ %. Cùng một client luôn rơi vào cùng một nhóm nên trải nghiệm không chập chờn. Request ngoài nhóm canary vẫn được inspect ở chế độ shadow (có Event ID), nên luôn có nhóm đối chứng.
 
+*Hiện trạng (W11-R-01):* tỉ lệ canary là dữ liệu đã ký của policy: `canary_percent` trong `policies.schema.json` (0,01–99,99, chỉ với mode enforce), lưu thành `u16` basis point trong bảng policy của bundle (`docs/design/control-file.md`). libstrata chọn nhóm lúc `strata_tx_new` (`engine/src/canary.rs`): bucket = FNV-1a 64 trên `tên policy ‖ 0xff ‖ khóa`, trộn bằng splitmix64, mod 10.000; khóa là identity (`strata_identity`) nếu có, không thì địa chỉ client. Request có bucket nhỏ hơn tỉ lệ thì enforce, còn lại chạy shadow như policy shadow (`EVT-`, action `log`). Hàm hash cố định để control plane tính lại nhóm (W12-G2-01); tăng tỉ lệ thì nhóm cũ vẫn nằm trong nhóm mới. Hash không có khóa bí mật: client tự chọn identity có thể rơi vào phía shadow, chỉ hoãn việc bị chặn tới khi policy enforce 100%. Đổi tỉ lệ là deploy bundle mới; API policy và UI cho tỉ lệ chưa làm.
+
 | Bậc | Tỉ lệ enforce | Quan sát tối thiểu | Điều kiện lên bậc |
 | --- | --- | --- | --- |
 | 1 | 1% | 24 giờ | Không có false positive được xác nhận mới; tỉ lệ chặn trong nhóm canary khớp với dự đoán từ shadow |
