@@ -34,7 +34,8 @@ Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này v�
 4. **W10-G2-01** Policy shadow cho 2 route thí điểm; sự kiện có Event ID về ClickHouse.
 5. **W10-S-01** Bảng FP theo Rule ID cập nhật hằng ngày.
 6. **W10-F-01** Trang Tổng quan v0 (bị chặn theo giờ, top rule, top route).
-7. Báo cáo Gate A, rồi review tuần 10 (theo `docs/reports/w08-review.md`).
+7. Thêm 14/10 sau đánh giá bên ngoài (`docs/plan/review-response.md`, PO duyệt): **RV-R-01** đóng #27/#28 (nhánh `issue-28-hs-groups`, `~/strata`); **RV-N-01** cờ `inspection` cho request fail-open; **RV-Q-01** `docs/status.md` và số liệu đúng trong báo cáo Gate A.
+8. Báo cáo Gate A, rồi review tuần 10 (theo `docs/reports/w08-review.md`).
 
 Ràng buộc phiên này: build/test chỉ trên nhân 6–10 (`STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=6-10"`), không chạy benchmark; không đụng staging, soak, tag `v0.9.0-rc.*` cho tới khi memory `w09-review.md` ghi "staging handed over to W10" (trước đó dùng lab); sau đó staging chỉ deploy tag `v0.10.0-rc.*` kèm `--signatures build/signatures/v0.0.1`, ghi mỗi lần deploy vào `docs/reports/w09-s-01.md`.
 

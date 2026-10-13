@@ -11,7 +11,7 @@ Kế hoạch nối tiếp tuần 1–2 (khung module, ABI, PoC Hyperscan + mmap)
 | N | Module NGINX (C) | 1 kỹ sư C/NGINX | `connectors/nginx/` |
 | R | libstrata (Rust) | 1 kỹ sư Rust | `engine/`, compiler, replay engine, tokenizer |
 | S | Rule & signature | 1 detection engineer (bảo mật) | `rules/`, `corpus/`, gói signature, CRS |
-| G1 | Agent + Fleet (Go) | 1 kỹ sư Go | `strata-agent`, Fleet service, GitOps sync |
+| G1 | Agent + Fleet (Go) | 1 kỹ sư Go | `strata-agent`, Fleet service, chế độ Lite (GitOps sync ở v1.1) |
 | G2 | Control plane (Go) | 1 kỹ sư Go | API server, Policy, ingest, Stats |
 | F | Web UI | 1 kỹ sư frontend | `ui/` |
 | Q | QA / SRE | bán thời gian | lab, CI, kiểm thử tải, vận hành canary |
@@ -119,6 +119,8 @@ Cần bộ phận pháp chế xác nhận lại các giấy phép trước khi p
 - Virtual patch bán tự động từ nuclei-templates, ưu tiên theo danh sách CVE đang bị khai thác và SBOM.
 - Endpoint mồi (decoy) để bắt kẻ tấn công với FP gần bằng 0.
 - Đề xuất tuning tự động từ FP lặp lại, kiểm chứng bằng replay.
+- GitOps sync (trước là W19-G1-01, W20-G1-01): chuyển sang v1.1 để lấy chỗ cho chống bot và chế độ Lite (PO duyệt 14/10/2026).
+- Fingerprint HTTP/2 và học schema từ traffic: chỉ có trong thiết kế, chưa lập nhiệm vụ trong v1.
 
 **Kế hoạch theo tuần**
 
@@ -132,6 +134,7 @@ Nhiệm vụ cụ thể của luồng S nằm trong từng tuần (mã `Wxx-S-yy
 | Recall trên corpus attack (SQLi, XSS, CMDi, LFI) | từ 70% | từ 90% | không thấp hơn CRS PL2 |
 | Rule có đủ mẫu test | 100% | 100% | 100% |
 | Thời gian virtual patch CVE nghiêm trọng | — | dưới 24 giờ | dưới 24 giờ |
+| FP theo route trên traffic thật (gói core, RV-S-01) | — | dưới 0,05% request, sau ít nhất 14 ngày shadow | dưới 0,05% request |
 
 Nếu chưa tuyển được detection engineer, cần một người từ đội bảo mật làm toàn thời gian từ tuần 3; không nên để kỹ sư Rust kiêm, vì hai việc cùng nằm trên đường găng.
 
@@ -395,6 +398,21 @@ Mục tiêu: request thật đi qua module trên 2 route thí điểm ở chế 
 - **W10-F-01 · Trang Tổng quan v0**
   - Xong khi: request bị chặn theo giờ, top rule, top route từ dữ liệu thật.
 
+Bổ sung 14/10/2026 sau đánh giá bên ngoài (`docs/plan/review-response.md`, PO duyệt). Mã `RV-*` giữ nguyên, dùng làm tên nhánh như mã tuần.
+
+- **RV-R-01 · Đóng #27/#28**
+  - Thư mục: `engine/`, `tools/`
+  - Làm: bundle section kind 8 (Hyperscan block mode, một DB cho mỗi nhóm scan) sau cờ compiler; đo trước/sau trên nhân 0–5, Linux thật.
+  - Xong khi: báo cáo trước/sau cho throughput phase 0–1, p99 form 64 KB / 1.700 trường, tỉ lệ fail-open của gói đầy đủ với body 64 KB và 1 MB. Chưa đạt (≤ 10%, < 1 ms, 0 fail-open với body ≤ 64 KB) thì ticket có hướng làm tiếp và Gate A ghi ngoại lệ.
+- **RV-N-01 · Fail-open nhìn thấy được**
+  - Thư mục: `engine/`, `proto/`, `control-plane/`, `deploy/monitoring/`, `ui/`
+  - Làm: sự kiện có cờ `inspection = partial | skipped` khi vượt budget hoặc bỏ qua body (thêm field vào `event.proto`, cùng lần đổi proto với RV-G2-01); tỉ lệ request không được kiểm đủ theo route trên trang Tổng quan và trong báo cáo Gate A.
+  - Xong khi: test body vượt budget → sự kiện có cờ, ClickHouse đếm được theo route, Tổng quan hiện đúng số.
+- **RV-Q-01 · Trạng thái thật của tính năng**
+  - Thư mục: `docs/`, `README.md`
+  - Làm: `docs/status.md`: mỗi tính năng trong strata-overview.md là Có (đã test) / Một phần / Mới là thiết kế, kèm link test hoặc báo cáo; README dẫn tới bảng này. Báo cáo Gate A ghi đúng số fuzz (theo quyết định PO 13/10), giới hạn của `catch_unwind`, route thí điểm còn là giả lập.
+  - Xong khi: mọi dòng "Có" trỏ tới test hoặc báo cáo; review tuần 10 kiểm bảng này.
+
 **Demo · Gate A**: xem mục Đường găng, phụ thuộc & gate.
 
 ## Giai đoạn B · Tuần 11–16: tới enforce 100%
@@ -415,6 +433,15 @@ Mục tiêu: route thí điểm chạy enforce 100% ổn định, có đủ lư�
   - Đọc: nginx-module.md › Bật enforce theo canary.
 - **W11-S-01 · Xử lý FP sau tuần shadow**
   - Xong khi: mọi Rule ID có FP trong shadow đã được chỉnh rule hoặc có exception; corpus benign bổ sung từ traffic thật đã ẩn danh; phát hành pack v0.1.
+- **RV-G2-01 · Ngữ cảnh điều tra trong sự kiện (P-01 §1, §1b)**
+  - Thư mục: `engine/`, `proto/`, `control-plane/`, `ui/`
+  - Làm: `user_agent`, `referer` (cắt 512 B, cột riêng); header tên + giá trị, tối đa ~32 header / 2 KB, giá trị `Authorization`, `Cookie`, `X-Api-Key`… thành `[MASKED]`; `max_snippet_size` admin chọn (128 B mặc định, 2–4 KB); mở rộng masking trong `engine/src/event.rs` trước khi ghi; migration ClickHouse; UI chi tiết sự kiện hiện các field mới.
+  - Xong khi: test masking cho từng loại; tra Block ID trên UI thấy UA, Referer, header đã che; benchmark lại, so với RV-R-01.
+  - Cần trước: RV-R-01.
+- **RV-S-01 · Tách gói rule theo mức tin cậy**
+  - Thư mục: `rules/`, `tools/`
+  - Làm: gói **core** (CRS PL1 + protocol + virtual patch) là mặc định; gói **signature** (Sigma, ET Open) bật theo route, mặc định chỉ shadow. Rule lên gói core khi đã 14 ngày shadow trên traffic thật với FP theo Rule ID dưới 0,05% request của route. Pack v0.1 của W11-S-01 phát hành theo 2 gói này.
+  - Xong khi: `strata-rules release` sinh được 2 gói; policy chọn gói theo route; test policy mặc định không có rule signature ở chế độ enforce.
 - **W11-G1-01 · Tự fallback tại node**
   - Thư mục: `agent/`
   - Làm: đọc metrics shared memory mỗi 5 giây; vượt ngưỡng thì ghi cờ force-shadow vào control file.
@@ -492,6 +519,14 @@ Mục tiêu: route thí điểm chạy enforce 100% ổn định, có đủ lư�
   - Thư mục: `engine/`
   - Làm: lấy mẫu thời gian xử lý theo Rule ID (mặc định 1% request), đưa vào metrics và sự kiện.
   - Xong khi: chi phí đo lường dưới 2% thời gian engine.
+* **RV-S-02 · Quy trình nuôi rule**
+  - Thư mục: `tools/`, `control-plane/`, `docs/rules/`
+  - Làm: từ bảng FP theo Rule ID (W10-S-01): rule vượt ngưỡng FP trong shadow bị đánh dấu "cần xem" kèm đề xuất exception có hạn; rule không khớp lần nào trong 90 ngày bị đánh dấu "già"; mỗi rule có người chịu trách nhiệm và ngày xem lại; nhập lại CRS/Sigma/ET theo lịch, chạy `make test-crs-ftw` và corpus benign trước khi phát hành. Lịch phát hành gói hằng tuần của W22-S-01 đưa lên làm ở đây.
+  - Xong khi: báo cáo hằng tuần tự sinh (rule cần xem, rule già, thay đổi upstream).
+* **RV-Q-03 · Shadow trên traffic thật**
+  - Làm: thay 2 route thí điểm giả lập bằng route thật (PO chọn), chạy shadow ít nhất 14 ngày trước Gate B.
+  - Xong khi: dữ liệu 14 ngày đủ để đánh giá điều kiện Gate B tương ứng.
+  - Lịch: canary 1% chỉ bật trên route thật sau 14 ngày shadow. Route thật bắt đầu shadow đầu tuần 11 thì canary sớm nhất đầu tuần 13; các bậc canary và Gate B lùi theo (dùng vùng đệm tuần 16 trước, rồi mới lùi Gate B).
 
 **Demo**: một thay đổi policy đi đủ chuỗi nháp → replay → duyệt → deploy.
 
@@ -515,6 +550,10 @@ Mục tiêu: route thí điểm chạy enforce 100% ổn định, có đủ lư�
   - Làm: tổng hợp theo Rule ID (số lần khớp, số FP được báo, chi phí trung bình); rule có FP tăng đột biến tự quay về staging (chỉ ghi log) và báo người duyệt; API `GET /v1/rules/{rule_id}/health`.
   - Xong khi: giả lập FP tăng đột biến → rule về staging trong dưới 5 phút.
   - Cần trước: W13-R-02.
+* **RV-R-03 · Rate limit tầng 1, theo node (P-01 §3)**
+  - Thư mục: `engine/`, `connectors/nginx/src/`
+  - Làm: theo P-01 §3 tầng 1: bộ đếm trong shared memory, key theo IP / identity / route, action `rate_limit` trong policy.
+  - Xong khi: brute-force trên route đăng nhập giả lập bị chặn đúng ngưỡng (có test); không khóa, không I/O trên đường đi của request; benchmark giảm không quá 2%.
 
 **Demo**: helpdesk xử lý một ca chặn nhầm từ Block ID tới exception được duyệt trong dưới 15 phút.
 
@@ -573,6 +612,11 @@ Mục tiêu: SOC có bản đồ GeoIP và dashboard dùng hằng ngày; engine 
   - Xong khi: theo `docs/decisions/ring-buffer.md`: hoặc ring buffer `/dev/shm` có test, hoặc ghi rõ để v1.1.
 - **W17-Q-01 · Test tải truy vấn tổng hợp**
   - Xong khi: truy vấn 24 giờ dưới 1 giây, 30 ngày dưới 3 giây trên dữ liệu giả lập 30 ngày.
+* **RV-N-02 · Fingerprint TLS JA4**
+  - Thư mục: `connectors/nginx/src/`, `engine/`
+  - Làm: lấy ClientHello thô qua callback ClientHello của OpenSSL, chỉ chuyển con trỏ + độ dài sang libstrata; libstrata tính JA4. JA4 vào sự kiện, dùng được làm key rate limit và điều kiện rule.
+  - Xong khi: JA4 khớp vector tham chiếu của FoxIO cho curl, Chrome, Python requests; `make check-c-lines` vẫn dưới 3.000.
+  - Không làm: fingerprint HTTP/2 trên NGINX (NGINX không đưa frame SETTINGS ra module); xem lại khi có connector Envoy.
 
 **Demo**: bản đồ nền hiển thị trong mạng nội bộ.
 
@@ -599,6 +643,11 @@ Mục tiêu: SOC có bản đồ GeoIP và dashboard dùng hằng ngày; engine 
   - Cần trước: W18-G2-02.
 * **W18-S-01 · Pack bot**
   - Xong khi: signature bot xấu và mẫu brute force có test; rule xác minh bot tốt bật mặc định.
+* **RV-R-04 · Challenge, rate theo identity, rate limit toàn cụm**
+  - Thư mục: `engine/`, `connectors/nginx/src/`, `agent/`, `control-plane/`
+  - Làm: action `challenge`: trang JS challenge, cookie ký HMAC có hạn, libstrata kiểm cookie; ngưỡng `challenge` / `block` theo route; rate theo identity cho route đăng nhập (credential stuffing); rate limit tầng 2 toàn cụm theo P-01 §3.
+  - Xong khi: client không chạy JS bị challenge; trình duyệt headless qua challenge rồi bị rate limit theo identity; cookie giả hoặc hết hạn bị từ chối (có test).
+  - Cần trước: RV-R-03.
 
 **Demo**: bản đồ dữ liệu thật 24 giờ, truy vấn dưới 1 giây.
 
@@ -611,18 +660,17 @@ Mục tiêu: SOC có bản đồ GeoIP và dashboard dùng hằng ngày; engine 
   - Xong khi: rule chặn theo quốc gia và ASN có test; kích thước bundle tăng được ghi lại.
 - **W19-G2-01 · Rule geo/ASN trong policy**
   - Xong khi: tạo, sửa, deploy rule geo/ASN qua API.
-- **W19-G1-01 · GitOps sync (phần 1)**
-  - Thư mục: `gitops-sync/`
-  - Xong khi: import YAML → bản nháp chờ duyệt; export policy ra Git.
+- **RV-G1-01 · Chế độ Lite cho cụm nhỏ** (thay W19-G1-01 GitOps, chuyển sang v1.1)
+  - Thư mục: `agent/`, `deploy/packaging/`, `docs/design/`
+  - Làm: cập nhật nginx-module.md (chế độ triển khai Lite) trước khi code; `strata-agent --standalone`: nhận bundle đã ký từ thư mục hoặc URL, ghi control file, đọc metrics, ghi sự kiện ra file JSON Lines / syslog (đường xuất SIEM của P-01 §2). Không cần control plane, Postgres, ClickHouse, UI. Một lệnh cài: gói module + agent + gói rule core.
+  - Xong khi: VM sạch, cài 1 lệnh, chặn được request SQLi mẫu trong dưới 5 phút; cập nhật rule bằng `strata-rules` + hot reload, không `nginx -s reload`.
 
 **Demo**: từ bản đồ tới rule chặn ASN được duyệt và deploy trong dưới 10 phút.
 
-### Tuần 20 · Dashboard và GitOps
+### Tuần 20 · Dashboard
 
 - **W20-F-01 · Trang Tổng quan đầy đủ**
   - Xong khi: request, tỉ lệ chặn, top rule, top route, latency engine, node lỗi, rollout đang chạy; tự làm mới, có nút tạm dừng.
-- **W20-G1-01 · GitOps sync (phần 2)**
-  - Xong khi: export định kỳ; khóa policy theo kênh (UI / API / GitOps) để tránh ghi đè, có test.
 - **W20-G2-01 · Tối ưu truy vấn thống kê**
   - Xong khi: 24 giờ dưới 1 giây, 30 ngày dưới 3 giây trên dữ liệu thật.
 - **W20-R-01 · Tinh chỉnh semantic detector**
@@ -652,7 +700,7 @@ Mục tiêu: SOC có bản đồ GeoIP và dashboard dùng hằng ngày; engine 
 
 - **W22-ALL-01 · Release candidate**
   - Xong khi: tag `v1.0.0`; gói signature v1.0 kèm file NOTICE; tài liệu nâng cấp và migration; runbook vận hành bản cuối.
-- **W22-S-01 · Hướng dẫn viết rule và lịch phát hành**
+- **W22-S-01 · Hướng dẫn viết rule** (lịch phát hành đã làm ở RV-S-02)
   - Xong khi: `docs/rules/authoring.md`; lịch phát hành gói signature hằng tuần.
 - **Vận hành**: đào tạo SOC và helpdesk quy trình xử lý theo Block ID; thống nhất SLA hỗ trợ.
 - **W22-ALL-02 · Retrospective và kế hoạch tiếp theo**
@@ -686,7 +734,7 @@ Mục tiêu: SOC có bản đồ GeoIP và dashboard dùng hằng ngày; engine 
 | Gate | Thời điểm | Điều kiện đạt | Nếu chưa đạt |
 | --- | --- | --- | --- |
 | A · Shadow | Cuối tuần 10 | 5 mục tiêu của module đạt (p99 dưới 1 ms, throughput giảm tối đa 10%, hot reload không rớt request, 72 giờ fuzz không crash, conformance 100%); sự kiện về ClickHouse; UI tra được Block ID; runbook đã diễn tập; gói signature v0 đạt chỉ tiêu Gate A của luồng S | Giữ shadow, không bật canary; lùi giai đoạn B tương ứng |
-| B · Enforce | Cuối tuần 16 | Route thí điểm enforce 100% ít nhất 2 tuần không fallback; FP dưới ngưỡng thống nhất; game day đạt; helpdesk xử lý được ca chặn nhầm qua Block ID; chỉ tiêu chất lượng Gate B của luồng S đạt | Quay về bậc canary trước; giai đoạn C vẫn làm được vì không chặn enforce |
-| C · v1 | Cuối tuần 22 | SOC dùng bản đồ và dashboard trong ca trực; không còn lỗi pentest mức cao; tài liệu vận hành và đào tạo hoàn tất | Phát hành v1 không kèm phần chưa đạt (ví dụ GitOps), ghi vào v1.1 |
+| B · Enforce | Cuối tuần 16 | Route thí điểm **thật** đã shadow ít nhất 14 ngày (RV-Q-03) rồi enforce 100% ít nhất 2 tuần không fallback; FP theo route dưới 0,05% request (RV-S-01); tỉ lệ request không được kiểm đủ (RV-N-01) dưới ngưỡng PO đặt; FP dưới ngưỡng thống nhất; game day đạt; helpdesk xử lý được ca chặn nhầm qua Block ID; chỉ tiêu chất lượng Gate B của luồng S đạt | Quay về bậc canary trước; giai đoạn C vẫn làm được vì không chặn enforce |
+| C · v1 | Cuối tuần 22 | SOC dùng bản đồ và dashboard trong ca trực; không còn lỗi pentest mức cao; tài liệu vận hành và đào tạo hoàn tất | Phát hành v1 không kèm phần chưa đạt (ví dụ chế độ Lite), ghi vào v1.1 |
 
-**Vùng đệm**: tuần 16 và tuần 22 đều có phần ổn định / phát hành, dùng được làm vùng đệm khoảng 1 tuần mỗi giai đoạn. Nếu thiếu nhân sự, giữ nguyên A–B, lùi C (bản đồ, dashboard, GitOps, OpenAPI) mà không ảnh hưởng enforce.
+**Vùng đệm**: tuần 16 và tuần 22 đều có phần ổn định / phát hành, dùng được làm vùng đệm khoảng 1 tuần mỗi giai đoạn. Nếu thiếu nhân sự, giữ nguyên A–B, lùi C (bản đồ, dashboard, chống bot, chế độ Lite, OpenAPI) mà không ảnh hưởng enforce.
