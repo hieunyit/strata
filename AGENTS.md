@@ -37,7 +37,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W09-G2-01 | ClickHouse cho vận hành (TTL, Block ID < 1 s, tìm 24 giờ < 2 s) | Claude Code | — | ✅ Done |
 | W09-F-01 | Decision trace dễ đọc (tô field vi phạm, tác giả rule Sigma) | Claude Code | — | ✅ Done |
 | W09-S-02 | Bộ sinh biến thể payload, chạy hằng đêm | Claude Code | — | ✅ Done (#34) |
-| W09-S-01 | Phát hành gói signature v0 (staging 7 ngày, review 2 người, Gate A) | Claude Code (PO giao duyệt) | W09-Q-02, W09-S-02 | 🔄 Đã phát hành 0.0.1, đạt Gate A; staging 7 ngày tới 20/10 06:33 UTC |
+| W09-S-01 | Phát hành gói signature v0 (staging 7 ngày, review 2 người, Gate A) | Claude Code (PO giao duyệt) | W09-Q-02, W09-S-02 | 🔄 Đã phát hành 0.0.1, đạt Gate A; staging 7 ngày tới 20/10 11:18 UTC (tính lại từ `v0.9.0-rc.4`) |
 
 **Nhiệm vụ tuần 8** (khối A3 · Kiểm thử (1)); review lại: `docs/reports/w08-review.md`
 
