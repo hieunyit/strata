@@ -3,11 +3,16 @@
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
 //!              [--budget-us N] [--only small|nul|attack|json|64k|1m] [--event] [--diagnose]
+//!              [--cold N]
 //!
 //! For each request kind (small GET, 64 KB and 1 MB urlencoded POST, JSON
 //! POST, an attack GET) prints one JSON line: mean, p50, p99 and max in µs,
 //! the action and the matched rules of the last run (so a speed-up that
 //! changes a verdict shows).
+//!
+//! `--cold N` times instead the first request of a freshly mapped engine, N
+//! times per request kind: what a worker pays right after a bundle load
+//! (fallback regexes are compiled on first use).
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -174,14 +179,51 @@ fn main() {
         .map(|s| s.parse().expect("--budget-us"))
         .unwrap_or(0);
 
-    let t0 = Instant::now();
-    let e = Arc::new(
-        Engine::map(
-            Box::new(strata_hs::AlignedBuf::from_bytes(&bundle)),
-            &pubkey,
+    let map = || {
+        Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&bundle)),
+                &pubkey,
+            )
+            .unwrap_or_else(|(rc, m)| panic!("bundle: {rc} {m}")),
         )
-        .unwrap_or_else(|(rc, m)| panic!("bundle: {rc} {m}")),
-    );
+    };
+    if let Some(n) = get("--cold") {
+        let n: usize = n.parse().expect("--cold");
+        for r in requests() {
+            if only.as_deref().is_some_and(|o| o != r.name) {
+                continue;
+            }
+            let mut first = Vec::with_capacity(n);
+            let mut warm = Vec::with_capacity(n);
+            let mut last = (0, vec![]);
+            for _ in 0..n {
+                let e = map();
+                let s = Instant::now();
+                last = run_one(&e, policy.as_bytes(), budget_us, event, &r);
+                first.push(s.elapsed().as_secs_f64() * 1e6);
+                let s = Instant::now();
+                run_one(&e, policy.as_bytes(), budget_us, event, &r);
+                warm.push(s.elapsed().as_secs_f64() * 1e6);
+            }
+            first.sort_by(|a, b| a.total_cmp(b));
+            warm.sort_by(|a, b| a.total_cmp(b));
+            println!(
+                "{{\"request\":\"{}\",\"cold\":{},\"first_p50_us\":{:.1},\"first_max_us\":{:.1},\"second_p50_us\":{:.1},\"action\":{},\"rules\":{:?}}}",
+                r.name,
+                n,
+                first[n / 2],
+                first[n - 1],
+                warm[n / 2],
+                last.0,
+                last.1
+            );
+        }
+        return;
+    }
+
+    let t0 = Instant::now();
+    let e = map();
     eprintln!(
         "strata-bench: bundle mapped in {} ms",
         t0.elapsed().as_millis()
@@ -195,6 +237,23 @@ fn main() {
         })
         .unwrap_or_default();
     eprintln!("strata-bench: after map {rss}");
+    if args.iter().any(|a| a == "--compile-all") {
+        let t = Instant::now();
+        let n = e.regexes().compile_all();
+        let rss = std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with("VmRSS"))
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        eprintln!(
+            "strata-bench: {n}/{} fallback regexes compiled in {} ms, {rss}",
+            e.regexes().len(),
+            t.elapsed().as_millis()
+        );
+    }
     let (gated, groups) = e.prefilter().stats();
     eprintln!(
         "strata-bench: {} rules, {gated} gated by the prefilter, {groups} scan groups",
