@@ -42,12 +42,31 @@ use crate::{json, multipart, xml};
 
 pub struct FallbackRegex {
     pub ci: u32,
-    pub re: regex::bytes::Regex,
-    pub dfa: regex_automata::hybrid::dfa::DFA,
+    pattern: Vec<u8>,
+    /// compiled on first use (W09-R-01): most of these are the secondary
+    /// conditions of rules whose gate rarely holds, and each compiled
+    /// regex costs memory in every worker
+    compiled: std::sync::OnceLock<Option<(regex::bytes::Regex, regex_automata::hybrid::dfa::DFA)>>,
 }
 
-/// The rx patterns of a bundle that are not in its Hyperscan database,
-/// compiled with the `regex` crate and lazy DFA when the bundle is mapped.
+impl FallbackRegex {
+    /// The regex and its lazy DFA; None if the pattern does not compile
+    /// (the compiler checked it: a bundle signed for another build).
+    pub fn compiled(&self) -> Option<(&regex::bytes::Regex, &regex_automata::hybrid::dfa::DFA)> {
+        self.compiled
+            .get_or_init(|| {
+                Some((
+                    fallback_regex(&self.pattern).ok()?,
+                    fallback_dfa(&self.pattern).ok()?,
+                ))
+            })
+            .as_ref()
+            .map(|(re, dfa)| (re, dfa))
+    }
+}
+
+/// The rx patterns of a bundle that are not in its Hyperscan database, run
+/// with the `regex` crate and lazy DFA; each is compiled on first use.
 #[derive(Default)]
 pub struct Regexes(Vec<FallbackRegex>);
 
@@ -152,7 +171,7 @@ pub fn dfa_is_match_with_budget(
 }
 
 /// `\x{HH}` -> `\xHH` for values up to 0xff; other escapes as written.
-fn byte_escapes(p: &str) -> String {
+pub fn byte_escapes(p: &str) -> String {
     let b = p.as_bytes();
     let mut out = String::with_capacity(p.len());
     let mut i = 0;
@@ -197,9 +216,15 @@ impl Regexes {
                 let Some(c) = tables.cond(ci) else { continue };
                 if let (true, ValueView::Str(p), false) = (c.op == rx, c.value, in_db.contains(&ci))
                 {
-                    let re = fallback_regex(p).map_err(|e| format!("rule {}: {e}", r.id))?;
-                    let dfa = fallback_dfa(p).map_err(|e| format!("rule {}: {e}", r.id))?;
-                    out.push(FallbackRegex { ci, re, dfa });
+                    // checked when compiled; a pattern that is not UTF-8
+                    // never compiles: refuse the bundle now, as before
+                    std::str::from_utf8(p)
+                        .map_err(|_| format!("rule {}: pattern is not UTF-8", r.id))?;
+                    out.push(FallbackRegex {
+                        ci,
+                        pattern: p.to_vec(),
+                        compiled: std::sync::OnceLock::new(),
+                    });
                 }
             }
         }
@@ -512,6 +537,281 @@ impl std::hash::Hasher for ScanKeyHasher {
 
 type FastBuildHasher = std::hash::BuildHasherDefault<ScanKeyHasher>;
 
+/// Hyperscan prefilter (W09-R-01). A condition is a *gate* when it holds
+/// exactly when Hyperscan reports it on one of its values: an HS pattern
+/// operator without a `regex`-crate fallback, not negated, on targets that
+/// are neither counts nor `matched_vars`. Gates with the same targets, chain
+/// and `multi_match` read the same values: they form a scan group, scanned
+/// once per request, which gives every gate of the group that holds. A rule
+/// whose conditions must all hold (`all`) cannot match when one of its gates
+/// is missing; a rule with `any` whose conditions are all gates cannot match
+/// when none is present. Such rules are skipped without visiting their
+/// values; the result is the one of evaluating them.
+#[derive(Debug, Default)]
+pub struct Prefilter {
+    /// per condition: its scan group, or NO_GROUP
+    cond_group: Vec<u32>,
+    /// per group: one of its conditions (they share targets and chain)
+    group_rep: Vec<u32>,
+    /// per rule: how it is gated
+    rule_gate: Vec<Gate>,
+    /// per condition: the rule it belongs to
+    cond_rule: Vec<u32>,
+    /// per stage code: the rules evaluated on every request (not gated),
+    /// and the scan groups of the gates of its other rules
+    stages: Vec<(Vec<u32>, Vec<u32>)>,
+}
+
+const NO_GROUP: u32 = u32::MAX;
+
+#[derive(Debug, Clone, Copy)]
+enum Gate {
+    /// evaluated as before
+    None,
+    /// an `all` rule: skipped when this gate does not hold
+    One(u32),
+    /// an `any` rule of gates only: skipped when none holds
+    AnyOf,
+}
+
+impl Prefilter {
+    /// Groups the gates of `tables`; linear in the rule tables, once per load.
+    pub fn build(tables: &Tables<'_>, regexes: &Regexes) -> Prefilter {
+        let mut pf = Prefilter::default();
+        // without a Hyperscan database no condition is a gate: every rule
+        // is evaluated on every request
+        let has_hs = tables.hyperscan().is_some();
+        type TargetKey = (u8, Option<Vec<u8>>, Vec<Vec<u8>>);
+        let mut groups: HashMap<(Vec<u8>, bool, Vec<TargetKey>), u32> = HashMap::new();
+        let mut gate_of = |ci: u32| -> u32 {
+            let Some(c) = tables.cond(ci) else {
+                return NO_GROUP;
+            };
+            let gate = has_hs
+                && HS_OPERATORS.contains(&c.op)
+                && regexes.get(ci).is_none()
+                && !c.negate
+                && c.target_count > 0
+                && c.transforms.iter().all(|&t| transform::is_implemented(t));
+            if !gate {
+                return NO_GROUP;
+            }
+            let mut targets = Vec::with_capacity(c.target_count as usize);
+            for ti in c.target_first..c.target_first + c.target_count {
+                let Some(t) = tables.target(ti) else {
+                    return NO_GROUP;
+                };
+                if t.count || t.var == const { var("matched_vars") } {
+                    return NO_GROUP;
+                }
+                let excludes = (t.exclude_first..t.exclude_first + t.exclude_count)
+                    .filter_map(|i| tables.list(i))
+                    .map(<[u8]>::to_vec)
+                    .collect();
+                targets.push((t.var, t.key.map(<[u8]>::to_vec), excludes));
+            }
+            let key = (c.transforms.to_vec(), c.multi_match, targets);
+            let next = groups.len() as u32;
+            let g = *groups.entry(key).or_insert(next);
+            if g == next {
+                pf.group_rep.push(ci);
+            }
+            g
+        };
+        let n_conds = (0..tables.n_rules())
+            .filter_map(|i| tables.rule(i))
+            .map(|r| r.cond_first + r.cond_count)
+            .max()
+            .unwrap_or(0);
+        pf.cond_group = (0..n_conds).map(&mut gate_of).collect();
+        pf.rule_gate = (0..tables.n_rules())
+            .map(|i| {
+                let Some(r) = tables.rule(i) else {
+                    return Gate::None;
+                };
+                let conds = r.cond_first..r.cond_first + r.cond_count;
+                let is_gate = |ci: u32| {
+                    pf.cond_group
+                        .get(ci as usize)
+                        .is_some_and(|&g| g != NO_GROUP)
+                };
+                if r.cond_count == 0 {
+                    Gate::None
+                } else if r.any {
+                    if conds.clone().all(is_gate) {
+                        Gate::AnyOf
+                    } else {
+                        Gate::None
+                    }
+                } else {
+                    conds
+                        .clone()
+                        .find(|&ci| is_gate(ci))
+                        .map_or(Gate::None, Gate::One)
+                }
+            })
+            .collect();
+        pf.cond_rule = vec![u32::MAX; n_conds as usize];
+        pf.stages = vec![(vec![], vec![]); crate::rules::STAGES.len()];
+        for i in 0..tables.n_rules() {
+            let Some(r) = tables.rule(i) else { continue };
+            for ci in r.cond_first..r.cond_first + r.cond_count {
+                pf.cond_rule[ci as usize] = i as u32;
+            }
+            let Some((ungated, groups)) = pf.stages.get_mut(r.stage as usize) else {
+                continue;
+            };
+            match pf.rule_gate[i] {
+                Gate::None => ungated.push(i as u32),
+                Gate::One(ci) => groups.push(pf.cond_group[ci as usize]),
+                Gate::AnyOf => groups.extend(
+                    (r.cond_first..r.cond_first + r.cond_count)
+                        .map(|ci| pf.cond_group[ci as usize]),
+                ),
+            }
+        }
+        for (_, groups) in &mut pf.stages {
+            groups.sort_unstable();
+            groups.dedup();
+        }
+        pf
+    }
+
+    /// Why conditions are not gates, by operator, for the benchmark report.
+    pub fn diagnose(tables: &Tables<'_>, regexes: &Regexes) -> Vec<(String, usize)> {
+        let mut out: HashMap<String, usize> = HashMap::new();
+        let n_conds = (0..tables.n_rules())
+            .filter_map(|i| tables.rule(i))
+            .map(|r| r.cond_first + r.cond_count)
+            .max()
+            .unwrap_or(0);
+        for ci in 0..n_conds {
+            let Some(c) = tables.cond(ci) else { continue };
+            let op = crate::rules::OPERATORS
+                .get(c.op as usize)
+                .copied()
+                .unwrap_or("?");
+            let why = if !HS_OPERATORS.contains(&c.op) {
+                "not an HS operator"
+            } else if regexes.get(ci).is_some() {
+                "regex fallback"
+            } else if c.negate {
+                "negated"
+            } else if (c.target_first..c.target_first + c.target_count)
+                .filter_map(|t| tables.target(t))
+                .any(|t| t.count || t.var == const { var("matched_vars") })
+            {
+                "count or matched_vars"
+            } else {
+                "gate"
+            };
+            *out.entry(format!("{op}: {why}")).or_default() += 1;
+        }
+        let mut v: Vec<_> = out.into_iter().collect();
+        v.sort_by_key(|e| std::cmp::Reverse(e.1));
+        v
+    }
+
+    /// Rules that may be skipped, and scan groups, for tests and reports.
+    pub fn stats(&self) -> (usize, usize) {
+        (
+            self.rule_gate
+                .iter()
+                .filter(|g| !matches!(g, Gate::None))
+                .count(),
+            self.group_rep.len(),
+        )
+    }
+}
+
+/// The gates of scan group `g` that hold on this request (sorted).
+fn group_hits<'c>(ctx: &'c mut Ctx<'_, '_, '_>, d: &Data<'_>, pf: &Prefilter, g: u32) -> &'c [u32] {
+    let gi = g as usize;
+    if ctx.groups[gi].is_none() {
+        let mut hits = vec![];
+        if let Some(c) = ctx.tables.cond(pf.group_rep[gi]) {
+            let chains = if c.multi_match {
+                0..=c.transforms.len()
+            } else {
+                c.transforms.len()..=c.transforms.len()
+            };
+            'targets: for ti in c.target_first..c.target_first + c.target_count {
+                let Some(t) = ctx.tables.target(ti) else {
+                    continue;
+                };
+                let tables = ctx.tables;
+                let excluded = |name: &[u8]| {
+                    (t.exclude_first..t.exclude_first + t.exclude_count)
+                        .filter_map(|i| tables.list(i))
+                        .any(|e| e.eq_ignore_ascii_case(name))
+                };
+                for v in &values(d, &t, &excluded) {
+                    for k in chains.clone() {
+                        if ctx.budget_exceeded {
+                            break 'targets;
+                        }
+                        hits.extend_from_slice(matched(ctx, v.val, &c.transforms[..k]));
+                    }
+                }
+            }
+        }
+        hits.sort_unstable();
+        hits.dedup();
+        ctx.groups[gi] = Some(hits);
+    }
+    ctx.groups[gi].as_deref().unwrap_or(&[])
+}
+
+/// The rules of `stage` that may match this request, in rule order: those
+/// not gated, and those whose gate (one of them for `any`) holds. Every
+/// other rule of the stage cannot match (see `Prefilter`).
+fn candidates(ctx: &mut Ctx<'_, '_, '_>, d: &Data<'_>, pf: &Prefilter, stage: u8) -> Vec<u32> {
+    let Some((ungated, groups)) = pf.stages.get(stage as usize) else {
+        return vec![];
+    };
+    let mut out = ungated.clone();
+    for &g in groups {
+        for &ci in group_hits(ctx, d, pf, g) {
+            if pf.cond_group.get(ci as usize) != Some(&g) {
+                continue; // a pattern of another group, scanned on the same bytes
+            }
+            let Some(&ri) = pf.cond_rule.get(ci as usize) else {
+                continue;
+            };
+            match pf.rule_gate.get(ri as usize) {
+                Some(Gate::One(gate)) if *gate == ci => out.push(ri),
+                Some(Gate::AnyOf) => out.push(ri),
+                _ => {}
+            }
+        }
+        if ctx.budget_exceeded {
+            break;
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// False when the prefilter proves rule `i` cannot match.
+fn may_match(
+    ctx: &mut Ctx<'_, '_, '_>,
+    d: &Data<'_>,
+    pf: &Prefilter,
+    i: usize,
+    r: &RuleView<'_>,
+) -> bool {
+    let holds = |ctx: &mut Ctx<'_, '_, '_>, ci: u32| {
+        let g = pf.cond_group[ci as usize];
+        group_hits(ctx, d, pf, g).binary_search(&ci).is_ok()
+    };
+    match pf.rule_gate.get(i) {
+        Some(Gate::One(ci)) => holds(ctx, *ci),
+        Some(Gate::AnyOf) => (r.cond_first..r.cond_first + r.cond_count).any(|ci| holds(ctx, ci)),
+        _ => true,
+    }
+}
+
 struct Ctx<'t, 'b, 'a> {
     engine_id: u64,
     tables: &'t Tables<'b>,
@@ -520,12 +820,40 @@ struct Ctx<'t, 'b, 'a> {
     hs: Option<(Hyperscan<'b>, MappedDb<'b>)>,
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
+    /// transformed values (owned) -> conditions matched by the scan
+    scans_by_bytes: HashMap<Box<[u8]>, Vec<u32>, FastBuildHasher>,
+    /// per scan group of the prefilter: the gates that hold, once computed
+    groups: Vec<Option<Vec<u32>>>,
     budget: Option<&'a mut crate::budget::TxBudget>,
     budget_exceeded: bool,
 }
 
-fn var(name: &str) -> u8 {
-    code(VARS, name).unwrap_or(u8::MAX)
+/// Code of a target variable; constant-folded for literal names (the hot
+/// loops ask for `matched_vars` on every condition).
+#[inline(always)]
+const fn var(name: &str) -> u8 {
+    let mut i = 0;
+    while i < VARS.len() {
+        if const_eq(VARS[i].as_bytes(), name.as_bytes()) {
+            return i as u8;
+        }
+        i += 1;
+    }
+    u8::MAX
+}
+
+const fn const_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 #[derive(Clone, Copy)]
@@ -596,37 +924,37 @@ fn values<'d>(
     let r = d.req;
     let keyed = |name: &[u8]| t.key.is_none_or(|k| k.eq_ignore_ascii_case(name)) && !excluded(name);
     let v = t.var;
-    if v == var("method") {
+    if v == const { var("method") } {
         TargetVals::One(TargetVal {
             name: None,
             val: r.method,
         })
-    } else if v == var("uri_raw") {
+    } else if v == const { var("uri_raw") } {
         TargetVals::One(TargetVal {
             name: None,
             val: r.raw_uri,
         })
-    } else if v == var("uri") {
+    } else if v == const { var("uri") } {
         TargetVals::One(TargetVal {
             name: None,
             val: &d.full_uri,
         })
-    } else if v == var("path") {
+    } else if v == const { var("path") } {
         TargetVals::One(TargetVal {
             name: None,
             val: r.uri,
         })
-    } else if v == var("protocol") {
+    } else if v == const { var("protocol") } {
         TargetVals::One(TargetVal {
             name: None,
             val: r.proto,
         })
-    } else if v == var("request_line") {
+    } else if v == const { var("request_line") } {
         TargetVals::One(TargetVal {
             name: None,
             val: &d.request_line,
         })
-    } else if v == var("query_string") {
+    } else if v == const { var("query_string") } {
         if r.args.is_empty() {
             TargetVals::Empty
         } else {
@@ -635,15 +963,18 @@ fn values<'d>(
                 val: r.args,
             })
         }
-    } else if v == var("remote_addr") {
+    } else if v == const { var("remote_addr") } {
         TargetVals::One(TargetVal {
             name: None,
             val: r.client_addr,
         })
-    } else if v == var("args") || v == var("args_get") || v == var("args_post") {
-        let fields = if v == var("args_get") {
+    } else if v == const { var("args") }
+        || v == const { var("args_get") }
+        || v == const { var("args_post") }
+    {
+        let fields = if v == const { var("args_get") } {
             &d.args[..d.n_get]
-        } else if v == var("args_post") {
+        } else if v == const { var("args_post") } {
             &d.args[d.n_get..]
         } else {
             &d.args[..]
@@ -658,7 +989,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("request_body") {
+    } else if v == const { var("request_body") } {
         if r.body.is_empty() {
             TargetVals::Empty
         } else {
@@ -667,7 +998,7 @@ fn values<'d>(
                 val: r.body,
             })
         }
-    } else if v == var("args_names") {
+    } else if v == const { var("args_names") } {
         TargetVals::Many(
             d.args
                 .iter()
@@ -675,7 +1006,7 @@ fn values<'d>(
                 .map(|(n, _)| TargetVal { name: None, val: n })
                 .collect(),
         )
-    } else if v == var("request_headers") {
+    } else if v == const { var("request_headers") } {
         TargetVals::Many(
             r.headers
                 .iter()
@@ -686,7 +1017,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("request_headers_names") {
+    } else if v == const { var("request_headers_names") } {
         TargetVals::Many(
             r.headers
                 .iter()
@@ -694,7 +1025,7 @@ fn values<'d>(
                 .map(|(n, _)| TargetVal { name: None, val: n })
                 .collect(),
         )
-    } else if v == var("request_cookies") {
+    } else if v == const { var("request_cookies") } {
         TargetVals::Many(
             d.cookies
                 .iter()
@@ -705,7 +1036,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("request_cookies_names") {
+    } else if v == const { var("request_cookies_names") } {
         TargetVals::Many(
             d.cookies
                 .iter()
@@ -713,12 +1044,12 @@ fn values<'d>(
                 .map(|(n, _)| TargetVal { name: None, val: n })
                 .collect(),
         )
-    } else if v == var("body_processor") {
+    } else if v == const { var("body_processor") } {
         TargetVals::One(TargetVal {
             name: None,
             val: d.processor,
         })
-    } else if v == var("xml") {
+    } else if v == const { var("xml") } {
         TargetVals::Many(
             d.xml
                 .iter()
@@ -728,7 +1059,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("xml_attributes") {
+    } else if v == const { var("xml_attributes") } {
         TargetVals::Many(
             d.xml
                 .iter()
@@ -739,7 +1070,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("files") {
+    } else if v == const { var("files") } {
         TargetVals::Many(
             d.files
                 .iter()
@@ -750,7 +1081,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("multipart_part_headers") {
+    } else if v == const { var("multipart_part_headers") } {
         TargetVals::Many(
             d.part_headers
                 .iter()
@@ -761,7 +1092,7 @@ fn values<'d>(
                 })
                 .collect(),
         )
-    } else if v == var("files_names") {
+    } else if v == const { var("files_names") } {
         TargetVals::Many(
             d.files
                 .iter()
@@ -909,7 +1240,7 @@ fn condition(
         };
         // values of matched_vars are owned by the previous condition: their
         // addresses are not stable keys for the scan cache
-        let from_prev = t.var == var("matched_vars");
+        let from_prev = t.var == const { var("matched_vars") };
         let vals = if from_prev {
             TargetVals::Many(
                 prev.iter()
@@ -989,14 +1320,13 @@ fn condition(
                         _ => false,
                     })
                 } else if let Some(fb) = fallback {
+                    let compiled = fb.compiled();
                     tv.as_deref().is_some_and(|val| {
-                        match dfa_is_match_with_budget(
-                            ctx.engine_id,
-                            &fb.dfa,
-                            &fb.re,
-                            val,
-                            &mut ctx.budget,
-                        ) {
+                        let Some((re, dfa)) = compiled else {
+                            return false;
+                        };
+                        match dfa_is_match_with_budget(ctx.engine_id, dfa, re, val, &mut ctx.budget)
+                        {
                             Ok(h) => h,
                             Err(_) => {
                                 ctx.budget_exceeded = true;
@@ -1065,32 +1395,53 @@ fn condition(
 }
 
 /// Conditions matched by `v` after `chain`, scanning at most once per
-/// (value, chain).
+/// (value, chain), and at most once per transformed bytes: chains that
+/// leave a value as it is (most of them, on most values) or that give the
+/// same bytes share one scan, whose result only depends on the bytes
+/// (W09-R-01).
 fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
     let key = make_scan_key(v, chain);
-    match ctx.scans.entry(key) {
-        std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
-        std::collections::hash_map::Entry::Vacant(e) => {
-            let tv = match transform::apply_chain_with_budget(chain, v, ctx.budget.as_deref_mut()) {
-                Ok(res) => res,
-                Err(crate::budget::BudgetExceeded) => {
-                    ctx.budget_exceeded = true;
-                    None
+    if !ctx.scans.contains_key(&key) {
+        let tv = match transform::apply_chain_with_budget(chain, v, ctx.budget.as_deref_mut()) {
+            Ok(res) => res,
+            Err(crate::budget::BudgetExceeded) => {
+                ctx.budget_exceeded = true;
+                None
+            }
+        };
+        let hits = match tv {
+            None => vec![],
+            Some(Cow::Borrowed(b)) => {
+                let k0 = make_scan_key(b, &[]);
+                match ctx.scans.get(&k0) {
+                    Some(h) => h.clone(),
+                    None => {
+                        let h = scan(
+                            &ctx.hs,
+                            &mut ctx.budget,
+                            &mut ctx.budget_exceeded,
+                            &Some(Cow::Borrowed(b)),
+                        );
+                        ctx.scans.insert(k0, h.clone());
+                        h
+                    }
                 }
-            };
-            let hits = if let Some(tv) = tv {
-                scan(
-                    &ctx.hs,
-                    &mut ctx.budget,
-                    &mut ctx.budget_exceeded,
-                    &Some(tv),
-                )
-            } else {
-                vec![]
-            };
-            e.insert(hits)
-        }
+            }
+            Some(Cow::Owned(o)) => match ctx.scans_by_bytes.get(&o[..]) {
+                Some(h) => h.clone(),
+                None => {
+                    let tv = Some(Cow::Owned(o));
+                    let h = scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv);
+                    if let Some(Cow::Owned(o)) = tv {
+                        ctx.scans_by_bytes.insert(o.into_boxed_slice(), h.clone());
+                    }
+                    h
+                }
+            },
+        };
+        ctx.scans.insert(key, hits);
     }
+    ctx.scans.get(&key).map_or(&[], Vec::as_slice)
 }
 
 /// Conditions matched by a transformed value, without the cache.
@@ -1162,7 +1513,7 @@ fn rule_matches(
                 (n.target_first..n.target_first + n.target_count).any(|t| {
                     ctx.tables
                         .target(t)
-                        .is_some_and(|t| t.var == var("matched_vars"))
+                        .is_some_and(|t| t.var == const { var("matched_vars") })
                 })
             });
         let mut kept = Matched::new();
@@ -1183,7 +1534,7 @@ fn rule_matches(
                             name: prev_name, ..
                         }),
                     ) = (&mut cand, &best_candidate)
-                        && *v == var("matched_vars")
+                        && *v == const { var("matched_vars") }
                         && name.is_none()
                     {
                         name.clone_from(prev_name);
@@ -1196,6 +1547,11 @@ fn rule_matches(
                     }
                 }
                 results.push(m);
+                // a rule whose conditions must all hold fails at the first
+                // that does not: the rest cannot change that (W09-R-01)
+                if !r.any && !m {
+                    return Some((false, None));
+                }
             }
         }
         prev = kept;
@@ -1225,7 +1581,7 @@ pub fn evaluate(
 ) {
     let engine_id = db.as_ref().map(|d| d.id()).unwrap_or(0);
     let _ = evaluate_with_budget(
-        engine_id, tables, db, regexes, operators, req, stage, false, None, report,
+        engine_id, tables, db, regexes, operators, None, req, stage, false, None, report,
     );
 }
 
@@ -1237,6 +1593,7 @@ pub fn evaluate_with_budget(
     db: Option<MappedDb<'_>>,
     regexes: &Regexes,
     operators: &CompiledOperators,
+    prefilter: Option<&Prefilter>,
     req: &Request<'_>,
     stage: u8,
     degraded: bool,
@@ -1316,10 +1673,25 @@ pub fn evaluate_with_budget(
         operators,
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
+        scans_by_bytes: HashMap::with_hasher(FastBuildHasher::default()),
+        groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
         budget,
         budget_exceeded: false,
     };
-    for i in 0..tables.n_rules() {
+    // with the prefilter, only the rules that may match are visited
+    let order: Vec<u32> = match prefilter {
+        Some(pf) if !degraded => {
+            let c = candidates(&mut ctx, &d, pf, stage);
+            if ctx.budget_exceeded {
+                return Err(crate::budget::BudgetExceeded);
+            }
+            c
+        }
+        _ => (0..tables.n_rules() as u32).collect(),
+    };
+    let gated = prefilter.is_some() && !degraded;
+    for i in order {
+        let i = i as usize;
         let Some(r) = tables.rule(i) else { continue };
         if r.stage != stage {
             continue;
@@ -1345,10 +1717,19 @@ pub fn evaluate_with_budget(
             }
         }
         if let Some(bgt) = ctx.budget.as_mut() {
-            bgt.check()?;
+            bgt.check_cheap()?;
         }
         if ctx.budget_exceeded {
             return Err(crate::budget::BudgetExceeded);
+        }
+        if !gated
+            && let Some(pf) = prefilter
+            && !may_match(&mut ctx, &d, pf, i, &r)
+        {
+            if ctx.budget_exceeded {
+                return Err(crate::budget::BudgetExceeded);
+            }
+            continue;
         }
         if let Some((true, detail)) = rule_matches(&mut ctx, &d, &r) {
             let (field, snippet) = detail.map(|d| (d.field, d.snippet)).unwrap_or_default();

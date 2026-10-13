@@ -327,9 +327,8 @@ fn patterns(
     rules: &[RuleDef],
     apart: &BTreeSet<u32>,
 ) -> (Vec<strata_hs::Pattern>, Vec<u32>, Vec<u32>) {
-    use strata_hs::compile::{ALLOWEMPTY, CASELESS, SINGLEMATCH};
+    use strata_hs::compile::{ALLOWEMPTY, SINGLEMATCH};
     let (mut pats, mut conds, mut rule_of) = (vec![], vec![], vec![]);
-    let op = |name| rules::code(OPERATORS, name).unwrap_or(u8::MAX);
     let mut ci = 0u32;
     for r in rules {
         for c in &r.conditions {
@@ -345,24 +344,8 @@ fn patterns(
                 conds.push(ci);
                 rule_of.push(r.id);
             };
-            match &c.value {
-                RValue::Str(v) if c.op == op("rx") => push(v.clone(), 0),
-                RValue::Str(v) if c.op == op("contains") => push(escape(v), 0),
-                RValue::Str(v) if c.op == op("begins_with") => {
-                    push([b"^".as_slice(), &escape(v)].concat(), 0)
-                }
-                RValue::Str(v) if c.op == op("ends_with") => {
-                    push([escape(v).as_slice(), b"$"].concat(), 0)
-                }
-                RValue::Str(v) if c.op == op("streq") => {
-                    push([b"^".as_slice(), &escape(v), b"$"].concat(), 0)
-                }
-                RValue::List(items) if c.op == op("pm") => {
-                    for it in items {
-                        push(escape(it), CASELESS);
-                    }
-                }
-                _ => {}
+            for (e, flags) in expressions(c) {
+                push(e, flags);
             }
             ci += 1;
         }
@@ -378,6 +361,19 @@ pub fn compile(
     seed: &[u8; 32],
 ) -> Result<Vec<u8>> {
     let (out, _) = compile_unsigned(rules, policies, build)?;
+    Ok(bundle::sign(out, seed))
+}
+
+/// As `compile`, without lowering secondary conditions out of the
+/// Hyperscan database (`lower_loose`): the bundle compilers made before
+/// W09, which the prefilter differential test compares with.
+pub fn compile_reference(
+    rules: &[RuleDef],
+    policies: &Policies,
+    build: &Build,
+    seed: &[u8; 32],
+) -> Result<Vec<u8>> {
+    let (out, _) = compile_unsigned_with(rules, policies, build, false)?;
     Ok(bundle::sign(out, seed))
 }
 
@@ -458,6 +454,156 @@ pub fn rule_costs(rules: &[RuleDef], fallback: &BTreeSet<u32>) -> Vec<RuleCost> 
         .collect()
 }
 
+/// The expression Hyperscan is given for a pattern condition (one per pm
+/// item), and its flags.
+fn expressions(c: &CondDef) -> Vec<(Vec<u8>, u32)> {
+    use strata_hs::compile::CASELESS;
+    let op = |name| rules::code(OPERATORS, name).unwrap_or(u8::MAX);
+    match &c.value {
+        RValue::Str(v) if c.op == op("rx") => vec![(v.clone(), 0)],
+        RValue::Str(v) if c.op == op("contains") => vec![(escape(v), 0)],
+        RValue::Str(v) if c.op == op("begins_with") => {
+            vec![([b"^".as_slice(), &escape(v)].concat(), 0)]
+        }
+        RValue::Str(v) if c.op == op("ends_with") => {
+            vec![([escape(v).as_slice(), b"$"].concat(), 0)]
+        }
+        RValue::Str(v) if c.op == op("streq") => {
+            vec![([b"^".as_slice(), &escape(v), b"$"].concat(), 0)]
+        }
+        RValue::List(items) if c.op == op("pm") => {
+            items.iter().map(|it| (escape(it), CASELESS)).collect()
+        }
+        _ => vec![],
+    }
+}
+
+/// How much a condition narrows the values it matches: the fewest literal
+/// bytes a match must contain (as a prefix or a suffix), from the
+/// `regex-syntax` literal extractor; 0 when a match needs none (`^\w`).
+fn selectivity(c: &CondDef) -> usize {
+    use regex_syntax::hir::literal::{ExtractKind, Extractor};
+    let exprs = expressions(c);
+    if exprs.is_empty() {
+        return 0;
+    }
+    exprs
+        .iter()
+        .map(|(e, flags)| {
+            let Ok(p) = std::str::from_utf8(e) else {
+                return 0;
+            };
+            let Ok(hir) = regex_syntax::ParserBuilder::new()
+                .unicode(false)
+                .utf8(false)
+                .case_insensitive(flags & strata_hs::compile::CASELESS != 0)
+                .build()
+                .parse(&libstrata::eval::byte_escapes(p))
+            else {
+                return 0;
+            };
+            [ExtractKind::Prefix, ExtractKind::Suffix]
+                .into_iter()
+                .map(|k| {
+                    Extractor::new()
+                        .kind(k)
+                        .extract(&hir)
+                        .min_literal_len()
+                        .unwrap_or(0)
+                })
+                .max()
+                .unwrap_or(0)
+        })
+        .min()
+        .unwrap_or(0)
+}
+
+/// Lowers secondary conditions out of the Hyperscan database (W09-R-01). In
+/// a rule whose conditions must all hold, the most selective condition is
+/// enough to tell when the rule may match (the engine's prefilter); it is
+/// moved first and stays in the database. Its companions (often loose:
+/// `^\w`, `^[^&]+`, contains "/") would otherwise be reported on many values
+/// of every request, from the one database every value is scanned with, and
+/// make every scan slower. They become the `rx` Hyperscan was given for them
+/// (same expression, same flags) and run with the `regex` crate, compiled on
+/// first use, only for requests where the rule's gate held. Returns the
+/// rules and the conditions left out. Bundles stay readable by every engine:
+/// rx conditions outside the database have always run with the `regex`
+/// crate (engines before W09 compile them all when the bundle is mapped).
+pub fn lower_loose(rules: &[RuleDef]) -> (Vec<RuleDef>, BTreeSet<u32>) {
+    let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
+    let matched_vars = rules::code(rules::VARS, "matched_vars").unwrap_or(u8::MAX);
+    let mut out = rules.to_vec();
+    let mut apart = BTreeSet::new();
+    let mut first = 0u32;
+    for r in &mut out {
+        let n = r.conditions.len() as u32;
+        let gate = |c: &CondDef| {
+            !c.negate
+                && !c.targets.is_empty()
+                && c.targets.iter().all(|t| !t.count && t.var != matched_vars)
+                && !expressions(c).is_empty()
+        };
+        if !r.any && n > 1 {
+            let mut sel: Vec<usize> = r.conditions.iter().map(selectivity).collect();
+            let mut best = (0..r.conditions.len())
+                .filter(|&i| gate(&r.conditions[i]))
+                .max_by_key(|&i| (sel[i], usize::MAX - i));
+            // the gate goes first: the engine's prefilter gates a rule on
+            // its first gate, and evaluation stops at the first condition
+            // that fails. Only when no condition reads matched_vars, where
+            // the order is the chain's.
+            let chained = r
+                .conditions
+                .iter()
+                .any(|c| c.targets.iter().any(|t| t.var == matched_vars));
+            if let Some(b) = best
+                && !chained
+                && b > 0
+            {
+                let c = r.conditions.remove(b);
+                r.conditions.insert(0, c);
+                let s = sel.remove(b);
+                sel.insert(0, s);
+                best = Some(0);
+            }
+            if let Some(best) = best {
+                for (i, c) in r.conditions.iter_mut().enumerate() {
+                    if i == best {
+                        continue;
+                    }
+                    let mut exprs = expressions(c);
+                    let expr = match exprs.len() {
+                        0 => continue,
+                        1 => {
+                            let (e, flags) = exprs.remove(0);
+                            if flags & strata_hs::compile::CASELESS != 0 {
+                                [b"(?i)".as_slice(), &e].concat()
+                            } else {
+                                e
+                            }
+                        }
+                        _ => {
+                            let alts: Vec<Vec<u8>> = exprs.into_iter().map(|(e, _)| e).collect();
+                            [b"(?i)(?:".as_slice(), &alts.join(&b'|'), b")"].concat()
+                        }
+                    };
+                    if libstrata::eval::fallback_regex(&expr).is_err()
+                        || libstrata::eval::fallback_dfa(&expr).is_err()
+                    {
+                        continue;
+                    }
+                    c.op = rx;
+                    c.value = RValue::Str(expr);
+                    apart.insert(first + i as u32);
+                }
+            }
+        }
+        first += n;
+    }
+    (out, apart)
+}
+
 /// The bundle bytes an external signer signs (append its 64-byte Ed25519
 /// signature to get the bundle), and the cost of each rule.
 pub fn compile_unsigned(
@@ -465,12 +611,27 @@ pub fn compile_unsigned(
     policies: &Policies,
     build: &Build,
 ) -> Result<(Vec<u8>, Vec<RuleCost>)> {
+    compile_unsigned_with(rules, policies, build, true)
+}
+
+fn compile_unsigned_with(
+    rules: &[RuleDef],
+    policies: &Policies,
+    build: &Build,
+    lower: bool,
+) -> Result<(Vec<u8>, Vec<RuleCost>)> {
     let mut ids = BTreeSet::new();
     for r in rules {
         if !ids.insert(r.id) {
             return Err(format!("duplicate rule id {}", r.id));
         }
     }
+    let (lowered, mut apart) = if lower {
+        lower_loose(rules)
+    } else {
+        (rules.to_vec(), BTreeSet::new())
+    };
+    let rules = &lowered[..];
     let mut sections = rules::encode(rules, policies.block_page.as_ref());
     let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
     let rx_conds: Vec<Option<&[u8]>> = rules
@@ -481,7 +642,6 @@ pub fn compile_unsigned(
             _ => None,
         })
         .collect();
-    let mut apart = BTreeSet::new();
     loop {
         let (pats, conds, rule_of) = patterns(rules, &apart);
         if pats.is_empty() {

@@ -458,6 +458,17 @@ impl Hyperscan<'_> {
 /// Parses (and bounds-checks) the HYPERSCAN section; the image itself is
 /// validated by the engine with Hyperscan.
 fn parse_hyperscan<'a>(sec: &'a [u8], conds: &[u8]) -> Result<Option<Hyperscan<'a>>, Error> {
+    parse_hyperscan_with(sec, conds, true)
+}
+
+/// As `parse_hyperscan`; `check_index` false skips the per-pattern check of
+/// the condition index, for a section `validate` already accepted (it is
+/// linear in the patterns, and views are made for every request).
+fn parse_hyperscan_with<'a>(
+    sec: &'a [u8],
+    conds: &[u8],
+    check_index: bool,
+) -> Result<Option<Hyperscan<'a>>, Error> {
     if sec.is_empty() {
         return Ok(None);
     }
@@ -481,7 +492,12 @@ fn parse_hyperscan<'a>(sec: &'a [u8], conds: &[u8]) -> Result<Option<Hyperscan<'
         return Err(bad);
     }
     let cond_index = &sec[HS_HEADER_LEN..HS_HEADER_LEN + n * 4];
-    for c in cond_index.as_chunks::<4>().0 {
+    for c in cond_index
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .take(if check_index { n } else { 0 })
+    {
         let c = u32::from_le_bytes(*c) as usize;
         if c >= conds.len() / COND_LEN || !HS_OPERATORS.contains(&conds[c * COND_LEN]) {
             return Err(Error::BadLayout(
@@ -694,7 +710,7 @@ impl<'a> Tables<'a> {
             let (h, c) = (u32_at(sec, 0) as usize, u32_at(sec, 4) as usize);
             (&sec[8..8 + h], &sec[8 + h..8 + h + c])
         });
-        let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
+        let hs = parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN), conds, false)?;
         Ok(Tables {
             rules,
             n_rules,
