@@ -24,6 +24,9 @@ var (
 	ErrInvalidHTTPMethod = errors.New("invalid http_method")
 )
 
+// crockfordAlphabet: the value of each symbol is its index.
+const crockfordAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
 // Valid Crockford Base32 characters: 0-9, A-Z (excluding I, L, O, U)
 func isCrockfordChar(b byte) bool {
 	switch {
@@ -161,4 +164,30 @@ func ValidateEvent(evt *Event, now time.Time) error {
 	}
 
 	return nil
+}
+
+// BlockIDTime is the decision time a Block or Event ID carries: libstrata
+// puts the time in milliseconds in its 42 high bits, ahead of 10 bits of
+// node and 28 random bits (docs/design/nginx-module.md, "Block ID"), and the
+// module sends that same time as the event's timestamp. False for an ID
+// that does not parse.
+func BlockIDTime(id string) (time.Time, bool) {
+	id = strings.ToUpper(id)
+	if ValidateBlockID(id) != nil {
+		return time.Time{}, false
+	}
+	var hi, lo uint64 // 80 bits: hi holds the top 16, lo the low 64
+	for i := 4; i < len(id); i++ {
+		if id[i] == '-' {
+			continue
+		}
+		v := strings.IndexByte(crockfordAlphabet, id[i])
+		if v < 0 {
+			return time.Time{}, false
+		}
+		hi = hi<<5 | lo>>59
+		lo = lo<<5 | uint64(v)
+	}
+	ms := (hi&0xffff)<<26 | lo>>38
+	return time.UnixMilli(int64(ms)).UTC(), true
 }

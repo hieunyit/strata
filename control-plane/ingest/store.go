@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,30 @@ func NewClickHouseStore(ctx context.Context, cfg ClickHouseConfig) (*ClickHouseS
 	}, nil
 }
 
+// EnsureTTL sets the retention of the events table to days (W09-G2-01): the
+// table's TTL is changed when it differs, and ClickHouse then drops the
+// rows past it in the background (and on OPTIMIZE ... FINAL). days <= 0
+// leaves the table as it is.
+func (s *ClickHouseStore) EnsureTTL(ctx context.Context, days int) error {
+	if days <= 0 {
+		return nil
+	}
+	var create string
+	if err := s.conn.QueryRow(ctx,
+		"SELECT create_table_query FROM system.tables WHERE database = currentDatabase() AND name = ?",
+		s.tableName).Scan(&create); err != nil {
+		return fmt.Errorf("reading the events table: %w", err)
+	}
+	want := fmt.Sprintf("TTL timestamp + toIntervalDay(%d)", days)
+	if strings.Contains(create, want) {
+		return nil
+	}
+	if err := s.conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY TTL timestamp + INTERVAL %d DAY", s.tableName, days)); err != nil {
+		return fmt.Errorf("setting the events TTL to %d days: %w", days, err)
+	}
+	return nil
+}
+
 // Conn returns the underlying ClickHouse connection.
 func (s *ClickHouseStore) Conn() driver.Conn {
 	return s.conn
@@ -172,8 +197,21 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 	return nil
 }
 
-// GetEvent performs a point lookup by block_id (leveraging ClickHouse primary key).
+// GetEvent performs a point lookup by block_id (the primary key). The time a
+// Block ID carries is the event's timestamp, so the lookup first reads only
+// the partitions (days) around it; an event stored with another timestamp
+// is still found by the lookup over every partition that follows a miss.
 func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event, error) {
+	if t, ok := BlockIDTime(blockID); ok {
+		e, err := s.getEvent(ctx, blockID, "AND timestamp BETWEEN ? AND ?", t.Add(-24*time.Hour), t.Add(24*time.Hour))
+		if !errors.Is(err, ErrEventNotFound) {
+			return e, err
+		}
+	}
+	return s.getEvent(ctx, blockID, "")
+}
+
+func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, args ...any) (*Event, error) {
 	query := fmt.Sprintf(`
 		SELECT 
 			block_id, timestamp, node_id, connector_type, policy_id, policy_version,
@@ -182,10 +220,10 @@ func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at
 		FROM %s 
-		WHERE block_id = ? 
-		LIMIT 1`, s.tableName)
+		WHERE block_id = ? %s
+		LIMIT 1`, s.tableName, extra)
 
-	row := s.conn.QueryRow(ctx, query, blockID)
+	row := s.conn.QueryRow(ctx, query, append([]any{blockID}, args...)...)
 
 	var (
 		e        Event
@@ -308,7 +346,10 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 		return nil, fmt.Errorf("counting events: %w", err)
 	}
 
-	// 2. Select data
+	// 2. Select data. The page is chosen on (timestamp, block_id) only, then
+	// its rows are read through the primary key: sorting 24 hours of events
+	// with every column read 2.5 GB for 10 million events, the two columns
+	// a tenth of it (W09-G2-01).
 	dataQuery := fmt.Sprintf(`
 		SELECT 
 			block_id, timestamp, node_id, connector_type, policy_id, policy_version,
@@ -316,12 +357,16 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at
-		FROM %s 
-		WHERE %s 
+		FROM %[1]s
+		WHERE (block_id, timestamp) IN (
+			SELECT block_id, timestamp FROM %[1]s
+			WHERE %[2]s
+			ORDER BY timestamp DESC, block_id DESC
+			LIMIT ? OFFSET ?)
 		ORDER BY timestamp DESC, block_id DESC
-		LIMIT ? OFFSET ?`, s.tableName, whereSQL)
+		LIMIT ?`, s.tableName, whereSQL)
 
-	queryArgs := append(args, limit, offset)
+	queryArgs := append(args, limit, offset, limit)
 	rows, err := s.conn.Query(ctx, dataQuery, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("querying events: %w", err)

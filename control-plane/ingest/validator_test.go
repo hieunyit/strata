@@ -118,3 +118,42 @@ func TestValidateEvent(t *testing.T) {
 		}
 	})
 }
+
+// The time in a Block ID is the one libstrata put there: an ID built the
+// way engine/src/block_id.rs builds it decodes back to its millisecond.
+func TestBlockIDTime(t *testing.T) {
+	ms := uint64(time.Date(2026, 10, 13, 4, 47, 16, 123e6, time.UTC).UnixMilli())
+	node, random := uint64(0x155), uint64(0xabcdef1)
+	// 80 bits: 42 of time, 10 of node, 28 random; hi = top 16 bits
+	hi := ms >> 26
+	lo := (ms&((1<<26)-1))<<38 | node<<28 | random
+	sym := make([]byte, 0, 16)
+	for i := 15; i >= 0; i-- {
+		shift := uint(5 * i)
+		var v uint64
+		switch {
+		case shift >= 64:
+			v = hi >> (shift - 64)
+		case shift > 59:
+			v = lo>>shift | hi<<(64-shift)
+		default:
+			v = lo >> shift
+		}
+		sym = append(sym, crockfordAlphabet[v&31])
+	}
+	id := "STR-" + string(sym[0:4]) + "-" + string(sym[4:8]) + "-" + string(sym[8:12]) + "-" + string(sym[12:16])
+	got, ok := BlockIDTime(id)
+	if !ok || got.UnixMilli() != int64(ms) {
+		t.Fatalf("BlockIDTime(%s) = %v %v, want %v", id, got, ok, time.UnixMilli(int64(ms)).UTC())
+	}
+	if got2, _ := BlockIDTime(strings.ToLower(id)); !got2.Equal(got) {
+		t.Errorf("lower case: %v", got2)
+	}
+	// the fields of engine/src/block_id.rs round_trip_fields: time 0x2abcdef0123
+	if v, ok := BlockIDTime("STR-NBSQ-QG28-TNDB-SQQH"); !ok || v.UnixMilli() != 0x2abcdef0123 {
+		t.Errorf("engine vector: %v %v", v.UnixMilli(), ok)
+	}
+	if _, ok := BlockIDTime("STR-0000-0000-0000-000"); ok {
+		t.Error("a short ID decoded")
+	}
+}
