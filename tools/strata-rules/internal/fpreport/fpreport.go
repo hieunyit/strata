@@ -39,6 +39,9 @@ type Row struct {
 }
 
 // QuerySQL is the ClickHouse query template executed for FP detection in shadow mode.
+// The (isIPv4String(client_ip) OR isIPv6String(client_ip)) guard precedes arrayExists
+// because isIPAddressInRange errors on non-IP strings. This relies on ClickHouse's
+// short_circuit_function_evaluation (enabled by default); Step8 in integration tests guards this behavior.
 const QuerySQL = `SELECT toString(toDate(timestamp)) AS day,
        rule_id,
        uniqExact(block_id) AS events,
