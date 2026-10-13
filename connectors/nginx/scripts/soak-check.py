@@ -5,7 +5,10 @@ Pass when, after the first hour (warm-up: Hyperscan scratch, regexes
 compiled on first use, allocator pools):
   - no process grows steadily: the least-squares slope of RSS is under
     --max-mb-per-hour (1 MB/h) for the master and for each worker;
-  - file descriptors end where they started (±2) for each process;
+  - file descriptors do not grow either: their slope is under
+    --max-fds-per-hour (0.5) for each process (the count moves with the
+    connections open at the moment of a sample, so it is a trend, not an
+    end-equals-start, that tells a leak);
   - the workers are the same processes from start to end (no crash and
     respawn), and the error log has no alert and no "exited on signal";
   - at least --min-swaps bundles were swapped, and every corrupt bundle was
@@ -34,7 +37,7 @@ def slope(points):
     return sum((x - mx) * (y - my) for x, y in points) / den if den else 0.0
 
 
-def check(run, max_mb_per_hour=1.0, min_swaps=1000, warmup_s=3600):
+def check(run, max_mb_per_hour=1.0, min_swaps=1000, warmup_s=3600, max_fds_per_hour=0.5):
     rows = list(csv.DictReader(open(os.path.join(run, "samples.csv"))))
     if not rows:
         return False, ["no samples"]
@@ -53,13 +56,14 @@ def check(run, max_mb_per_hour=1.0, min_swaps=1000, warmup_s=3600):
             continue
         pts = [((int(r["time"]) - t0) / 3600, int(r["rss_kb"]) / 1024) for r in steady]
         s = slope(pts)
-        fd0, fd1 = int(steady[0]["fds"]), int(steady[-1]["fds"])
+        fds = [int(r["fds"]) for r in steady]
+        fs = slope([((int(r["time"]) - t0) / 3600, int(r["fds"])) for r in steady])
         lines.append(f"{role} {pid}: RSS {pts[0][1]:.1f} -> {pts[-1][1]:.1f} MB, slope {s:+.3f} MB/h; "
-                     f"PSS {int(steady[-1]['pss_kb']) / 1024:.1f} MB; fds {fd0} -> {fd1}")
+                     f"PSS {int(steady[-1]['pss_kb']) / 1024:.1f} MB; fds {min(fds)}..{max(fds)}, slope {fs:+.3f}/h")
         if s > max_mb_per_hour:
             problems.append(f"{role} {pid}: RSS grows {s:.2f} MB/h (max {max_mb_per_hour})")
-        if abs(fd1 - fd0) > 2:
-            problems.append(f"{role} {pid}: fds {fd0} -> {fd1}")
+        if fs > max_fds_per_hour:
+            problems.append(f"{role} {pid}: fds grow {fs:.2f}/h (max {max_fds_per_hour})")
     swaps, corrupt = 0, 0
     if os.path.exists(os.path.join(run, "swaps")):
         swaps, corrupt = map(int, open(os.path.join(run, "swaps")).read().split())
@@ -106,6 +110,14 @@ def self_test():
     assert not ok and any("fds" in l for l in out), out
     ok, out = check(run_dir(respawn=True))
     assert not ok and any("workers changed" in l for l in out), out
+    # fds that move with open connections, without a trend, pass
+    d = run_dir()
+    rows = open(os.path.join(d, "samples.csv")).read().splitlines()
+    noisy = [rows[0]] + [l.rsplit(",", 1)[0] + "," + str(30 + (i * 7) % 9) if ",worker," in l else l
+                         for i, l in enumerate(rows[1:])]
+    open(os.path.join(d, "samples.csv"), "w").write("\n".join(noisy) + "\n")
+    ok, out = check(d)
+    assert ok, out
     ok, out = check(run_dir(swaps=900))
     assert not ok and any("swaps" in l for l in out), out
     print("soak-check self-test: ok")
