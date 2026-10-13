@@ -53,6 +53,7 @@ type Options struct {
 	KeyFile       string // ed25519 seed (32 bytes), as strata-compile --key
 	Out           string // output directory
 	Baseline      string // previous manifest.json for the changelog (optional)
+	Policies      string // policies file compiled in (optional; default none)
 }
 
 // Build writes the package to Options.Out and returns its manifest.
@@ -224,9 +225,12 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 	if err := writeJSON(irFile, doc); err != nil {
 		return err
 	}
-	pol := filepath.Join(tmp, "policies.json")
-	if err := os.WriteFile(pol, []byte(`{"policies":[]}`), 0o644); err != nil {
-		return err
+	pol := o.Policies
+	if pol == "" {
+		pol = filepath.Join(tmp, "policies.json")
+		if err := os.WriteFile(pol, []byte(`{"policies":[]}`), 0o644); err != nil {
+			return err
+		}
 	}
 	args := []string{
 		"--policies", pol, "--rules", irFile, "--key", o.KeyFile,

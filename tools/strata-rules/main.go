@@ -5,7 +5,7 @@
 //	strata-rules report [--repo <root>] [--rules dir] [--corpus dir] [--json file] [--baseline file] [--max-fp N]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90] [--min-total 95]  CRS go-ftw tests of rules/crs, as Markdown
-//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json]
+//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml]
 //	                                          signed signature package: bundle + manifest (signed, sha256 of every file) + changelog + NOTICE
 //	strata-rules verify --pub <key> <dir>     check a package: manifest signature and every file's sha256
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
@@ -209,6 +209,7 @@ func releaseCmd() {
 	key := fs.String("key", "", "ed25519 seed file to sign the bundle (strata-compile --key)")
 	out := fs.String("out", "", "output directory for the package")
 	baseline := fs.String("baseline", "", "previous manifest.json for the changelog diff")
+	policies := fs.String("policies", "", "policies file compiled into the bundle (default: none)")
 	_ = fs.Parse(os.Args[2:])
 	if *out == "" {
 		die(fmt.Errorf("--out is required"))
@@ -221,6 +222,7 @@ func releaseCmd() {
 		KeyFile:       *key,
 		Out:           *out,
 		Baseline:      *baseline,
+		Policies:      *policies,
 	})
 	if err != nil {
 		die(err)

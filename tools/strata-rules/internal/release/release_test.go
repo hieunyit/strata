@@ -165,3 +165,27 @@ func TestChangelogDiffsBaseline(t *testing.T) {
 		t.Errorf("changelog diff wrong:\n%s", cl)
 	}
 }
+
+// --policies is compiled into the bundle: a valid file builds, a broken one
+// fails the release instead of being ignored.
+func TestBuildWithPolicies(t *testing.T) {
+	requireTools(t)
+	rulesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(rulesDir, "rel.yaml"), []byte(ruleset), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	key, _ := seedFile(t)
+	pol := filepath.Join(t.TempDir(), "policies.yaml")
+	if err := os.WriteFile(pol, []byte("policies:\n  - { name: example-api, mode: enforce }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Build(Options{Repo: repo, RulesDir: rulesDir, Version: "p1", KeyFile: key, Out: t.TempDir(), Policies: pol}); err != nil {
+		t.Fatalf("valid policies: %v", err)
+	}
+	if err := os.WriteFile(pol, []byte("policies:\n  - { name: example-api, mode: nonsense }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Build(Options{Repo: repo, RulesDir: rulesDir, Version: "p2", KeyFile: key, Out: t.TempDir(), Policies: pol}); err == nil {
+		t.Fatal("a broken policies file was not compiled in")
+	}
+}
