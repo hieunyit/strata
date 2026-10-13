@@ -263,9 +263,14 @@ func (s *Store) startSession(ctx context.Context, username string, tokenHash []b
 		if _, err := tx.Exec(ctx, `UPDATE local_users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE username = $1`, username); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO local_sessions (token_sha256, username, expires_at, client_ip, user_agent) VALUES ($1, $2, $3, $4, $5)`,
-			tokenHash, username, expires, ip, truncate(ua, 256))
-		return err
+		if _, err := tx.Exec(ctx, `INSERT INTO local_sessions (token_sha256, username, expires_at, client_ip, user_agent) VALUES ($1, $2, $3, $4, $5)`,
+			tokenHash, username, expires, ip, truncate(ua, 256)); err != nil {
+			return err
+		}
+		// who signed in, from where, until when; never the token
+		return audit(ctx, tx, username, "local_sessions.start", username, nil, map[string]any{
+			"client_ip": ip, "user_agent": truncate(ua, 256), "expires_at": expires.UTC(),
+		})
 	})
 }
 
@@ -280,9 +285,21 @@ func (s *Store) sessionUser(ctx context.Context, tokenHash []byte) (username str
 	return username, roles, err
 }
 
+// endSession ends the session of tokenHash (a sign-out); an unknown or
+// already ended session is not an error.
 func (s *Store) endSession(ctx context.Context, tokenHash []byte) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM local_sessions WHERE token_sha256 = $1`, tokenHash)
-	return err
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		var username, ip string
+		err := tx.QueryRow(ctx, `DELETE FROM local_sessions WHERE token_sha256 = $1 RETURNING username, client_ip`, tokenHash).
+			Scan(&username, &ip)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return audit(ctx, tx, username, "local_sessions.end", username, map[string]any{"client_ip": ip}, nil)
+	})
 }
 
 // inTxSetPasswordKeeping sets the user's own new password and ends the

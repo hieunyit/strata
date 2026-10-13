@@ -187,6 +187,9 @@ services:
       # Local accounts next to Keycloak: user admin, password
       # LAB_LOCAL_ADMIN_PASSWORD, created on the first start.
       - -local-auth
+      # the UI container proxies the console's API calls: its
+      # X-Forwarded-For gives the user's address (resolved every 30 s)
+      - -trusted-proxies=ui
       - -admin-grpc-addr=:9090
       - -admin-grpc-plaintext
       # Deploys: compile with the lab rules, sign in Vault, store in MinIO.

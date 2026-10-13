@@ -25,8 +25,9 @@ type Handler struct {
 	Service *Service
 	Store   *Store
 	// TrustedProxies may set X-Forwarded-For: the client IP used to
-	// throttle logins is then the address the last of them saw.
-	TrustedProxies []netip.Prefix
+	// throttle logins is then the address the last of them saw. nil
+	// trusts none.
+	TrustedProxies *TrustedProxies
 }
 
 // Public registers the routes that take no token.
@@ -93,15 +94,12 @@ func (h *Handler) clientIP(r *http.Request) string {
 	if err != nil {
 		return host
 	}
-	for _, p := range h.TrustedProxies {
-		if p.Contains(addr.Unmap()) {
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				parts := strings.Split(xff, ",")
-				if a, err := netip.ParseAddr(strings.TrimSpace(parts[len(parts)-1])); err == nil {
-					return a.String()
-				}
+	if h.TrustedProxies.Contains(addr) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if a, err := netip.ParseAddr(strings.TrimSpace(parts[len(parts)-1])); err == nil {
+				return a.Unmap().String()
 			}
-			break
 		}
 	}
 	return addr.Unmap().String()

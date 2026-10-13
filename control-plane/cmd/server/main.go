@@ -13,7 +13,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
@@ -88,7 +87,7 @@ func main() {
 	localAuth := flag.Bool("local-auth", false, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC")
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
-	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs of reverse proxies whose X-Forwarded-For gives the client IP (login throttling)")
+	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
 	mx := metrics.New(version, commit)
@@ -188,17 +187,11 @@ func main() {
 		} else if n, err := ls.CountUsers(ctx); err == nil && n == 0 {
 			log.Println("[WARN] -local-auth without any account: set STRATA_LOCAL_ADMIN_PASSWORD to create the first admin")
 		}
-		var proxies []netip.Prefix
-		for _, c := range strings.Split(*trustedProxies, ",") {
-			if c = strings.TrimSpace(c); c == "" {
-				continue
-			}
-			p, err := netip.ParsePrefix(c)
-			if err != nil {
-				log.Fatalf("[FATAL] -trusted-proxies: %v", err)
-			}
-			proxies = append(proxies, p)
+		proxies, err := localauth.ParseTrustedProxies(*trustedProxies)
+		if err != nil {
+			log.Fatalf("[FATAL] -trusted-proxies: %v", err)
 		}
+		proxies.Run(ctx, 30*time.Second)
 		local = &localauth.Handler{Service: svc, Store: ls, TrustedProxies: proxies}
 		dispatch.Local = svc
 		go svc.CleanExpired(ctx, 10*time.Minute)

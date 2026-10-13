@@ -3,6 +3,9 @@ package localauth
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +77,35 @@ func TestBootstrapLoginAndSessions(t *testing.T) {
 	}
 	if _, err := svc.Authenticate(ctx, s2.Token); err == nil {
 		t.Error("session works after logout")
+	}
+	// a second logout of the same token is not an error, nor audited again
+	if err := svc.Logout(ctx, s2.Token); err != nil {
+		t.Fatal(err)
+	}
+
+	// Sign-ins and sign-outs are audited, without any token.
+	audited := func(action string) int {
+		var n int
+		if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action = $1 AND actor = 'admin'
+			AND resource = 'local_users/admin'`, action).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if got := audited("local_sessions.start"); got != 2 {
+		t.Errorf("%d sign-ins audited, want 2", got)
+	}
+	if got := audited("local_sessions.end"); got != 1 {
+		t.Errorf("%d sign-outs audited, want 1", got)
+	}
+	var ip string
+	if err := st.pool.QueryRow(ctx, `SELECT after->>'client_ip' FROM audit_log WHERE action = 'local_sessions.start' LIMIT 1`).Scan(&ip); err != nil || ip != "192.0.2.1" {
+		t.Errorf("sign-in client_ip %q, %v", ip, err)
+	}
+	for _, tok := range []string{s.Token, s2.Token, s.Token[len(TokenPrefix):]} {
+		if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE coalesce(before::text, '') || coalesce(after::text, '') LIKE '%' || $1 || '%'`, tok).Scan(&n); err != nil || n != 0 {
+			t.Errorf("a session token reached the audit log (%d rows, %v)", n, err)
+		}
 	}
 }
 
@@ -199,5 +231,39 @@ func TestAccountChanges(t *testing.T) {
 	}
 	if _, err := st.GetUser(ctx, "admin"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("deleted user: %v", err)
+	}
+}
+
+// Two users behind the same trusted proxy (the UI) have their own login
+// limits: one client's failures do not throttle the other.
+func TestThrottlingPerClientBehindAProxy(t *testing.T) {
+	svc, st := newService(t)
+	ctx := context.Background()
+	if ok, err := svc.Bootstrap(ctx, "admin", "first admin password"); !ok || err != nil {
+		t.Fatalf("bootstrap: %v %v", ok, err)
+	}
+	p, _ := ParseTrustedProxies("192.0.2.80")
+	h := &Handler{Service: svc, Store: st, TrustedProxies: p}
+	mux := http.NewServeMux()
+	h.Public(mux)
+	login := func(client, password string) int {
+		r := httptest.NewRequest(http.MethodPost, "/v1/auth/login",
+			strings.NewReader(`{"username":"nobody","password":"`+password+`"}`))
+		r.RemoteAddr = "192.0.2.80:40000"
+		r.Header.Set("X-Forwarded-For", client)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		return w.Code
+	}
+	for i := 0; i < IPAttempts; i++ {
+		if code := login("203.0.113.1", "wrong password one"); code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: %d", i+1, code)
+		}
+	}
+	if code := login("203.0.113.1", "wrong password one"); code != http.StatusTooManyRequests {
+		t.Fatalf("client A not throttled: %d", code)
+	}
+	if code := login("203.0.113.2", "wrong password two"); code != http.StatusUnauthorized {
+		t.Fatalf("client B shares client A's limit: %d", code)
 	}
 }
