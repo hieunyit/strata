@@ -274,6 +274,9 @@ CRS_FTW_MIN    ?= 95
 test-crs-ftw: rules-tools
 	cd tools/strata-rules && go run . ftw --repo ../.. --min-total $(CRS_FTW_MIN) > ../../docs/crs-ftw-report.md
 	cd tools/strata-rules && go run . ftw --repo ../.. --group $(CRS_FTW_GROUPS) --min $(CRS_FTW_MIN) > /dev/null
+	# Strata's tests of the CRS rules upstream has none for (W09-S-01)
+	cd tools/strata-rules && go run . ftw --repo ../.. --tests ../../rules/crs/tests --rules ../../rules/crs --min 100 > ../../build/ftw-crs-strata.md || \
+		{ cat ../../build/ftw-crs-strata.md; exit 1; }
 
 # Signature package (W08-S-01): all rules in one signed bundle, with a
 # manifest, changelog and NOTICE. Needs a key: make signatures-release
