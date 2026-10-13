@@ -57,11 +57,21 @@ for n in json.load(sys.stdin)["nodes"]:
 
 conf() { # route, path: the NGINX server of the node and its simulated backend
     local on="# inspection off until W10-G2-01 (pilot.sh --inspect)"
+    # The full signature package costs about 1-3 ms per small request on
+    # the shared staging CPUs, around the 2 ms default budget: most
+    # requests went fail-open, uninspected (#27, #28). Shadow does not block,
+    # so the pilot locations get a larger budget; the latency it adds is
+    # what the access log's t= measures.
     [ "$inspect" = 1 ] && on="strata on;
-        strata_policy $1;"
+        strata_policy $1;
+        strata_cpu_budget ${PILOT_CPU_BUDGET:-20ms};"
     cat <<EOF
+log_format strata_pilot '\$remote_addr "\$request" \$status blk=\$strata_block_id act=\$strata_action '
+                        'score=\$strata_score rules=\$strata_rules policy=\$strata_policy t=\$strata_time_us '
+                        'len=\$request_length';
 server {
     listen 80;
+    access_log /var/log/nginx/access.log strata_pilot;
     server_name api.example.test;
     client_max_body_size 8m;
     location = $2 {
@@ -83,9 +93,11 @@ EOF
 deploy_wait() { # policy: deploys (a bundle of every policy), waits for the rollout
     local out ro st start=$SECONDS
     out=$(api -X POST "$cp/v1/policies/$1:deploy" -d '{}') || die "deploy $1"
-    ro=$(sed -n 's/.*"rollout_id":"\{0,1\}\([0-9]*\).*/\1/p' <<< "$out")
+    ro=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("rollout_id", ""))' <<< "$out")
     [ -n "$ro" ] || die "deploy $1: $out"
-    until st=$(api "$cp/v1/rollouts/$ro" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+    # the rollout's own state, not one of its nodes'
+    until st=$(api "$cp/v1/rollouts/$ro" | python3 -c 'import json,sys; print(json.load(sys.stdin)["rollout"]["state"])') \
+        && [ "$st" = DONE ]; do
         case "$st" in FAILED|ABORTED) die "rollout $ro: $st" ;; esac
         [ $((SECONDS - start)) -lt 300 ] || die "rollout $ro not done in 300 s ($st)"
         sleep 2
@@ -102,7 +114,7 @@ policies)
             "$cp/v1/policies" -d "{\"id\":\"$r\",\"name\":\"$r\",\"spec\":{\"mode\":\"MODE_SHADOW\",\"oversize\":\"OVERSIZE_PASS\"}}")
         case "$c" in
             200) say "policy $r created in shadow" ;;
-            409) mode=$(api "$cp/v1/policies/$r" | sed -n 's/.*"mode":"\([A-Z_]*\)".*/\1/p')
+            409) mode=$(api "$cp/v1/policies/$r" | python3 -c 'import json,sys; print(json.load(sys.stdin)["policy"]["spec"]["mode"])')
                  [ "$mode" = MODE_SHADOW ] || die "policy $r exists in $mode, not MODE_SHADOW" ;;
             *) die "create policy $r: HTTP $c" ;;
         esac
@@ -135,7 +147,10 @@ up)
     for r in "${routes[@]}"; do
         path=/v1/${r#pilot-}
         conf "$r" "$path" > "$work/$r.conf"
-        envs=(-e "STRATA_SERVER=control-plane:8443" -e STRATA_SERVER_NAME=cp.example.test -e STRATA_CA_FILE=/pilot/ca.pem)
+        # worker_processes from the container's CPUs, not the host's (the
+        # official image's autotune): 16 cold workers on 2 CPUs made most
+        # requests run over the CPU budget
+        envs=(-e NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE=1 -e "STRATA_SERVER=control-plane:8443" -e STRATA_SERVER_NAME=cp.example.test -e STRATA_CA_FILE=/pilot/ca.pem)
         if ! docker run --rm --entrypoint test -v "${project}_pilot-$r:/v" "$image" -s /v/identity/node-id 2>/dev/null; then
             api -X POST "$cp/v1/groups/pilot/enrollmentTokens" -d '{}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p' > "$work/$r.token"
             [ -s "$work/$r.token" ] || die "no enrollment token for $r"
