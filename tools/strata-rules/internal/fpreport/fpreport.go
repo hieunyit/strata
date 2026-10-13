@@ -26,6 +26,7 @@ type Options struct {
 	Since         time.Duration
 	Policies      []string
 	ExcludeCIDRs  []string
+	Timeout       time.Duration
 }
 
 // Row represents one rule's shadow statistics on a specific day.
@@ -132,7 +133,13 @@ func Query(ctx context.Context, opts Options) ([]Row, error) {
 		req.SetBasicAuth(opts.User, opts.Password)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	client := &http.Client{Timeout: timeout}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse request failed: %w", err)
 	}

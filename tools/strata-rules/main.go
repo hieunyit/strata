@@ -388,6 +388,7 @@ func fpReportCmd() {
 	user := fs.String("user", defaultUser, "ClickHouse user (env STRATA_CLICKHOUSE_USER)")
 	password := fs.String("password", os.Getenv("STRATA_CLICKHOUSE_PASSWORD"), "ClickHouse password")
 	since := fs.Duration("since", 24*time.Hour, "time window to inspect (e.g. 24h)")
+	timeout := fs.Duration("timeout", 60*time.Second, "HTTP request timeout")
 	var policies policyList
 	fs.Var(&policies, "policy", "policy ID to filter (repeatable or comma-separated)")
 	excludeIPs := fs.String("exclude-ips", "", "path to file containing IPs or CIDRs to exclude")
@@ -411,6 +412,7 @@ func fpReportCmd() {
 		Since:         *since,
 		Policies:      policies,
 		ExcludeCIDRs:  excludeCIDRs,
+		Timeout:       *timeout,
 	}
 
 	rows, err := fpreport.Query(context.Background(), opts)

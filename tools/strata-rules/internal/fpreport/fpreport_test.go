@@ -324,4 +324,32 @@ func TestQuery_ValidateSince(t *testing.T) {
 	}
 }
 
+func TestQuery_Timeout(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(2 * time.Second):
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"day":"2026-10-13","rule_id":942100,"events":1,"sources":1,"top_policy":"pilot-verify"}` + "\n"))
+	}))
+	defer ts.Close()
+
+	start := time.Now()
+	_, err := Query(context.Background(), Options{
+		ClickHouseURL: ts.URL,
+		Since:         24 * time.Hour,
+		Timeout:       200 * time.Millisecond,
+	})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatalf("expected timeout error, got nil")
+	}
+	if elapsed >= 1*time.Second {
+		t.Errorf("expected Query to return error in < 1s, took %v", elapsed)
+	}
+}
+
+
 
