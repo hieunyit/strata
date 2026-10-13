@@ -57,7 +57,7 @@ var carriers = []string{"query", "form"}
 func build(id, carrier string, values []string, encoded bool) request {
 	enc := make([]string, len(values))
 	for i, v := range values {
-		if encoded {
+		if encoded || preEncoded(v) {
 			enc[i] = v
 		} else {
 			enc[i] = url.QueryEscape(v)
@@ -71,6 +71,25 @@ func build(id, carrier string, values []string, encoded bool) request {
 	h["Content-Type"] = "application/x-www-form-urlencoded"
 	h["Content-Length"] = strconv.Itoa(len(body))
 	return request{ID: id, Method: "POST", URI: "/comments", Headers: h, Body: body}
+}
+
+// preEncoded: written URL-encoded already (%XX, no raw space), sent as it
+// is, as `strata-rules report` does (corpus.Requests): escaping it again
+// would turn every such payload into a double encoding.
+func preEncoded(p string) bool {
+	if strings.ContainsAny(p, " \t\r\n") {
+		return false
+	}
+	for i := 0; i+2 < len(p); i++ {
+		if p[i] == '%' && isHex(p[i+1]) && isHex(p[i+2]) {
+			return true
+		}
+	}
+	return false
+}
+
+func isHex(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }
 
 func find(repo string) string {
