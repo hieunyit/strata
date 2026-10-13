@@ -142,7 +142,7 @@ impl Engine {
             crate::operators::CompiledOperators::build(&tables).map_err(|e| (E_BUNDLE, e))?;
         let prefilter = crate::eval::Prefilter::build(&tables, &regexes);
         let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Ok(Engine {
+        let engine = Engine {
             id,
             bytes: bundle,
             info,
@@ -154,7 +154,12 @@ impl Engine {
             prefilter,
             prefilter_on: true,
             privacy,
-        })
+        };
+        // map runs off the request path (the connector's thread pool): the
+        // first request no longer compiles them, which made it fail open
+        // with the full package (#49)
+        engine.precompile_hot_regexes();
+        Ok(engine)
     }
 
     /// Privacy settings of the policy at `index`, if it has some.
@@ -226,6 +231,18 @@ impl Engine {
         self.tables()
             .hyperscan_block()
             .map(|h| MappedDb::assume_valid_with_id(h.image, self.id | crate::eval::BLOCK_DB_ID))
+    }
+
+    /// Compiles the fallback regexes the first request needs (those of the
+    /// rules evaluated on every request); `map` calls it (#49). Returns how
+    /// many. The others stay lazy.
+    pub fn precompile_hot_regexes(&self) -> usize {
+        let tables = self.tables();
+        self.prefilter
+            .ungated_conditions(&tables)
+            .filter_map(|ci| self.regexes.get(ci))
+            .filter(|fb| fb.compiled().is_some())
+            .count()
     }
 
     /// Warms up thread-local Hyperscan scratch and stream state.

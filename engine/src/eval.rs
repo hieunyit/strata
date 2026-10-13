@@ -279,6 +279,14 @@ impl Regexes {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// How many are compiled already (for tests and reports).
+    pub fn compiled_count(&self) -> usize {
+        self.0
+            .iter()
+            .filter(|fb| fb.compiled.get().is_some())
+            .count()
+    }
 }
 
 /// Bounded work on hostile input.
@@ -743,6 +751,19 @@ impl Prefilter {
         let mut v: Vec<_> = out.into_iter().collect();
         v.sort_by_key(|e| std::cmp::Reverse(e.1));
         v
+    }
+
+    /// Conditions of the rules evaluated on every request (not gated):
+    /// their fallback regexes are needed by the first request already.
+    pub fn ungated_conditions<'t>(
+        &'t self,
+        tables: &'t Tables<'_>,
+    ) -> impl Iterator<Item = u32> + 't {
+        self.stages
+            .iter()
+            .flat_map(|(ungated, _)| ungated.iter())
+            .filter_map(|&ri| tables.rule(ri as usize))
+            .flat_map(|r| r.cond_first..r.cond_first + r.cond_count)
     }
 
     /// Rules that may be skipped, and scan groups, for tests and reports.
