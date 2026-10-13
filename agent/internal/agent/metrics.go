@@ -24,11 +24,16 @@ var (
 	dReconn    = desc("push_reconnects_total", "PushEvents streams that ended and were retried.")
 	dThrottle  = desc("push_throttled_total", "Streams the control plane refused with RESOURCE_EXHAUSTED.")
 	dWindow    = desc("push_window", "Batches allowed in flight.")
+	dCtrlUp    = desc("control_connected", "1 while the control stream to the control plane is open.")
+	dCertEnd   = desc("cert_not_after_seconds", "Expiry of the node certificate, Unix time.")
+	dShadow    = desc("force_shadow_active", "1 while a ForceShadow command holds this node (or one of its policies) in shadow.")
+	dBundleAct = desc("bundle_active_version", "Bundle version the agent installed and the workers confirmed.")
+	dQlen      = desc("unix_max_dgram_qlen", "net.unix.max_dgram_qlen read at start (0: unknown); the event socket needs 8192.")
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dReceived, dInvalid, dTruncated, dSpoolB, dUnacked, dLastSeq,
-		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow} {
+		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen} {
 		ch <- d
 	}
 }
@@ -54,4 +59,27 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	counter(dReconn, pc.Reconnects.Load())
 	counter(dThrottle, pc.Throttled.Load())
 	gauge(dWindow, float64(pc.Window.Load()))
+	gauge(dQlen, float64(c.a.dgramQlen))
+	if c.a.Control != nil {
+		gauge(dCtrlUp, b2f(c.a.Control.Connected()))
+	}
+	if c.a.identity != nil {
+		if cert := c.a.identity.Certificate(); cert != nil && cert.Leaf != nil {
+			gauge(dCertEnd, float64(cert.Leaf.NotAfter.Unix()))
+		}
+	}
+	if c.a.ForceShadow != nil {
+		st := c.a.ForceShadow.Snapshot()
+		gauge(dShadow, b2f(!st.All.IsZero() || len(st.Policies) > 0))
+	}
+	if c.a.Bundles != nil {
+		gauge(dBundleAct, float64(c.a.Bundles.Active()))
+	}
+}
+
+func b2f(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }

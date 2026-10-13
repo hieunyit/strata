@@ -31,6 +31,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/store"
 )
@@ -81,8 +82,10 @@ func main() {
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
+	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	flag.Parse()
+	mx := metrics.New(version, commit)
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
@@ -227,7 +230,7 @@ func main() {
 		if signer != nil || *signingKey != "" {
 			d := newDeployer(pg, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
 			d.Publish = rollouts.Start
-			deps.Deployer = d
+			deps.Deployer = mx.Deployer(d)
 		}
 	}
 	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
@@ -289,7 +292,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           handlerWithCORS,
+		Handler:           mx.HTTP(handlerWithCORS),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -342,6 +345,25 @@ func main() {
 				log.Fatalf("[FATAL] FleetService error: %v", err)
 			}
 		}()
+	}
+
+	if *metricsAddr != "" {
+		src := metrics.Sources{Connected: presence.ConnectedNodes}
+		if pg != nil {
+			src.Enrolled, src.Active = pg.EnrolledNodes, pg.ActiveRollouts
+		}
+		if ingestSvc != nil {
+			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors
+		}
+		mx.Watch(src)
+		ms := &http.Server{Addr: *metricsAddr, Handler: mx.Handler(), ReadHeaderTimeout: 5 * time.Second}
+		go func() {
+			log.Printf("[INFO] metrics listening on %s", *metricsAddr)
+			if err := ms.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[FATAL] metrics: %v", err)
+			}
+		}()
+		defer ms.Close()
 	}
 
 	<-ctx.Done()

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -61,7 +62,11 @@ type Controller struct {
 	results  chan *fleetv1.CommandResult
 	mu       sync.Mutex
 	last     *fleetv1.BundleStatus // sent again after a reconnect
+	up       atomic.Bool           // a stream is open (Hello sent)
 }
+
+// Connected reports whether the control stream is open.
+func (c *Controller) Connected() bool { return c.up.Load() }
 
 // New returns a controller.
 func New(client fleetv1.FleetServiceClient, opts Options) *Controller {
@@ -167,6 +172,8 @@ func (c *Controller) stream(ctx context.Context) error {
 		return recvErr(st, err)
 	}
 	slog.Info("control stream open")
+	c.up.Store(true)
+	defer c.up.Store(false)
 	c.mu.Lock()
 	last := c.last
 	c.mu.Unlock()

@@ -111,7 +111,13 @@ series() { curl -fsS 'http://127.0.0.1:18428/api/v1/query?query=strata_agent_eve
 if retry 60 series; then ok "VictoriaMetrics scrapes both agents"; else bad "VictoriaMetrics scrapes both agents"; fi
 up() { curl -fsS 'http://127.0.0.1:18428/api/v1/query?query=strata_metrics_file_up%3D%3D1' | grep -o '"instance":"agent-[12]:9469"' | sort -u | wc -l | grep -q 2; }
 if retry 60 up; then ok "both agents read the NGINX metrics file"; else bad "both agents read the NGINX metrics file"; fi
-check "grafana dashboard Strata node" sh -c "curl -fsS -u 'admin:$GRAFANA_ADMIN_PASSWORD' 'http://127.0.0.1:13000/api/search?query=Strata%20node' | grep -q strata-node"
+for uid in strata-module strata-agent strata-control-plane; do
+    check "grafana dashboard $uid" sh -c "curl -fsS -u 'admin:$GRAFANA_ADMIN_PASSWORD' 'http://127.0.0.1:13000/api/dashboards/uid/$uid' | grep -q '\"uid\":\"$uid\"'"
+done
+cpscraped() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" \
+    'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_cp_build_info' | grep -q control-plane; }
+if retry 60 cpscraped; then ok "grafana reads strata_cp_* (control plane scraped)"; else bad "grafana reads strata_cp_* (control plane scraped)"; fi
+check "vmalert loaded the Strata alert rules" sh -c "curl -fsS http://127.0.0.1:18880/api/v1/rules | grep -q StrataAgentDown"
 check "grafana reads strata_agent_* from VictoriaMetrics" sh -c "curl -fsS -u 'admin:$GRAFANA_ADMIN_PASSWORD' \
     'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_agent_spool_bytes' | grep -q agent-1"
 

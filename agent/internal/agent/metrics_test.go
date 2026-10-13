@@ -42,6 +42,27 @@ strata_agent_spool_unacked_batches 0
 		"strata_agent_spool_unacked_batches"); err != nil {
 		t.Fatal(err)
 	}
+	mfs, err := r.a.Registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]float64{}
+	for _, mf := range mfs {
+		if m := mf.GetMetric(); len(m) == 1 && m[0].GetGauge() != nil {
+			got[mf.GetName()] = m[0].GetGauge().GetValue()
+		}
+	}
+	// fleettest has no Connect: the stream never opens (the open case is
+	// tested in internal/control).
+	if v, ok := got["strata_agent_control_connected"]; !ok || v != 0 {
+		t.Errorf("control_connected = %v (present %v), want 0", v, ok)
+	}
+	if _, ok := got["strata_agent_unix_max_dgram_qlen"]; !ok {
+		t.Error("unix_max_dgram_qlen missing")
+	}
+	if r.a.identity != nil && got["strata_agent_cert_not_after_seconds"] < float64(time.Now().Unix()) {
+		t.Errorf("cert_not_after_seconds = %v, not in the future", got["strata_agent_cert_not_after_seconds"])
+	}
 	if problems, err := testutil.GatherAndLint(r.a.Registry); err != nil || len(problems) != 0 {
 		t.Fatalf("lint: %v %+v", err, problems)
 	}

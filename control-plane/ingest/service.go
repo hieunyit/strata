@@ -121,6 +121,12 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 	}, nil
 }
 
+// StoreErrors counts the writes to the event store that failed.
+func (s *IngestService) StoreErrors() uint64 {
+	_, _, _, errs, _ := s.batcher.Stats()
+	return errs
+}
+
 // Store returns the underlying EventStore.
 func (s *IngestService) Store() EventStore {
 	return s.store

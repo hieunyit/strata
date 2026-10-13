@@ -26,6 +26,8 @@ x-nginx: &nginx
 x-agent: &agent
   <<: *runtime
   read_only: true
+  # the event socket's queue is the receiver's (docs/decisions/ring-buffer.md)
+  sysctls: { net.unix.max_dgram_qlen: 8192 }
   healthcheck:
     test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9469/metrics", "-o", "/dev/null"]
     interval: 5s
@@ -195,6 +197,8 @@ services:
       - -block-page=/opt/strata/block.html
       - -s3-endpoint=minio:9000
       - -s3-secure=false
+      # Prometheus metrics, inside the compose network only (W10-Q-01)
+      - -metrics-addr=:9470
     environment:
       STRATA_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
       STRATA_POSTGRES_DSN: postgres://strata:${POSTGRES_PASSWORD}@postgres:5432/strata?sslmode=disable
@@ -337,7 +341,9 @@ services:
   victoriametrics:
     image: victoriametrics/victoria-metrics:v1.153.0
     restart: unless-stopped
-    command: ["-promscrape.config=/etc/vm/scrape.yml", "-retentionPeriod=14d", "-storageDataPath=/storage"]
+    # -vmalert.proxyURL: Grafana's alert list reads vmalert through VM
+    command: ["-promscrape.config=/etc/vm/scrape.yml", "-retentionPeriod=14d", "-storageDataPath=/storage",
+              "-vmalert.proxyURL=http://vmalert:8880"]
     ports: ["127.0.0.1:18428:8428"]
     volumes:
       - ./vm/scrape.yml:/etc/vm/scrape.yml:ro
@@ -358,12 +364,36 @@ services:
     ports: ["127.0.0.1:13000:3000"]
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ../../agent/grafana:/var/lib/grafana/dashboards:ro
+      - ../monitoring/dashboards:/var/lib/grafana/dashboards:ro
       - grafana:/var/lib/grafana
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 5s
       retries: 30
+    depends_on:
+      victoriametrics: { condition: service_healthy }
+
+  # Alerts of deploy/monitoring/alerts.yml (W10-Q-01). No receiver yet (the
+  # channel is for the PO to name): firing alerts show in vmalert
+  # (127.0.0.1:18880), in Grafana's alert list and as the ALERTS series.
+  vmalert:
+    image: victoriametrics/vmalert:v1.153.0
+    restart: unless-stopped
+    command:
+      - -rule=/etc/vm/alerts.yml
+      - -datasource.url=http://victoriametrics:8428
+      - -remoteWrite.url=http://victoriametrics:8428
+      - -remoteRead.url=http://victoriametrics:8428
+      - -evaluationInterval=15s
+      - -notifier.blackhole
+      - -external.url=http://127.0.0.1:18880
+    ports: ["127.0.0.1:18880:8880"]
+    volumes:
+      - ../monitoring/alerts.yml:/etc/vm/alerts.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8880/health"]
+      interval: 5s
+      retries: 20
     depends_on:
       victoriametrics: { condition: service_healthy }
 

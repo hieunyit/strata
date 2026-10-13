@@ -1,0 +1,305 @@
+# vmalert-tool unittest for alerts.yml (make test-alerts). Each alert has a
+# case where it fires and one where it must stay quiet.
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+
+tests:
+  # agent down for 3 minutes fires; one missed scrape does not
+  - interval: 1m
+    input_series:
+      - series: 'up{job="strata-agent",instance="agent-1:9469"}'
+        values: "1 0 0 0 0 0"
+      - series: 'up{job="strata-agent",instance="agent-2:9469"}'
+        values: "1 0 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: StrataAgentDown
+        exp_alerts:
+          - exp_labels: { job: strata-agent, instance: "agent-1:9469", severity: critical, component: agent }
+            exp_annotations:
+              description: "No bundles, commands or events for this node while it is down; NGINX keeps its current bundle."
+              runbook_url: "docs/runbook/README.md#agent-không-chạy"
+              summary: "agent-1:9469: strata-agent does not answer the scrape"
+
+  # 2% of requests in fail mode on node a; 0.5% on node b stays quiet
+  - interval: 1m
+    input_series:
+      - series: 'strata_requests_total{instance="a",action="pass"}'
+        values: "0+1000x20"
+      - series: 'strata_fail_mode_total{instance="a",mode="open"}'
+        values: "0+20x20"
+      - series: 'strata_requests_total{instance="b",action="pass"}'
+        values: "0+1000x20"
+      - series: 'strata_fail_mode_total{instance="b",mode="open"}'
+        values: "0+5x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: StrataFailModeHigh
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: module }
+            exp_annotations:
+              description: "Requests are not inspected (fail open) or answered 503 (fail closed): no bundle, engine errors or CPU budget."
+              runbook_url: "docs/runbook/README.md#fail-mode-tăng"
+              summary: "a: 2% of requests go through the fail mode"
+
+  # events dropped: 1% on a fires, 0.05% on b does not
+  - interval: 1m
+    input_series:
+      - series: 'strata_events_dropped_total{instance="a"}'
+        values: "0+10x20"
+      - series: 'strata_agent_events_received_total{instance="a"}'
+        values: "0+990x20"
+      - series: 'strata_events_dropped_total{instance="b"}'
+        values: "0+1x20"
+      - series: 'strata_agent_events_received_total{instance="b"}'
+        values: "0+1999x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: StrataEventsDropped
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: module }
+            exp_annotations:
+              description: "The socket queue is full: check net.unix.max_dgram_qlen (8192) and the agent's CPU."
+              runbook_url: "docs/runbook/README.md#sự-kiện-bị-bỏ"
+              summary: "a: 1% of events dropped at the event socket"
+
+  # a worker stuck on bundle 4 while the agent installed 5; node b agrees
+  - interval: 1m
+    input_series:
+      - series: 'strata_bundle_version{instance="a",worker="0"}'
+        values: "5x20"
+      - series: 'strata_bundle_version{instance="a",worker="1"}'
+        values: "4x20"
+      - series: 'strata_agent_bundle_active_version{instance="a"}'
+        values: "5x20"
+      - series: 'strata_bundle_version{instance="b",worker="0"}'
+        values: "5x20"
+      - series: 'strata_agent_bundle_active_version{instance="b"}'
+        values: "5x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StrataWorkersOnOldBundle
+        exp_alerts: []
+      - eval_time: 17m
+        alertname: StrataWorkersOnOldBundle
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: module }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#rollback-bundle"
+              summary: "a: a worker still runs a bundle older than the agent installed"
+
+  # certificate: an expired one fires, one valid until 2100 does not
+  # (vmalert-tool does not start the clock at 0, so absolute times)
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_cert_not_after_seconds{instance="a"}'
+        values: "1x5"
+      - series: 'strata_agent_cert_not_after_seconds{instance="b"}'
+        values: "4102444800x5"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: StrataAgentCertExpiring
+        exp_alerts:
+          - exp_labels: { instance: a, severity: critical, component: agent }
+            exp_annotations:
+              description: "Renewal starts 8 h before expiry (24 h certificates) and has failed since; the node is cut off when it expires."
+              runbook_url: "docs/runbook/README.md#agent-mất-kết-nối"
+              summary: "a: node certificate expires in -10957d 0h 1m 59s"
+
+  # control stream down 6 minutes fires, 3 minutes does not
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_control_connected{instance="a"}'
+        values: "1 0 0 0 0 0 0 0"
+      - series: 'strata_agent_control_connected{instance="b"}'
+        values: "1 1 1 1 0 0 0 1"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: StrataAgentDisconnected
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: agent }
+            exp_annotations:
+              description: "The node gets no new bundle and no ForceShadow; events wait in the spool."
+              runbook_url: "docs/runbook/README.md#agent-mất-kết-nối"
+              summary: "a: no control stream to the control plane"
+
+  # sysctl: 512 fires, 8192 and unknown (0) do not
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_unix_max_dgram_qlen{instance="a"}'
+        values: "512x3"
+      - series: 'strata_agent_unix_max_dgram_qlen{instance="b"}'
+        values: "8192x3"
+      - series: 'strata_agent_unix_max_dgram_qlen{instance="c"}'
+        values: "0x3"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: StrataDgramQueueTooShort
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: agent }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#sysctl"
+              summary: "a: net.unix.max_dgram_qlen is 512, below 8192"
+
+  # ForceShadow held for 2 minutes
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_force_shadow_active{instance="a"}'
+        values: "0 1 1 1"
+      - series: 'strata_agent_force_shadow_active{instance="b"}'
+        values: "0 0 0 0"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: StrataForceShadowActive
+        exp_alerts:
+          - exp_labels: { instance: a, severity: info, component: agent }
+            exp_annotations:
+              description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
+              runbook_url: "docs/runbook/README.md#ép-shadow"
+              summary: "a: held in shadow by a ForceShadow command"
+
+  # spool drops events once on a; b's counter (kept across restarts) is
+  # flat inside the window. VictoriaMetrics counts a series' first value as
+  # an increase, so the flat series starts well before the window.
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_spool_dropped_events_total{instance="a"}'
+        values: "0x20 40x10"
+      - series: 'strata_agent_spool_dropped_events_total{instance="b"}'
+        values: "7x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: StrataAgentSpoolDropping
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: agent }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#agent-mất-kết-nối"
+              summary: "a: the spool is full and events are lost"
+
+  # control plane: down, database down, ClickHouse errors, stuck rollout,
+  # failed deploy, nodes offline
+  - interval: 1m
+    input_series:
+      - series: 'up{job="strata-control-plane",instance="cp:9470"}'
+        values: "1 0 0 0 0"
+      - series: 'strata_cp_store_up{instance="cp:9470"}'
+        values: "1 0 0 0 0"
+      - series: 'strata_cp_ingest_store_errors_total{instance="cp:9470"}'
+        values: "0 0 3 3 3"
+      - series: 'strata_cp_rollout_oldest_seconds{instance="cp:9470"}'
+        values: "1700 1760 1820 1880 1940"
+      - series: 'strata_cp_deploys_total{instance="cp:9470",result="error"}'
+        values: "0 1 1 1 1"
+      - series: 'strata_cp_deploys_total{instance="cp:9470",result="ok"}'
+        values: "3 3 4 5 6"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: StrataControlPlaneDown
+        exp_alerts:
+          - exp_labels: { job: strata-control-plane, instance: "cp:9470", severity: critical, component: control-plane }
+            exp_annotations:
+              description: "No deploys, enrollment or event ingest; nodes keep running their current bundle."
+              runbook_url: "docs/runbook/README.md#control-plane"
+              summary: "control plane cp:9470 does not answer the scrape"
+      - eval_time: 4m
+        alertname: StrataControlPlaneDatabaseDown
+        exp_alerts:
+          - exp_labels: { instance: "cp:9470", severity: critical, component: control-plane }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#control-plane"
+              summary: "control plane cp:9470 cannot read PostgreSQL"
+      - eval_time: 4m
+        alertname: StrataIngestStoreErrors
+        exp_alerts:
+          - exp_labels: { instance: "cp:9470", severity: warning, component: control-plane }
+            exp_annotations:
+              description: "Agents keep the events in their spool and send them again."
+              runbook_url: "docs/runbook/README.md#control-plane"
+              summary: "control plane cp:9470: writes to ClickHouse fail"
+      - eval_time: 1m
+        alertname: StrataRolloutStuck
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: StrataRolloutStuck
+        exp_alerts:
+          - exp_labels: { instance: "cp:9470", severity: warning, component: control-plane }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#rollback-bundle"
+              summary: "a bundle rollout has been running for 31m 20s"
+      - eval_time: 4m
+        alertname: StrataDeployFailed
+        exp_alerts:
+          - exp_labels: { instance: "cp:9470", result: error, severity: warning, component: control-plane }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#control-plane"
+              summary: "a policy deploy failed (compile, cost budget, signature or storage)"
+
+  # REST: 10% 5xx fires; nodes: one of three offline for 12 minutes fires
+  - interval: 1m
+    input_series:
+      - series: 'strata_cp_http_requests_total{instance="cp",route="/v1/events:search",code="2xx"}'
+        values: "0+90x20"
+      - series: 'strata_cp_http_requests_total{instance="cp",route="/v1/events:search",code="5xx"}'
+        values: "0+10x20"
+      - series: 'strata_cp_nodes_enrolled{instance="cp"}'
+        values: "3x20"
+      - series: 'strata_cp_nodes_connected{instance="cp"}'
+        values: "3 3 3 3 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: StrataAPIErrors
+        exp_alerts:
+          - exp_labels: { instance: cp, severity: warning, component: control-plane }
+            exp_annotations:
+              runbook_url: "docs/runbook/README.md#control-plane"
+              summary: "control plane cp: 10% of REST requests fail"
+      - eval_time: 10m
+        alertname: StrataNodesOffline
+        exp_alerts: []
+      - eval_time: 17m
+        alertname: StrataNodesOffline
+        exp_alerts:
+          - exp_labels: { instance: cp, severity: warning, component: control-plane }
+            exp_annotations:
+              description: "Revoke nodes that are gone; otherwise see StrataAgentDisconnected on the node."
+              runbook_url: "docs/runbook/README.md#agent-mất-kết-nối"
+              summary: "1 enrolled node(s) have no stream to the control plane"
+
+
+  # metrics file unreadable for 6 minutes on a; b recovers after 3
+  - interval: 1m
+    input_series:
+      - series: 'strata_metrics_file_up{instance="a"}'
+        values: "1 0 0 0 0 0 0 0"
+      - series: 'strata_metrics_file_up{instance="b"}'
+        values: "1 0 0 0 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: StrataModuleMetricsMissing
+        exp_alerts:
+          - exp_labels: { instance: a, severity: critical, component: module }
+            exp_annotations:
+              summary: "a: the agent cannot read the NGINX metrics file"
+              description: "NGINX is down, the module is not loaded, or the metrics file directive points to another path."
+              runbook_url: "docs/runbook/README.md#module-không-gửi-metrics"
+
+  # 3% over the CPU budget on a fires; 0.2% on b does not
+  - interval: 1m
+    input_series:
+      - series: 'strata_requests_total{instance="a",action="pass"}'
+        values: "0+1000x20"
+      - series: 'strata_budget_exceeded_total{instance="a"}'
+        values: "0+30x20"
+      - series: 'strata_requests_total{instance="b",action="pass"}'
+        values: "0+1000x20"
+      - series: 'strata_budget_exceeded_total{instance="b"}'
+        values: "0+2x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: StrataBudgetExceeded
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: module }
+            exp_annotations:
+              summary: "a: 3% of requests run over the CPU budget"
+              description: "Large bodies or a slow-down attack (nginx-module.md, Theo dõi tấn công làm chậm)."
+              runbook_url: "docs/runbook/README.md#fail-mode-tăng"

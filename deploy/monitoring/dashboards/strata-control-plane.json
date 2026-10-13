@@ -1,0 +1,437 @@
+{
+ "uid": "strata-control-plane",
+ "title": "Strata control plane",
+ "description": "Control plane: API, nodes, rollouts, deploys, event ingest.",
+ "tags": [
+  "strata"
+ ],
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "annotations": {
+  "list": []
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "datasource",
+    "type": "datasource",
+    "query": "prometheus"
+   },
+   {
+    "name": "instance",
+    "type": "query",
+    "datasource": {
+     "uid": "${datasource}"
+    },
+    "query": "label_values(strata_cp_build_info, instance)",
+    "refresh": 2,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "Service",
+   "collapsed": false,
+   "panels": [],
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Up / build",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bool_yes_no"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "up{job=\"strata-control-plane\",instance=~\"$instance\"}",
+     "legendFormat": "up {{instance}}",
+     "refId": "A"
+    },
+    {
+     "expr": "strata_cp_store_up{instance=~\"$instance\"}",
+     "legendFormat": "PostgreSQL {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Nodes",
+   "description": "Alert StrataNodesOffline when enrolled > connected for 10 min.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_cp_nodes_enrolled{instance=~\"$instance\"}",
+     "legendFormat": "enrolled",
+     "refId": "A"
+    },
+    {
+     "expr": "strata_cp_nodes_connected{instance=~\"$instance\"}",
+     "legendFormat": "connected",
+     "refId": "B"
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Rollouts",
+   "description": "Alert StrataRolloutStuck after 30 min.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_cp_rollouts_active{instance=~\"$instance\"}",
+     "legendFormat": "active",
+     "refId": "A"
+    },
+    {
+     "expr": "strata_cp_rollout_oldest_seconds{instance=~\"$instance\"}",
+     "legendFormat": "oldest (s)",
+     "refId": "B"
+    }
+   ],
+   "id": 4,
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "REST requests by status",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (code) (rate(strata_cp_http_requests_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{code}}",
+     "refId": "A"
+    }
+   ],
+   "id": 5,
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "REST p99 by route",
+   "description": "Block ID lookup target < 1 s, 24 h search < 2 s (W09-G2-01).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "histogram_quantile(0.99, sum by (le, route) (rate(strata_cp_http_request_seconds_bucket{instance=~\"$instance\"}[5m])))",
+     "legendFormat": "{{route}}",
+     "refId": "A"
+    }
+   ],
+   "id": 6,
+   "gridPos": {
+    "x": 12,
+    "y": 9,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Deploys",
+   "description": "Compile, sign, store, start a rollout (alert StrataDeployFailed).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (result) (increase(strata_cp_deploys_total{instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{result}}",
+     "refId": "A"
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Deploy time p95",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(strata_cp_deploy_seconds_bucket{instance=~\"$instance\"}[1h])))",
+     "legendFormat": "p95",
+     "refId": "A"
+    }
+   ],
+   "id": 8,
+   "gridPos": {
+    "x": 12,
+    "y": 17,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "Event ingest",
+   "collapsed": false,
+   "panels": [],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 25,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Events from agents",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (result) (rate(strata_cp_ingest_events_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{result}}",
+     "refId": "A"
+    },
+    {
+     "expr": "sum (rate(strata_cp_ingest_events_stored_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "stored",
+     "refId": "B"
+    }
+   ],
+   "id": 10,
+   "gridPos": {
+    "x": 0,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Batches",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (result) (rate(strata_cp_ingest_batches_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{result}}",
+     "refId": "A"
+    }
+   ],
+   "id": 11,
+   "gridPos": {
+    "x": 12,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Queue and ClickHouse errors",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_cp_ingest_queue{instance=~\"$instance\"}",
+     "legendFormat": "queue",
+     "refId": "A"
+    },
+    {
+     "expr": "increase(strata_cp_ingest_store_errors_total{instance=~\"$instance\"}[10m])",
+     "legendFormat": "write errors (10 min)",
+     "refId": "B"
+    }
+   ],
+   "id": 12,
+   "gridPos": {
+    "x": 0,
+    "y": 34,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Firing alerts",
+   "description": "Alerts of deploy/monitoring/alerts.yml that fire now, every component (vmalert writes ALERTS).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "count by (alertname, severity) (ALERTS{alertstate=\"firing\"})",
+     "legendFormat": "{{alertname}} ({{severity}})",
+     "refId": "A"
+    }
+   ],
+   "id": 13,
+   "gridPos": {
+    "x": 12,
+    "y": 34,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Memory / goroutines",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "process_resident_memory_bytes{job=\"strata-control-plane\",instance=~\"$instance\"}",
+     "legendFormat": "RSS",
+     "refId": "A"
+    },
+    {
+     "expr": "go_goroutines{job=\"strata-control-plane\",instance=~\"$instance\"}",
+     "legendFormat": "goroutines",
+     "refId": "B"
+    }
+   ],
+   "id": 14,
+   "gridPos": {
+    "x": 0,
+    "y": 42,
+    "w": 12,
+    "h": 8
+   }
+  }
+ ]
+}

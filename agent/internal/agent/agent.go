@@ -81,6 +81,9 @@ type Agent struct {
 	batch    *batch.Batcher
 	cfg      Config
 	started  time.Time
+	identity *identity.Identity
+	// dgramQlen is net.unix.max_dgram_qlen read at start (0: unknown).
+	dgramQlen int
 }
 
 // New opens the spool, binds the event socket and prepares the client.
@@ -134,7 +137,9 @@ func New(cfg Config) (*Agent, error) {
 		batch:    batch.New(sp, cfg.Batch),
 		cfg:      cfg,
 		started:  time.Now(),
+		identity: id,
 	}
+	a.dgramQlen = checkDgramQlen(procDgramQlen)
 	var bm *bundles.Manager
 	ctrl := &control.Controller{}
 	if cfg.BundleDir != "" {

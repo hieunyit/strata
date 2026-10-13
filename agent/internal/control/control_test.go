@@ -103,6 +103,7 @@ func TestHelloHeartbeatsAndReconnect(t *testing.T) {
 	// The first stream is dropped by the server; the agent comes back.
 	eventually(t, "a reconnect", func() bool { n, _, _ := f.snapshot(); return n >= 2 })
 	eventually(t, "heartbeats", func() bool { _, _, b := f.snapshot(); return b >= 3 })
+	eventually(t, "Connected", c.Connected)
 	_, first, _ := f.snapshot()
 	for i, k := range first {
 		if k != "hello" {
@@ -114,6 +115,9 @@ func TestHelloHeartbeatsAndReconnect(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not return after cancel")
+	}
+	if c.Connected() {
+		t.Fatal("Connected after the stream ended")
 	}
 }
 
@@ -128,5 +132,8 @@ func TestUnimplementedStops(t *testing.T) {
 	}
 	if time.Since(start) < 150*time.Millisecond {
 		t.Fatal("Run returned before ctx was done")
+	}
+	if c.Connected() {
+		t.Fatal("Connected without a Connect stream")
 	}
 }

@@ -1,0 +1,282 @@
+{
+ "uid": "strata-module",
+ "title": "Strata module",
+ "description": "NGINX module: traffic, engine time, fail mode, bundles, events. Source: the metrics file, exported by strata-agent.",
+ "tags": [
+  "strata"
+ ],
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "annotations": {
+  "list": []
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "datasource",
+    "type": "datasource",
+    "query": "prometheus"
+   },
+   {
+    "name": "instance",
+    "type": "query",
+    "datasource": {
+     "uid": "${datasource}"
+    },
+    "query": "label_values(strata_metrics_file_up, instance)",
+    "refresh": 2,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "Traffic",
+   "collapsed": false,
+   "panels": [],
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests by action",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (action) (rate(strata_requests_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{action}}",
+     "refId": "A"
+    }
+   ],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Engine time p50 / p99",
+   "description": "Time in libstrata per request. Target: overhead p99 below 1 ms (nginx-module.md).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "histogram_quantile(0.5, sum by (le) (rate(strata_engine_seconds_bucket{instance=~\"$instance\"}[5m])))",
+     "legendFormat": "p50",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(strata_engine_seconds_bucket{instance=~\"$instance\"}[5m])))",
+     "legendFormat": "p99",
+     "refId": "B"
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 12,
+    "y": 1,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Body inspected",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum (rate(strata_body_inspected_bytes_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "bytes/s",
+     "refId": "A"
+    }
+   ],
+   "id": 4,
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Fail mode and CPU budget (share of requests)",
+   "description": "Alerts StrataFailModeHigh, StrataBudgetExceeded above 1%.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (mode) (rate(strata_fail_mode_total{instance=~\"$instance\"}[5m])) / scalar(clamp_min(sum (rate(strata_requests_total{instance=~\"$instance\"}[5m])), 1e-9))",
+     "legendFormat": "fail {{mode}}",
+     "refId": "A"
+    },
+    {
+     "expr": "sum (rate(strata_budget_exceeded_total{instance=~\"$instance\"}[5m])) / clamp_min(sum (rate(strata_requests_total{instance=~\"$instance\"}[5m])), 1e-9)",
+     "legendFormat": "over budget",
+     "refId": "B"
+    }
+   ],
+   "id": 5,
+   "gridPos": {
+    "x": 12,
+    "y": 9,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "Bundles and events",
+   "collapsed": false,
+   "panels": [],
+   "id": 6,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Bundle version per worker",
+   "description": "All workers should run the version the agent installed (alert StrataWorkersOnOldBundle).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_bundle_version{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}} w{{worker}}",
+     "refId": "A"
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 0,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Workers and metrics file",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_workers{instance=~\"$instance\"}",
+     "legendFormat": "workers {{instance}}",
+     "refId": "A"
+    },
+    {
+     "expr": "strata_metrics_file_up{instance=~\"$instance\"}",
+     "legendFormat": "metrics file up {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "id": 8,
+   "gridPos": {
+    "x": 12,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Events dropped at the socket (share)",
+   "description": "Alert StrataEventsDropped above 0.1%; net.unix.max_dgram_qlen must be 8192.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (instance) (rate(strata_events_dropped_total{instance=~\"$instance\"}[5m])) / clamp_min(sum by (instance) (rate(strata_events_dropped_total{instance=~\"$instance\"}[5m]) + rate(strata_agent_events_received_total{instance=~\"$instance\"}[5m])), 1e-9)",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 26,
+    "w": 24,
+    "h": 8
+   }
+  }
+ ]
+}

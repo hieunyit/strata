@@ -1,0 +1,366 @@
+{
+ "uid": "strata-agent",
+ "title": "Strata agent",
+ "description": "strata-agent: control stream, certificate, ForceShadow, bundle, event spool.",
+ "tags": [
+  "strata"
+ ],
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "annotations": {
+  "list": []
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "datasource",
+    "type": "datasource",
+    "query": "prometheus"
+   },
+   {
+    "name": "instance",
+    "type": "query",
+    "datasource": {
+     "uid": "${datasource}"
+    },
+    "query": "label_values(strata_agent_spool_bytes, instance)",
+    "refresh": 2,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "Control plane link",
+   "collapsed": false,
+   "panels": [],
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Control stream",
+   "description": "1 while the Connect stream is open (alert StrataAgentDisconnected).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bool_yes_no"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_control_connected{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Certificate time left",
+   "description": "24 h certificates, renewed 8 h before expiry (alert StrataAgentCertExpiring under 4 h).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_cert_not_after_seconds{instance=~\"$instance\"} - time()",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "ForceShadow",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bool_yes_no"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_force_shadow_active{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 4,
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Installed bundle",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_bundle_active_version{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 5,
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "net.unix.max_dgram_qlen",
+   "description": "Needs 8192 (alert StrataDgramQueueTooShort); 0 means unknown.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_unix_max_dgram_qlen{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 6,
+   "gridPos": {
+    "x": 8,
+    "y": 9,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Stream reconnects / throttled",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (instance) (rate(strata_agent_push_reconnects_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "reconnects {{instance}}",
+     "refId": "A"
+    },
+    {
+     "expr": "sum by (instance) (rate(strata_agent_push_throttled_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "throttled {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 16,
+    "y": 9,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "Events",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Events received / invalid",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (instance) (rate(strata_agent_events_received_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "received {{instance}}",
+     "refId": "A"
+    },
+    {
+     "expr": "sum by (instance) (rate(strata_agent_events_invalid_total{instance=~\"$instance\"}[5m]) + rate(strata_agent_events_truncated_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "invalid {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Events lost",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum by (instance) (rate(strata_events_dropped_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "socket full {{instance}}",
+     "refId": "A"
+    },
+    {
+     "expr": "sum by (instance) (rate(strata_agent_spool_dropped_events_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "spool full {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "id": 10,
+   "gridPos": {
+    "x": 12,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Spool",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_spool_bytes{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 11,
+   "gridPos": {
+    "x": 0,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Unacked batches",
+   "description": "",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_agent_spool_unacked_batches{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "id": 12,
+   "gridPos": {
+    "x": 12,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   }
+  }
+ ]
+}

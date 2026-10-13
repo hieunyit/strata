@@ -1,0 +1,155 @@
+# Strata alerts (W10-Q-01), evaluated by vmalert against VictoriaMetrics.
+# Used by the lab, staging and the packages. Each alert names its runbook
+# section; thresholds come from docs/design/nginx-module.md (fail mode,
+# CPU budget, events) and docs/decisions/ring-buffer.md (0.1% dropped).
+# Tests: deploy/monitoring/alerts.test.yml (make test-alerts).
+groups:
+  - name: strata-module
+    rules:
+      - alert: StrataModuleMetricsMissing
+        expr: strata_metrics_file_up == 0
+        for: 5m
+        labels: { severity: critical, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: the agent cannot read the NGINX metrics file"
+          description: "NGINX is down, the module is not loaded, or the metrics file directive points to another path."
+          runbook_url: docs/runbook/README.md#module-không-gửi-metrics
+      - alert: StrataFailModeHigh
+        expr: |
+          sum by (instance) (rate(strata_fail_mode_total[5m]))
+            / clamp_min(sum by (instance) (rate(strata_requests_total[5m])), 1e-9) > 0.01
+        for: 10m
+        labels: { severity: warning, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value | humanizePercentage }} of requests go through the fail mode"
+          description: "Requests are not inspected (fail open) or answered 503 (fail closed): no bundle, engine errors or CPU budget."
+          runbook_url: docs/runbook/README.md#fail-mode-tăng
+      - alert: StrataBudgetExceeded
+        expr: |
+          sum by (instance) (rate(strata_budget_exceeded_total[5m]))
+            / clamp_min(sum by (instance) (rate(strata_requests_total[5m])), 1e-9) > 0.01
+        for: 10m
+        labels: { severity: warning, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value | humanizePercentage }} of requests run over the CPU budget"
+          description: "Large bodies or a slow-down attack (nginx-module.md, Theo dõi tấn công làm chậm)."
+          runbook_url: docs/runbook/README.md#fail-mode-tăng
+      - alert: StrataEventsDropped
+        expr: |
+          sum by (instance) (rate(strata_events_dropped_total[5m]))
+            / clamp_min(sum by (instance) (rate(strata_events_dropped_total[5m]) + rate(strata_agent_events_received_total[5m])), 1e-9) > 0.001
+        for: 10m
+        labels: { severity: warning, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value | humanizePercentage }} of events dropped at the event socket"
+          description: "The socket queue is full: check net.unix.max_dgram_qlen (8192) and the agent's CPU."
+          runbook_url: docs/runbook/README.md#sự-kiện-bị-bỏ
+      - alert: StrataWorkersOnOldBundle
+        expr: |
+          min by (instance) (strata_bundle_version)
+            < on (instance) strata_agent_bundle_active_version
+        for: 15m
+        labels: { severity: warning, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: a worker still runs a bundle older than the agent installed"
+          runbook_url: docs/runbook/README.md#rollback-bundle
+
+  - name: strata-agent
+    rules:
+      - alert: StrataAgentDown
+        expr: up{job="strata-agent"} == 0
+        for: 2m
+        labels: { severity: critical, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: strata-agent does not answer the scrape"
+          description: "No bundles, commands or events for this node while it is down; NGINX keeps its current bundle."
+          runbook_url: docs/runbook/README.md#agent-không-chạy
+      - alert: StrataAgentDisconnected
+        expr: strata_agent_control_connected == 0
+        for: 5m
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: no control stream to the control plane"
+          description: "The node gets no new bundle and no ForceShadow; events wait in the spool."
+          runbook_url: docs/runbook/README.md#agent-mất-kết-nối
+      - alert: StrataAgentCertExpiring
+        expr: strata_agent_cert_not_after_seconds - time() < 4 * 3600
+        labels: { severity: critical, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: node certificate expires in {{ $value | humanizeDuration }}"
+          description: "Renewal starts 8 h before expiry (24 h certificates) and has failed since; the node is cut off when it expires."
+          runbook_url: docs/runbook/README.md#agent-mất-kết-nối
+      - alert: StrataAgentSpoolDropping
+        expr: increase(strata_agent_spool_dropped_events_total[15m]) > 0
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: the spool is full and events are lost"
+          runbook_url: docs/runbook/README.md#agent-mất-kết-nối
+      - alert: StrataForceShadowActive
+        expr: strata_agent_force_shadow_active == 1
+        for: 1m
+        labels: { severity: info, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: held in shadow by a ForceShadow command"
+          description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
+          runbook_url: docs/runbook/README.md#ép-shadow
+      - alert: StrataDgramQueueTooShort
+        expr: strata_agent_unix_max_dgram_qlen > 0 and strata_agent_unix_max_dgram_qlen < 8192
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: net.unix.max_dgram_qlen is {{ $value }}, below 8192"
+          runbook_url: docs/runbook/README.md#sysctl
+
+  - name: strata-control-plane
+    rules:
+      - alert: StrataControlPlaneDown
+        expr: up{job="strata-control-plane"} == 0
+        for: 2m
+        labels: { severity: critical, component: control-plane }
+        annotations:
+          summary: "control plane {{ $labels.instance }} does not answer the scrape"
+          description: "No deploys, enrollment or event ingest; nodes keep running their current bundle."
+          runbook_url: docs/runbook/README.md#control-plane
+      - alert: StrataControlPlaneDatabaseDown
+        expr: strata_cp_store_up == 0
+        for: 2m
+        labels: { severity: critical, component: control-plane }
+        annotations:
+          summary: "control plane {{ $labels.instance }} cannot read PostgreSQL"
+          runbook_url: docs/runbook/README.md#control-plane
+      - alert: StrataIngestStoreErrors
+        expr: increase(strata_cp_ingest_store_errors_total[10m]) > 0
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "control plane {{ $labels.instance }}: writes to ClickHouse fail"
+          description: "Agents keep the events in their spool and send them again."
+          runbook_url: docs/runbook/README.md#control-plane
+      - alert: StrataRolloutStuck
+        expr: strata_cp_rollout_oldest_seconds > 1800
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "a bundle rollout has been running for {{ $value | humanizeDuration }}"
+          runbook_url: docs/runbook/README.md#rollback-bundle
+      - alert: StrataDeployFailed
+        expr: increase(strata_cp_deploys_total{result="error"}[30m]) > 0
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "a policy deploy failed (compile, cost budget, signature or storage)"
+          runbook_url: docs/runbook/README.md#control-plane
+      - alert: StrataAPIErrors
+        expr: |
+          sum by (instance) (rate(strata_cp_http_requests_total{code="5xx"}[5m]))
+            / clamp_min(sum by (instance) (rate(strata_cp_http_requests_total[5m])), 1e-9) > 0.05
+        for: 10m
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "control plane {{ $labels.instance }}: {{ $value | humanizePercentage }} of REST requests fail"
+          runbook_url: docs/runbook/README.md#control-plane
+      - alert: StrataNodesOffline
+        expr: strata_cp_nodes_enrolled - strata_cp_nodes_connected > 0
+        for: 10m
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "{{ $value }} enrolled node(s) have no stream to the control plane"
+          description: "Revoke nodes that are gone; otherwise see StrataAgentDisconnected on the node."
+          runbook_url: docs/runbook/README.md#agent-mất-kết-nối

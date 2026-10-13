@@ -69,4 +69,7 @@ RUN cpanm --notest CryptX && rm -rf /root/.cpanm
 RUN rustup toolchain install nightly --profile minimal --component rust-src \
     && chmod -R a+rwX ${RUSTUP_HOME}
 
+# Unit tests of the alert rules (make test-alerts, W10-Q-01).
+COPY --from=victoriametrics/vmalert-tool:v1.153.0 /vmalert-tool-prod /usr/local/bin/vmalert-tool
+
 WORKDIR /src
