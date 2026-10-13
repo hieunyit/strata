@@ -1,0 +1,45 @@
+# nginx-module-strata for one NGINX version (deploy/packaging/build.sh sets
+# the variables). Named and versioned like nginx.org's module packages, and
+# tied to that exact NGINX version so the package manager refuses a module
+# built for another one (nginx-module.md, "Build & đóng gói").
+name: nginx-module-strata
+arch: amd64
+platform: linux
+version: ${NGINX_VERSION}+${STRATA_VERSION}
+release: 1
+version_schema: none
+section: httpd
+priority: optional
+maintainer: Strata <support@example.test>
+description: |
+  Strata WAF dynamic module for NGINX ${NGINX_VERSION} (nginx.org packages).
+  Inspects requests and responses with libstrata; bundles and events go
+  through strata-agent.
+vendor: Strata
+homepage: https://github.com/hieunyit/strata
+license: Apache-2.0
+overrides:
+  deb:
+    depends:
+      - nginx (>= ${NGINX_VERSION}-1~)
+      - nginx (<< ${NGINX_VERSION}.0)
+  rpm:
+    # nginx.org's RPMs provide nginx-r<version> (their own module packages
+    # require it); a version range would need their epoch (2 on el9)
+    depends:
+      - nginx-r${NGINX_VERSION}
+contents:
+  # where nginx.org's packages keep modules (modules/ in nginx.conf)
+  - src: ${MODULE_SO}
+    dst: /usr/lib/nginx/modules/ngx_http_strata_module.so
+    packager: deb
+    file_info: { mode: 0644 }
+  - src: ${MODULE_SO}
+    dst: /usr/lib64/nginx/modules/ngx_http_strata_module.so
+    packager: rpm
+    file_info: { mode: 0644 }
+  - src: deploy/packaging/files/strata-module.conf
+    dst: /usr/share/nginx-module-strata/strata.conf.example
+    file_info: { mode: 0644 }
+scripts:
+  postinstall: deploy/packaging/scripts/module-postinst.sh

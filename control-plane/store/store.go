@@ -201,8 +201,14 @@ func (s *Store) Enroll(ctx context.Context, token string, n Node, now time.Time,
 			return err
 		}
 		n.CertSerial, n.CertNotAfter = iss.Serial, &iss.NotAfter
-		row := tx.QueryRow(ctx, `INSERT INTO nodes (id, group_id, hostname, proxy_version, module_version, cert_serial, cert_not_after)
-			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING `+nodeCols,
+		// A new node runs what the fleet runs: the bundle of the latest
+		// rollout that finished (W10-N-01). Without it a node enrolled
+		// after a deploy had no bundle until the next one. A rollout still
+		// running, paused, failed or aborted is not given out.
+		row := tx.QueryRow(ctx, `INSERT INTO nodes (id, group_id, hostname, proxy_version, module_version, cert_serial, cert_not_after,
+				desired_bundle_version)
+			VALUES ($1, $2, $3, $4, $5, $6, $7,
+				(SELECT bundle_version FROM rollouts WHERE state = 'DONE' ORDER BY id DESC LIMIT 1)) RETURNING `+nodeCols,
 			n.ID, n.GroupID, n.Hostname, n.ProxyVersion, n.ModuleVersion, n.CertSerial, n.CertNotAfter)
 		if n, err = scanNode(row); err != nil {
 			return fmt.Errorf("store: create node: %w", err)

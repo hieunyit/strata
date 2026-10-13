@@ -106,7 +106,7 @@ type node struct {
 
 func (p *platform) enrollNodes(t *testing.T, bin string, n int) []*node {
 	t.Helper()
-	if c := p.call(t, "admin", http.MethodPost, "/v1/groups", `{"id":"lab","name":"Lab"}`, nil); c != http.StatusOK {
+	if c := p.call(t, "admin", http.MethodPost, "/v1/groups", `{"id":"lab","name":"Lab"}`, nil); c != http.StatusOK && c != http.StatusConflict {
 		t.Fatalf("group: %d", c)
 	}
 	var nodes []*node
@@ -199,6 +199,45 @@ func (p *platform) rollout(t *testing.T, id string) rolloutJSON {
 		t.Fatalf("rollout: %d", c)
 	}
 	return r
+}
+
+// W10-N-01: a node enrolled after a deploy gets the bundle the fleet runs
+// at once (the bundle of the latest finished rollout), not only after the
+// next deploy. Negative: none before any rollout finished, and a rollout
+// still running is not handed out.
+func TestNewNodeGetsTheFleetBundle(t *testing.T) {
+	p := startPlatform(t)
+	bin := buildAgentBinary(t)
+	first := p.enrollNodes(t, bin, 1)[0]
+	first.start(t, bin, p.addr)
+	waitFor(t, "first node online", 30*time.Second, func() bool { return p.node(t, first.id).Online })
+	time.Sleep(3 * time.Second)
+	if v := first.controlVersion(); v != 0 {
+		t.Fatalf("bundle %d before any deploy", v)
+	}
+
+	r1 := p.deploy(t, "MODE_SHADOW")
+	waitFor(t, "rollout 1 done", 60*time.Second, func() bool { return p.rollout(t, r1).Rollout.State == "DONE" })
+	late := p.enrollNodes(t, bin, 1)[0]
+	start := time.Now()
+	late.start(t, bin, p.addr)
+	waitFor(t, "the late node runs bundle 1", 30*time.Second, func() bool { return late.controlVersion() == 1 })
+	t.Logf("node enrolled after the deploy runs bundle 1 %s after it started", time.Since(start).Round(time.Millisecond))
+
+	// Rollout 2 cannot finish (its first node is stopped): a node enrolled
+	// now gets bundle 1, the last finished one, not 2.
+	_ = first.proc.stop(5 * time.Second)
+	r2 := p.deploy(t, "MODE_ENFORCE")
+	if st := p.rollout(t, r2).Rollout.State; st != "RUNNING" {
+		t.Fatalf("rollout 2 is %s", st)
+	}
+	third := p.enrollNodes(t, bin, 1)[0]
+	third.start(t, bin, p.addr)
+	waitFor(t, "the third node runs bundle 1", 30*time.Second, func() bool { return third.controlVersion() == 1 })
+	time.Sleep(3 * time.Second)
+	if v := third.controlVersion(); v != 1 {
+		t.Fatalf("a node enrolled during rollout 2 runs bundle %d", v)
+	}
 }
 
 // W05-G1-01 and W05-G2-01 with three real agents: waves in order, a FAILED

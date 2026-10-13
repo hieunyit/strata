@@ -4,6 +4,9 @@
 # Output: <build-dir>/nginx-<version>[-asan]/objs/{nginx,ngx_http_strata_module.so}
 #
 # STRATA_SANITIZE=1 builds an ASan + UBSan variant in nginx-<version>-asan.
+# STRATA_RELEASE=1 builds the module the packages ship, in
+# nginx-<version>-release: no --with-debug, like nginx.org's own builds
+# (deploy/packaging, W10-N-01).
 set -euo pipefail
 
 version="${1:?usage: build.sh <nginx-version> [build-dir]}"
@@ -41,12 +44,18 @@ elif [ "${STRATA_HTTP3:-}" = 1 ]; then
     cc_opt="-O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2 -I$quic/include"
     ld_opt="-L$quic/lib -Wl,-z,relro -Wl,-z,now"
     v3="--with-http_v3_module"
+elif [ "${STRATA_RELEASE:-}" = 1 ]; then
+    src="$build/nginx-$version-release"
+    cc_opt="-O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+    ld_opt="-Wl,-z,relro -Wl,-z,now"
+    debug=""
 else
     src="$build/nginx-$version"
     cc_opt="-O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2"
     ld_opt="-Wl,-z,relro -Wl,-z,now"
 fi
 : "${v3:=}"
+debug="${debug---with-debug}"
 
 if [ ! -d "$src" ]; then
     mkdir -p "$build/dl" "$src.tmp"
@@ -61,7 +70,7 @@ cd "$src"
 stamp="$cc_opt|$ld_opt|$root|$(cksum < "$root/connectors/nginx/config")"
 if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$stamp" ]; then
     ./configure \
-        --with-compat --with-threads --with-debug \
+        --with-compat --with-threads $debug \
         --with-http_v2_module --with-http_auth_request_module $v3 \
         --with-cc-opt="$cc_opt" --with-ld-opt="$ld_opt" \
         --add-dynamic-module="$root/connectors/nginx"

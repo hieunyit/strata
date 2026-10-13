@@ -8,9 +8,10 @@ dưới đây.
   **Strata control plane**.
 - Cảnh báo: vmalert (lab `127.0.0.1:18880`, staging `127.0.0.1:28880`), danh sách
   cảnh báo trong Grafana, và chuỗi `ALERTS{alertstate="firing"}` trong VictoriaMetrics.
+- Cài node: `docs/runbook/install.md`.
 - Các thao tác can thiệp (tắt module, ép shadow, rollback bundle) có lệnh và kết quả
-  mong đợi đầy đủ ở các mục cùng tên. Chúng được diễn tập trên staging trong
-  W10-N-01; biên bản nằm trong `docs/reports/w10-n-01.md`.
+  mong đợi ở các mục cùng tên. `tests/e2e/runbook-drill.sh [lab|staging]` chạy đúng các
+  lệnh đó và đo thời gian; biên bản diễn tập nằm trong `docs/reports/w10-n-01.md`.
 
 Quy ước trong lệnh: `$CP` là URL REST của control plane, `$TOKEN` là access token của
 một người có vai trò `operator` (ép shadow) hoặc `admin` (deploy).
@@ -100,10 +101,52 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 
 Cảnh báo `StrataForceShadowActive` (mức info) nhắc rằng node đang bị giữ ở shadow.
 
+## Tắt module
+
+Dùng khi nghi module gây lỗi cho request (không phải chặn nhầm: chặn nhầm thì **ép
+shadow**, vì shadow vẫn ghi sự kiện).
+
+1. Nhanh, giữ module trong bộ nhớ: đổi **mọi** `strata on;` thành `strata off;`, rồi
+   `nginx -t && systemctl reload nginx`. Thêm một dòng `strata off;` ở khối `http` là
+   **không đủ**: location có `strata on;` vẫn được ưu tiên.
+
+   ```bash
+   grep -rl 'strata on;' /etc/nginx | xargs sed -i 's/strata on;/strata off;  # strata disabled/'
+   nginx -t && systemctl reload nginx
+   ```
+
+   Request không còn được kiểm, không có header `X-Strata-Block-Id`. Bật lại bằng lệnh
+   ngược (`s/strata off;  # strata disabled/strata on;/`) rồi reload.
+2. Gỡ hẳn khỏi NGINX: bỏ dòng `load_module modules/ngx_http_strata_module.so;` và file
+   `/etc/nginx/conf.d/strata.conf`, bỏ mọi `strata*` trong cấu hình, rồi `nginx -t` và
+   **restart** (reload không gỡ được module đã nạp).
+
+Sau khi bật lại, kiểm bằng một request thử bị chặn (403 kèm Block ID).
+
+Lưu ý (#49): với gói signature đầy đủ, request đầu tiên trên mỗi worker mới (sau reload
+hoặc đổi bundle) có thể vượt CPU budget và đi theo `strata_fail_mode`. Gửi vài request
+thử sau reload, và đừng kết luận từ request đầu tiên.
+
 ## Rollback bundle
 
-Cảnh báo `StrataWorkersOnOldBundle`, `StrataRolloutStuck`. Quy trình rollback đầy đủ:
-W10-N-01.
+Cảnh báo `StrataWorkersOnOldBundle`, `StrataRolloutStuck`, hoặc một deploy làm chặn
+nhầm.
+
+Node không tự nhận bundle cũ hơn bản đang chạy (chữ ký và số version chặn việc đó).
+Vì vậy rollback là **deploy lại nội dung policy cũ** thành một bundle mới:
+
+1. Rollout đang chạy dở thì dừng nó: `POST $CP/v1/rollouts/{id}:abort` (node chưa nhận
+   bundle mới thì không nhận nữa).
+2. Tìm phiên bản policy tốt trước đó:
+   `GET $CP/v1/policies/{id}/versions`, rồi `GET $CP/v1/policies/{id}/versions/{v}`.
+3. Ghi lại spec đó lên policy, kèm etag hiện tại:
+   `PATCH $CP/v1/policies/{id}` với `{"etag":"<etag>","spec":<spec của v>}`.
+4. `POST $CP/v1/policies/{id}:deploy`, rồi theo dõi `GET $CP/v1/rollouts/{rollout_id}`
+   tới `DONE`.
+5. Kiểm: request thử cho kết quả như trước sự cố. Panel "Bundle version per worker"
+   cho thấy mọi worker đã sang bundle mới.
+
+Trong lúc chờ rollout: **ép shadow** những node đang chặn nhầm.
 
 ## Control plane
 

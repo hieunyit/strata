@@ -403,6 +403,27 @@ subtest "no event socket: requests unaffected, drops counted" => sub {
     listen_events();
 };
 
+# The worker's socket is connect()ed to the agent's (#29): it must follow
+# the agent across restarts.
+subtest "agent back after a gap: events resume after the retry delay" => sub {
+    sleep 1.2;    # the workers retry a lost agent at most once a second
+    my $d = delta(sub {
+        is(req("GET", "/closed?STRATA-TEST-BLOCK")->{status}, 403, "blocked") for 1 .. 4;
+    });
+    is(scalar(events(1)), 4, "every event reaches the new socket");
+    is($d->[C_DROPPED], 0, "none dropped");
+};
+
+subtest "agent restarts between two requests: no event lost" => sub {
+    is(scalar(events(0.2)), 0, "nothing pending");
+    listen_events();    # a new socket at the same path, the old one closed
+    my $d = delta(sub {
+        is(req("GET", "/closed?STRATA-TEST-BLOCK")->{status}, 403, "blocked") for 1 .. 4;
+    });
+    is(scalar(events(1)), 4, "the first event after the restart is not lost");
+    is($d->[C_DROPPED], 0, "none dropped");
+};
+
 # force-shadow from the control file
 my $loads = count(qr/strata: generation \d+, loading/);
 

@@ -39,6 +39,32 @@ u_char                     ngx_http_strata_event_buf[NGX_HTTP_STRATA_EVENT_MAX];
 static volatile uint64_t  *ngx_http_strata_slot;
 static ngx_socket_t        ngx_http_strata_sink = (ngx_socket_t) -1;
 static struct sockaddr_un  ngx_http_strata_sink_addr;
+/*
+ * The socket is connect()ed to the agent's, so a send does not look the
+ * path up again (docs/decisions/ring-buffer.md, #29). When the agent is
+ * away the next connect is tried at most once a second.
+ */
+static ngx_flag_t          ngx_http_strata_sink_up;
+static ngx_msec_t          ngx_http_strata_sink_retry;
+
+#define NGX_HTTP_STRATA_SINK_RETRY  1000
+
+
+static ngx_flag_t
+ngx_http_strata_sink_connect(void)
+{
+    struct sockaddr  *sa = (struct sockaddr *) &ngx_http_strata_sink_addr;
+
+    ngx_http_strata_sink_up = connect(ngx_http_strata_sink, sa,
+                                      sizeof(ngx_http_strata_sink_addr))
+                              == 0;
+    if (!ngx_http_strata_sink_up) {
+        ngx_http_strata_sink_retry = ngx_current_msec
+                                     + NGX_HTTP_STRATA_SINK_RETRY;
+    }
+
+    return ngx_http_strata_sink_up;
+}
 
 
 static void
@@ -180,6 +206,15 @@ ngx_http_strata_events_init_process(ngx_cycle_t *cycle,
         ngx_log_error(NGX_LOG_WARN, cycle->log, ngx_socket_errno,
                       "strata: event socket not opened, events are dropped");
         ngx_http_strata_events_exit_process();
+        return;
+    }
+
+    if (!ngx_http_strata_sink_connect()) {
+        /* the agent may start later: the first event tries again */
+        ngx_log_error(NGX_LOG_INFO, cycle->log, ngx_socket_errno,
+                      "strata: event socket \"%V\" not reachable yet",
+                      &smcf->event_socket);
+        ngx_http_strata_sink_retry = 0;
     }
 }
 
@@ -192,6 +227,8 @@ ngx_http_strata_events_exit_process(void)
         ngx_http_strata_sink = (ngx_socket_t) -1;
     }
 
+    ngx_http_strata_sink_up = 0;
+
     ngx_http_strata_metric_set(NGX_HTTP_STRATA_METRIC_PID, 0);
     ngx_http_strata_slot = NULL;
 }
@@ -199,17 +236,52 @@ ngx_http_strata_events_exit_process(void)
 
 /* the event in ngx_http_strata_event_buf: sent, or dropped and counted */
 
+static ngx_flag_t
+ngx_http_strata_sink_send(size_t len)
+{
+    return send(ngx_http_strata_sink, ngx_http_strata_event_buf, len,
+                MSG_DONTWAIT) == (ssize_t) len;
+}
+
+
 void
 ngx_http_strata_event_send(size_t len)
 {
-    if (ngx_http_strata_sink == (ngx_socket_t) -1
-        || sendto(ngx_http_strata_sink, ngx_http_strata_event_buf, len,
-                  MSG_DONTWAIT,
-                  (struct sockaddr *) &ngx_http_strata_sink_addr,
-                  sizeof(ngx_http_strata_sink_addr)) != (ssize_t) len)
-    {
-        ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_DROPPED, 1);
+    ngx_err_t  err;
+
+    if (ngx_http_strata_sink == (ngx_socket_t) -1) {
+        goto dropped;
     }
+
+    if (!ngx_http_strata_sink_up
+        && ((ngx_msec_int_t) (ngx_current_msec
+                              - ngx_http_strata_sink_retry) < 0
+            || !ngx_http_strata_sink_connect()))
+    {
+        goto dropped;
+    }
+
+    if (ngx_http_strata_sink_send(len)) {
+        return;
+    }
+
+    err = ngx_socket_errno;
+
+    /*
+     * The agent restarted (its socket is a new one) or went away: connect
+     * again once now, so the first event after a restart is not lost.
+     * A full queue (EAGAIN) keeps the connection and drops the event.
+     */
+    if ((err == ECONNREFUSED || err == ENOTCONN || err == ENOENT)
+        && ngx_http_strata_sink_connect()
+        && ngx_http_strata_sink_send(len))
+    {
+        return;
+    }
+
+dropped:
+
+    ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_DROPPED, 1);
 }
 
 
