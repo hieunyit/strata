@@ -23,7 +23,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
+	nginx-asan test-nginx-asan test-nginx-valgrind mutate bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines
 
 all: lib nginx
@@ -175,6 +175,19 @@ bench-engine: bench-bundle
 	target/release/strata-bench --bundle build/bench/pkg/strata-signatures-bench.sbn \
 		--pubkey connectors/nginx/t/fixtures/bundle.pub --budget-us 2000
 
+# W09-S-02: variants of the attack corpus against the whole signature
+# package (tools/strata-mutate): bypass rate by attack type and transform,
+# in docs/mutation-report.md. Nightly in CI (.github/workflows/nightly.yml).
+MUTATE_OUT ?= build/mutate
+mutate: rules-tools
+	mkdir -p $(MUTATE_OUT)
+	printf 'policies:\n  - { name: example-api, mode: enforce }\n' > $(MUTATE_OUT)/policies.yaml
+	cd tools/strata-rules && go run . release --repo ../.. --version mutate --key ../../connectors/nginx/t/fixtures/test.key \
+		--policies ../../$(MUTATE_OUT)/policies.yaml --out ../../$(MUTATE_OUT)/pkg
+	cd tools/strata-mutate && go test ./... && go build -o ../../$(MUTATE_OUT)/strata-mutate .
+	$(MUTATE_OUT)/strata-mutate --repo . --bundle $(MUTATE_OUT)/pkg/strata-signatures-mutate.sbn \
+		--pubkey connectors/nginx/t/fixtures/bundle.pub --md docs/mutation-report.md --json $(MUTATE_OUT)/summary.json
+
 # W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
 bench-reload: $(MKBUNDLE) $(COMPILE)
 	connectors/nginx/scripts/reload-under-load.sh $(NGINX_VERSION) 8 100
@@ -221,6 +234,7 @@ rules-tools:
 
 test-rules: rules-tools
 	cd tools/strata-rules && STRATA_RULES_REQUIRE_TOOLS=1 go test -count=1 ./... && go run . test --repo ../..
+	cd tools/strata-mutate && go vet ./... && go test -count=1 ./...
 	cd tools/strata-rules && go run . report --repo ../..
 	# the protocol pack (W05-S-01) matches no benign request
 	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/protocol --max-fp 0 > /dev/null
