@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -272,4 +273,55 @@ func TestQuery_Authorization(t *testing.T) {
 		t.Errorf("expected no Authorization header when user and password are empty, got %q", gotAuth)
 	}
 }
+
+func TestQuery_ValidateSince(t *testing.T) {
+	reqCount := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"day":"2026-10-13","rule_id":942100,"events":1,"sources":1,"top_policy":"pilot-verify"}` + "\n"))
+	}))
+	defer ts.Close()
+
+	tests := []struct {
+		name      string
+		since     time.Duration
+		wantErr   string
+		shouldReq bool
+	}{
+		{name: "zero", since: 0, wantErr: "since must be positive", shouldReq: false},
+		{name: "negative", since: -1 * time.Hour, wantErr: "since must be positive", shouldReq: false},
+		{name: "subsecond", since: 500 * time.Millisecond, wantErr: "since must be positive", shouldReq: false},
+		{name: "1s ok", since: 1 * time.Second, wantErr: "", shouldReq: true},
+		{name: "24h ok", since: 24 * time.Hour, wantErr: "", shouldReq: true},
+		{name: "too large", since: (time.Duration(math.MaxUint32) + 10) * time.Second, wantErr: "since too large", shouldReq: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			before := reqCount
+			_, err := Query(context.Background(), Options{
+				ClickHouseURL: ts.URL,
+				Since:         tc.since,
+			})
+			diff := reqCount - before
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				if diff != 0 {
+					t.Errorf("expected 0 requests sent on error, got %d", diff)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if diff != 1 {
+					t.Errorf("expected 1 request sent on success, got %d", diff)
+				}
+			}
+		})
+	}
+}
+
 

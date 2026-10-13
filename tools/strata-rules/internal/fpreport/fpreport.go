@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -98,6 +99,14 @@ func formatClickHouseStringArray(items []string) string {
 
 // Query executes the ClickHouse query via HTTP interface with parameters passed in query string.
 func Query(ctx context.Context, opts Options) ([]Row, error) {
+	sinceSeconds := int64(opts.Since / time.Second)
+	if sinceSeconds <= 0 {
+		return nil, fmt.Errorf("since must be positive")
+	}
+	if sinceSeconds > math.MaxUint32 {
+		return nil, fmt.Errorf("since too large")
+	}
+
 	if opts.ClickHouseURL == "" {
 		return nil, fmt.Errorf("clickhouse url is required")
 	}
@@ -110,8 +119,7 @@ func Query(ctx context.Context, opts Options) ([]Row, error) {
 	if opts.Database != "" {
 		q.Set("database", opts.Database)
 	}
-	sinceSeconds := uint64(opts.Since.Seconds())
-	q.Set("param_since_s", strconv.FormatUint(sinceSeconds, 10))
+	q.Set("param_since_s", strconv.FormatUint(uint64(sinceSeconds), 10))
 	q.Set("param_policies", formatClickHouseStringArray(opts.Policies))
 	q.Set("param_exclude", formatClickHouseStringArray(opts.ExcludeCIDRs))
 	u.RawQuery = q.Encode()
