@@ -1,0 +1,232 @@
+package fpreport
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestLoadCIDRs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	validFile := filepath.Join(tmpDir, "valid_cidrs.txt")
+	validContent := `# Example CIDR / IP file
+# Line comment
+
+192.0.2.1
+# IPv6 single address
+2001:db8::1
+
+198.51.100.0/24
+2001:db8:cafe::/48
+`
+	if err := os.WriteFile(validFile, []byte(validContent), 0o644); err != nil {
+		t.Fatalf("failed to write valid test file: %v", err)
+	}
+
+	cidrs, err := LoadCIDRs(validFile)
+	if err != nil {
+		t.Fatalf("LoadCIDRs returned unexpected error: %v", err)
+	}
+
+	expected := []string{
+		"192.0.2.1/32",
+		"2001:db8::1/128",
+		"198.51.100.0/24",
+		"2001:db8:cafe::/48",
+	}
+
+	if len(cidrs) != len(expected) {
+		t.Fatalf("expected %d CIDRs, got %d: %v", len(expected), len(cidrs), cidrs)
+	}
+	for i, c := range cidrs {
+		if c != expected[i] {
+			t.Errorf("at index %d: expected %q, got %q", i, expected[i], c)
+		}
+	}
+
+	invalidFile := filepath.Join(tmpDir, "invalid_cidrs.txt")
+	invalidContent := `# Line 1 comment
+192.0.2.1
+# Line 3 comment
+not-a-valid-ip-or-cidr
+198.51.100.0/24
+`
+	if err := os.WriteFile(invalidFile, []byte(invalidContent), 0o644); err != nil {
+		t.Fatalf("failed to write invalid test file: %v", err)
+	}
+
+	_, err = LoadCIDRs(invalidFile)
+	if err == nil {
+		t.Fatalf("expected error for invalid CIDR file, got nil")
+	}
+	if !strings.Contains(err.Error(), ":4:") && !strings.Contains(err.Error(), "line 4") {
+		t.Errorf("expected error to mention line 4, got: %v", err)
+	}
+}
+
+func TestQuery_MockServer(t *testing.T) {
+	handlerCalled := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST method, got %s", r.Method)
+		}
+
+		q := r.URL.Query()
+		if got := q.Get("param_since_s"); got != "86400" {
+			t.Errorf("expected param_since_s=86400, got %q", got)
+		}
+		if got := q.Get("param_policies"); got != "['pilot-verify', 'pilot-upload']" {
+			t.Errorf("expected param_policies=['pilot-verify', 'pilot-upload'], got %q", got)
+		}
+		if got := q.Get("param_exclude"); got != "['192.0.2.0/24']" {
+			t.Errorf("expected param_exclude=['192.0.2.0/24'], got %q", got)
+		}
+		if got := q.Get("database"); got != "testdb" {
+			t.Errorf("expected database=testdb, got %q", got)
+		}
+
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		body := string(bodyBytes)
+
+		// Must use SQL parameter syntax, not string concatenation
+		if !strings.Contains(body, "{since_s:UInt32}") {
+			t.Errorf("body missing {since_s:UInt32}")
+		}
+		if !strings.Contains(body, "{policies:Array(String)}") {
+			t.Errorf("body missing {policies:Array(String)}")
+		}
+		if !strings.Contains(body, "{exclude:Array(String)}") {
+			t.Errorf("body missing {exclude:Array(String)}")
+		}
+		if strings.Contains(body, "86400") {
+			t.Errorf("body should not contain literal 86400")
+		}
+		if strings.Contains(body, "pilot-verify") {
+			t.Errorf("body should not contain literal pilot-verify")
+		}
+		if strings.Contains(body, "192.0.2.0/24") {
+			t.Errorf("body should not contain literal 192.0.2.0/24")
+		}
+
+		// Return JSONEachRow: test both quoted UInt64 string and unquoted number
+		respBody := `{"day":"2026-10-13","rule_id":942100,"events":"3","sources":"3","top_policy":"pilot-verify"}
+{"day":"2026-10-13","rule_id":941100,"events":1,"sources":1,"top_policy":"pilot-upload"}
+`
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(respBody))
+	}))
+	defer ts.Close()
+
+	opts := Options{
+		ClickHouseURL: ts.URL,
+		Database:      "testdb",
+		Since:         24 * time.Hour,
+		Policies:      []string{"pilot-verify", "pilot-upload"},
+		ExcludeCIDRs:  []string{"192.0.2.0/24"},
+	}
+
+	rows, err := Query(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if !handlerCalled {
+		t.Fatalf("mock server handler was not called")
+	}
+
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+
+	if rows[0].Day != "2026-10-13" || rows[0].RuleID != 942100 || rows[0].Events != 3 || rows[0].Sources != 3 || rows[0].TopPolicy != "pilot-verify" {
+		t.Errorf("row 0 mismatch: %+v", rows[0])
+	}
+	if rows[1].Day != "2026-10-13" || rows[1].RuleID != 941100 || rows[1].Events != 1 || rows[1].Sources != 1 || rows[1].TopPolicy != "pilot-upload" {
+		t.Errorf("row 1 mismatch: %+v", rows[1])
+	}
+}
+
+func TestQuery_MockServerError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("DB::Exception: Table default.events doesn't exist"))
+	}))
+	defer ts.Close()
+
+	opts := Options{
+		ClickHouseURL: ts.URL,
+		Since:         24 * time.Hour,
+	}
+
+	_, err := Query(context.Background(), opts)
+	if err == nil {
+		t.Fatalf("expected error on status 500, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") || !strings.Contains(err.Error(), "Table default.events doesn't exist") {
+		t.Errorf("error did not contain expected status and body: %v", err)
+	}
+}
+
+func TestMarkdown(t *testing.T) {
+	// Case 1: with rows
+	rows := []Row{
+		{
+			Day:       "2026-10-13",
+			RuleID:    942100,
+			Events:    12,
+			Sources:   5,
+			TopPolicy: "pilot-verify",
+		},
+	}
+	opts := Options{
+		Since:        24 * time.Hour,
+		Policies:     []string{"pilot-verify"},
+		ExcludeCIDRs: []string{"192.0.2.0/24"},
+	}
+
+	var buf bytes.Buffer
+	Markdown(&buf, rows, opts)
+	output := buf.String()
+
+	if !strings.Contains(output, "## Báo cáo nghi FP (shadow)") {
+		t.Errorf("missing header in output: %s", output)
+	}
+	if !strings.Contains(output, "Khoảng thời gian: 24h") {
+		t.Errorf("missing time window: %s", output)
+	}
+	if !strings.Contains(output, "Policy: pilot-verify") {
+		t.Errorf("missing policy info: %s", output)
+	}
+	if !strings.Contains(output, "CIDR loại trừ: 1") {
+		t.Errorf("missing CIDR count: %s", output)
+	}
+	if !strings.Contains(output, "| Ngày | Rule ID | Sự kiện | Nguồn | Policy nhiều nhất |") {
+		t.Errorf("missing table header: %s", output)
+	}
+	if !strings.Contains(output, "| 2026-10-13 | 942100 | 12 | 5 | pilot-verify |") {
+		t.Errorf("missing table row: %s", output)
+	}
+
+	// Case 2: empty rows
+	buf.Reset()
+	Markdown(&buf, nil, Options{Since: 48 * time.Hour})
+	emptyOutput := buf.String()
+
+	if !strings.Contains(emptyOutput, "Không có sự kiện shadow nghi FP.") {
+		t.Errorf("missing empty notice: %s", emptyOutput)
+	}
+	if strings.Contains(emptyOutput, "| Ngày | Rule ID |") {
+		t.Errorf("empty report should not include table header: %s", emptyOutput)
+	}
+}

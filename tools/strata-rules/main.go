@@ -8,6 +8,8 @@
 //	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml]
 //	                                          signed signature package: bundle + manifest (signed, sha256 of every file) + changelog + NOTICE
 //	strata-rules verify --pub <key> <dir>     check a package: manifest signature and every file's sha256
+//	strata-rules fp-report [--clickhouse <url>] [--database <db>] [--user <u>] [--password <p>] [--since <duration>] [--policy <p>] [--exclude-ips <file>]
+//	                                          shadow FP candidates from ClickHouse, as Markdown
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
 //	strata-rules corpus benign [--repo <root>] [--n N] [--seed S]   corpus/benign/synthetic.jsonl
 //
@@ -16,13 +18,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/strata/strata/tools/strata-rules/internal/corpus"
+	"github.com/strata/strata/tools/strata-rules/internal/fpreport"
 	"github.com/strata/strata/tools/strata-rules/internal/ftw"
 	"github.com/strata/strata/tools/strata-rules/internal/lint"
 	"github.com/strata/strata/tools/strata-rules/internal/release"
@@ -50,13 +55,15 @@ func main() {
 		releaseCmd()
 	case "verify":
 		verifyCmd()
+	case "fp-report":
+		fpReportCmd()
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|verify|corpus ... (see the package comment)")
+	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|verify|corpus|fp-report ... (see the package comment)")
 	os.Exit(2)
 }
 
@@ -347,4 +354,64 @@ func ftwCmd() {
 	if low {
 		os.Exit(1)
 	}
+}
+
+type policyList []string
+
+func (p *policyList) String() string {
+	return strings.Join(*p, ",")
+}
+
+func (p *policyList) Set(val string) error {
+	parts := strings.Split(val, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			*p = append(*p, part)
+		}
+	}
+	return nil
+}
+
+func fpReportCmd() {
+	fs := flag.NewFlagSet("fp-report", flag.ExitOnError)
+	defaultCH := os.Getenv("STRATA_CLICKHOUSE_URL")
+	if defaultCH == "" {
+		defaultCH = "http://127.0.0.1:18123"
+	}
+	clickhouse := fs.String("clickhouse", defaultCH, "ClickHouse HTTP URL")
+	database := fs.String("database", "default", "ClickHouse database")
+	user := fs.String("user", "", "ClickHouse user")
+	password := fs.String("password", os.Getenv("STRATA_CLICKHOUSE_PASSWORD"), "ClickHouse password")
+	since := fs.Duration("since", 24*time.Hour, "time window to inspect (e.g. 24h)")
+	var policies policyList
+	fs.Var(&policies, "policy", "policy ID to filter (repeatable or comma-separated)")
+	excludeIPs := fs.String("exclude-ips", "", "path to file containing IPs or CIDRs to exclude")
+
+	_ = fs.Parse(os.Args[2:])
+
+	var excludeCIDRs []string
+	if *excludeIPs != "" {
+		var err error
+		excludeCIDRs, err = fpreport.LoadCIDRs(*excludeIPs)
+		if err != nil {
+			die(err)
+		}
+	}
+
+	opts := fpreport.Options{
+		ClickHouseURL: *clickhouse,
+		Database:      *database,
+		User:          *user,
+		Password:      *password,
+		Since:         *since,
+		Policies:      policies,
+		ExcludeCIDRs:  excludeCIDRs,
+	}
+
+	rows, err := fpreport.Query(context.Background(), opts)
+	if err != nil {
+		die(err)
+	}
+	fpreport.Markdown(os.Stdout, rows, opts)
 }
