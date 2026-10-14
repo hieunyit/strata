@@ -22,6 +22,7 @@ export default {
         block: v('block'),
         shadow: v('shadow'),
         other: v('other'),
+        unchecked: v('unchecked'),
         ok: v('ok'),
       },
     },

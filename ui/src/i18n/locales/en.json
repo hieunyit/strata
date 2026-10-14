@@ -39,7 +39,8 @@
     "shadow": "Shadow",
     "pass": "Passed",
     "error": "Error",
-    "other": "Passed or error"
+    "other": "Passed or error",
+    "unchecked": "Not inspected"
   },
   "range": {
     "label": "Time range",
@@ -73,7 +74,9 @@
       "offline_one": "{{count}} node offline",
       "offline_other": "{{count}} nodes offline",
       "allOnline": "every enrolled node",
-      "noFleet": "fleet not available"
+      "noFleet": "fleet not available",
+      "unchecked": "Not inspected",
+      "uncheckedNote": "fail mode, {{pct}}%"
     },
     "series": {
       "hourly": "Events per hour",

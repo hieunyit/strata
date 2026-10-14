@@ -78,6 +78,9 @@ type Bucket struct {
 	Block  uint64    `json:"block"`
 	Shadow uint64    `json:"shadow"`
 	Other  uint64    `json:"other"` // pass and error
+	// Error: of Other, the events the engine did not finish (fail mode:
+	// budget, oversize body, engine error); the request was not inspected.
+	Error uint64 `json:"error"`
 }
 
 // OverviewTotals counts the window's events.
@@ -86,6 +89,7 @@ type OverviewTotals struct {
 	Block    uint64 `json:"block"`
 	Shadow   uint64 `json:"shadow"`
 	Other    uint64 `json:"other"`
+	Error    uint64 `json:"error"`    // of Other: fail mode, not inspected
 	Clients  uint64 `json:"clients"`  // distinct client IPs
 	Nodes    uint64 `json:"nodes"`    // distinct nodes that sent events
 	Policies uint64 `json:"policies"` // distinct policies
@@ -108,6 +112,7 @@ type RouteCount struct {
 	Events     uint64 `json:"events"`
 	Block      uint64 `json:"block"`
 	Shadow     uint64 `json:"shadow"`
+	Error      uint64 `json:"error"`
 }
 
 // ClientCount is a client IP of the top list.
@@ -210,6 +215,10 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 		default:
 			o.Totals.Other++
 			b.Other++
+			if e.Action == "error" {
+				o.Totals.Error++
+				b.Error++
+			}
 		}
 		buckets[k] = b
 		clientSet[e.ClientIP], nodeSet[e.NodeID], policySet[e.PolicyID] = true, true, true
@@ -243,6 +252,8 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 			rt.Block++
 		} else if shadow {
 			rt.Shadow++
+		} else if e.Action == "error" {
+			rt.Error++
 		}
 		if f.Clients {
 			c := clients[e.ClientIP]
@@ -311,13 +322,13 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 		args = append(args, f.PolicyID)
 	}
 	o := &Overview{From: f.From, To: f.To, StepSecond: int64(f.Step / time.Second)}
-	const counts = `countIf(action = 'block'), countIf(action = 'shadow'), countIf(action NOT IN ('block', 'shadow'))`
+	const counts = `countIf(action = 'block'), countIf(action = 'shadow'), countIf(action NOT IN ('block', 'shadow')), countIf(action = 'error')`
 
 	// Totals.
 	q := fmt.Sprintf(`SELECT count(), %s, uniq(client_ip), uniq(node_id), uniq(policy_id) FROM %s WHERE %s`,
 		counts, s.tableName, where)
 	t := &o.Totals
-	if err := s.conn.QueryRow(ctx, q, args...).Scan(&t.Events, &t.Block, &t.Shadow, &t.Other, &t.Clients, &t.Nodes, &t.Policies); err != nil {
+	if err := s.conn.QueryRow(ctx, q, args...).Scan(&t.Events, &t.Block, &t.Shadow, &t.Other, &t.Error, &t.Clients, &t.Nodes, &t.Policies); err != nil {
 		return nil, fmt.Errorf("overview totals: %w", err)
 	}
 
@@ -334,7 +345,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 			start time.Time
 			b     Bucket
 		)
-		if err := rows.Scan(&start, &b.Block, &b.Shadow, &b.Other); err != nil {
+		if err := rows.Scan(&start, &b.Block, &b.Shadow, &b.Other, &b.Error); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("overview series: %w", err)
 		}
@@ -364,12 +375,12 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 	// Top routes: path without query, first two segments (PathPrefix).
 	q = fmt.Sprintf(`SELECT policy_id, http_host,
 			arrayStringConcat(arraySlice(splitByChar('/', path(concat('http://h', http_path))), 1, 3), '/') AS prefix,
-			count() AS n, countIf(action = 'block'), countIf(action = 'shadow')
+			count() AS n, countIf(action = 'block'), countIf(action = 'shadow'), countIf(action = 'error')
 		FROM %s WHERE %s
 		GROUP BY policy_id, http_host, prefix ORDER BY n DESC, policy_id, http_host, prefix LIMIT %d`, s.tableName, where, TopN)
 	if err := s.collect(ctx, q, args, func(sc func(...any) error) error {
 		var r RouteCount
-		if err := sc(&r.PolicyID, &r.Host, &r.PathPrefix, &r.Events, &r.Block, &r.Shadow); err != nil {
+		if err := sc(&r.PolicyID, &r.Host, &r.PathPrefix, &r.Events, &r.Block, &r.Shadow, &r.Error); err != nil {
 			return err
 		}
 		o.TopRoutes = append(o.TopRoutes, r)
