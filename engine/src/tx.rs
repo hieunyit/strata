@@ -136,9 +136,74 @@ pub struct Tx {
     sig_matched: bool,
     /// rules switched off on the engine when the transaction started
     disabled: Arc<[u32]>,
+    /// what a sampled transaction keeps for replay (W12-N-01)
+    sample: Option<Box<SampleData>>,
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
+}
+
+/// Body bytes a replay sample keeps: a sample travels as one datagram of
+/// the event socket (8 KB) and anonymization makes values longer.
+pub const SAMPLE_MAX_BODY: usize = 4096;
+/// Request line fields and header bytes a sample keeps.
+const SAMPLE_MAX_FIELD: usize = 2048;
+const SAMPLE_MAX_HEADERS: usize = 4096;
+
+/// What a sampled transaction keeps until the sample is encoded.
+struct SampleData {
+    cfg: Arc<crate::engine::ReplayConfig>,
+    ts_ms: i64,
+    method: Vec<u8>,
+    raw_uri: Vec<u8>,
+    uri: Vec<u8>,
+    args: Vec<u8>,
+    proto: Vec<u8>,
+    headers: Vec<(Vec<u8>, Vec<u8>)>,
+    header_bytes: usize,
+    body: Vec<u8>,
+    body_len: usize,
+}
+
+// neither the key nor the request in debug output
+impl std::fmt::Debug for SampleData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SampleData")
+            .field("key_id", &self.cfg.key_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SampleData {
+    fn new(cfg: Arc<crate::engine::ReplayConfig>) -> Self {
+        let ts_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+        SampleData {
+            cfg,
+            ts_ms,
+            method: vec![],
+            raw_uri: vec![],
+            uri: vec![],
+            args: vec![],
+            proto: vec![],
+            headers: vec![],
+            header_bytes: 0,
+            body: vec![],
+            body_len: 0,
+        }
+    }
+
+    /// Headers in arrival order while they fit SAMPLE_MAX_HEADERS.
+    fn add_headers(&mut self, headers: &[(&[u8], &[u8])]) {
+        for (k, v) in headers {
+            if self.header_bytes + k.len() + v.len() > SAMPLE_MAX_HEADERS {
+                return;
+            }
+            self.header_bytes += k.len() + v.len();
+            self.headers.push((k.to_vec(), v.to_vec()));
+        }
+    }
 }
 
 /// Body bytes the request_body rules see at most; the connector's
@@ -235,6 +300,7 @@ impl Tx {
             sig_score: 0,
             sig_matched: false,
             disabled,
+            sample: None,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -242,7 +308,17 @@ impl Tx {
         if missing {
             tx.fail(E_BUNDLE);
         }
+        if let Some(cfg) = tx.engine.as_ref().and_then(|e| e.replay())
+            && block_id::next_rand() % 10_000 < u32::from(cfg.rate_bp)
+        {
+            tx.sample = Some(Box::new(SampleData::new(cfg)));
+        }
         tx
+    }
+
+    /// The transaction is sampled for replay.
+    pub fn sampled(&self) -> bool {
+        self.sample.is_some()
     }
 
     pub fn set_budget(&mut self, cpu_budget_us: u64) {
@@ -623,6 +699,17 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
+        if let Some(s) = self.sample.as_mut() {
+            for (dst, src) in [
+                (&mut s.method, _method),
+                (&mut s.raw_uri, raw_uri),
+                (&mut s.uri, norm_uri),
+                (&mut s.args, args),
+                (&mut s.proto, _proto),
+            ] {
+                dst.extend_from_slice(&src[..src.len().min(SAMPLE_MAX_FIELD)]);
+            }
+        }
         let m_len = _method.len().min(self.method.len());
         self.method[..m_len].copy_from_slice(&_method[..m_len]);
         self.method_len = m_len;
@@ -727,6 +814,9 @@ impl Tx {
     /// All headers in one call: protocol checks, then the rules of stage
     /// `request_headers` over the request line and these headers.
     pub fn request_headers(&mut self, headers: &[(&[u8], &[u8])]) -> Rc {
+        if let Some(s) = self.sample.as_mut() {
+            s.add_headers(headers);
+        }
         for (k, v) in headers {
             let rc = self.request_header(k, v);
             if rc != OK {
@@ -846,6 +936,11 @@ impl Tx {
     pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
             return rc;
+        }
+        if let Some(s) = self.sample.as_mut() {
+            let room = SAMPLE_MAX_BODY.saturating_sub(s.body.len());
+            s.body.extend_from_slice(&data[..data.len().min(room)]);
+            s.body_len += data.len();
         }
         if self.matched {
             if last {
@@ -1031,6 +1126,65 @@ impl Tx {
         v.id = self.id;
         v.canary = self.canary;
         v
+    }
+
+    /// The replay sample of a sampled transaction (W12-N-01): anonymized
+    /// with the group's key, as one datagram (SAMPLE_MAGIC, then event.proto
+    /// ReplaySample) of at most 8 KB; the body kept shrinks until it fits.
+    /// None when not sampled, or when even without a body it does not fit.
+    pub fn encode_sample(&self) -> Option<Vec<u8>> {
+        let s = self.sample.as_ref()?;
+        let policy: &[u8] = match (self.engine.as_ref(), self.policy_index) {
+            (Some(e), Some(i)) => e.policy_by_index(i).map_or(&[][..], |p| p.name),
+            _ => &self.unmatched_policy[..self.unmatched_policy_len],
+        };
+        let v = self.verdict();
+        let action: &[u8] = if v.error != OK {
+            b"error"
+        } else {
+            match v.action {
+                ACTION_BLOCK => b"block",
+                ACTION_LOG => b"log",
+                ACTION_ALLOW => b"allow",
+                _ => b"challenge",
+            }
+        };
+        let req = crate::anon::Request {
+            ts_ms: s.ts_ms,
+            node_id: &self.node_id[..self.node_id_len],
+            policy,
+            method: &s.method,
+            raw_uri: &s.raw_uri,
+            uri: &s.uri,
+            args: &s.args,
+            proto: &s.proto,
+            client: &self.client_addr[..self.client_addr_len],
+            headers: s
+                .headers
+                .iter()
+                .map(|(k, v)| (k.as_slice(), v.as_slice()))
+                .collect(),
+            body: &s.body,
+            body_len: Some(s.body_len),
+            action,
+            rules: &self.rules[..self.n_rules],
+        };
+        let mut a = crate::anon::Anonymizer::new(&s.cfg.key, &s.cfg.key_id)?;
+        let mut max = SAMPLE_MAX_BODY;
+        loop {
+            // max_body 0 is the default (64 KB) for the anonymizer: keep 1 byte
+            a.max_body = max.max(1);
+            let r = a.anonymize(&req);
+            let out =
+                crate::event::encode_sample(&r, &s.cfg.key_id, self.canary, self.bundle_version);
+            if out.len() <= crate::event::MAX_DATAGRAM {
+                return Some(out);
+            }
+            if max <= 1 {
+                return None;
+            }
+            max /= 2;
+        }
     }
 
     /// Encodes the event for this transaction into a protobuf datagram (at most 8 KB).

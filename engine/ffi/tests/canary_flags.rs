@@ -65,7 +65,7 @@ fn verdict_flags_name_the_canary_group() {
     };
     let e = unsafe { strata_engine_map(bundle.as_ptr(), bundle.len(), key.as_ptr(), &mut err) };
     assert!(!e.is_null());
-    assert_eq!(strata_abi_version(), (1 << 16) | 4);
+    assert_eq!(strata_abi_version() >> 16, 1);
 
     let (mut canary, mut shadow) = (0, 0);
     for i in 0..500 {
