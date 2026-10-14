@@ -161,9 +161,56 @@ cp = dashboard("strata-control-plane", "Strata control plane", "label_values(str
 ], "Control plane: API, nodes, rollouts, deploys, event ingest.")
 
 
+CH = {"type": "grafana-clickhouse-datasource", "uid": "clickhouse"}
+# shadow events of the selected policies, attack sources excluded (the same
+# rules as strata-rules fp-report, W10-S-01)
+FP_WHERE = ("$__timeFilter(timestamp) AND action = 'shadow' AND policy_id IN (${policy:singlequote})"
+            " AND NOT ((isIPv4String(client_ip) OR isIPv6String(client_ip)) AND arrayExists("
+            "c -> isIPAddressInRange(client_ip, c), arrayFilter(x -> x != '', splitByChar(',', '${exclude:raw}'))))")
+
+
+def chpanel(title, sql, kind="table", w=24, h=10, desc="", unit="none"):
+    fmt = 1 if kind == "table" else 0
+    return {
+        "type": kind, "title": title, "description": desc, "datasource": CH,
+        "fieldConfig": {"defaults": {"unit": unit}, "overrides": []},
+        "targets": [{"refId": "A", "datasource": CH, "editorType": "sql", "format": fmt,
+                     "queryType": "table" if kind == "table" else "timeseries", "rawSql": sql}],
+        "_w": w, "_h": h,
+    }
+
+
+fp = dashboard("strata-shadow-fp", "Strata shadow FP", "", [
+    chpanel("Suspected false positives by day and rule (shadow)",
+            "SELECT toDate(timestamp) AS day, rule_id, uniqExact(block_id) AS events, uniqExact(client_ip) AS sources, "
+            "topK(1)(policy_id)[1] AS top_policy FROM default.events ARRAY JOIN arrayDistinct(matched_rules) AS rule_id "
+            "WHERE " + FP_WHERE + " GROUP BY day, rule_id ORDER BY day DESC, events DESC, rule_id LIMIT 500",
+            h=12, desc="Shadow events of the selected policies, attack sources (exclude) left out: every row is a rule "
+                       "that would have blocked this traffic. Same query as strata-rules fp-report."),
+    chpanel("Shadow events per hour, by policy",
+            "SELECT toStartOfHour(timestamp) AS time, policy_id, uniqExact(block_id) AS events FROM default.events "
+            "WHERE " + FP_WHERE + " GROUP BY time, policy_id ORDER BY time",
+            kind="timeseries", w=12, h=9),
+    chpanel("Requests not fully inspected (fail mode), by policy",
+            "SELECT toStartOfHour(timestamp) AS time, policy_id, count() AS events FROM default.events "
+            "WHERE $__timeFilter(timestamp) AND action = 'error' AND policy_id IN (${policy:singlequote}) "
+            "GROUP BY time, policy_id ORDER BY time",
+            kind="timeseries", w=12, h=9,
+            desc="Engine errors and CPU budget overruns handled by the fail mode: these requests were not inspected (#28, #49)."),
+], "Shadow events per rule and day for the false-positive review (W10-S-01), from ClickHouse.")
+fp["templating"]["list"] = [
+    {"name": "policy", "type": "query", "datasource": CH, "label": "Policy", "multi": True, "includeAll": False,
+     "query": "SELECT DISTINCT policy_id FROM default.events WHERE timestamp > now() - INTERVAL 30 DAY ORDER BY policy_id",
+     "refresh": 2, "current": {"text": ["pilot-verify", "pilot-upload"], "value": ["pilot-verify", "pilot-upload"]}},
+    {"name": "exclude", "type": "textbox", "label": "Exclude IPs/CIDRs (comma)", "query": "",
+     "current": {"text": "", "value": ""}},
+]
+fp["time"] = {"from": "now-7d", "to": "now"}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for d in (module, agent, cp):
+    for d in (module, agent, cp, fp):
         text = json.dumps(d, indent=1, ensure_ascii=False) + "\n"
         path = os.path.join(OUT, d["uid"] + ".json")
         if "--check" in sys.argv:

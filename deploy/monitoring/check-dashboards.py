@@ -3,7 +3,8 @@
 
 - the dashboard files are what gen-dashboards.py writes;
 - every dashboard has a unique uid, unique panel ids, the datasource
-  variable, and a query in each panel;
+  variable (PromQL panels), and a query in each panel; ClickHouse panels
+  read default.events only (all the Grafana user may read);
 - every strata_* metric a dashboard or an alert queries is exported by the
   code (agent, shared-memory collector, control plane), so a renamed metric
   cannot leave an empty panel or an alert that never fires.
@@ -60,13 +61,29 @@ def main(dash_dir):
         if d["uid"] in uids:
             errors.append(f"{fn}: uid {d['uid']} used twice")
         uids.add(d["uid"])
-        if not any(v["name"] == "datasource" for v in d["templating"]["list"]):
+        promql = [p for p in d["panels"] if p["type"] != "row" and p.get("datasource", {}).get("uid") != "clickhouse"]
+        if promql and not any(v["name"] == "datasource" for v in d["templating"]["list"]):
             errors.append(f"{fn}: no datasource variable")
         ids = [p["id"] for p in d["panels"]]
         if len(ids) != len(set(ids)):
             errors.append(f"{fn}: panel ids repeat")
         for p in d["panels"]:
             if p["type"] == "row":
+                continue
+            if p.get("datasource", {}).get("uid") == "clickhouse":
+                # the Grafana user may read default.events only
+                for t in p.get("targets", []):
+                    sql = t.get("rawSql", "")
+                    tables = set(re.findall(r"\bFROM\s+([A-Za-z0-9_.]+)", sql, re.I))
+                    depth = 0
+                    for ch in re.sub(r"'[^']*'", "''", sql):
+                        depth += {"(": 1, ")": -1}.get(ch, 0)
+                        if depth < 0:
+                            break
+                    if depth != 0:
+                        errors.append(f"{fn}: panel {p['title']!r}: unbalanced parentheses in the SQL")
+                    if not sql or tables != {"default.events"}:
+                        errors.append(f"{fn}: panel {p['title']!r}: SQL must read default.events only ({tables or 'no SQL'})")
                 continue
             if not p.get("targets") or not all(t.get("expr") for t in p["targets"]):
                 errors.append(f"{fn}: panel {p['title']!r} has no query")
