@@ -134,6 +134,8 @@ message Command {
   oneof action {
     ForceShadow force_shadow = 2; // ép shadow khẩn cấp cho policy/route
     CollectDiagnostics diagnostics = 3;
+    DisableRules disable_rules = 4; // tắt rule khẩn cấp (W12-G1-02)
+    EnableRules enable_rules = 5;
   }
 }
 
@@ -149,6 +151,24 @@ message ForceShadow {
 }
 
 message CollectDiagnostics {}
+
+// DisableRules switches rules off on the node, in every policy, without a
+// bundle (emergency kill switch, nginx-module.md › Tắt rule khẩn cấp). The
+// agent keeps the list across restarts and writes it into the control
+// file; workers apply it within a second. It holds until EnableRules: a
+// disabled rule never comes back on by itself.
+message DisableRules {
+  repeated uint32 rule_ids = 1; // 1..480 IDs once merged with the current list
+  // The node's list becomes rule_ids exactly (the control plane's view, sent
+  // to a node that reconnects) instead of growing by them.
+  bool replace = 2;
+}
+
+// EnableRules switches rules back on.
+message EnableRules {
+  repeated uint32 rule_ids = 1;
+  bool all = 2; // every disabled rule; rule_ids is ignored
+}
 
 message FetchBundleRequest {
   uint64 version = 1;

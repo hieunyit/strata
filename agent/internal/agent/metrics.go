@@ -33,13 +33,14 @@ var (
 	dShadow    = desc("force_shadow_active", "1 while a ForceShadow command holds this node (or one of its policies) in shadow.")
 	dBundleAct = desc("bundle_active_version", "Bundle version the agent installed and the workers confirmed.")
 	dQlen      = desc("unix_max_dgram_qlen", "net.unix.max_dgram_qlen read at start (0: unknown); the event socket needs 8192.")
+	dDisabled  = desc("disabled_rules", "Rules switched off on this node by the emergency kill switch.")
 	dFallback  = prometheus.NewDesc("strata_agent_fallback_triggers_total", "Times the node fallback forced every policy into shadow, by reason.", []string{"reason"}, nil)
 	dFbAlert   = prometheus.NewDesc("strata_agent_fallback_alerts_total", "Jumps of engine errors or budget overruns that left the policies as they are (--fallback-on-errors off), by reason.", []string{"reason"}, nil)
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dReceived, dInvalid, dTruncated, dSpoolB, dUnacked, dLastSeq,
-		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback, dFbAlert} {
+		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback, dFbAlert, dDisabled} {
 		ch <- d
 	}
 }
@@ -80,6 +81,9 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if c.a.Bundles != nil {
 		gauge(dBundleAct, float64(c.a.Bundles.Active()))
+	}
+	if c.a.KillSwitch != nil {
+		gauge(dDisabled, float64(len(c.a.KillSwitch.Rules())))
 	}
 	if c.a.Fallback != nil {
 		t := c.a.Fallback.Triggers()

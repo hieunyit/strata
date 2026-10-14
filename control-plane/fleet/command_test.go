@@ -88,3 +88,21 @@ func TestCommandsReachTheStreamAndResultsCloseThem(t *testing.T) {
 		t.Fatal("a closed command was answered again")
 	}
 }
+
+func TestKillSwitchCommandMessages(t *testing.T) {
+	d := CommandMessage(store.Command{ID: "a", Kind: store.CommandDisableRules, RuleIDs: []int32{942100, 0}}).GetCommand().GetDisableRules()
+	if d.GetReplace() || len(d.GetRuleIds()) != 1 || d.GetRuleIds()[0] != 942100 {
+		t.Fatalf("%v", d)
+	}
+	if !CommandMessage(store.Command{Kind: store.CommandSetRules}).GetCommand().GetDisableRules().GetReplace() {
+		t.Fatal("set: not replace")
+	}
+	e := CommandMessage(store.Command{Kind: store.CommandEnableRules}).GetCommand().GetEnableRules()
+	if !e.GetAll() {
+		t.Fatalf("enable without ids is not all: %v", e)
+	}
+	e = CommandMessage(store.Command{Kind: store.CommandEnableRules, RuleIDs: []int32{941100}}).GetCommand().GetEnableRules()
+	if e.GetAll() || e.GetRuleIds()[0] != 941100 {
+		t.Fatalf("%v", e)
+	}
+}

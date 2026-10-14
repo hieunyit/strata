@@ -29,6 +29,12 @@ const (
 	forceNameSize = 56
 	// MaxForcePolicies the control file can name.
 	MaxForcePolicies = 32
+	// disabled-rules block (W12-G1-02): count u32, reserved u32, IDs
+	ctlRulesOff = 2128
+	ctlRulesIDs = ctlRulesOff + 8
+	ctlRulesEnd = ctlRulesIDs + MaxDisabledRules*4
+	// MaxDisabledRules the control file can hold.
+	MaxDisabledRules = 480
 )
 
 var ctlMagic = []byte("STRCTL1\x00")
@@ -47,6 +53,8 @@ type Control struct {
 	// ForceAll and ForcePolicies: the force-shadow block.
 	ForceAll      bool
 	ForcePolicies []string
+	// DisabledRules: the disabled-rules block (emergency kill switch).
+	DisabledRules []uint32
 }
 
 // ReadControl reads path; os.ErrNotExist when there is none yet.
@@ -78,7 +86,37 @@ func ReadControl(path string) (Control, error) {
 		}
 		c.ForcePolicies = append(c.ForcePolicies, string(f[:end]))
 	}
+	nr := int(binary.LittleEndian.Uint32(b[ctlRulesOff:]))
+	if nr > MaxDisabledRules {
+		return Control{}, fmt.Errorf("bundles: %s: %d disabled rules", path, nr)
+	}
+	for i := 0; i < nr; i++ {
+		c.DisabledRules = append(c.DisabledRules, binary.LittleEndian.Uint32(b[ctlRulesIDs+4*i:]))
+	}
 	return c, nil
+}
+
+// WriteDisabledRules sets the disabled-rules block of an existing control
+// file in place, with the seqlock; workers apply it at their next read
+// (≤ 1 s). os.ErrNotExist when there is no control file yet.
+func WriteDisabledRules(path string, ids []uint32) (uint64, error) {
+	if len(ids) > MaxDisabledRules {
+		return 0, fmt.Errorf("bundles: %d disabled rules, at most %d", len(ids), MaxDisabledRules)
+	}
+	block := make([]byte, ctlRulesEnd-ctlRulesOff)
+	binary.LittleEndian.PutUint32(block, uint32(len(ids)))
+	for i, id := range ids {
+		binary.LittleEndian.PutUint32(block[8+4*i:], id)
+	}
+	ctlMu.Lock()
+	defer ctlMu.Unlock()
+	cur, err := ReadControl(path)
+	if err != nil {
+		return 0, err
+	}
+	return writeInPlace(path, cur.Generation, func(put func(int64, []byte) error) error {
+		return put(ctlRulesOff, block)
+	})
 }
 
 // ValidPolicyName: what the control file and the bundle accept as a policy

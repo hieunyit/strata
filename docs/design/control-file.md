@@ -21,7 +21,10 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 | 328 | `u32` | số policy bị ép shadow (`num_policies`, 0..32) |
 | 332 | `u32` | đệm căn lề 8 byte, 0 |
 | 336 | `u8[32][56]` | danh sách tên policy bị ép shadow (mỗi tên tối đa 55 byte `[a-z0-9._-]`, đệm NUL) |
-| 2128 | — | dự phòng, 0 (1.968 byte) |
+| 2128 | `u32` | số rule bị tắt khẩn cấp (`n`, 0..480; W12-G1-02) |
+| 2132 | `u32` | dự phòng, 0 |
+| 2136 | `u32[480]` | Rule ID bị tắt, `n` mục đầu có nghĩa |
+| 4056 | — | dự phòng, 0 (40 byte) |
 
 **Agent ghi (seqlock)**, luôn **tại chỗ** trên cùng inode:
 
@@ -31,7 +34,7 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 
 Không bao giờ thay control file bằng `rename`: worker đang map inode cũ và sẽ không thấy bản mới. Tạo file lần đầu (generation chẵn) rồi chỉ cập nhật tại chỗ.
 
-Hai loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** chỉ ghi offset 0..15 và 24..321 (khối force-shadow giữ nguyên); **force-shadow** chỉ ghi offset 324..2127. Agent giữ hạn chót force-shadow trong `force-shadow.json` của `--bundle-dir` (qua được agent khởi động lại, không kéo dài hạn), và mỗi giây ghi lại khối nếu khác với các hạn còn chạy: khi hạn qua, và khi control file được tạo sau lệnh (chưa có bundle lúc nhận lệnh).
+Ba loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** chỉ ghi offset 0..15 và 24..321 (khối force-shadow giữ nguyên); **force-shadow** chỉ ghi offset 324..2127; **tắt rule** (W12-G1-02) chỉ ghi offset 2128..4055. Agent giữ danh sách rule bị tắt trong `disabled-rules.json` của `--bundle-dir` (qua được agent khởi động lại); rule chỉ bật lại khi có lệnh `EnableRules`. Agent giữ hạn chót force-shadow trong `force-shadow.json` của `--bundle-dir` (qua được agent khởi động lại, không kéo dài hạn), và mỗi giây ghi lại khối nếu khác với các hạn còn chạy: khi hạn qua, và khi control file được tạo sau lệnh (chưa có bundle lúc nhận lệnh).
 
 **Worker đọc**: đọc generation g1; nếu lẻ thì bỏ qua lượt này; copy các trường; đọc lại generation g2; chỉ dùng khi g1 == g2. Generation chẵn khác lần trước → nạp bundle mới.
 
