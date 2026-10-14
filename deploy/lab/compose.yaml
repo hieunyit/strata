@@ -368,6 +368,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run deploy/lab/init-env.sh}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # the ClickHouse datasource of the shadow FP dashboard (W10-S-01)
+      GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.21.3
+      GRAFANA_CLICKHOUSE_PASSWORD: ${GRAFANA_CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
     ports: ["127.0.0.1:13000:3000"]
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -379,6 +382,29 @@ services:
       retries: 30
     depends_on:
       victoriametrics: { condition: service_healthy }
+      clickhouse-init: { condition: service_completed_successfully }
+
+  # A read-only ClickHouse user for Grafana (W10-S-01): SELECT on the events
+  # table only (readonly = 2: queries only, the plugin may still set
+  # max_execution_time). Runs at every start, so the password follows
+  # .state/env.
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:25.8.33
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
+      GRAFANA_CLICKHOUSE_PASSWORD: ${GRAFANA_CLICKHOUSE_PASSWORD:?run deploy/lab/init-env.sh}
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        q() { clickhouse-client --host clickhouse --user strata --password "$$CLICKHOUSE_PASSWORD" --query "$$1"; }
+        q "CREATE USER IF NOT EXISTS grafana IDENTIFIED WITH sha256_password BY '$$GRAFANA_CLICKHOUSE_PASSWORD' SETTINGS readonly = 2"
+        q "ALTER USER grafana IDENTIFIED WITH sha256_password BY '$$GRAFANA_CLICKHOUSE_PASSWORD' SETTINGS readonly = 2"
+        q "REVOKE ALL ON *.* FROM grafana"
+        q "GRANT SELECT ON default.events TO grafana"
+        echo "clickhouse-init: user grafana, SELECT on default.events"
+    depends_on:
+      clickhouse: { condition: service_healthy }
 
   # Alerts of deploy/monitoring/alerts.yml (W10-Q-01). No receiver yet (the
   # channel is for the PO to name): firing alerts show in vmalert

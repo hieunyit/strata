@@ -1,0 +1,17 @@
+# Events in ClickHouse for the shadow FP dashboard (W10-S-01). The user
+# grafana is read-only, SELECT on default.events only (compose:
+# clickhouse-init).
+apiVersion: 1
+datasources:
+  - name: ClickHouse
+    uid: clickhouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      username: grafana
+      defaultDatabase: default
+    secureJsonData:
+      password: $GRAFANA_CLICKHOUSE_PASSWORD

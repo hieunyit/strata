@@ -10,6 +10,7 @@ umask 077
 # Added later: appended to an existing file too.
 if [ -f "$env" ]; then
     grep -q '^LAB_LOCAL_ADMIN_PASSWORD=' "$env" || echo "LAB_LOCAL_ADMIN_PASSWORD=$(pw)" >> "$env"
+    grep -q '^GRAFANA_CLICKHOUSE_PASSWORD=' "$env" || echo "GRAFANA_CLICKHOUSE_PASSWORD=$(pw)" >> "$env"
     exit 0
 fi
 cat > "$env" <<EOT
@@ -24,5 +25,6 @@ LAB_OPERATOR_PASSWORD=$(pw)
 LAB_APPROVER_PASSWORD=$(pw)
 LAB_ADMIN_PASSWORD=$(pw)
 LAB_LOCAL_ADMIN_PASSWORD=$(pw)
+GRAFANA_CLICKHOUSE_PASSWORD=$(pw)
 EOT
 echo "lab passwords written to $env"
