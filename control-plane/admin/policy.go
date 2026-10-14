@@ -47,7 +47,7 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	if pb == nil {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
-	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()]}
+	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], CanaryPercent: pb.GetCanaryPercent()}
 	if r := pb.GetResponse(); r != nil && (r.GetAllowedCodesCheck() || r.GetDbErrors() || len(r.GetDataGuard()) > 0) {
 		s.Response = &policy.Response{AllowedCodesCheck: r.GetAllowedCodesCheck(), DBErrors: r.GetDbErrors(), DataGuard: r.GetDataGuard()}
 	}
@@ -64,7 +64,7 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
-	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize]}
+	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], CanaryPercent: s.CanaryPercent}
 	if s.Response != nil {
 		out.Response = &adminv1.ResponseLayer{AllowedCodesCheck: s.Response.AllowedCodesCheck, DbErrors: s.Response.DBErrors, DataGuard: s.Response.DataGuard}
 	}

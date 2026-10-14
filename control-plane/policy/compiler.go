@@ -77,11 +77,12 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		Mode     string    `json:"mode"`
 		Oversize string    `json:"oversize,omitempty"`
 		Response *Response `json:"response,omitempty"`
+		Canary   float64   `json:"canary_percent,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
-		items = append(items, item{Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response})
+		items = append(items, item{Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Canary: p.Spec.CanaryPercent})
 	}
 	doc["policies"] = items
 	if c.BlockPage != "" {

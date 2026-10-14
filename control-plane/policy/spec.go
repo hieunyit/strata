@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 )
 
@@ -18,7 +19,14 @@ type Spec struct {
 	Mode     string    `json:"mode"`               // shadow | enforce
 	Oversize string    `json:"oversize,omitempty"` // pass | block
 	Response *Response `json:"response,omitempty"`
+	// CanaryPercent: enforce canary, share of clients whose requests this
+	// enforce policy blocks (0.01..99.99, two decimals); 0 = every client
+	// (W12-G2-01; policies.schema.json canary_percent).
+	CanaryPercent float64 `json:"canary_percent,omitempty"`
 }
+
+// CanaryBasisPoints of the spec's canary (0: none).
+func (s Spec) CanaryBasisPoints() int { return int(math.Round(s.CanaryPercent * 100)) }
 
 // Response is the policy's response layer.
 type Response struct {
@@ -45,6 +53,15 @@ func (s Spec) Validate() error {
 	case "", "pass", "block":
 	default:
 		return fmt.Errorf("oversize must be pass or block, got %q", s.Oversize)
+	}
+	if s.CanaryPercent != 0 {
+		bp := s.CanaryPercent * 100
+		switch {
+		case s.Mode != "enforce":
+			return errors.New("canary_percent needs mode enforce")
+		case s.CanaryPercent < 0.01 || s.CanaryPercent > 99.99 || math.Abs(bp-math.Round(bp)) > 1e-6:
+			return fmt.Errorf("canary_percent must be 0.01 to 99.99 with at most two decimals, got %v", s.CanaryPercent)
+		}
 	}
 	if s.Response != nil {
 		seen := map[string]bool{}

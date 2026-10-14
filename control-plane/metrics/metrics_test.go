@@ -129,7 +129,11 @@ func TestStateCollector(t *testing.T) {
 				TotalEventsValid: 50, TotalEventsInvalid: 3, TotalEventsFlushed: 48, BufferQueueLen: 2}
 		},
 		IngestErrors: func() uint64 { return 4 },
-		Now:          func() time.Time { return now },
+		CanaryTrips:  func() map[string]uint64 { return map[string]uint64{"block_rate": 1} },
+		OpenTrips: func(context.Context) ([]store.CanaryTrip, error) {
+			return []store.CanaryTrip{{GroupID: "edge", Reason: "block_rate"}}, nil
+		},
+		Now: func() time.Time { return now },
 	})
 	out := scrape(t, m)
 	for _, want := range []string{
@@ -146,6 +150,9 @@ func TestStateCollector(t *testing.T) {
 		"strata_cp_ingest_queue 2",
 		"strata_cp_ingest_store_errors_total 4",
 		`strata_cp_build_info{commit="",version="dev"} 1`,
+		`strata_cp_canary_trips_total{reason="block_rate"} 1`,
+		`strata_cp_canary_trips_total{reason="latency"} 0`,
+		`strata_cp_canary_fallback_active{group="edge",reason="block_rate"} 1`,
 	} {
 		if !strings.Contains(out, want+"\n") {
 			t.Errorf("missing %q", want)

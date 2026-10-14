@@ -257,6 +257,7 @@ func main() {
 	deps := admin.Deps{Presence: presence}
 	var objects *policy.S3
 	var rollouts *fleet.Rollouts
+	var canary *fleet.CanaryMonitor
 	if pg != nil {
 		deps.Fleet, deps.Policies, deps.Rollouts = pg, pg, pg
 		waves, err := parseWaves(*rolloutWaves)
@@ -270,6 +271,9 @@ func main() {
 		deps.Commands, deps.CommandKicker = pg, commands
 		deps.KillSwitch = pg
 		go commands.Run(ctx)
+		canary = fleet.NewCanaryMonitor(pg, commands, fleet.CanaryOptions{})
+		deps.CanaryTrips = pg
+		go canary.Run(ctx)
 		if *s3Endpoint != "" {
 			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
 				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
@@ -365,7 +369,7 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
-		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts}
+		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
 		if objects != nil {
 			fcfg.Objects = objects
 		}
@@ -400,6 +404,7 @@ func main() {
 		src := metrics.Sources{Connected: presence.ConnectedNodes}
 		if pg != nil {
 			src.Enrolled, src.Active = pg.EnrolledNodes, pg.ActiveRollouts
+			src.CanaryTrips, src.OpenTrips = canary.Trips, pg.OpenCanaryTrips
 		}
 		if ingestSvc != nil {
 			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors

@@ -1566,6 +1566,11 @@
         },
         "response": {
           "$ref": "#/definitions/v1ResponseLayer"
+        },
+        "canary_percent": {
+          "type": "number",
+          "format": "double",
+          "description": "Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,\ntwo decimals), whose requests this enforce policy blocks; the others\nrun in shadow. 0: every client."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

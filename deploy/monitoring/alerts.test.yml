@@ -161,6 +161,26 @@ tests:
               description: "Only the control plane lifts it: find the cause, then POST /v1/nodes:clearForceShadow with an empty policy_id."
               runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
 
+  # W12-G2-01: the canary fallback holds group edge (two replicas report it)
+  - interval: 1m
+    input_series:
+      - series: 'strata_cp_canary_fallback_active{instance="cp-1",group="edge",reason="block_rate"}'
+        values: "_ 1 1"
+      - series: 'strata_cp_canary_fallback_active{instance="cp-2",group="edge",reason="block_rate"}'
+        values: "_ 1 1"
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: StrataCanaryFallback
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: StrataCanaryFallback
+        exp_alerts:
+          - exp_labels: { group: edge, reason: block_rate, severity: critical, component: control-plane }
+            exp_annotations:
+              summary: "group edge: canary policies forced into shadow (block_rate)"
+              description: "The canary did worse than its shadow group; running rollouts are paused. The hold lasts until POST /v1/nodes:clearForceShadow on the group."
+              runbook_url: "docs/runbook/README.md#canary-về-shadow"
+
   # ForceShadow held for 2 minutes
   - interval: 1m
     input_series:
