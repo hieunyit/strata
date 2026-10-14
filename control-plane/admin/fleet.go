@@ -49,6 +49,7 @@ type fleetAdmin struct {
 	commands CommandStore // nil: the command routes answer FailedPrecondition
 	kick     Kicker       // wakes the command dispatcher
 	rules    RuleStore    // nil: the kill switch answers FailedPrecondition
+	trips    TripClearer  // nil: no canary fallback
 	now      func() time.Time
 }
 

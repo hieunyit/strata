@@ -86,7 +86,9 @@ type Config struct {
 	// Objects serves FetchBundle; Rollouts is told of bundle statuses.
 	Objects  BundleObjects
 	Rollouts *Rollouts
-	Now      func() time.Time
+	// Canary, when set, gets every heartbeat's canary counters (W12-G2-01).
+	Canary *CanaryMonitor
+	Now    func() time.Time
 }
 
 // Server implements FleetService.
@@ -377,6 +379,7 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 	hello := time.NewTimer(helloTimeout)
 	defer hello.Stop()
 	greeted := false
+	group := "" // the node's connector group, read at Hello
 	for {
 		select {
 		case <-ctx.Done():
@@ -401,6 +404,7 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 			switch msg := m.GetMsg().(type) {
 			case *fleetv1.AgentMessage_Hello:
 				greeted = true
+				group = s.nodeGroup(ctx, id)
 				ni := msg.Hello.GetNode()
 				v := int64(msg.Hello.GetActiveBundleVersion())
 				s.seen(ctx, id, clean(ni.GetHostname(), 253), clean(ni.GetConnector().GetProxyVersion(), 64),
@@ -423,6 +427,9 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 				}
 				v := int64(msg.Heartbeat.GetActiveBundleVersion())
 				s.seen(ctx, id, "", "", "", &v)
+				if s.cfg.Canary != nil {
+					s.cfg.Canary.Observe(id, group, msg.Heartbeat.GetCounters(), s.cfg.Now())
+				}
 			case *fleetv1.AgentMessage_BundleStatus:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
@@ -495,6 +502,19 @@ func (s *Server) bundleStatus(ctx context.Context, node string, bs *fleetv1.Bund
 	if s.cfg.Rollouts != nil {
 		s.cfg.Rollouts.Kick()
 	}
+}
+
+// nodeGroup: the connector group of a node, "" when unknown.
+func (s *Server) nodeGroup(ctx context.Context, id string) string {
+	if s.cfg.Registry == nil || s.cfg.Canary == nil {
+		return ""
+	}
+	n, err := s.cfg.Registry.GetNode(ctx, id)
+	if err != nil {
+		log.Printf("[WARN] fleet: node %s: %v", id, err)
+		return ""
+	}
+	return n.GroupID
 }
 
 // DisabledRulesSource is implemented by registries that keep the kill

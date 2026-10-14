@@ -202,7 +202,11 @@ type Sources struct {
 	Ingest func() ingest.IngestStats
 	// IngestErrors counts failed writes to the event store.
 	IngestErrors func() uint64
-	Now          func() time.Time
+	// CanaryTrips: the canary fallbacks this replica made, by reason;
+	// OpenTrips reads the open ones (W12-G2-01).
+	CanaryTrips func() map[string]uint64
+	OpenTrips   func(context.Context) ([]store.CanaryTrip, error)
+	Now         func() time.Time
 }
 
 // Watch registers a collector over s.
@@ -224,6 +228,8 @@ var (
 	dFlushed      = prometheus.NewDesc("strata_cp_ingest_events_stored_total", "Events written to the event store.", nil, nil)
 	dQueue        = prometheus.NewDesc("strata_cp_ingest_queue", "Events waiting to be written to the event store.", nil, nil)
 	dStoreErrors  = prometheus.NewDesc("strata_cp_ingest_store_errors_total", "Writes to the event store that failed.", nil, nil)
+	dTrips        = prometheus.NewDesc("strata_cp_canary_trips_total", "Canary fallbacks this control plane made (canary policies of a connector group forced into shadow), by reason.", []string{"reason"}, nil)
+	dTripOpen     = prometheus.NewDesc("strata_cp_canary_fallback_active", "1 while a connector group's canary policies are held in shadow by the canary fallback.", []string{"group", "reason"}, nil)
 	scrapeTimeout = 3 * time.Second
 )
 
@@ -231,7 +237,7 @@ type stateCollector struct{ s Sources }
 
 func (c stateCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dConnected, dEnrolled, dRollouts, dRolloutAge, dStoreUp,
-		dBatches, dEvents, dFlushed, dQueue, dStoreErrors} {
+		dBatches, dEvents, dFlushed, dQueue, dStoreErrors, dTrips, dTripOpen} {
 		ch <- d
 	}
 }
@@ -271,6 +277,21 @@ func (c stateCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 		gauge(dStoreUp, up)
+	}
+	if s.CanaryTrips != nil {
+		t := s.CanaryTrips()
+		for _, r := range []string{"block_rate", "upstream_5xx", "latency"} {
+			counter(dTrips, t[r], r)
+		}
+	}
+	if s.OpenTrips != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), scrapeTimeout)
+		defer cancel()
+		if trips, err := s.OpenTrips(ctx); err == nil {
+			for _, t := range trips {
+				gauge(dTripOpen, 1, t.GroupID, t.Reason)
+			}
+		}
 	}
 	if s.Ingest != nil {
 		st := s.Ingest()

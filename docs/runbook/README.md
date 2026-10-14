@@ -173,6 +173,34 @@ có lý do và thời điểm). Việc cần làm:
    trống; gỡ một policy hay lệnh `forceShadow` hết hạn không gỡ được fallback.
 3. Tắt hẳn tầng này trên một node: `strata-agent --fallback=false`.
 
+## Canary về shadow
+
+Cảnh báo `StrataCanaryFallback`: control plane so nhóm canary (client trong `canary_percent`,
+policy enforce) với nhóm shadow của cùng policy trên một connector group, cửa sổ 1 phút, mỗi
+nhóm ≥ 200 request (tầng 2 của fallback tự động, W12-G2-01). Lý do ở nhãn `reason`:
+
+- `upstream_5xx`: tỉ lệ 5xx của upstream ở canary hơn shadow ≥ 1 điểm % và ≥ 2 lần;
+- `latency`: p99 canary ≥ 1,5 lần p99 shadow và hơn 50 ms;
+- `block_rate`: tỉ lệ chặn của canary > 3 lần mức "lẽ ra chặn" học được trong 1 giờ trước, và
+  > 1%.
+
+Khi ngắt: mọi policy có `canary_percent` bị ép shadow trên mọi node của group (lệnh
+`forceShadow` 24 giờ, control plane gia hạn mỗi 12 giờ, không tự hết), rollout đang chạy dừng
+(`PAUSED`), audit `groups/<group>:canaryFallback` ghi số liệu của cửa sổ. Việc cần làm:
+
+1. Đọc audit của lần ngắt (số request, tỉ lệ từng nhóm, mức nền) và trang Sự kiện của policy:
+   rule nào tăng ở nhóm canary?
+2. Chặn nhầm: rollback bundle hoặc tắt rule (mục Tắt rule khẩn cấp). 5xx hay độ trễ: kiểm
+   upstream và CPU budget của node.
+3. Gỡ khi đã xử lý xong, **trên group** (gỡ trên một node không dừng việc gia hạn):
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"group_id":"<group>","policy_id":"example-canary"}' "$CP/v1/nodes:clearForceShadow"
+```
+
+4. Tiếp tục rollout nếu cần (`:resume`).
+
 ## Tắt module
 
 Dùng khi nghi module gây lỗi cho request (không phải chặn nhầm: chặn nhầm thì **ép

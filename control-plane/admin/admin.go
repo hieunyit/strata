@@ -67,7 +67,10 @@ type Deps struct {
 	CommandKicker Kicker
 	// KillSwitch enables the emergency rule kill switch (with Commands).
 	KillSwitch RuleStore
-	Now        func() time.Time
+	// CanaryTrips: clearForceShadow on a group also ends the canary
+	// fallback's hold of the policy there (W12-G2-01).
+	CanaryTrips TripClearer
+	Now         func() time.Time
 }
 
 // BuildInfo is reported by VersionService.
@@ -98,7 +101,7 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	adminv1.RegisterVersionServiceServer(gs, &versionServer{info: info})
 	if deps.Fleet != nil && deps.Presence != nil {
 		adminv1.RegisterFleetAdminServiceServer(gs, &fleetAdmin{store: deps.Fleet, presence: deps.Presence,
-			commands: deps.Commands, kick: deps.CommandKicker, rules: deps.KillSwitch, now: deps.Now})
+			commands: deps.Commands, kick: deps.CommandKicker, rules: deps.KillSwitch, trips: deps.CanaryTrips, now: deps.Now})
 	}
 	if deps.Policies != nil {
 		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})

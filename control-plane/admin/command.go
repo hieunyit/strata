@@ -47,6 +47,11 @@ func commandPB(c store.Command) *adminv1.NodeCommand {
 		UpdateTime: timestamppb.New(c.UpdatedAt)}
 }
 
+// TripClearer is the part of store.Store that ends canary fallbacks.
+type TripClearer interface {
+	ClearCanaryTrip(ctx context.Context, group, policy, actor string, at time.Time) error
+}
+
 func newCommandID() (string, error) {
 	b := make([]byte, 10)
 	if _, err := rand.Read(b); err != nil {
@@ -158,6 +163,12 @@ func (f *fleetAdmin) ClearForceShadow(ctx context.Context, req *adminv1.ClearFor
 	cmds, err := f.create(ctx, store.CommandClearShadow, req.GetPolicyId(), 0, nodes, resource+":clearForceShadow")
 	if err != nil {
 		return nil, err
+	}
+	// the canary fallback stops renewing what was lifted (W12-G2-01)
+	if f.trips != nil && req.GetGroupId() != "" {
+		if err := f.trips.ClearCanaryTrip(ctx, req.GetGroupId(), req.GetPolicyId(), audit(ctx, "").Actor, f.now()); err != nil {
+			return nil, internal("canary trip", err)
+		}
 	}
 	out := &adminv1.ClearForceShadowResponse{}
 	for _, c := range cmds {

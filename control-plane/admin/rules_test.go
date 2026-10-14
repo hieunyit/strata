@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/strata/strata/control-plane/admin"
 	"github.com/strata/strata/control-plane/api"
@@ -137,5 +138,51 @@ func TestEmergencyDisableRule_REST(t *testing.T) {
 	}
 	if last := rs.cmds[len(rs.cmds)-1]; last.Kind != store.CommandEnableRules {
 		t.Fatalf("enable command %+v", last)
+	}
+}
+
+type fakeTrips struct{ cleared []string }
+
+func (f *fakeTrips) ClearCanaryTrip(_ context.Context, group, policy, actor string, _ time.Time) error {
+	f.cleared = append(f.cleared, group+"/"+policy+"/"+actor)
+	return nil
+}
+
+// W12-G2-01: clearForceShadow on a group also ends the canary fallback's
+// hold there, so the control plane stops renewing it; on one node it does
+// not.
+func TestClearForceShadowEndsTheCanaryTrip(t *testing.T) {
+	ctx := context.Background()
+	is := authtest.New(t)
+	v, err := auth.NewVerifier(ctx, auth.Config{Issuer: is.URL, Audience: authtest.Audience})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := &fakeCommands{groups: map[string][]string{"lab": {"node-a"}}}
+	trips := &fakeTrips{}
+	a, err := admin.New(ctx, v, admin.BuildInfo{}, admin.Deps{Fleet: fakeFleet{}, Presence: fakePresence{}, Commands: cs,
+		CommandKicker: &countKick{}, CanaryTrips: trips})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Close)
+	h := api.NewServer(api.ServerConfig{Auth: v, Admin: a.Gateway}, ingest.NewMockEventStore()).Handler()
+	call := func(role, body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/v1/nodes:clearForceShadow", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+is.Token(t, authtest.Claims{Subject: "lab-" + role, Roles: []string{role}}))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if c := call("viewer", `{"group_id":"lab","policy_id":"example-canary"}`); c != http.StatusForbidden || len(trips.cleared) != 0 {
+		t.Fatalf("viewer: %d %v", c, trips.cleared)
+	}
+	if c := call("operator", `{"node_id":"node-a","policy_id":"example-canary"}`); c != http.StatusOK || len(trips.cleared) != 0 {
+		t.Fatalf("one node: %d %v", c, trips.cleared)
+	}
+	if c := call("operator", `{"group_id":"lab","policy_id":"example-canary"}`); c != http.StatusOK ||
+		len(trips.cleared) != 1 || !strings.HasPrefix(trips.cleared[0], "lab/example-canary/lab-operator") {
+		t.Fatalf("group: %d %v", c, trips.cleared)
 	}
 }

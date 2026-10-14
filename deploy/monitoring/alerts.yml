@@ -145,6 +145,13 @@ groups:
 
   - name: strata-control-plane
     rules:
+      - alert: StrataCanaryFallback
+        expr: max by (group, reason) (strata_cp_canary_fallback_active) == 1
+        labels: { severity: critical, component: control-plane }
+        annotations:
+          summary: "group {{ $labels.group }}: canary policies forced into shadow ({{ $labels.reason }})"
+          description: "The canary did worse than its shadow group; running rollouts are paused. The hold lasts until POST /v1/nodes:clearForceShadow on the group."
+          runbook_url: docs/runbook/README.md#canary-về-shadow
       - alert: StrataControlPlaneDown
         expr: up{job="strata-control-plane"} == 0
         for: 2m
