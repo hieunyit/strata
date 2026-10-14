@@ -4,6 +4,7 @@
 
 pub mod abi;
 pub mod ffi;
+pub mod loader;
 
 // The engine's codes are the ABI's codes: keep them identical.
 const _: () = {

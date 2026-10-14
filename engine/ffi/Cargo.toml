@@ -13,6 +13,14 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 libstrata = { path = ".." }
+# pthread_sigmask for the loader thread (src/loader.rs)
+libc = "0.2"
+
+[dev-dependencies]
+# tests/arena.rs: a full bundle mapped from many threads
+strata-compiler = { path = "../compiler" }
+strata-hs = { path = "hyperscan" }
+serde_json = "1.0.149"
 
 [features]
 # Test-only triggers (e.g. a deliberate panic) used by the ABI and NGINX

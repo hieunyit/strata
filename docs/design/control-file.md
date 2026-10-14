@@ -110,7 +110,7 @@ Một node chưa nhận khóa mới ở bước 3 sẽ từ chối bundle ở b�
 ## Quy tắc nạp trong worker
 
 - Timer mỗi `strata_bundle_check` (cộng jitter ngẫu nhiên tới 25%) chỉ đọc generation trong bộ nhớ.
-- Generation đổi → gửi việc sang thread pool `default`: `open`, `fstat`, `mmap(PROT_READ, MAP_SHARED)`, `madvise(MADV_WILLNEED)`, `strata_engine_map` (kiểm chữ ký), so phiên bản. Mỗi worker chỉ có tối đa một việc nạp đang chạy.
+- Generation đổi → gửi việc sang thread pool `default`: `open`, `fstat`, `mmap(PROT_READ, MAP_SHARED)`, `madvise(MADV_WILLNEED)`, `strata_engine_map` (kiểm chữ ký), so phiên bản. Mỗi worker chỉ có tối đa một việc nạp đang chạy. Bên trong libstrata, `strata_engine_map` dựng engine trên **một luồng nạp riêng** của tiến trình (`engine/ffi/src/loader.rs`), không trên luồng thread pool gọi nó. Lý do: mỗi luồng có arena malloc riêng, và gói đầy đủ để lại khoảng 18 MB trong arena của mỗi luồng từng nạp nó (soak 14/10/2026, `docs/reports/w09-q-02.md` §3).
 - Từ chối khi: chữ ký hoặc layout sai, hoặc version **nhỏ hơn hoặc bằng** bản đang chạy mà bundle không có cờ ROLLBACK. Bản bị từ chối được `munmap` ngay trong thread; worker giữ engine cũ và không thử lại cho tới khi generation đổi.
 - Đổi engine trong event loop. Request đang chạy giữ tham chiếu tới bundle cũ; bundle cũ được `strata_engine_release` + `munmap` (trong thread pool) khi tham chiếu cuối được trả.
 - Control file chưa có lúc worker khởi động: worker thử mở lại ở mỗi chu kỳ timer (trong thread pool) và chạy theo `strata_fail_mode` cho tới khi có bundle.

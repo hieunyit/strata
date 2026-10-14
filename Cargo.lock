@@ -603,7 +603,11 @@ dependencies = [
 name = "libstrata-ffi"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "libstrata",
+ "serde_json",
+ "strata-compiler",
+ "strata-hs",
 ]
 
 [[package]]
