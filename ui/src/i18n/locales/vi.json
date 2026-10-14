@@ -248,7 +248,8 @@
       "OVERSIZE_BLOCK": "Chặn",
       "OVERSIZE_PASS": "Cho qua",
       "OVERSIZE_UNSPECIFIED": "Cho qua"
-    }
+    },
+    "compare": "So sánh phiên bản"
   },
   "fleet": {
     "title": "Fleet",
@@ -393,6 +394,30 @@
       "guardTwice": "data_guard có giá trị lặp lại",
       "unknown": "khóa không hợp lệ \"{{key}}\"",
       "modeRequired": "thiếu mode"
+    }
+  },
+  "diff": {
+    "title": "So sánh phiên bản của {{name}}",
+    "from": "Từ",
+    "to": "Đến",
+    "close": "Đóng",
+    "field": "Trường",
+    "same": "Hai bên là cùng một phiên bản.",
+    "none": "Hai phiên bản giống nhau.",
+    "changed_one": "{{count}} trường thay đổi",
+    "changed_other": "{{count}} trường thay đổi",
+    "blockSame": "không đổi",
+    "changedField": "Đã đổi:",
+    "block": {
+      "general": "Chung",
+      "response": "Lớp response"
+    },
+    "key": {
+      "mode": "Chế độ",
+      "oversize": "Body request lớn hơn phần được kiểm",
+      "allowed_codes_check": "Kiểm mã trạng thái response",
+      "db_errors": "Lỗi cơ sở dữ liệu trong body",
+      "data_guard": "Che dữ liệu nhạy cảm"
     }
   }
 }
