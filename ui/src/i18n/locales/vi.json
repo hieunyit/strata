@@ -190,7 +190,12 @@
     "investigate": "Điều tra tiếp",
     "sameIp": "Sự kiện từ IP này, 7 ngày qua",
     "sameRule": "Sự kiện khớp rule {{id}}, 24 giờ qua",
-    "policyOverview": "Tổng quan của policy này"
+    "policyOverview": "Tổng quan của policy này",
+    "headers": "Header của request ({{count}}), giá trị nhạy cảm đã che",
+    "inspection": {
+      "partial": "Chưa được kiểm đủ: hết budget CPU nên áp dụng fail mode. Các rule sau thời điểm đó không chạy.",
+      "body_skipped": "Body của request, hoặc một phần body, không được kiểm (vượt giới hạn kiểm hoặc đã ghi ra đĩa)."
+    }
   },
   "login": {
     "tagline": "Mỗi request bị chặn có một ID, mỗi ID có một lý do.",

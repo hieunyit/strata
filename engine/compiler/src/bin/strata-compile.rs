@@ -4,7 +4,7 @@
 //! strata-compile --policies <file> (--key <seed file> | --unsigned)
 //!                --version <n> --out <file>
 //!                [--rules <file>]... [--created-at <ms>] [--rollback]
-//!                [--cost-report <file>]
+//!                [--cost-report <file>] [--identity-key <file>]
 //! ```
 //! Files are JSON or YAML by extension. Without --created-at the current
 //! time is used (fixtures pass it to stay reproducible).
@@ -13,17 +13,22 @@
 //! signer (KMS) appends its 64-byte Ed25519 signature over them. No key is
 //! read. `--cost-report` writes the cost units of each rule as JSON:
 //! `{"total": n, "rules": [{"id", "name", "cost"}...]}`, costliest first.
+//! `--identity-key` is the installation's key for policies with
+//! `privacy: { identity: hmac }` (32 bytes, or 64 hex digits).
 
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use strata_compiler::{Build, compile_unsigned, load, policies_from, rules_from_ir};
+use strata_compiler::{
+    Build, compile_unsigned, load, policies_from, read_identity_key, rules_from_ir,
+};
 
 fn run(args: &[String]) -> Result<(), String> {
     let (mut rules_files, mut policies, mut key, mut version, mut out) =
         (vec![], None, None, None, None);
     let (mut created, mut rollback, mut unsigned, mut cost_report) = (None, false, false, None);
+    let mut identity_key: Option<String> = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -47,6 +52,7 @@ fn run(args: &[String]) -> Result<(), String> {
             }
             "--out" => out = Some(val()?),
             "--rollback" => rollback = true,
+            "--identity-key" => identity_key = Some(val()?),
             "--unsigned" => unsigned = true,
             "--cost-report" => cost_report = Some(val()?),
             _ => return Err(format!("unexpected argument {a}")),
@@ -71,8 +77,12 @@ fn run(args: &[String]) -> Result<(), String> {
         rules.extend(rules_from_ir(&load(Path::new(f))?).map_err(|e| format!("{f}: {e}"))?);
     }
     let ppath = Path::new(&policies);
-    let pol = policies_from(&load(ppath)?, ppath.parent().unwrap_or(Path::new(".")))
+    let mut pol = policies_from(&load(ppath)?, ppath.parent().unwrap_or(Path::new(".")))
         .map_err(|e| format!("{policies}: {e}"))?;
+    if let Some(f) = &identity_key {
+        let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
+        pol.identity_key = Some(read_identity_key(&b).map_err(|e| format!("{f}: {e}"))?);
+    }
     let created_at_ms = created.unwrap_or_else(|| {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)

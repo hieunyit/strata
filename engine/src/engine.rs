@@ -34,6 +34,8 @@ pub struct Engine {
     /// rules the Hyperscan prefilter may skip (W09-R-01)
     prefilter: crate::eval::Prefilter,
     prefilter_on: bool,
+    /// per policy index: its privacy settings (P-01 §1)
+    privacy: Vec<Option<crate::privacy::Privacy>>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -68,6 +70,16 @@ impl Engine {
             }
             MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
         }
+        let flagged: Vec<u32> = bundle::policies(bytes, &info)
+            .filter(|p| p.privacy)
+            .map(|p| p.index)
+            .collect();
+        let privacy = crate::privacy::parse(
+            info.section(bytes, bundle::kind::PRIVACY),
+            info.n_policies,
+            &flagged,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -137,7 +149,13 @@ impl Engine {
             operators,
             prefilter,
             prefilter_on: true,
+            privacy,
         })
+    }
+
+    /// Privacy settings of the policy at `index`, if it has some.
+    pub fn privacy(&self, index: u32) -> Option<&crate::privacy::Privacy> {
+        self.privacy.get(index as usize).and_then(Option::as_ref)
     }
 
     /// Unique engine instance ID.
@@ -256,6 +274,10 @@ pub(crate) mod tests {
                     canary: 1000,
                     ..PolicySpec::new("example-canary", Mode::Enforce, Oversize::Pass)
                 },
+                PolicySpec {
+                    snippet: crate::bundle::SnippetSize::Kb4,
+                    ..PolicySpec::new("example-snippet", Mode::Enforce, Oversize::Pass)
+                },
             ],
             sections: &[],
         };
@@ -270,7 +292,7 @@ pub(crate) mod tests {
     fn maps_signed_bundle() {
         let e = test_engine();
         assert_eq!(e.info().version, 1);
-        assert_eq!(e.info().n_policies, 4);
+        assert_eq!(e.info().n_policies, 5);
     }
 
     #[test]

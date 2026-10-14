@@ -83,6 +83,11 @@ fn golden_blocked_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let data = encode(&ev);
@@ -115,6 +120,11 @@ fn golden_shadow_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let data = encode(&ev);
@@ -141,6 +151,11 @@ fn golden_engine_error_scenario() {
         layer_scores: &[("anomaly", 0)],
         rule_ids: &[],
         matches: &[],
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let data = encode(&ev);
@@ -175,6 +190,11 @@ fn golden_long_snippet_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let data = encode(&ev);
@@ -212,6 +232,11 @@ fn golden_large_event_truncated_scenario() {
         layer_scores: &[("anomaly", 150), ("managed", 100), ("protocol", 50)],
         rule_ids: &[800001, 800002],
         matches: &matches,
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let data = encode(&ev);

@@ -44,12 +44,31 @@ message PolicySpec {
   }
   Oversize oversize = 2;
   ResponseLayer response = 3;
+  // Longest input snippet of a match in the policy's events, in bytes:
+  // 0 or 128 (default), 2048 or 4096 (P-01 §1b). Modules from before the
+  // setting refuse bundles with 2048 or 4096: upgrade them first.
+  uint32 max_snippet_size = 4;
+  // Privacy settings on top of the built-in masks (P-01 §1).
+  PrivacySettings privacy = 5;
+}
+
+message PrivacySettings {
+  // Field names whose input is never kept in events (parameters, headers,
+  // the last part of a JSON path), case-insensitive; at most 64.
+  repeated string sensitive_fields = 1;
+  // Patterns masked with '*' in event snippets and headers (linear-time
+  // regex, not matching the empty string); at most 16, 256 bytes each.
+  repeated string mask_patterns = 2;
+  // plain (default) or hmac: events carry hmac: and 32 hex digits of
+  // HMAC-SHA256 with the installation's identity key instead of the
+  // identity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps).
+  string identity = 3;
 }
 
 message ResponseLayer {
   bool allowed_codes_check = 1;
   bool db_errors = 2;
-  // cccd, jwt
+  // cccd, jwt, pan
   repeated string data_guard = 3;
 }
 

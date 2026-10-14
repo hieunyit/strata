@@ -122,6 +122,27 @@ func (s *ClickHouseStore) EnsureTTL(ctx context.Context, days int) error {
 	return nil
 }
 
+// contextColumns are the columns added after the first schema (RV-G2-01,
+// RV-N-01): tables made before them get them with EnsureColumns.
+var contextColumns = []string{
+	"user_agent String CODEC(ZSTD(1))",
+	"referer String CODEC(ZSTD(1))",
+	"headers Nested(name LowCardinality(String), value String)",
+	"inspection LowCardinality(String)",
+}
+
+// EnsureColumns adds the columns of later schemas to an events table made
+// before them (schema.sql only runs when ClickHouse creates its volume).
+// Adding a column is a metadata change: old rows read the default.
+func (s *ClickHouseStore) EnsureColumns(ctx context.Context) error {
+	for _, c := range contextColumns {
+		if err := s.conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s", s.tableName, c)); err != nil {
+			return fmt.Errorf("adding column %q to the events table: %w", c, err)
+		}
+	}
+	return nil
+}
+
 // Conn returns the underlying ClickHouse connection.
 func (s *ClickHouseStore) Conn() driver.Conn {
 	return s.conn
@@ -138,7 +159,7 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		client_ip, identity, request_id, http_method, http_host, http_path,
 		status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 		matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-		received_at
+		received_at, user_agent, referer, headers.name, headers.value, inspection
 	)`, s.tableName)
 
 	batch, err := s.conn.PrepareBatch(ctx, query)
@@ -157,6 +178,11 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			layers = append(layers, v.Layer)
 			fields = append(fields, v.Field)
 			snippets = append(snippets, v.Snippet)
+		}
+		hNames := make([]string, len(e.Headers))
+		hValues := make([]string, len(e.Headers))
+		for i, h := range e.Headers {
+			hNames[i], hValues[i] = h.Name, h.Value
 		}
 
 		err := batch.Append(
@@ -184,6 +210,11 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			fields,
 			snippets,
 			e.ReceivedAt,
+			e.UserAgent,
+			e.Referer,
+			hNames,
+			hValues,
+			e.Inspection,
 		)
 		if err != nil {
 			return fmt.Errorf("appending event %s to batch: %w", e.BlockID, err)
@@ -218,7 +249,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			client_ip, identity, request_id, http_method, http_host, http_path,
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-			received_at
+			received_at, user_agent, referer, headers.name, headers.value, inspection
 		FROM %s 
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
@@ -231,6 +262,8 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		layers   []string
 		fields   []string
 		snippets []string
+		hNames   []string
+		hValues  []string
 	)
 
 	err := row.Scan(
@@ -258,6 +291,11 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		&fields,
 		&snippets,
 		&e.ReceivedAt,
+		&e.UserAgent,
+		&e.Referer,
+		&hNames,
+		&hValues,
+		&e.Inspection,
 	)
 	if err != nil {
 		// Any other error, ClickHouse exceptions included, is a real failure.
@@ -274,6 +312,12 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			Layer:   layers[i],
 			Field:   fields[i],
 			Snippet: snippets[i],
+		}
+	}
+
+	for i := range hNames {
+		if i < len(hValues) {
+			e.Headers = append(e.Headers, Header{Name: hNames[i], Value: hValues[i]})
 		}
 	}
 

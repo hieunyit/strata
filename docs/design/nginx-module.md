@@ -277,7 +277,7 @@ typedef strata_str_pair_t strata_header_t;
 - Mọi `strata_str_t` chỉ là dữ liệu mượn trong thời gian một lời gọi. Phía Rust map thành `&[u8]` bằng `std::slice::from_raw_parts`, không chuyển sang `String` hay `Vec<u8>`.
 - Không giả định UTF-8, không giả định kết thúc bằng null; `ptr` được phép là NULL khi `len = 0`.
 - So khớp tên header không phân biệt hoa thường bằng so sánh byte ASCII, không cấp phát.
-- Rust chỉ copy dữ liệu cần giữ qua nhiều lời gọi, và chỉ trong hai trường hợp: đoạn input khớp rule để đưa vào sự kiện (tối đa 1 KB mỗi match, đã che), và một số ít header cần đối chiếu với response (ví dụ `Origin`, `Content-Type`). Phần copy nằm trong arena riêng của transaction, có giới hạn kích thước, giải phóng một lần ở `strata_tx_free`.
+- Rust chỉ copy dữ liệu cần giữ qua nhiều lời gọi, và chỉ trong hai trường hợp: đoạn input khớp rule để đưa vào sự kiện (128 byte mỗi match, hoặc 2–4 KB theo `max_snippet_size` của policy, đã che), header của request cho ngữ cảnh sự kiện (chỉ khi request đã có Event ID, hoặc bundle có rule ở stage body vốn đã giữ header), và một số ít header cần đối chiếu với response (ví dụ `Origin`, `Content-Type`). Phần copy nằm trong arena riêng của transaction, có giới hạn kích thước, giải phóng một lần ở `strata_tx_free`.
 - `strata_tx_free` idempotent: libstrata bỏ qua con trỏ NULL, module đặt con trỏ trong context về NULL ngay sau khi gọi.
 - Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`, 1.2 thêm cờ `STRATA_TXF_DEGRADED` (W11-N-01).
 
@@ -730,7 +730,9 @@ Khi verdict là `block`, module tự gửi response chặn (không chuyển qua 
 **Sự kiện**
 
 - Mỗi worker gửi sự kiện qua Unix datagram socket `strata_event_socket` ở chế độ non-blocking; socket đầy thì bỏ sự kiện và tăng counter `strata_events_dropped`, không bao giờ chặn worker.
-- Nội dung: Block ID, thời gian, node, policy, phiên bản bundle, IP, identity, method, host, path, mã trả về, action, điểm từng lớp, rule ID, đoạn input đã normalize và che dữ liệu nhạy cảm (tối đa 1 KB mỗi match).
+- Nội dung: Block ID, thời gian, node, policy, phiên bản bundle, IP, identity, method, host, path, mã trả về, action, điểm từng lớp, rule ID, đoạn input đã normalize và che dữ liệu nhạy cảm (128 byte mỗi match mặc định, 2 hoặc 4 KB theo `max_snippet_size` của policy; P-01 §1b).
+- Ngữ cảnh điều tra (RV-G2-01, P-01 §1): `user_agent` và `referer` (tối đa 512 byte, giá trị query nhạy cảm của Referer thành `[MASKED]`), các header khác (tối đa 32 header, 2 KB): header nhạy cảm (`Authorization`, `Cookie`, `X-Api-Key`…, cùng danh sách tên với snippet) chỉ giữ tên, giá trị thành `[MASKED]`; giá trị khác được che như snippet. Có header khi request đã có Event ID ở stage header, hoặc khi bundle có rule ở stage body (header vốn được giữ cho rule); sự kiện chỉ có ở stage response với bundle không có rule body thì không có header. `inspection` (RV-N-01): `FULL`, `PARTIAL` (hết budget CPU), `BODY_SKIPPED` (body không được kiểm hết). `would_block` (#57): request bị chặn, hoặc lẽ ra bị chặn khi ở shadow; false với finding dưới ngưỡng và lỗi engine.
+- Che luôn bật, không tắt được: CCCD, JWT, số thẻ thanh toán (13–19 chữ số, Luhn, chữ số đầu 2–6) trong snippet, giá trị header, User-Agent, Referer. Datagram vượt 8 KB thì bỏ header trước, rồi cắt snippet dài về 128 byte, rồi mới bỏ match.
 - `strata-agent` gom theo lô, gửi tới event store; ghi tạm ra đĩa khi mất kết nối.
 - Access log NGINX vẫn là nguồn dự phòng nhờ các biến `$strata_*`.
 

@@ -96,3 +96,32 @@ describe('EventTrace decision trace (W09-F-01)', () => {
     expect(screen.getAllByTestId('violation-snippet')[0].textContent).not.toContain("OR 1=1");
   });
 });
+
+describe('request context (RV-G2-01, RV-N-01)', () => {
+  it('shows the User-Agent, Referer and masked headers, and warns when not fully inspected', () => {
+    const withCtx: Event = {
+      ...event,
+      user_agent: 'sqlmap/1.8 (https://sqlmap.org)',
+      referer: 'https://app.example.test/cb?access_token=[MASKED]',
+      headers: [
+        { name: 'Authorization', value: '[MASKED]' },
+        { name: 'Accept', value: '*/*' },
+      ],
+      inspection: 'partial',
+    };
+    render(<StaticAuthProvider roles={['operator']}><EventTrace event={withCtx} /></StaticAuthProvider>);
+    expect(screen.getByTestId('detail-user-agent')).toHaveTextContent('sqlmap/1.8');
+    expect(screen.getByTestId('detail-referer')).toHaveTextContent('access_token=[MASKED]');
+    const rows = screen.getAllByTestId('header-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('Authorization[MASKED]');
+    expect(screen.getByTestId('inspection-warning')).toHaveTextContent(/CPU budget/);
+  });
+
+  it('shows nothing extra for events without context (older modules) or fully inspected', () => {
+    render(<StaticAuthProvider roles={['operator']}><EventTrace event={{ ...event, inspection: 'full' }} /></StaticAuthProvider>);
+    expect(screen.queryByTestId('detail-user-agent')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('detail-headers')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('inspection-warning')).not.toBeInTheDocument();
+  });
+});

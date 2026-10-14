@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::block_id::{self, Kind};
 use crate::bundle::Response;
-use crate::detectors::response::{self, cccd, db_errors, jwt};
+use crate::detectors::response::{self, cccd, db_errors, jwt, pan};
 use crate::detectors::{Violation, protocol};
 use crate::engine::Engine;
 use crate::eval;
@@ -82,6 +82,9 @@ pub struct Tx {
     oversize_block: bool,
     /// response layer switches of the policy
     response: Response,
+    /// longest snippet of a match in the event (the policy's
+    /// max_snippet_size)
+    snippet_max: usize,
     /// response body scanner (data guard, detectors), when one is on
     guard: Option<Guard>,
     stage: Stage,
@@ -93,8 +96,14 @@ pub struct Tx {
     score: i32,
     headers: protocol::Headers,
     /// Request headers kept for the request_body rules (only when the
-    /// bundle has some).
+    /// bundle has some); afterwards they stay for the event's context.
     kept_headers: Vec<(Vec<u8>, Vec<u8>)>,
+    /// Request headers for the event's context (RV-G2-01) when the bundle
+    /// has no request_body rule: copied, bounded, only once the request
+    /// has an Event or Block ID at the headers stage.
+    event_headers: Vec<(Vec<u8>, Vec<u8>)>,
+    /// the connector reported body bytes it did not pass (RV-N-01)
+    body_skipped: bool,
     /// Body bytes for the request_body rules, at most MAX_BODY_KEEP.
     body: Vec<u8>,
     /// test-hooks only: what the connector passed, for integration tests
@@ -194,6 +203,9 @@ impl Tx {
             score: 0,
             headers: protocol::Headers::default(),
             kept_headers: Vec::new(),
+            snippet_max: crate::event::MAX_SNIPPET_LEN,
+            event_headers: Vec::new(),
+            body_skipped: false,
             body: Vec::new(),
             #[cfg(feature = "test-hooks")]
             echo: None,
@@ -360,6 +372,7 @@ impl Tx {
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
             self.signatures = p.signatures;
+            self.snippet_max = p.snippet.bytes();
         } else {
             self.policy_index = None;
         }
@@ -387,6 +400,7 @@ impl Tx {
             return rc;
         }
         if bytes > 0 {
+            self.body_skipped = true;
             self.add(Violation {
                 signature: false,
                 rule: protocol::BODY_OVER_LIMIT,
@@ -468,6 +482,18 @@ impl Tx {
         }
     }
 
+    /// The snippet an event keeps for a violation: masked (built-in masks
+    /// and the policy's privacy settings) and cut to the policy's
+    /// max_snippet_size. Every path that records a match goes through it.
+    fn event_snippet(&self, field: &str, raw: &[u8]) -> Vec<u8> {
+        let privacy = self
+            .engine
+            .as_deref()
+            .zip(self.policy_index)
+            .and_then(|(e, i)| e.privacy(i));
+        crate::event::prepare_snippet_with(field, raw, self.snippet_max, privacy)
+    }
+
     /// Records a violation once; decides when it blocks alone or the
     /// total reaches the threshold.
     fn add(&mut self, v: Violation) {
@@ -484,7 +510,7 @@ impl Tx {
             // pack is logged with an Event ID, like a shadow policy
             self.sig_score = self.sig_score.saturating_add(v.score);
             if self.matches.len() < MAX_RULES {
-                let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
+                let snippet = self.event_snippet(&v.field, &v.snippet);
                 self.matches.push(MatchEntry {
                     rule_id: v.rule,
                     layer: v.layer,
@@ -514,7 +540,7 @@ impl Tx {
             _ => {}
         }
         if self.matches.len() < MAX_RULES {
-            let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
+            let snippet = self.event_snippet(&v.field, &v.snippet);
             self.matches.push(MatchEntry {
                 rule_id: v.rule,
                 layer: v.layer,
@@ -541,10 +567,11 @@ impl Tx {
             response::STATUS_NOT_ALLOWED => ("RESPONSE_STATUS".to_string(), Vec::new()),
             cccd::RULE => ("RESPONSE_BODY".to_string(), b"************".to_vec()),
             jwt::RULE => ("RESPONSE_BODY".to_string(), b"***".to_vec()),
+            pan::RULE => ("RESPONSE_BODY".to_string(), b"****************".to_vec()),
             _ => ("RESPONSE_BODY".to_string(), Vec::new()),
         };
         if self.matches.len() < MAX_RULES {
-            let snippet = crate::event::prepare_snippet(&field, &raw_snippet);
+            let snippet = self.event_snippet(&field, &raw_snippet);
             self.matches.push(MatchEntry {
                 rule_id: rule,
                 layer: "response",
@@ -558,7 +585,8 @@ impl Tx {
     }
 
     fn stub_rule(&mut self, field: &str, data: &[u8]) {
-        let snippet = event::prepare_snippet(field, data);
+        // add() masks and cuts it to the policy's size
+        let snippet = data[..data.len().min(event::MASK_WINDOW)].to_vec();
         self.add(Violation {
             signature: false,
             rule: STUB_RULE_ID,
@@ -758,6 +786,11 @@ impl Tx {
                 self.line = Some(line);
             }
         }
+        // an event already (blocked, or would be, or an error): keep its
+        // context; clean requests copy nothing more
+        if self.id.is_some() && self.kept_headers.is_empty() {
+            self.event_headers = keep_for_event(headers);
+        }
         OK
     }
 
@@ -806,7 +839,7 @@ impl Tx {
             }
         }
         self.body = Vec::new();
-        self.kept_headers = Vec::new();
+        // the headers stay for the event's context (moved, not copied)
     }
 
     fn evaluate_body(&mut self) {
@@ -895,6 +928,9 @@ impl Tx {
         }
         if self.response.has(Response::GUARD_JWT) {
             m.push(Box::new(jwt::Jwt::new()));
+        }
+        if self.response.has(Response::GUARD_PAN) {
+            m.push(Box::new(pan::Pan));
         }
         if self.response.has(Response::DB_ERRORS) {
             m.push(Box::new(db_errors::DbErrors));
@@ -1084,6 +1120,33 @@ impl Tx {
             })
             .collect();
 
+        // the request's context, masked (RV-G2-01)
+        let kept = if self.event_headers.is_empty() {
+            &self.kept_headers
+        } else {
+            &self.event_headers
+        };
+        let refs: Vec<(&[u8], &[u8])> = kept.iter().map(|(k, v)| (&k[..], &v[..])).collect();
+        let privacy = self
+            .engine
+            .as_deref()
+            .zip(self.policy_index)
+            .and_then(|(e, i)| e.privacy(i));
+        let ctx = crate::event::context_with(&refs, privacy);
+        // identity: hmac (P-01 §1): the value itself never leaves the node
+        let identity = privacy
+            .and_then(|p| p.identity(&self.identity[..self.identity_len]))
+            .unwrap_or_else(|| identity_str.to_string());
+        let ctx_headers: Vec<(&[u8], &[u8])> =
+            ctx.headers.iter().map(|(k, v)| (&k[..], &v[..])).collect();
+        let inspection = if self.error == E_BUDGET {
+            crate::event::Inspection::Partial
+        } else if self.body_skipped || self.error == E_INCOMPLETE {
+            crate::event::Inspection::BodySkipped
+        } else {
+            crate::event::Inspection::Full
+        };
+
         let ev = crate::event::EventData {
             block_id: block_id_str,
             time_unix_ms,
@@ -1092,7 +1155,7 @@ impl Tx {
             policy_id: policy_id_str,
             bundle_version: self.bundle_version,
             client_ip: client_ip_str,
-            identity: identity_str,
+            identity: &identity,
             method: method_str,
             host: host_str,
             path: path_str,
@@ -1101,10 +1164,31 @@ impl Tx {
             layer_scores: &layer_scores_arr[..n_scores],
             rule_ids: &self.rules[..self.n_rules],
             matches: &match_datas,
+            user_agent: &ctx.user_agent,
+            referer: &ctx.referer,
+            headers: &ctx_headers,
+            inspection,
+            // a would-be block of the signature pack in shadow counts too
+            would_block: self.matched || self.sig_matched,
         };
 
         Some(crate::event::encode(&ev))
     }
+}
+
+/// A bounded copy of the request headers for an event's context: what
+/// `event::context` reads at most (the window it masks, per value).
+fn keep_for_event(headers: &[(&[u8], &[u8])]) -> Vec<(Vec<u8>, Vec<u8>)> {
+    headers
+        .iter()
+        .take(crate::event::MAX_HEADERS + 3) // + Host, User-Agent, Referer
+        .map(|(k, v)| {
+            let v = &v[..v
+                .len()
+                .min(crate::event::MAX_UA_LEN.max(crate::event::MAX_HEADERS_BYTES))];
+            (k[..k.len().min(256)].to_vec(), v.to_vec())
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -1574,5 +1658,109 @@ mod tests {
         t.stub_rule("URI", b"/api/test");
         let ev_bytes = t.encode_event().expect("should produce event");
         assert!(!ev_bytes.windows(b"foo=bar".len()).any(|w| w == b"foo=bar"));
+    }
+
+    fn has(hay: &[u8], needle: &[u8]) -> bool {
+        hay.windows(needle.len()).any(|w| w == needle)
+    }
+
+    /// RV-G2-01: a blocked request's event carries its User-Agent, Referer
+    /// and headers, masked; RV-N-01: and how much was inspected.
+    #[test]
+    fn event_carries_the_masked_context() {
+        let mut t = tx();
+        t.set_policy(b"example-api");
+        let uri = b"/a?q=STRATA-TEST-BLOCK";
+        assert_eq!(
+            t.request_line(b"GET", uri, b"/a", b"q=STRATA-TEST-BLOCK", b"HTTP/1.1"),
+            OK
+        );
+        let headers: [(&[u8], &[u8]); 7] = [
+            (b"Host", b"api.example.test"),
+            (b"User-Agent", b"sqlmap/1.8 (https://sqlmap.org)"),
+            (
+                b"Referer",
+                b"https://app.example.test/cb?code=1&access_token=eyJzecret.x.y#top",
+            ),
+            (b"Authorization", b"Bearer secret-bearer-value"),
+            (b"Cookie", b"sid=secret-cookie-value"),
+            (b"X-Customer", b"cccd 001203012345 card 4111111111111111"),
+            (b"Accept", b"*/*"),
+        ];
+        assert_eq!(t.request_headers(&headers), OK);
+        let ev = t.encode_event().expect("blocked: an event");
+        assert!(has(&ev, b"sqlmap/1.8 (https://sqlmap.org)"));
+        assert!(has(
+            &ev,
+            b"https://app.example.test/cb?code=1&access_token=[MASKED]#top"
+        ));
+        for secret in [
+            &b"secret-bearer-value"[..],
+            b"secret-cookie-value",
+            b"001203012345",
+            b"4111111111111111",
+            b"eyJzecret",
+        ] {
+            assert!(!has(&ev, secret), "{}", String::from_utf8_lossy(secret));
+        }
+        assert!(has(&ev, b"Authorization") && has(&ev, b"[MASKED]") && has(&ev, b"X-Customer"));
+        assert!(has(&ev, b"Accept"));
+        // field 20 (inspection) = FULL: tag 0xa0 0x01, value 1
+        assert!(has(&ev, &[0xa0, 0x01, 0x01]));
+        // field 21 (would_block, #57) = true: tag 0xa8 0x01, value 1
+        assert!(has(&ev, &[0xa8, 0x01, 0x01]));
+    }
+
+    /// #57: an engine error is an event that would not have blocked.
+    #[test]
+    fn error_events_would_not_block() {
+        let mut t = tx();
+        assert_eq!(t.request_line(b"GET", b"/a", b"/a", b"", b"HTTP/1.1"), OK);
+        t.set_budget_exceeded();
+        let ev = t.encode_event().expect("an error event");
+        assert!(!has(&ev, &[0xa8, 0x01]), "would_block is false, left out");
+        assert!(has(&ev, &[0xa0, 0x01, 0x02]), "inspection PARTIAL");
+    }
+
+    /// P-01 §1b: the policy's max_snippet_size sets how much of the input
+    /// the event keeps, masked first.
+    #[test]
+    fn snippet_size_follows_the_policy() {
+        let mut input = b"q=STRATA-TEST-BLOCK card 4111111111111111 ".to_vec();
+        input.resize(6000, b'x');
+        for (policy, want) in [(&b"example-api"[..], 128usize), (b"example-snippet", 4096)] {
+            let mut t = tx();
+            t.set_policy(policy);
+            let uri = [b"/a?".as_slice(), &input].concat();
+            assert_eq!(t.request_line(b"GET", &uri, b"/a", &input, b"HTTP/1.1"), OK);
+            let m = &t.matches[0];
+            assert_eq!(m.snippet.len(), want, "{}", String::from_utf8_lossy(policy));
+            assert!(!has(&m.snippet, b"4111111111111111"));
+            let ev = t.encode_event().unwrap();
+            assert!(ev.len() <= crate::event::MAX_DATAGRAM);
+        }
+    }
+
+    /// Clean requests keep no copy of their headers.
+    #[test]
+    fn clean_requests_copy_no_context() {
+        let mut t = tx();
+        assert_eq!(t.request_line(b"GET", b"/a", b"/a", b"", b"HTTP/1.1"), OK);
+        assert_eq!(t.request_headers(&[(b"User-Agent", b"curl/8")]), OK);
+        assert!(t.event_headers.is_empty() && t.kept_headers.is_empty());
+        assert!(t.encode_event().is_none());
+    }
+
+    /// A body the connector did not pass is reported as such (here a
+    /// policy that blocks oversize bodies, so the request has an event).
+    #[test]
+    fn skipped_body_is_reported() {
+        let mut t = tx();
+        t.set_policy(b"example-api");
+        assert_eq!(t.request_line(b"POST", b"/a", b"/a", b"", b"HTTP/1.1"), OK);
+        assert_eq!(t.request_headers(&[(b"User-Agent", b"curl/8")]), OK);
+        assert_eq!(t.request_body_skipped(4096), OK);
+        let ev = t.encode_event().expect("rule 100020: an event");
+        assert!(has(&ev, &[0xa0, 0x01, 0x03]), "inspection BODY_SKIPPED");
     }
 }

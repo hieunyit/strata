@@ -9,7 +9,10 @@ import (
 )
 
 const (
-	MaxSnippetLength   = 1024 // 1 KB max per match snippet
+	MaxSnippetLength   = 4096 // per match snippet: the largest max_snippet_size (P-01 §1b)
+	MaxContextLength   = 512  // User-Agent, Referer (RV-G2-01)
+	MaxHeaders         = 32
+	MaxHeadersBytes    = 2048
 	MaxClockSkewFuture = 10 * time.Minute
 	MaxEventAge        = 90 * 24 * time.Hour
 )
@@ -149,6 +152,30 @@ func ValidateEvent(evt *Event, now time.Time) error {
 			return fmt.Errorf("validating http_method: %w", err)
 		}
 		evt.HTTPMethod = strings.ToUpper(strings.TrimSpace(evt.HTTPMethod))
+	}
+
+	// 4b. Context bounds (the engine keeps to them; an agent might not)
+	evt.UserAgent = TruncateSnippetUTF8(evt.UserAgent, MaxContextLength)
+	evt.Referer = TruncateSnippetUTF8(evt.Referer, MaxContextLength)
+	if len(evt.Headers) > MaxHeaders {
+		evt.Headers = evt.Headers[:MaxHeaders]
+	}
+	room := MaxHeadersBytes
+	for i := range evt.Headers {
+		h := &evt.Headers[i]
+		h.Name = TruncateSnippetUTF8(h.Name, min(room, 256))
+		room -= len(h.Name)
+		h.Value = TruncateSnippetUTF8(h.Value, max(room, 0))
+		room -= len(h.Value)
+		if room <= 0 {
+			evt.Headers = evt.Headers[:i+1]
+			break
+		}
+	}
+	switch evt.Inspection {
+	case "", "full", "partial", "body_skipped":
+	default:
+		evt.Inspection = ""
 	}
 
 	// 5. Snippet truncation for violations

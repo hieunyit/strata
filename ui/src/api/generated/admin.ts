@@ -353,6 +353,14 @@ export interface components {
       mode?: components["schemas"]["PolicySpecMode"];
       oversize?: components["schemas"]["PolicySpecOversize"];
       response?: components["schemas"]["v1ResponseLayer"];
+      /**
+       * Format: int64
+       * @description Longest input snippet of a match in the policy's events, in bytes:
+       * 0 or 128 (default), 2048 or 4096 (P-01 §1b). Modules from before the
+       * setting refuse bundles with 2048 or 4096: upgrade them first.
+       */
+      max_snippet_size?: number;
+      privacy?: components["schemas"]["v1PrivacySettings"];
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -364,10 +372,28 @@ export interface components {
       /** Format: date-time */
       create_time?: string;
     };
+    v1PrivacySettings: {
+      /**
+       * @description Field names whose input is never kept in events (parameters, headers,
+       * the last part of a JSON path), case-insensitive; at most 64.
+       */
+      sensitive_fields?: string[];
+      /**
+       * @description Patterns masked with '*' in event snippets and headers (linear-time
+       * regex, not matching the empty string); at most 16, 256 bytes each.
+       */
+      mask_patterns?: string[];
+      /**
+       * @description plain (default) or hmac: events carry hmac: and 32 hex digits of
+       * HMAC-SHA256 with the installation's identity key instead of the
+       * identity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps).
+       */
+      identity?: string;
+    };
     v1ResponseLayer: {
       allowed_codes_check?: boolean;
       db_errors?: boolean;
-      /** cccd, jwt */
+      /** cccd, jwt, pan */
       data_guard?: string[];
     };
     v1ResumeRolloutResponse: {
