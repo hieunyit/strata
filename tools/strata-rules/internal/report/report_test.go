@@ -48,3 +48,18 @@ func TestGateFailuresMiss(t *testing.T) {
 		}
 	}
 }
+
+// W11-S-01: the benign requests a rule matched are named, to tune it.
+func TestMarkdownNamesFPSamples(t *testing.T) {
+	r := &Report{Benign: 2000, BenignHit: 12, BenignBlock: 12,
+		FPByRule:  map[string]int{"942100": 12, "920350": 1},
+		FPSamples: map[string][]string{"942100": {"benign-00017", "benign-00123"}, "920350": {"benign-01999"}},
+		Attacks:   map[string]Type{}}
+	var b strings.Builder
+	r.Markdown(&b, nil)
+	for _, want := range []string{"| 942100 | 12 | benign-00017 benign-00123 |", "| 920350 | 1 | benign-01999 |"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("missing %q in\n%s", want, b.String())
+		}
+	}
+}

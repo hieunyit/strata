@@ -295,4 +295,4 @@ Of the 392 rules, 233 are CRS plumbing (paranoia level checks, initialization: n
 | 922100 | list of crs-setup checked with its REQUEST-901 default |
 | 922110 | list of crs-setup checked with its REQUEST-901 default |
 | 930120 | Strata tuning: "program files" listed as "program files/", so that prose naming the directory does not match |
-| 942100 | Strata tuning: the value libinjection flags must also hold a quote, a parenthesis, =, ;, # or an SQL keyword (prose such as "50% off -- today only" is flagged by libinjection alone) |
+| 942100 | Strata tuning: the value libinjection flags must also hold, before its first SQL comment (-- or #), a quote, a parenthesis, =, ; or an SQL keyword (prose such as "50% off -- today only. drop me a line" is flagged by libinjection alone) |

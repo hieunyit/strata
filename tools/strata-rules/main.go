@@ -13,6 +13,7 @@
 //	                                          shadow FP candidates from ClickHouse, as Markdown
 //	strata-rules corpus fetch [--repo <root>]          corpus/attack from corpus/sources.yaml
 //	strata-rules corpus benign [--repo <root>] [--n N] [--seed S]   corpus/benign/synthetic.jsonl
+//	strata-rules corpus pilot [--repo <root>] [--n N] [--seed S]    corpus/benign/pilot.jsonl (shaped like the pilot routes)
 //
 // test needs strata-compile and strata-eval: $STRATA_COMPILE / $STRATA_EVAL,
 // <repo>/target/release, or PATH.
@@ -193,6 +194,17 @@ func corpusCmd() {
 		}
 		for t, c := range counts {
 			fmt.Printf("%s: %d payloads\n", t, c)
+		}
+	case "pilot":
+		f, err := os.Create(filepath.Join(*repo, "corpus", "benign", "pilot.jsonl"))
+		if err != nil {
+			die(err)
+		}
+		if err := corpus.Pilot(*seed, *n, f); err != nil {
+			die(err)
+		}
+		if err := f.Close(); err != nil {
+			die(err)
 		}
 	case "benign":
 		dir := filepath.Join(*repo, "corpus", "benign")
