@@ -44,6 +44,8 @@ message Event {
   // threshold or a block_alone rule). False for findings below the
   // threshold and for engine errors.
   bool would_block = 21;
+  // Side of the policy's enforce canary the client fell on (W12-G2-01).
+  CanaryGroup canary = 22;
 }
 
 message Header {
@@ -59,6 +61,17 @@ enum Inspection {
   INSPECTION_PARTIAL = 2;
   // the body, or part of it, was not inspected (over the limit, spooled)
   INSPECTION_BODY_SKIPPED = 3;
+}
+
+// Canary group of a request: whether its policy has an enforce canary
+// (canary_percent) and whether the client is inside it.
+enum CanaryGroup {
+  // The policy has no canary (or the event predates W12-G2-01).
+  CANARY_GROUP_UNSPECIFIED = 0;
+  // Inside the canary: the policy is enforced.
+  CANARY_GROUP_ENFORCE = 1;
+  // Outside the canary: the policy runs in shadow.
+  CANARY_GROUP_SHADOW = 2;
 }
 
 // Mirrors STRATA_ACTION_* in strata.h, shifted by one so that 0 stays

@@ -46,6 +46,8 @@ pub struct Verdict {
     pub rules: [u32; MAX_RULES],
     /// `STR-…` when blocked, `EVT-…` in shadow or on error.
     pub id: Option<[u8; ID_LEN]>,
+    /// Canary group of the request's policy (W12-G2-01).
+    pub canary: crate::event::CanaryGroup,
 }
 
 impl Verdict {
@@ -61,6 +63,7 @@ impl Verdict {
             n_rules: 0,
             rules: [0; MAX_RULES],
             id: None,
+            canary: crate::event::CanaryGroup::None,
         }
     }
 }

@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 3
+#define STRATA_ABI_VERSION_MINOR 4
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -70,6 +70,18 @@
  * The block response should be JSON rather than HTML (policy + `Accept`).
  */
 #define STRATA_VF_JSON (1 << 2)
+
+/**
+ * The request's policy has an enforce canary and the client is inside it
+ * (enforced). ABI 1.4, W12-G2-01: the connector counts the canary group.
+ */
+#define STRATA_VF_CANARY (1 << 3)
+
+/**
+ * The request's policy has an enforce canary and the client is outside it
+ * (shadow): the group the canary is compared with. ABI 1.4.
+ */
+#define STRATA_VF_CANARY_SHADOW (1 << 4)
 
 /**
  * Per-request flags passed in `strata_conn_t.flags`.

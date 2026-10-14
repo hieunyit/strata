@@ -27,6 +27,20 @@ pub enum Action {
     Block = 4,
 }
 
+/// Canary group of the request (event.proto `CanaryGroup`): whether its
+/// policy has an enforce canary and on which side of it the client fell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum CanaryGroup {
+    /// The policy has no canary.
+    #[default]
+    None = 0,
+    /// Inside the canary: enforced.
+    Enforce = 1,
+    /// Outside the canary: shadow.
+    Shadow = 2,
+}
+
 impl Action {
     pub const fn from_verdict_action(a: u32) -> Self {
         match a {
@@ -97,6 +111,8 @@ pub struct EventData<'a> {
     pub inspection: Inspection,
     /// #57: blocked, or would be in shadow
     pub would_block: bool,
+    /// W12-G2-01
+    pub canary: CanaryGroup,
 }
 
 /// Request context of an event (RV-G2-01), masked and bounded: the
@@ -455,6 +471,8 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
     put_uint32(20, ev.inspection as u32, out);
     // 21: would_block
     put_uint32(21, ev.would_block as u32, out);
+    // 22: CanaryGroup canary (W12-G2-01)
+    put_uint32(22, ev.canary as u32, out);
 }
 
 /// The first `max` bytes of UTF-8 `b`, cut on a character boundary.
@@ -778,6 +796,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let b1 = encode(&ev);
@@ -820,6 +839,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);
@@ -897,6 +917,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);

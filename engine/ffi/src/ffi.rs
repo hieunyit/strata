@@ -65,6 +65,11 @@ fn to_c(v: &Verdict) -> strata_verdict_t {
     if v.json {
         out.flags |= STRATA_VF_JSON;
     }
+    match v.canary {
+        libstrata::event::CanaryGroup::None => {}
+        libstrata::event::CanaryGroup::Enforce => out.flags |= STRATA_VF_CANARY,
+        libstrata::event::CanaryGroup::Shadow => out.flags |= STRATA_VF_CANARY_SHADOW,
+    }
     if let Some(id) = &v.id {
         write_c_str(&mut out.block_id, id);
     }

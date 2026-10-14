@@ -189,6 +189,7 @@ fuzz_target!(|data: &[u8]| {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: event::CanaryGroup::None,
     };
 
     let encoded = event::encode(&ev);
