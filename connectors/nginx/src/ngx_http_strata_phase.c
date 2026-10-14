@@ -272,6 +272,8 @@ ngx_http_strata_create_ctx(ngx_http_request_t *r,
     cln->handler = ngx_http_strata_cleanup;
     cln->data = ctx;
 
+    ctx->r = r;
+
     ctx->policy = slcf->policy;
     ctx->body_limit = slcf->body_limit;
     ctx->fail_closed = (slcf->fail_mode == NGX_HTTP_STRATA_FAIL_CLOSED);

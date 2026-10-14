@@ -123,7 +123,7 @@ Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiệ
 | 8 | `u32` | phiên bản layout = 1 |
 | 12 | `u32` | số slot = số worker, 1..1.024 |
 | 16 | `u32` | kích thước slot (byte), bội số của 64, ≥ 8 × số bộ đếm |
-| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 (module từ W11-N-01 ghi 24) |
+| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 (module từ W11-N-01 ghi 24, từ W12-G2-01 ghi 50 trong slot 448 byte) |
 | 24 | `u64` | thời điểm tạo file (ms); đổi khi file được tạo lại |
 | 32 | `u8[16]` | phiên bản NGINX (`NGINX_VERSION`, đệm NUL), W07-F-01 |
 | 48 | `u8[12]` | phiên bản module (đệm NUL) |
@@ -147,6 +147,8 @@ Slot của worker `i` (`ngx_worker`) nằm ở offset `64 + i × kích thước 
 | 21 | trạng thái circuit breaker của worker (gauge): 0 closed, 1 open, 2 half-open (W11-N-01) |
 | 22 | số lần breaker mở |
 | 23 | số request chạy chế độ giảm cấp |
+| 24..36 | nhóm **canary** (policy có `canary_percent`, client trong nhóm: enforce; cờ verdict `STRATA_VF_CANARY`), W12-G2-01: 24 request, 25 bị chặn, 26 ghi log, 27 upstream trả 5xx (trạng thái của upstream cuối), 28..36 histogram thời gian request (từ lúc đọc request tới khi xong, ms), mỗi bucket đếm riêng, cận trên 5, 10, 25, 50, 100, 250, 500, 1000, +Inf |
+| 37..49 | nhóm **shadow** của policy canary (client ngoài nhóm, `STRATA_VF_CANARY_SHADOW`), cùng thứ tự như 24..36 |
 
 Bộ đếm mới chỉ được thêm vào cuối slot (tăng số bộ đếm, không đổi phiên bản layout); agent bỏ qua bộ đếm nó không biết.
 

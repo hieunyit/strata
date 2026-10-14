@@ -311,9 +311,9 @@ subtest "metrics file layout" => sub {
     is($m->{magic}, "STRMET1\0", "magic");
     is($m->{layout}, 1, "layout version");
     is($m->{slots}, $workers, "one slot per worker");
-    is($m->{size}, 256, "slot size");
-    is($m->{n}, 24, "24 counters");
-    is($m->{len}, 64 + $workers * 256, "file size");
+    is($m->{size}, 448, "slot size");
+    is($m->{n}, 50, "50 counters");
+    is($m->{len}, 64 + $workers * 448, "file size");
     is($m->{c}[C_PID], $workers, "every worker wrote its pid");
     is($m->{c}[C_BUNDLE], 7, "bundle version of the workers");
     like($m->{nginx}, qr/^1\.\d+\.\d+$/, "NGINX version in the header");
