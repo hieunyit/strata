@@ -1,0 +1,163 @@
+{
+ "uid": "strata-shadow-fp",
+ "title": "Strata shadow FP",
+ "description": "Shadow events per rule and day for the false-positive review (W10-S-01), from ClickHouse.",
+ "tags": [
+  "strata"
+ ],
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "annotations": {
+  "list": []
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "policy",
+    "type": "query",
+    "datasource": {
+     "type": "grafana-clickhouse-datasource",
+     "uid": "clickhouse"
+    },
+    "label": "Policy",
+    "multi": true,
+    "includeAll": false,
+    "query": "SELECT DISTINCT policy_id FROM default.events WHERE timestamp > now() - INTERVAL 30 DAY ORDER BY policy_id",
+    "refresh": 2,
+    "current": {
+     "text": [
+      "pilot-verify",
+      "pilot-upload"
+     ],
+     "value": [
+      "pilot-verify",
+      "pilot-upload"
+     ]
+    }
+   },
+   {
+    "name": "exclude",
+    "type": "textbox",
+    "label": "Exclude IPs/CIDRs (comma)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "table",
+   "title": "Suspected false positives by day and rule (shadow)",
+   "description": "Shadow events of the selected policies, attack sources (exclude) left out: every row is a rule that would have blocked this traffic. Same query as strata-rules fp-report.",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "table",
+     "rawSql": "SELECT toDate(timestamp) AS day, rule_id, uniqExact(block_id) AS events, uniqExact(client_ip) AS sources, topK(1)(policy_id)[1] AS top_policy FROM default.events ARRAY JOIN arrayDistinct(matched_rules) AS rule_id WHERE $__timeFilter(timestamp) AND action = 'shadow' AND policy_id IN (${policy:singlequote}) AND NOT ((isIPv4String(client_ip) OR isIPv6String(client_ip)) AND arrayExists(c -> isIPAddressInRange(client_ip, c), arrayFilter(x -> x != '', splitByChar(',', '${exclude:raw}')))) GROUP BY day, rule_id ORDER BY day DESC, events DESC, rule_id LIMIT 500"
+    }
+   ],
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Shadow events per hour, by policy",
+   "description": "",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "timeseries",
+     "rawSql": "SELECT toStartOfHour(timestamp) AS time, policy_id, uniqExact(block_id) AS events FROM default.events WHERE $__timeFilter(timestamp) AND action = 'shadow' AND policy_id IN (${policy:singlequote}) AND NOT ((isIPv4String(client_ip) OR isIPv6String(client_ip)) AND arrayExists(c -> isIPAddressInRange(client_ip, c), arrayFilter(x -> x != '', splitByChar(',', '${exclude:raw}')))) GROUP BY time, policy_id ORDER BY time"
+    }
+   ],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 9
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests not fully inspected (fail mode), by policy",
+   "description": "Engine errors and CPU budget overruns handled by the fail mode: these requests were not inspected (#28, #49).",
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "timeseries",
+     "rawSql": "SELECT toStartOfHour(timestamp) AS time, policy_id, count() AS events FROM default.events WHERE $__timeFilter(timestamp) AND action = 'error' AND policy_id IN (${policy:singlequote}) GROUP BY time, policy_id ORDER BY time"
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 9
+   }
+  }
+ ]
+}

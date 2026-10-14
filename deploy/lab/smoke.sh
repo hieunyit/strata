@@ -111,12 +111,18 @@ series() { curl -fsS 'http://127.0.0.1:18428/api/v1/query?query=strata_agent_eve
 if retry 60 series; then ok "VictoriaMetrics scrapes both agents"; else bad "VictoriaMetrics scrapes both agents"; fi
 up() { curl -fsS 'http://127.0.0.1:18428/api/v1/query?query=strata_metrics_file_up%3D%3D1' | grep -o '"instance":"agent-[12]:9469"' | sort -u | wc -l | grep -q 2; }
 if retry 60 up; then ok "both agents read the NGINX metrics file"; else bad "both agents read the NGINX metrics file"; fi
-for uid in strata-module strata-agent strata-control-plane; do
+for uid in strata-module strata-agent strata-control-plane strata-shadow-fp; do
     check "grafana dashboard $uid" sh -c "curl -fsS -u 'admin:$GRAFANA_ADMIN_PASSWORD' 'http://127.0.0.1:13000/api/dashboards/uid/$uid' | grep -q '\"uid\":\"$uid\"'"
 done
 cpscraped() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" \
     'http://127.0.0.1:13000/api/datasources/proxy/uid/vm/api/v1/query?query=strata_cp_build_info' | grep -q control-plane; }
 if retry 60 cpscraped; then ok "grafana reads strata_cp_* (control plane scraped)"; else bad "grafana reads strata_cp_* (control plane scraped)"; fi
+chds() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" http://127.0.0.1:13000/api/datasources/uid/clickhouse/health | grep -q '"status":"OK"'; }
+if retry 60 chds; then ok "grafana ClickHouse datasource healthy"; else bad "grafana ClickHouse datasource healthy"; fi
+chq() { curl -s -o /dev/null -w '%{http_code}' -u "grafana:$GRAFANA_CLICKHOUSE_PASSWORD" 'http://127.0.0.1:18123/' --data-binary "$1"; }
+[ "$(chq 'SELECT count() FROM default.events')" = 200 ] && ok "ClickHouse user grafana reads events" || bad "ClickHouse user grafana reads events"
+[ "$(chq 'SELECT name FROM system.users')" != 200 ] && ok "ClickHouse user grafana cannot read system tables" || bad "ClickHouse user grafana cannot read system tables"
+[ "$(chq "INSERT INTO default.events (block_id) VALUES ('x')")" != 200 ] && ok "ClickHouse user grafana cannot write" || bad "ClickHouse user grafana cannot write"
 check "vmalert loaded the Strata alert rules" sh -c "curl -fsS http://127.0.0.1:18880/api/v1/rules | grep -q StrataAgentDown"
 # right after a restart the agents may not be scraped yet: retry like above
 agentseries() { curl -fsS -u "admin:$GRAFANA_ADMIN_PASSWORD" \
