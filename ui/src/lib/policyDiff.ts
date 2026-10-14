@@ -8,7 +8,7 @@ import { DATA_GUARDS, PolicySpec, normalizeSpec } from './policyYaml';
 export type DiffBlock = 'general' | 'response';
 
 export interface FieldDiff {
-  key: 'mode' | 'oversize' | 'allowed_codes_check' | 'db_errors' | 'data_guard';
+  key: 'mode' | 'oversize' | 'canary_percent' | 'allowed_codes_check' | 'db_errors' | 'data_guard';
   from: string;
   to: string;
   changed: boolean;
@@ -37,6 +37,8 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
   const general = [
     field('mode', modeOut[a.mode ?? ''] ?? 'shadow', modeOut[b.mode ?? ''] ?? 'shadow'),
     field('oversize', oversizeOut[a.oversize ?? ''] ?? 'pass', oversizeOut[b.oversize ?? ''] ?? 'pass'),
+    // no canary: every client (an enforce policy blocks for all)
+    field('canary_percent', a.canary_percent ? String(a.canary_percent) : '—', b.canary_percent ? String(b.canary_percent) : '—'),
   ];
   // data_guard is a set: order does not count
   const order = (l: string[]) => DATA_GUARDS.filter((g) => l.includes(g));

@@ -30,6 +30,12 @@ describe('diffSpecs', () => {
     expect(d[1].fields.find((f) => f.key === 'allowed_codes_check')?.changed).toBe(false);
   });
 
+  it('shows the canary in the general block', () => {
+    const d = diffSpecs({ mode: 'MODE_ENFORCE', canary_percent: 1 }, { mode: 'MODE_ENFORCE', canary_percent: 5 });
+    expect(d[0].fields.find((f) => f.key === 'canary_percent')).toMatchObject({ from: '1', to: '5', changed: true });
+    expect(diffSpecs({ mode: 'MODE_ENFORCE' }, { mode: 'MODE_ENFORCE', canary_percent: 5 })[0].fields[2]).toMatchObject({ from: '—', to: '5' });
+  });
+
   it('treats defaults the API leaves out, and list order, as equal', () => {
     const d = diffSpecs(
       { mode: 'MODE_UNSPECIFIED', oversize: 'OVERSIZE_UNSPECIFIED', response: { data_guard: ['jwt', 'cccd'] } },

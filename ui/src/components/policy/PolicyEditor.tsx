@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, X } from 'lucide-react';
 import { ApiError, Policy, apiClient } from '../../api/client';
-import { DATA_GUARDS, PolicySpec, YamlError, normalizeSpec, specToYaml, yamlToSpec } from '../../lib/policyYaml';
+import { DATA_GUARDS, PolicySpec, YamlError, normalizeSpec, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
@@ -112,6 +112,27 @@ export const PolicyEditor: React.FC<{
               ))}
             </div>
           </fieldset>
+          {spec.mode === 'MODE_ENFORCE' && (
+            <div>
+              <label className="label" htmlFor="editor-canary">{t('editor.canary')}</label>
+              <input
+                id="editor-canary"
+                type="number"
+                className="field w-32"
+                min={0.01}
+                max={99.99}
+                step={0.01}
+                placeholder="100"
+                value={spec.canary_percent ?? ''}
+                onChange={(e) => {
+                  const n = e.target.value === '' ? undefined : Number(e.target.value);
+                  update({ ...spec, canary_percent: validCanary(n) ? n : undefined });
+                }}
+                data-testid="editor-canary"
+              />
+              <p className="mt-1 text-xs text-muted">{t('editor.canaryNote')}</p>
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="editor-oversize">{t('editor.oversize')}</label>
             <select

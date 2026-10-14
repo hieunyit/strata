@@ -412,6 +412,13 @@ export interface components {
       mode?: components["schemas"]["PolicySpecMode"];
       oversize?: components["schemas"]["PolicySpecOversize"];
       response?: components["schemas"]["v1ResponseLayer"];
+      /**
+       * Format: double
+       * @description Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,
+       * two decimals), whose requests this enforce policy blocks; the others
+       * run in shadow. 0: every client.
+       */
+      canary_percent?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;
