@@ -89,3 +89,9 @@ bao giờ nằm cạnh mẫu. Đổi khóa thì token của cùng một giá tr�
 
 `docs/spec/examples/replay-anon-v1.json`: đầu vào, khóa thử và bản ghi mong đợi. Mọi bên
 ghi (Go hôm nay, libstrata ở W12-N-01) phải cho đúng các bản ghi đó.
+
+Thêm một corpus sinh tự động (seed cố định, 400 request: URL escape, cookie, JSON có escape và
+surrogate, multipart có header lạ và dòng kết thúc `\n`, tham số media type, UTF-8 hỏng, body cắt ở
+200 byte): `engine/tests/fixtures/anon-corpus-v1.json`, ghi bởi `go test ./replay -run
+TestDifferentialCorpus -update` (`control-plane/replay`), mọi trường dạng byte (base64). libstrata
+(`engine/src/anon.rs`, `engine/tests/anon_vectors.rs`) cho đúng từng byte của cả 400 bản ghi.

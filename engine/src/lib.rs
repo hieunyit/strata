@@ -6,6 +6,7 @@
 //! of the bundle are not interpreted yet.
 #![forbid(unsafe_code)]
 
+pub mod anon;
 pub mod block_id;
 pub mod budget;
 pub mod bundle;
