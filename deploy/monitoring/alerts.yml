@@ -75,7 +75,15 @@ groups:
         labels: { severity: warning, component: agent }
         annotations:
           summary: "{{ $labels.instance }}: the node forced every policy into shadow on its own ({{ $labels.reason }})"
-          description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow for --fallback-hold (1 h)."
+          description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
+      - alert: StrataNodeFallbackHeld
+        expr: strata_agent_fallback_active == 1
+        for: 1h
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: held in shadow by the node fallback for over an hour"
+          description: "Only the control plane lifts it: find the cause, then POST /v1/nodes:clearForceShadow with an empty policy_id."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataAgentDown
         expr: up{job="strata-agent"} == 0

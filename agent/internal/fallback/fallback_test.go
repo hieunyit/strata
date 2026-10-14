@@ -10,6 +10,7 @@ import (
 
 	"github.com/strata/strata/agent/internal/bundles"
 	"github.com/strata/strata/agent/internal/forceshadow"
+	"github.com/strata/strata/agent/internal/shmmetrics"
 )
 
 // tot builds cumulative totals: n requests of which blocked, logged...
@@ -154,7 +155,7 @@ func metrics(t *testing.T, path string, allow, log, block uint64) {
 }
 
 // W11-G1-01 "Xong khi": the block rate goes 3x up, the node is in shadow
-// within 6 seconds, without the control plane. Real interval (5 s), real
+// within 6 seconds, without the control plane, and stays there. Real interval (5 s), real
 // metrics and control files.
 func TestNodeFallsBackWithinSixSeconds(t *testing.T) {
 	if testing.Short() {
@@ -200,12 +201,135 @@ func TestNodeFallsBackWithinSixSeconds(t *testing.T) {
 			if w.Triggers()[ReasonBlockRate] != 1 {
 				t.Fatalf("triggers %v", w.Triggers())
 			}
-			if st := fs.Snapshot(); st.All.Before(time.Now().Add(59 * time.Minute)) {
-				t.Fatalf("held until %v, want about 1 h", st.All)
+			// held with no deadline, across an agent restart, until the
+			// control plane clears every policy (W12-G1-01)
+			st := forceshadow.New(ctl, filepath.Join(dir, "force-shadow.json")).Snapshot()
+			if st.Fallback == nil || st.Fallback.Reason != ReasonBlockRate || !st.All.IsZero() {
+				t.Fatalf("after restart: %+v", st)
 			}
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("node not forced into shadow within 7 s of the spike")
+}
+
+// W12-G1-01: each threshold, just under and just over, with the defaults
+// and with the options set.
+func TestThresholdEdges(t *testing.T) {
+	step := func(d *Detector, cur *Totals, n, blocked, errs, budget uint64) string {
+		cur.Requests += n
+		cur.Blocked += blocked
+		cur.Errors += errs
+		cur.Budget += budget
+		return d.Step(*cur)
+	}
+	for _, c := range []struct {
+		name                     string
+		o                        Options
+		learn                    uint64 // logged per 1000 while learning
+		n, blocked, errs, budget uint64
+		want                     string
+	}{
+		// factor 3 over a learnt 2%
+		{"block 2.95x", Options{}, 20, 1000, 59, 0, 0, ""},
+		{"block 3.05x", Options{}, 20, 1000, 61, 0, 0, ReasonBlockRate},
+		// factor 2
+		{"factor 2: 1.95x", Options{Factor: 2}, 20, 1000, 39, 0, 0, ""},
+		{"factor 2: 2.05x", Options{Factor: 2}, 20, 1000, 41, 0, 0, ReasonBlockRate},
+		// floor 0.5% under a learnt 0.1%: trips over 1.5%
+		{"floor: 1.4%", Options{}, 1, 1000, 14, 0, 0, ""},
+		{"floor: 1.6%", Options{}, 1, 1000, 16, 0, 0, ReasonBlockRate},
+		// floor 2%: trips over 6%
+		{"floor 2%: 5.9%", Options{Floor: 0.02}, 1, 1000, 59, 0, 0, ""},
+		{"floor 2%: 6.1%", Options{Floor: 0.02}, 1, 1000, 61, 0, 0, ReasonBlockRate},
+		// errors and budget: learnt 0, so the floor (1.5%)
+		{"errors 1.4%", Options{}, 20, 1000, 20, 14, 0, ""},
+		{"errors 1.6%", Options{}, 20, 1000, 20, 16, 0, ReasonErrors},
+		{"budget 1.4%", Options{}, 20, 1000, 20, 0, 14, ""},
+		{"budget 1.6%", Options{}, 20, 1000, 20, 0, 16, ReasonBudget},
+		// at least MinRequests in the interval
+		{"99 requests", Options{}, 20, 99, 99, 0, 0, ""},
+		{"100 requests", Options{}, 20, 100, 100, 0, 0, ReasonBlockRate},
+		{"min 500: 499", Options{MinRequests: 500}, 20, 499, 499, 0, 0, ""},
+		{"min 500: 500", Options{MinRequests: 500}, 20, 500, 500, 0, 0, ReasonBlockRate},
+		// no block, however much is logged or errors: errors still trip
+		{"no block", Options{}, 20, 1000, 0, 0, 0, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, cur := warm(t, c.o, 0, c.learn)
+			if r := step(d, cur, c.n, c.blocked, c.errs, c.budget); r != c.want {
+				t.Fatalf("got %q, want %q", r, c.want)
+			}
+		})
+	}
+	// warmup: the Warmup-th learnt interval is the last that cannot trip
+	for _, w := range []int{1, 12, 30} {
+		d := NewDetector(Options{Warmup: w})
+		cur := &Totals{}
+		d.Step(*cur)
+		for i := 0; i < w; i++ {
+			if r := feed(d, cur, 0, 20, 0, 0); r != "" {
+				t.Fatalf("warmup %d: tripped at %d", w, i)
+			}
+		}
+		if r := feed(d, cur, 500, 0, 0, 0); r != ReasonBlockRate {
+			t.Fatalf("warmup %d: %q after it", w, r)
+		}
+	}
+}
+
+// fakeForcer records holds.
+type fakeForcer struct {
+	held []string
+	st   forceshadow.State
+}
+
+func (f *fakeForcer) HoldAll(r string) error {
+	f.held = append(f.held, r)
+	f.st.Fallback = &forceshadow.Hold{Reason: r}
+	return nil
+}
+func (f *fakeForcer) Snapshot() forceshadow.State { return f.st }
+
+// W12-G1-01: a trip holds the node with no deadline; trips while it is held
+// change nothing; once the control plane clears it, the next trip holds
+// again.
+func TestWatcherHoldsUntilCleared(t *testing.T) {
+	f := &fakeForcer{}
+	w := NewWatcher("unused", f, Options{Warmup: 1})
+	var cur Totals
+	w.read = func(string) (shmmetrics.Snapshot, error) {
+		var wk shmmetrics.Worker
+		wk.Requests[0] = cur.Requests - cur.Blocked - cur.Logged
+		wk.Requests[1], wk.Requests[3] = cur.Logged, cur.Blocked
+		return shmmetrics.Snapshot{Workers: []shmmetrics.Worker{wk}}, nil
+	}
+	next := func(blocked, logged uint64) {
+		cur.Requests += 1000
+		cur.Blocked += blocked
+		cur.Logged += logged
+		w.tick()
+	}
+	w.tick()
+	next(0, 20)
+	next(200, 0)
+	if len(f.held) != 1 || f.held[0] != ReasonBlockRate || w.Triggers()[ReasonBlockRate] != 1 {
+		t.Fatalf("held %v, triggers %v", f.held, w.Triggers())
+	}
+	next(300, 0)
+	if len(f.held) != 1 || w.Triggers()[ReasonBlockRate] != 1 {
+		t.Fatalf("held again while held: %v", f.held)
+	}
+	// a ForceShadow command for every policy does not stop a hold
+	f.st = forceshadow.State{All: time.Now().Add(time.Hour)}
+	next(300, 0)
+	if len(f.held) != 2 {
+		t.Fatalf("not held under a command: %v", f.held)
+	}
+	f.st = forceshadow.State{} // cleared by the control plane
+	next(300, 0)
+	if len(f.held) != 3 || w.Triggers()[ReasonBlockRate] != 3 {
+		t.Fatalf("after clear: %v %v", f.held, w.Triggers())
+	}
 }
