@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 1
+#define STRATA_ABI_VERSION_MINOR 2
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -85,6 +85,14 @@
  * report would-be blocks as `log` with an `EVT-` id.
  */
 #define STRATA_TXF_FORCE_SHADOW (1 << 16)
+
+/**
+ * Degraded mode (ABI 1.2, circuit breaker of the connector): run only the
+ * minimal checks, the protocol layer and the rules made only of `ip_match`
+ * conditions; every other rule is skipped. A libstrata older than 1.2
+ * ignores the flag and runs the full engine.
+ */
+#define STRATA_TXF_DEGRADED (1 << 17)
 
 /**
  * Maximum number of matched rule ids reported in a verdict.

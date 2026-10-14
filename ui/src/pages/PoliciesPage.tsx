@@ -1,28 +1,39 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download } from 'lucide-react';
+import { Download, Pencil } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell } from './PageShell';
 import { PageHeader, ErrorBanner, SectionTitle, Empty, formatTime } from '../components/ui';
 import { href } from '../router';
+import { useAuth } from '../context/AuthContext';
+import { canWritePolicies } from '../auth/roles';
+import { PolicyEditor } from '../components/policy/PolicyEditor';
 
 const modeClass: Record<string, string> = {
   MODE_ENFORCE: 'text-block border-block/30 bg-block/10',
   MODE_SHADOW: 'text-shadow border-shadow/35 bg-shadow/10',
 };
 
-// Read only (W04-F-01): editing, diff and deploy come with the policy editor.
+// Policies and their versions; operators and admins edit a policy with the
+// editor (W11-F-01), which saves a draft version. Diff and deploy from the
+// UI come later (W12-F-01).
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { data, error, loading } = usePolling(() => apiClient.listPolicies(), 0);
+  const { roles } = useAuth();
+  const canEdit = canWritePolicies(roles);
+  const { data, error, loading, refresh } = usePolling(() => apiClient.listPolicies(), 0);
   const [selected, setSelected] = useState<Policy | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState<number | undefined>();
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
   const [versionsError, setVersionsError] = useState<string | undefined>();
 
   const open = async (p: Policy) => {
     setSelected(p);
+    setEditing(false);
+    setSaved(undefined);
     setVersions([]);
     setVersionsError(undefined);
     try {
@@ -59,6 +70,23 @@ export const PoliciesPage: React.FC = () => {
         }
       />
       <ErrorBanner message={error && t('common.refreshError', { error })} />
+      {saved !== undefined && (
+        <p className="mb-3 text-[13px] text-ok" role="status" data-testid="editor-saved">
+          {t('editor.saved', { version: saved })}
+        </p>
+      )}
+      {editing && selected && (
+        <div className="mb-5">
+          <PolicyEditor
+            policy={selected}
+            onCancel={() => setEditing(false)}
+            onSaved={(p) => {
+              void refresh();
+              void open(p).then(() => setSaved(p.version));
+            }}
+          />
+        </div>
+      )}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="panel overflow-x-auto">
           <table className="w-full text-[13px]" data-testid="policies-table">
@@ -110,9 +138,17 @@ export const PoliciesPage: React.FC = () => {
             <>
               <SectionTitle
                 aside={
-                  <a className="text-accent hover:underline" href={href({ page: 'overview', query: { policy_id: selected.id ?? '' } })}>
-                    {t('policies.openOverview')}
-                  </a>
+                  <span className="flex items-center gap-3">
+                    {canEdit && !editing && (
+                      <button type="button" className="btn" onClick={() => setEditing(true)} data-testid="policy-edit">
+                        <Pencil className="w-3.5 h-3.5" />
+                        {t('editor.edit')}
+                      </button>
+                    )}
+                    <a className="text-accent hover:underline" href={href({ page: 'overview', query: { policy_id: selected.id ?? '' } })}>
+                      {t('policies.openOverview')}
+                    </a>
+                  </span>
                 }
               >
                 {t('policies.versions', { name: selected.name })}
@@ -125,6 +161,9 @@ export const PoliciesPage: React.FC = () => {
                   <li key={v.version} data-testid="policy-version-row" className="flex items-center gap-3 py-2">
                     <span className="w-10 tabular-nums font-medium">v{v.version}</span>
                     {mode(v.spec?.mode)}
+                    {v.state && (
+                      <span className="text-xs text-muted" data-testid="policy-version-state">{t(`editor.state.${v.state}`, { defaultValue: v.state })}</span>
+                    )}
                     <span className="ml-auto text-right text-xs text-muted">
                       {formatTime(v.create_time, i18n.language, t('common.never'))}
                       {v.created_by && <div>{v.created_by}</div>}

@@ -35,6 +35,13 @@ static ngx_conf_enum_t  ngx_http_strata_fail_modes[] = {
 };
 
 
+static ngx_conf_enum_t  ngx_http_strata_breaker_actions[] = {
+    { ngx_string("degrade"), NGX_HTTP_STRATA_BREAKER_DEGRADE },
+    { ngx_string("reject"), NGX_HTTP_STRATA_BREAKER_REJECT },
+    { ngx_null_string, 0 }
+};
+
+
 static ngx_conf_enum_t  ngx_http_strata_body_modes[] = {
     { ngx_string("buffer"), NGX_HTTP_STRATA_BODY_BUFFER },
     { ngx_string("stream"), NGX_HTTP_STRATA_BODY_STREAM },
@@ -174,6 +181,27 @@ static ngx_command_t  ngx_http_strata_commands[] = {
       offsetof(ngx_http_strata_loc_conf_t, cpu_budget),
       NULL },
 
+    { ngx_string("strata_breaker"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_strata_main_conf_t, breaker),
+      NULL },
+
+    { ngx_string("strata_breaker_threshold"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE3|NGX_CONF_TAKE4,
+      ngx_http_strata_breaker_threshold,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("strata_breaker_action"),
+      NGX_HTTP_STRATA_ANY_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_strata_loc_conf_t, breaker_action),
+      &ngx_http_strata_breaker_actions },
+
       ngx_null_command
 };
 
@@ -256,6 +284,7 @@ ngx_http_strata_init_process(ngx_cycle_t *cycle)
 
     if (smcf != NULL && smcf->enabled) {
         ngx_http_strata_events_init_process(cycle, smcf);
+        ngx_http_strata_breaker_init_process();
     }
 
     return NGX_OK;
@@ -333,6 +362,8 @@ ngx_http_strata_create_main_conf(ngx_conf_t *cf)
 
     smcf->bundle_check = NGX_CONF_UNSET_MSEC;
     smcf->request_id_index = NGX_ERROR;
+    smcf->breaker = NGX_CONF_UNSET;
+    smcf->breaker_window = NGX_CONF_UNSET_MSEC;
 
     return smcf;
 }
@@ -366,6 +397,17 @@ ngx_http_strata_init_main_conf(ngx_conf_t *cf, void *conf)
     }
 
     ngx_conf_init_msec_value(smcf->bundle_check, 1000);
+
+    /* nginx-module.md: 2% within 10 s, at least 200 requests; open 30 s */
+    ngx_conf_init_value(smcf->breaker, 1);
+    if (smcf->breaker_window == NGX_CONF_UNSET_MSEC) {
+        smcf->breaker_share = 200;
+        smcf->breaker_window = 10000;
+        smcf->breaker_min = 200;
+    }
+    if (smcf->breaker_open == 0) {
+        smcf->breaker_open = 30000;
+    }
 
     smcf->default_page = ngx_http_strata_page_compile(cf->pool,
                                                  &ngx_http_strata_default_page);
@@ -409,6 +451,7 @@ ngx_http_strata_create_loc_conf(ngx_conf_t *cf)
     slcf->identity = NGX_CONF_UNSET_PTR;
     slcf->block_page = NGX_CONF_UNSET_PTR;
     slcf->cpu_budget = NGX_CONF_UNSET_MSEC;
+    slcf->breaker_action = NGX_CONF_UNSET_UINT;
 
     return slcf;
 }
@@ -440,6 +483,8 @@ ngx_http_strata_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(conf->identity, prev->identity, NULL);
     ngx_conf_merge_ptr_value(conf->block_page, prev->block_page, NULL);
     ngx_conf_merge_msec_value(conf->cpu_budget, prev->cpu_budget, 2);
+    ngx_conf_merge_uint_value(conf->breaker_action, prev->breaker_action,
+                              NGX_HTTP_STRATA_BREAKER_DEGRADE);
 
     if (!conf->enable) {
         return NGX_CONF_OK;

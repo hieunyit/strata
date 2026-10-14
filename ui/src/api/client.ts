@@ -9,6 +9,7 @@ export type GetEventResponse = components['schemas']['GetEventResponse'];
 export type GetVersionResponse = admin['schemas']['v1GetVersionResponse'];
 export type Policy = admin['schemas']['v1Policy'];
 export type PolicyVersion = admin['schemas']['v1PolicyVersion'];
+export type PolicySpec = admin['schemas']['v1PolicySpec'];
 export type Group = admin['schemas']['v1Group'];
 export type FleetNode = admin['schemas']['v1Node'];
 export type Rollout = admin['schemas']['v1Rollout'];
@@ -186,6 +187,13 @@ export const apiClient = {
   async listPolicies(): Promise<Policy[]> {
     const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET' }, 'Failed to list policies');
     return r.policies ?? [];
+  },
+
+  /** PATCH /v1/policies/{id}: a new version (DRAFT) from the etag it was read with; 409 when stale */
+  async updatePolicy(policyId: string, spec: PolicySpec, etag: string): Promise<Policy> {
+    const r = await call<admin['schemas']['v1UpdatePolicyResponse']>(
+      `/policies/${encodeURIComponent(policyId)}`, json('PATCH', { etag, spec }), 'Failed to save the policy');
+    return r.policy ?? {};
   },
 
   /** GET /v1/policies/{id}/versions, newest first */

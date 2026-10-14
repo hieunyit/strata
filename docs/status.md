@@ -27,7 +27,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Filetypes | 1 | **Thiết kế** | — |
 | Override rules, exceptions | 1 | **Thiết kế** | Exception từ Block ID ở W14-* |
 | Custom rules (biểu thức) | 1 | **Có** | Rule riêng theo JSON Schema IR (`rules/samples`, `rules/schema`), `make test-rules` |
-| Attack signatures + signature sets | 2 | **Có** | Gói 0.0.1: 9.054 rule (CRS 4.25.2 PL1, ET Open, Sigma, bot, rule riêng), FP 0,60%, recall ≥ 70% (`docs/reports/w09-s-01.md`). Chọn theo server technology: chưa có. Tách gói core/signature: RV-S-01 (tuần 11) |
+| Attack signatures + signature sets | 2 | **Có** | Gói 0.0.1: 9.054 rule (CRS 4.25.2 PL1, ET Open, Sigma, bot, rule riêng), FP 0,60%, recall ≥ 70% (`docs/reports/w09-s-01.md`). Chọn theo server technology: chưa có. Tách gói core (202 rule) / signature (8.852 rule): `strata-rules release --pack`, policy `signatures: off\|shadow\|enforce`, mặc định shadow (RV-S-01, `engine/compiler/tests/signature_pack.rs`). Ngưỡng lên gói core: chờ PO |
 | Time-based signature staging | 2 | **Một phần** | Mỗi gói mới chạy 7 ngày trên staging (`docs/reports/w09-s-01.md` §5). Chưa có cơ chế theo từng rule ("rule mới chỉ ghi log N ngày") |
 | Semantic detectors | 2 | **Một phần** | SQLi và XSS: port libinjection (`engine/src/detectors/injection`, `make libinjection-diff`). CMDi, path traversal: qua rule CRS, không phải detector ngữ nghĩa. SSRF, template injection: chưa có |
 | Response: allowed codes, response signatures | 2 | **Có** | Rule 600001 (mã trả về ngoài danh sách, cố định trong v0), lỗi DB trong response; `t/050-response.t`, `t/051-response-layer.t`, `docs/reports/w06-response-path.md`. Danh sách mã theo policy: chưa có |
@@ -48,18 +48,23 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Module NGINX: request, body (đồng bộ/bất đồng bộ), response, HTTP/2, HTTP/3 | **Có** | Test::Nginx 553 test trên NGINX 1.30.5 và 1.31.6, ASan cả hai bản (`docs/reports/w08-n-01.md`, `docs/reports/w10-n-01.md`) |
 | Hot reload bundle, không rớt request | **Có** | `t/004-reload.t`; soak 24 giờ + 1.000 lần đổi bundle đang chạy, verdict khoảng 14/10 10:35 UTC (`docs/reports/w09-q-02.md`) |
 | Fail mode open/closed, CPU budget hợp tác | **Có** | `t/060-fail-mode-events.t`, `docs/reports/w07-cpu-budget.md`. Gói đầy đủ thường vượt budget 2 ms: #28, #49, `docs/reports/w10-g2-01.md` §4 |
-| Cô lập lỗi engine (`catch_unwind`) | **Một phần** | Mọi hàm `extern "C"` bọc `catch_unwind`: panic thành lỗi engine, worker sống (`engine/ffi/tests/panic_isolation.rs`). **Không** bắt được abort, OOM, stack overflow hay lỗi bộ nhớ trong code `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: W11-N-01 |
+| Cô lập lỗi engine (`catch_unwind`) | **Một phần** | Mọi hàm `extern "C"` bọc `catch_unwind`: panic thành lỗi engine, worker sống (`engine/ffi/tests/panic_isolation.rs`). **Không** bắt được abort, OOM, stack overflow hay lỗi bộ nhớ trong code `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: có (W11-N-01, `t/090-breaker.t`), chế độ giảm cấp chỉ lớp protocol và `ip_match` |
 | Sự kiện (socket → agent → control plane → ClickHouse) | **Có** | `tests/e2e/lab-chain.sh`, smoke. Sự kiện shadow chỉ về ClickHouse từ PR #55 (#47). Phân loại shadow/chưa tới ngưỡng chưa chính xác với policy enforce (#57) |
 | Agent: enroll, mTLS, gia hạn chứng chỉ, bundle, spool, ForceShadow | **Có** | `agent/` test, `tests/e2e/agent_resilience_test.go`, `docs/reports/w07-g1-01.md`, `w08-g2-01.md` (toxiproxy) |
 | Rollout theo đợt, abort, node mới nhận bundle của fleet | **Có** | `tests/e2e/rollout_test.go` (`TestRolloutToRealAgents`, `TestNewNodeGetsTheFleetBundle`) |
-| Canary theo % request, circuit breaker, fallback toàn cụm | **Thiết kế** | W11–W12 |
+| Circuit breaker cấp worker | **Có** | `connectors/nginx/t/090-breaker.t`, `docs/reports/w11-report.md`. Chuyển trạng thái chưa phát sự kiện qua event socket (chỉ `error.log`, metrics) |
+| Canary theo % request | **Một phần** | Hash nhóm và tỉ lệ trong bundle (`engine/src/canary.rs`, `canary_percent`); chưa có trong API policy và UI, chưa bật trên route nào |
+| Fallback tại node | **Có** | `agent/internal/fallback` (`TestNodeFallsBackWithinSixSeconds`: 4,5 s). Tính cho cả node, ép shadow mọi policy |
+| Fallback toàn cụm | **Thiết kế** | W12-G2-01 |
 | Control plane: policy, deploy, ký (Vault Transit), RBAC, audit | **Có** | `make test-go`; `docs/reports/w07-g2-01.md`; tải Fleet 1.000 agent (`docs/reports/w08-g1-01.md`) |
 | Đăng nhập cục bộ (không cần IdP) | **Có** | PR #50: `control-plane/localauth` (argon2id, khóa tài khoản, giới hạn theo IP, audit), `TestThrottlingPerClientBehindAProxy` |
 | Web UI: sự kiện, decision trace, Fleet, Tổng quan, người dùng | **Có** | `ui/` vitest 46, Playwright 15 (`docs/reports/w10-f-01.md`); số shadow trên Tổng quan đúng từ #47 |
 | Giám sát: dashboard, cảnh báo | **Có** | `make test-alerts` (18 cảnh báo có unit test), `tests/e2e/lab-alerts.sh` (`docs/reports/w10-q-01.md`); FP shadow từ ClickHouse (`docs/reports/w10-s-01.md`) |
 | Gói deb/rpm, image, cài 1 lệnh | **Có** | `deploy/packaging/test/test-install.sh` (Ubuntu 24.04, Debian 12, Rocky 9), `test-image.sh` (`docs/reports/w10-n-01.md`). Mới có x86_64 và NGINX OSS; chưa ký gói, chưa SBOM |
 | Runbook đã diễn tập | **Có** | `tests/e2e/runbook-drill.sh` trên lab và staging (`docs/reports/w10-n-01.md`) |
-| Replay, luồng duyệt policy | **Thiết kế** | W11–W13 |
+| Replay | **Một phần** | Định dạng mẫu 1 (`docs/spec/replay-sample.md`, chưa được pháp chế duyệt), ẩn danh + MinIO (`control-plane/replay`), lõi `strata-replay` (1 triệu request / 132 s, 4 luồng). Chưa có lấy mẫu tại connector (W12-N-01), runner và báo cáo đầy đủ (W12-R-01), service (W13-G2-01) |
+| Policy editor | **Một phần** | Form + YAML, lưu bản nháp (`ui/src/__tests__/PolicyEditor.test.tsx`, `ui/tests/policy-editor.spec.ts`). Chưa có diff (W12-F-01), luồng duyệt (W13) |
+| Luồng duyệt policy | **Thiết kế** | W13 |
 | GitOps, OpenAPI công khai, bản đồ GeoIP | **Thiết kế** | W19–W21 |
 | Connector khác NGINX (Apache, HAProxy, Envoy, Kong) | **Thiết kế** | Chỉ có NGINX; connector khác sau v1 |
 | Chế độ Lite cho cụm nhỏ | **Thiết kế** | RV-G1-01 (tuần 19, cần PO) |

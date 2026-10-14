@@ -225,7 +225,7 @@
   },
   "policies": {
     "title": "Policies",
-    "subtitle": "Policies and their version history. Read only: changes go through GitOps or the API.",
+    "subtitle": "Policies and their version history. Operators edit a policy as a draft version; deploying stays a separate step.",
     "empty": "No policies yet.",
     "loading": "Loading policies…",
     "pick": "Select a policy to see its versions.",
@@ -350,6 +350,50 @@
       "lastLogin": "Last sign-in",
       "created": "Created",
       "actions": "Actions"
+    }
+  },
+  "editor": {
+    "edit": "Edit",
+    "title": "Edit {{name}} (from version {{version}})",
+    "draftNote": "Saving makes a new version in draft: nodes keep the deployed version until it is deployed.",
+    "mode": "Mode",
+    "oversize": "Request body larger than inspected",
+    "response": "Response layer",
+    "allowedCodes": "Check the response status against the allowed codes",
+    "dbErrors": "Find database error messages in the body",
+    "guard": {
+      "cccd": "Mask citizen ID numbers (CCCD)",
+      "jwt": "Mask JSON Web Tokens"
+    },
+    "yaml": "YAML",
+    "yamlError": "Line {{line}}: {{message}}",
+    "cancel": "Cancel",
+    "saveDraft": "Save draft",
+    "saving": "Saving…",
+    "saved": "Saved as draft version {{version}}.",
+    "conflict": "Someone saved this policy in the meantime. Close the editor, reopen the policy and redo the change.",
+    "saveError": "Could not save: {{error}}",
+    "state": {
+      "DRAFT": "draft",
+      "SUBMITTED": "submitted",
+      "APPROVED": "approved",
+      "REJECTED": "rejected",
+      "DEPLOYED": "deployed"
+    },
+    "yamlErr": {
+      "tab": "tabs are not allowed, indent with spaces",
+      "indent": "unexpected indentation",
+      "keyValue": "expected \"key: value\"",
+      "twice": "\"{{key}}\" is set twice",
+      "mode": "mode is shadow or enforce",
+      "oversize": "oversize is pass or block",
+      "responseNext": "the keys of response go on the next lines",
+      "bool": "expected true or false, got \"{{value}}\"",
+      "list": "expected a list: [cccd, jwt]",
+      "guard": "data_guard accepts cccd and jwt, got \"{{value}}\"",
+      "guardTwice": "data_guard lists a value twice",
+      "unknown": "unknown key \"{{key}}\"",
+      "modeRequired": "mode is required"
     }
   }
 }

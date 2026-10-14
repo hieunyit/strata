@@ -28,6 +28,13 @@
 #define NGX_HTTP_STRATA_BODY_BUFFER    0
 #define NGX_HTTP_STRATA_BODY_STREAM    1
 
+#define NGX_HTTP_STRATA_BREAKER_CLOSED     0
+#define NGX_HTTP_STRATA_BREAKER_OPEN       1
+#define NGX_HTTP_STRATA_BREAKER_HALF_OPEN  2
+
+#define NGX_HTTP_STRATA_BREAKER_DEGRADE    0
+#define NGX_HTTP_STRATA_BREAKER_REJECT     1
+
 #define NGX_HTTP_STRATA_BODY_NONE      0
 #define NGX_HTTP_STRATA_BODY_WAITING   1
 #define NGX_HTTP_STRATA_BODY_DONE      2
@@ -100,6 +107,12 @@ typedef struct {
     size_t                      metrics_len;
     ngx_uint_t                  metrics_slots;
 
+    ngx_flag_t                  breaker;        /* strata_breaker */
+    ngx_uint_t                  breaker_share;  /* basis points */
+    ngx_msec_t                  breaker_window;
+    ngx_uint_t                  breaker_min;
+    ngx_msec_t                  breaker_open;
+
     ngx_flag_t                  enabled;        /* "strata on" somewhere */
     ngx_int_t                   request_id_index;
     ngx_http_strata_bundle_t   *bundle;         /* mapped by the master */
@@ -128,6 +141,7 @@ typedef struct {
     ngx_http_complex_value_t   *identity;
     ngx_http_strata_page_t     *block_page;
     ngx_msec_t                  cpu_budget;
+    ngx_uint_t                  breaker_action;
 } ngx_http_strata_loc_conf_t;
 
 
@@ -167,6 +181,8 @@ typedef struct {
     unsigned                    counted:1;      /* metrics recorded */
     unsigned                    emitted:1;      /* event sent to sink */
     unsigned                    status_sent:1;  /* response status given to tx */
+    unsigned                    degraded:1;     /* breaker open: minimal
+                                                   checks only */
     uint16_t                    status;         /* response status (403, 503...) */
 } ngx_http_strata_ctx_t;
 
@@ -179,7 +195,7 @@ extern ngx_module_t  ngx_http_strata_filter_module;
 #define NGX_HTTP_STRATA_VERSION  "0.1.0" /* libstrata's; in the metrics file header */
 #define NGX_HTTP_STRATA_METRICS_HEADER    64
 #define NGX_HTTP_STRATA_METRICS_SLOT      256
-#define NGX_HTTP_STRATA_METRICS_COUNTERS  21
+#define NGX_HTTP_STRATA_METRICS_COUNTERS  24
 
 #define NGX_HTTP_STRATA_METRIC_PID          0
 #define NGX_HTTP_STRATA_METRIC_BUNDLE       1
@@ -191,6 +207,9 @@ extern ngx_module_t  ngx_http_strata_filter_module;
 #define NGX_HTTP_STRATA_METRIC_BUDGET       10
 #define NGX_HTTP_STRATA_METRIC_ENGINE_NS    11
 #define NGX_HTTP_STRATA_METRIC_HISTOGRAM    12  /* 9 buckets */
+#define NGX_HTTP_STRATA_METRIC_BREAKER      21  /* gauge, BREAKER_* */
+#define NGX_HTTP_STRATA_METRIC_BREAKER_OPENS 22
+#define NGX_HTTP_STRATA_METRIC_DEGRADED     23
 
 /* largest event the agent takes (agent/internal/eventsock) */
 #define NGX_HTTP_STRATA_EVENT_MAX           8192
@@ -226,6 +245,13 @@ ngx_uint_t ngx_http_strata_check_stream(ngx_log_t *log, ngx_uint_t level,
 void ngx_http_strata_bundle_release(ngx_http_strata_bundle_t *bundle);
 ngx_uint_t ngx_http_strata_is_force_shadow(ngx_str_t *policy);
 
+/* ngx_http_strata_breaker.c */
+ngx_uint_t ngx_http_strata_breaker_degraded(ngx_http_request_t *r);
+void ngx_http_strata_breaker_record(ngx_http_request_t *r, strata_rc_t error);
+void ngx_http_strata_breaker_init_process(void);
+char *ngx_http_strata_breaker_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
 /* ngx_http_strata_vars.c */
 ngx_int_t ngx_http_strata_add_variables(ngx_conf_t *cf);
 
@@ -241,6 +267,8 @@ void ngx_http_strata_event_send(size_t len);
 void ngx_http_strata_metrics_bundle(uint64_t version);
 void ngx_http_strata_metrics_record(ngx_http_strata_ctx_t *ctx,
     uint64_t engine_us);
+void ngx_http_strata_metrics_breaker_state(ngx_uint_t state);
+void ngx_http_strata_metrics_breaker_open(void);
 
 
 #endif /* NGX_HTTP_STRATA_MODULE_H_INCLUDED */

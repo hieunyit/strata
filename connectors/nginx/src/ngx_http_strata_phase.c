@@ -181,6 +181,10 @@ ngx_http_strata_apply_verdict(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx)
 
     ctx->decided = 1;
 
+    if (!ctx->degraded) {
+        ngx_http_strata_breaker_record(r, v->error);
+    }
+
     ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "strata: verdict action:%uD error:%D id:\"%s\"",
                    v->action, v->error, v->block_id);
@@ -321,6 +325,12 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
         conn.flags |= STRATA_TXF_FORCE_SHADOW;
     }
 
+    ctx->degraded = ngx_http_strata_breaker_degraded(r);
+
+    if (ctx->degraded) {
+        conn.flags |= STRATA_TXF_DEGRADED;
+    }
+
     if (slcf->identity
         && ngx_http_complex_value(r, slcf->identity, &identity) == NGX_OK)
     {
@@ -346,6 +356,14 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 
     if (ctx->tx == NULL) {
         /* strata_tx_verdict() reports STRATA_E_INVALID for a NULL tx */
+        return NGX_OK;
+    }
+
+    if (ctx->degraded && slcf->breaker_action == NGX_HTTP_STRATA_BREAKER_REJECT)
+    {
+        /* 503 with an Event ID, whatever strata_fail_mode says */
+        (void) strata_tx_fail(ctx->tx, STRATA_E_INTERNAL);
+        ctx->fail_closed = 1;
         return NGX_OK;
     }
 

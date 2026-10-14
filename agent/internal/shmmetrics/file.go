@@ -39,6 +39,22 @@ const (
 	cEngineBuckets // first of len(BucketBounds)+1 buckets
 )
 
+// Counters added after the first layout (W11-N-01): read only when the
+// module writes them.
+const (
+	cBreakerState    = 21 // 0 closed, 1 open, 2 half-open
+	cBreakerOpens    = 22
+	cDegradedReqs    = 23
+	numBreakerFields = 24
+)
+
+// Circuit breaker states (cBreakerState).
+const (
+	BreakerClosed   = 0
+	BreakerOpen     = 1
+	BreakerHalfOpen = 2
+)
+
 // BucketBounds are the upper bounds of the engine time histogram, in
 // seconds; the last bucket (+Inf) has no bound.
 var BucketBounds = []float64{50e-6, 100e-6, 200e-6, 500e-6, 1e-3, 2e-3, 5e-3, 10e-3}
@@ -59,6 +75,12 @@ type Worker struct {
 	BudgetExceed  uint64
 	EngineNanos   uint64
 	EngineBuckets []uint64 // per bucket, not cumulative
+	// Circuit breaker of the worker; HasBreaker is false with a module
+	// older than W11-N-01.
+	HasBreaker   bool
+	BreakerState uint64
+	BreakerOpens uint64
+	Degraded     uint64
 }
 
 // Snapshot is the content of one metrics file.
@@ -142,6 +164,12 @@ func parse(m []byte) (Snapshot, error) {
 		}
 		for b := range w.EngineBuckets {
 			w.EngineBuckets[b] = c(cEngineBuckets + b)
+		}
+		if counters >= numBreakerFields {
+			w.HasBreaker = true
+			w.BreakerState = c(cBreakerState)
+			w.BreakerOpens = c(cBreakerOpens)
+			w.Degraded = c(cDegradedReqs)
 		}
 		s.Workers = append(s.Workers, w)
 	}

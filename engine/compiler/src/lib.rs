@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Spec};
+use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Signatures, Spec};
 use libstrata::rules::{
     self, BlockPage, CondDef, LAYERS, OPERATORS, RuleDef, SEVERITIES, STAGES, TRANSFORMS,
     TargetDef, VARS, Value as RValue,
@@ -221,6 +221,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 any,
                 // absent means score (see ir.schema.json action_mode)
                 block_alone: r["action_mode"].as_str() == Some("block_alone"),
+                signature: libstrata::rules::signature_source(s(&r["metadata"], "source")),
                 conditions: conds
                     .iter()
                     .map(condition)
@@ -233,8 +234,9 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 #[derive(Debug)]
 pub struct Policies {
-    /// (name, mode, oversize, response flags)
-    pub policies: Vec<(String, Mode, Oversize, Response)>,
+    /// (name, mode, oversize, response flags, canary share in basis points,
+    /// signature pack)
+    pub policies: Vec<(String, Mode, Oversize, Response, u16, Signatures)>,
     pub block_page: Option<BlockPage>,
 }
 
@@ -272,7 +274,29 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 _ => Response::GUARD_JWT,
             };
         }
-        policies.push((name, mode, oversize, Response(response)));
+        let canary = match p.get("canary_percent").and_then(Value::as_f64) {
+            None => 0,
+            Some(_) if mode != Mode::Enforce => {
+                return Err(format!(
+                    "policy {name:?}: canary_percent needs mode enforce"
+                ));
+            }
+            Some(pct) => {
+                let bp = (pct * 100.0).round();
+                if (pct * 100.0 - bp).abs() > 1e-6 || !(1.0..=9999.0).contains(&bp) {
+                    return Err(format!(
+                        "policy {name:?}: canary_percent {pct} is not 0.01..99.99 with two decimals"
+                    ));
+                }
+                bp as u16
+            }
+        };
+        let signatures = match s(p, "signatures") {
+            "off" => Signatures::Off,
+            "enforce" => Signatures::Enforce,
+            _ => Signatures::Shadow,
+        };
+        policies.push((name, mode, oversize, Response(response), canary, signatures));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -674,8 +698,10 @@ fn compile_unsigned_with(
     let names: Vec<PolicySpec> = policies
         .policies
         .iter()
-        .map(|(n, m, o, r)| PolicySpec {
+        .map(|(n, m, o, r, c, g)| PolicySpec {
             response: *r,
+            canary: *c,
+            signatures: *g,
             ..PolicySpec::new(n, *m, *o)
         })
         .collect();

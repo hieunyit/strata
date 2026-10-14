@@ -1,0 +1,22 @@
+[package]
+name = "strata-replay"
+version = "0.1.0"
+description = "Replay core (W11-R-01): runs anonymized traffic samples (docs/spec/replay-sample.md) through libstrata"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+libstrata = { path = ".." }
+strata-hs = { path = "../ffi/hyperscan" }
+# PO decision 13/10/2026: Parquet stays out of libstrata, in this crate only
+parquet = { version = "60.0.0", default-features = false, features = ["zstd"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.149"
+
+[dev-dependencies]
+strata-compiler = { path = "../compiler" }
+
+[[bin]]
+name = "strata-replay"
+path = "src/main.rs"

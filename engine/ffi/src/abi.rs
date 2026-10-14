@@ -2,7 +2,8 @@
 //!
 //! Frozen at the end of week 2: any incompatible change after that bumps
 //! `STRATA_ABI_VERSION_MAJOR` and ships a compatibility layer; additions
-//! bump the minor (1.1: `strata_tx_response_body_flush`).
+//! bump the minor (1.1: `strata_tx_response_body_flush`; 1.2:
+//! `STRATA_TXF_DEGRADED`).
 #![forbid(unsafe_code)]
 #![allow(non_camel_case_types)]
 
@@ -12,7 +13,7 @@ use std::os::raw::c_char;
 /// version differs from the one it was compiled against.
 pub const STRATA_ABI_VERSION_MAJOR: u32 = 1;
 /// Minor ABI version: additive, backward-compatible changes only.
-pub const STRATA_ABI_VERSION_MINOR: u32 = 1;
+pub const STRATA_ABI_VERSION_MINOR: u32 = 2;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 
@@ -64,6 +65,11 @@ pub const STRATA_TXF_HTTP3: u32 = 1 << 2;
 /// Force shadow for this request (`strata_mode shadow`): never block,
 /// report would-be blocks as `log` with an `EVT-` id.
 pub const STRATA_TXF_FORCE_SHADOW: u32 = 1 << 16;
+/// Degraded mode (ABI 1.2, circuit breaker of the connector): run only the
+/// minimal checks, the protocol layer and the rules made only of `ip_match`
+/// conditions; every other rule is skipped. A libstrata older than 1.2
+/// ignores the flag and runs the full engine.
+pub const STRATA_TXF_DEGRADED: u32 = 1 << 17;
 
 /// Maximum number of matched rule ids reported in a verdict.
 pub const STRATA_MAX_RULES: usize = 16;

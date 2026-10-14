@@ -1,6 +1,10 @@
 package agent
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/strata/strata/agent/internal/fallback"
+)
 
 // collector exports the agent's own counters: event socket, spool and
 // pusher.
@@ -29,11 +33,12 @@ var (
 	dShadow    = desc("force_shadow_active", "1 while a ForceShadow command holds this node (or one of its policies) in shadow.")
 	dBundleAct = desc("bundle_active_version", "Bundle version the agent installed and the workers confirmed.")
 	dQlen      = desc("unix_max_dgram_qlen", "net.unix.max_dgram_qlen read at start (0: unknown); the event socket needs 8192.")
+	dFallback  = prometheus.NewDesc("strata_agent_fallback_triggers_total", "Times the node fallback forced every policy into shadow, by reason.", []string{"reason"}, nil)
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dReceived, dInvalid, dTruncated, dSpoolB, dUnacked, dLastSeq,
-		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen} {
+		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback} {
 		ch <- d
 	}
 }
@@ -74,6 +79,12 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if c.a.Bundles != nil {
 		gauge(dBundleAct, float64(c.a.Bundles.Active()))
+	}
+	if c.a.Fallback != nil {
+		t := c.a.Fallback.Triggers()
+		for _, r := range []string{fallback.ReasonBlockRate, fallback.ReasonErrors, fallback.ReasonBudget} {
+			ch <- prometheus.MustNewConstMetric(dFallback, prometheus.CounterValue, float64(t[r]), r)
+		}
 	}
 }
 

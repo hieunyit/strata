@@ -6,7 +6,7 @@
 //	                    [--max-fp-block-pct P] [--min-recall-block P]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90] [--min-total 95]  CRS go-ftw tests of rules/crs, as Markdown
-//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml]
+//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml] [--pack core|signature]
 //	                                          signed signature package: bundle + manifest (signed, sha256 of every file) + changelog + NOTICE
 //	strata-rules verify --pub <key> <dir>     check a package: manifest signature and every file's sha256
 //	strata-rules fp-report [--clickhouse <url>] [--database <db>] [--user <u>] [--password <p>] [--since <duration>] [--policy <p>] [--exclude-ips <file>]
@@ -226,6 +226,7 @@ func releaseCmd() {
 	out := fs.String("out", "", "output directory for the package")
 	baseline := fs.String("baseline", "", "previous manifest.json for the changelog diff")
 	policies := fs.String("policies", "", "policies file compiled into the bundle (default: none)")
+	pack := fs.String("pack", "", "core (CRS, protocol, virtual patches, organization rules) or signature (Sigma, ET Open, bot lists); default: every rule")
 	_ = fs.Parse(os.Args[2:])
 	if *out == "" {
 		die(fmt.Errorf("--out is required"))
@@ -239,6 +240,7 @@ func releaseCmd() {
 		Out:           *out,
 		Baseline:      *baseline,
 		Policies:      *policies,
+		Pack:          *pack,
 	})
 	if err != nil {
 		die(err)

@@ -1,6 +1,12 @@
 // Package release builds a signature package from the rule repository
 // (W08-S-01): every rule compiled into one signed bundle, with a version, a
 // changelog and the NOTICE that records each source and its license.
+//
+// RV-S-01 splits the rules in two packs by metadata.source: core (CRS, the
+// protocol layer, virtual patches, the organization's rules), enforced by
+// default, and signature (Sigma, ET Open, bot lists), which a policy runs in
+// shadow unless it says otherwise (policies.schema.json, signatures). Pack
+// "" keeps every rule in one package, as before.
 package release
 
 import (
@@ -25,6 +31,7 @@ import (
 // be passed back as the baseline of the next release for the changelog.
 type Manifest struct {
 	Version       string         `json:"version"`
+	Pack          string         `json:"pack,omitempty"` // core, signature; "": both
 	BundleVersion uint64         `json:"bundle_version"`
 	CreatedAt     string         `json:"created_at"`
 	Bundle        string         `json:"bundle"`
@@ -54,6 +61,41 @@ type Options struct {
 	Out           string // output directory
 	Baseline      string // previous manifest.json for the changelog (optional)
 	Policies      string // policies file compiled in (optional; default none)
+	Pack          string // PackCore, PackSignature, or "" for every rule
+}
+
+// Packs (RV-S-01).
+const (
+	PackCore      = "core"
+	PackSignature = "signature"
+)
+
+// SignatureSources are the metadata.source values of the signature pack.
+// libstrata flags the same rules (engine/src/rules.rs SIGNATURE_SOURCES;
+// TestSignatureSourcesMatchTheEngine keeps the two lists equal).
+var SignatureSources = []string{"sigma", "et-open", "crawler-user-agents"}
+
+// InPack reports whether a rule of source belongs to pack ("" = any).
+func InPack(pack, source string) bool {
+	sig := false
+	for _, s := range SignatureSources {
+		sig = sig || s == source
+	}
+	switch pack {
+	case PackCore:
+		return !sig
+	case PackSignature:
+		return sig
+	}
+	return true
+}
+
+// PackName is the file name prefix of a package of pack.
+func PackName(pack, version string) string {
+	if pack == PackCore {
+		return "strata-core-" + version
+	}
+	return "strata-signatures-" + version
 }
 
 // Build writes the package to Options.Out and returns its manifest.
@@ -70,22 +112,32 @@ func Build(o Options) (*Manifest, error) {
 	if o.KeyFile == "" {
 		return nil, fmt.Errorf("a --key (ed25519 seed) is required")
 	}
+	if o.Pack != "" && o.Pack != PackCore && o.Pack != PackSignature {
+		return nil, fmt.Errorf("--pack is %s or %s, got %q", PackCore, PackSignature, o.Pack)
+	}
 	tools, err := runner.Find(o.Repo)
 	if err != nil {
 		return nil, err
 	}
-	rules, err := report.RulesUnder(o.RulesDir)
+	all, err := report.RulesUnder(o.RulesDir)
 	if err != nil {
 		return nil, err
 	}
+	var rules []map[string]any
+	for _, r := range all {
+		meta, _ := r["metadata"].(map[string]any)
+		if InPack(o.Pack, str(meta["source"])) {
+			rules = append(rules, r)
+		}
+	}
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("no rules under %s", o.RulesDir)
+		return nil, fmt.Errorf("no rules of pack %q under %s", o.Pack, o.RulesDir)
 	}
 
 	if err := os.MkdirAll(o.Out, 0o755); err != nil {
 		return nil, err
 	}
-	name := "strata-signatures-" + o.Version
+	name := PackName(o.Pack, o.Version)
 	bundlePath := filepath.Join(o.Out, name+".sbn")
 	nowMS := time.Now().UnixMilli()
 
@@ -114,6 +166,7 @@ func Build(o Options) (*Manifest, error) {
 
 	m := &Manifest{
 		Version:       o.Version,
+		Pack:          o.Pack,
 		BundleVersion: o.BundleVersion,
 		CreatedAt:     time.UnixMilli(nowMS).UTC().Format(time.RFC3339),
 		Bundle:        filepath.Base(bundlePath),
@@ -218,7 +271,7 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 	defer os.RemoveAll(tmp)
 	doc := map[string]any{
 		"ir_version": 1,
-		"ruleset":    map[string]any{"name": "strata-signatures", "version": o.Version},
+		"ruleset":    map[string]any{"name": strings.TrimSuffix(filepath.Base(out), "-"+o.Version+".sbn"), "version": o.Version},
 		"rules":      rules,
 	}
 	// the IR goes into the package: a control plane compiles it with its
@@ -250,7 +303,14 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 
 func writeChangelog(path string, m *Manifest, baseline string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Strata signatures %s\n\n", m.Version)
+	title := "Strata signatures"
+	switch m.Pack {
+	case PackCore:
+		title = "Strata core pack"
+	case PackSignature:
+		title = "Strata signature pack"
+	}
+	fmt.Fprintf(&b, "# %s %s\n\n", title, m.Version)
 	fmt.Fprintf(&b, "- Built: %s\n- Bundle version: %d\n- SHA-256: `%s`\n- Rules: %d\n\n",
 		m.CreatedAt, m.BundleVersion, m.SHA256, m.Rules)
 

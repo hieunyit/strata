@@ -6,9 +6,13 @@ use FindBin;
 use lib "$FindBin::Bin/lib";
 use Test::Strata 'no_plan';
 
+# example-api enforces the signature pack (fixtures/policies.yaml), so the
+# sample Sigma and bot rules score; without a policy they would only log
+# (RV-S-01).
 our $Location = <<'_EOC_';
     location / {
         strata on;
+        strata_policy example-api;
         add_header X-Rules $strata_rules always;
         add_header X-Score $strata_score always;
         add_header X-Action $strata_action always;

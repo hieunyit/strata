@@ -54,8 +54,29 @@ groups:
           summary: "{{ $labels.instance }}: a worker still runs a bundle older than the agent installed"
           runbook_url: docs/runbook/README.md#rollback-bundle
 
+      - alert: StrataBreakerOpen
+        expr: max by (instance) (strata_breaker_state) > 0
+        labels: { severity: warning, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: a worker circuit breaker is open, requests run in degraded mode"
+          description: "Engine internal errors (panics) over 2% in 10 s: the worker runs only the protocol layer and ip_match rules (nginx-module.md, Circuit breaker cấp worker)."
+          runbook_url: docs/runbook/README.md#circuit-breaker-mở
+      - alert: StrataBreakerOpenManyWorkers
+        expr: count by (instance) (strata_breaker_state > 0) >= 2
+        labels: { severity: critical, component: module }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} workers have their circuit breaker open"
+          description: "Several workers of one node run in degraded mode: likely a bad bundle or a libstrata bug, not one request."
+          runbook_url: docs/runbook/README.md#circuit-breaker-mở
   - name: strata-agent
     rules:
+      - alert: StrataNodeFallback
+        expr: increase(strata_agent_fallback_triggers_total[10m]) > 0
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: the node forced every policy into shadow on its own ({{ $labels.reason }})"
+          description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow for --fallback-hold (1 h)."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataAgentDown
         expr: up{job="strata-agent"} == 0
         for: 2m

@@ -127,6 +127,11 @@ pub struct Tx {
     matches: Vec<MatchEntry>,
     budget: Option<crate::budget::TxBudget>,
     degraded: bool,
+    /// signature pack of the policy (RV-S-01); in shadow its rules keep
+    /// their own score and never block
+    signatures: crate::bundle::Signatures,
+    sig_score: i32,
+    sig_matched: bool,
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
@@ -217,7 +222,10 @@ impl Tx {
             protocol_score: 0,
             matches: Vec::new(),
             budget: None,
-            degraded: false,
+            degraded: flags & TXF_DEGRADED != 0,
+            signatures: crate::bundle::Signatures::Shadow,
+            sig_score: 0,
+            sig_matched: false,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -331,8 +339,11 @@ impl Tx {
     }
 
     /// Applies the policy's settings: its signed mode (a shadow policy
-    /// never blocks, whatever the connector asks), oversize handling and
-    /// response layer. An unknown policy keeps the defaults.
+    /// never blocks, whatever the connector asks), its enforce canary (a
+    /// client outside the canary group runs in shadow, `crate::canary`),
+    /// oversize handling and response layer. An unknown policy keeps the
+    /// defaults. Call after `set_identity` and `set_client_addr`: the
+    /// canary group comes from them.
     pub fn set_policy(&mut self, name: &[u8]) {
         let len = name.len().min(self.unmatched_policy.len());
         self.unmatched_policy[..len].copy_from_slice(&name[..len]);
@@ -341,8 +352,14 @@ impl Tx {
             self.policy_index = Some(p.index);
             // Only towards shadow: nothing lifts TXF_FORCE_SHADOW.
             self.shadow |= p.mode == crate::bundle::Mode::Shadow;
+            let key = crate::canary::key(
+                &self.identity[..self.identity_len],
+                &self.client_addr[..self.client_addr_len],
+            );
+            self.shadow |= !crate::canary::enforced(name, key, p.canary);
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
+            self.signatures = p.signatures;
         } else {
             self.policy_index = None;
         }
@@ -371,6 +388,7 @@ impl Tx {
         }
         if bytes > 0 {
             self.add(Violation {
+                signature: false,
                 rule: protocol::BODY_OVER_LIMIT,
                 score: 0,
                 block_alone: self.oversize_block,
@@ -460,6 +478,28 @@ impl Tx {
             self.rules[self.n_rules] = v.rule;
             self.n_rules += 1;
         }
+        let sig_shadow = v.signature && self.signatures == crate::bundle::Signatures::Shadow;
+        if sig_shadow {
+            // reported, never blocks: a would-be block of the signature
+            // pack is logged with an Event ID, like a shadow policy
+            self.sig_score = self.sig_score.saturating_add(v.score);
+            if self.matches.len() < MAX_RULES {
+                let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
+                self.matches.push(MatchEntry {
+                    rule_id: v.rule,
+                    layer: v.layer,
+                    field: v.field,
+                    snippet,
+                });
+            }
+            if (v.block_alone || self.sig_score >= BLOCK_THRESHOLD) && !self.sig_matched {
+                self.sig_matched = true;
+                if self.id.is_none() {
+                    self.id = Some(block_id::generate(Kind::Event, self.node));
+                }
+            }
+            return;
+        }
         self.score = self.score.saturating_add(v.score);
         match v.layer {
             "pre" => self.layer_scores[0] = self.layer_scores[0].saturating_add(v.score),
@@ -520,6 +560,7 @@ impl Tx {
     fn stub_rule(&mut self, field: &str, data: &[u8]) {
         let snippet = event::prepare_snippet(field, data);
         self.add(Violation {
+            signature: false,
             rule: STUB_RULE_ID,
             score: STUB_SCORE,
             block_alone: false,
@@ -530,6 +571,10 @@ impl Tx {
     }
 
     fn scan(&mut self, data: &[u8], field: &str) {
+        // The test hooks stand for the full engine: degraded mode skips them.
+        if self.degraded {
+            return;
+        }
         #[cfg(feature = "test-hooks")]
         if contains_panic(data) {
             panic!("test hook: deliberate panic");
@@ -619,7 +664,7 @@ impl Tx {
         }
         self.headers.header(key, val);
         #[cfg(feature = "test-hooks")]
-        if contains_panic(key) || contains_panic(val) {
+        if !self.degraded && (contains_panic(key) || contains_panic(val)) {
             panic!("test hook: deliberate panic");
         }
         #[cfg(feature = "test-hooks")]
@@ -688,6 +733,7 @@ impl Tx {
                 &req,
                 stage,
                 self.degraded,
+                self.signatures != crate::bundle::Signatures::Off,
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -747,6 +793,7 @@ impl Tx {
             &req,
             stage,
             self.degraded,
+            self.signatures != crate::bundle::Signatures::Off,
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );
@@ -779,10 +826,10 @@ impl Tx {
         }
         let has_s = memchr::memchr(b'S', data).is_some();
         #[cfg(feature = "test-hooks")]
-        if has_s && contains_panic(data) {
+        if has_s && !self.degraded && contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
-        if !self.matched {
+        if !self.matched && !self.degraded {
             let head = &data[..data.len().min(TAIL)];
             let head_has_s = has_s && memchr::memchr(b'S', head).is_some();
             if self.tail_has_s || head_has_s {
@@ -908,7 +955,7 @@ impl Tx {
             return (E_STATE, None);
         }
         #[cfg(feature = "test-hooks")]
-        if contains_panic(data) {
+        if !self.degraded && contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
         let Some(g) = self.guard.as_mut() else {
@@ -941,8 +988,13 @@ impl Tx {
                 v.action = ACTION_BLOCK;
                 v.status = 403;
             }
-        } else if self.error == OK && self.stage < Stage::BodyDone {
-            v.need_body = true;
+        } else {
+            if self.sig_matched {
+                v.action = ACTION_LOG;
+            }
+            if self.error == OK && self.stage < Stage::BodyDone {
+                v.need_body = true;
+            }
         }
         // the connector inspects the response only when something can be
         // found or rewritten in it
@@ -1371,6 +1423,80 @@ mod tests {
         assert_eq!(t.verdict().action, ACTION_LOG);
     }
 
+    // An enforce policy with a 10% canary blocks the clients of its canary
+    // group and runs the others in shadow; identity decides over the
+    // address, and the same client always gets the same answer.
+    #[test]
+    fn canary_enforces_its_group_only() {
+        let run = |identity: &[u8], addr: &[u8]| {
+            let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", 0);
+            t.set_client_addr(addr);
+            t.set_identity(identity);
+            t.set_policy(b"example-canary");
+            line(&mut t, b"/STRATA-TEST-BLOCK");
+            let v = t.verdict();
+            let enforced = crate::canary::enforced(
+                b"example-canary",
+                crate::canary::key(identity, addr),
+                1000,
+            );
+            if enforced {
+                assert_eq!(v.action, ACTION_BLOCK);
+                assert!(id_str(&v).starts_with("STR-"));
+            } else {
+                assert_eq!(v.action, ACTION_LOG);
+                assert!(id_str(&v).starts_with("EVT-"));
+            }
+            enforced
+        };
+        let mut blocked = 0;
+        for i in 0..1000 {
+            let addr = format!("198.51.{}.{}", i / 256, i % 256);
+            let first = run(b"", addr.as_bytes());
+            assert_eq!(first, run(b"", addr.as_bytes()), "{addr}");
+            blocked += usize::from(first);
+        }
+        assert!(
+            (60..140).contains(&blocked),
+            "10% canary blocked {blocked}/1000"
+        );
+
+        // the identity, not the address, picks the group
+        let in_group = |k: &String| crate::canary::enforced(b"example-canary", k.as_bytes(), 1000);
+        let users: Vec<String> = (0..100).map(|i| format!("user-{i}")).collect();
+        let inside = users.iter().find(|k| in_group(k)).unwrap();
+        let outside = users.iter().find(|k| !in_group(k)).unwrap();
+        for addr in [&b"192.0.2.1"[..], b"192.0.2.2", b"192.0.2.3"] {
+            assert!(run(inside.as_bytes(), addr));
+            assert!(!run(outside.as_bytes(), addr));
+        }
+    }
+
+    // Degraded mode (circuit breaker): the protocol layer still blocks,
+    // the rules of the full engine (here the stub rule) do not run.
+    #[test]
+    fn degraded_runs_the_protocol_layer_only() {
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_DEGRADED);
+        t.set_policy(b"example-api");
+        line(&mut t, b"/STRATA-TEST-BLOCK");
+        t.request_body_chunk(b"xxSTRATA-TEST-BLOCKyy", true);
+        assert_eq!(t.verdict().action, ACTION_ALLOW);
+
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_DEGRADED);
+        t.set_policy(b"example-api");
+        t.request_line(b"POST", b"/", b"/", b"", b"HTTP/1.1");
+        headers(
+            &mut t,
+            &[
+                (b"Content-Length", b"1"),
+                (b"Transfer-Encoding", b"chunked"),
+            ],
+        );
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(rules(&v), [protocol::CL_TE_CONFLICT]);
+    }
+
     // strata_mode shadow on an enforcing policy stays shadow.
     #[test]
     fn forced_shadow_is_not_lifted_by_an_enforcing_policy() {
@@ -1416,6 +1542,7 @@ mod tests {
         line(&mut t, b"/");
         for i in 0..25 {
             t.add(Violation {
+                signature: false,
                 rule: 700_000 + i,
                 score: 1,
                 block_alone: false,

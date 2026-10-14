@@ -17,6 +17,16 @@
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z0-9._-]{1,55}$" },
           "mode": { "enum": ["shadow", "enforce"] },
+          "canary_percent": {
+            "description": "Enforce canary (nginx-module.md › Bật enforce theo canary): share of clients, by a stable hash of (identity or client address, policy name), whose requests this enforce policy blocks; the other clients run in shadow. 0.01 to 99.99, two decimals; leave out for 100%. Only with mode enforce. Needs libstrata with W11-R-01 on every node: older ones refuse the bundle.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "exclusiveMaximum": 100
+          },
+          "signatures": {
+            "description": "Rules of the signature pack (RV-S-01: metadata.source sigma, et-open, crawler-user-agents): shadow (default) runs and reports them but never lets them block, even in enforce; off skips them; enforce lets them block like the core pack (CRS, protocol, virtual patches, organization rules). Needs libstrata with RV-S-01 on every node for off and enforce.",
+            "enum": ["off", "shadow", "enforce"]
+          },
           "oversize": {
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]

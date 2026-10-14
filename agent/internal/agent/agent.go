@@ -26,6 +26,7 @@ import (
 	"github.com/strata/strata/agent/internal/control"
 	"github.com/strata/strata/agent/internal/enroll"
 	"github.com/strata/strata/agent/internal/eventsock"
+	"github.com/strata/strata/agent/internal/fallback"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/pusher"
@@ -56,6 +57,10 @@ type Config struct {
 	AgentVersion string
 	MetricsFile  string // written by the NGINX module; empty: not exported
 	MetricsAddr  string // host:port for /metrics; empty: no exporter
+	// Fallback runs the node tier of the automatic fallback (needs
+	// BundleDir and MetricsFile).
+	Fallback        bool
+	FallbackOptions fallback.Options
 
 	Batch  batch.Options
 	Push   pusher.Options
@@ -73,6 +78,8 @@ type Agent struct {
 	Bundles *bundles.Manager
 	// ForceShadow applies ForceShadow commands; nil without BundleDir.
 	ForceShadow *forceshadow.Manager
+	// Fallback forces the node into shadow on its own; nil when off.
+	Fallback *fallback.Watcher
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -166,6 +173,9 @@ func New(cfg Config) (*Agent, error) {
 	}
 	if bm != nil {
 		a.ForceShadow = forceshadow.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "force-shadow.json"))
+		if cfg.Fallback && cfg.MetricsFile != "" {
+			a.Fallback = fallback.NewWatcher(cfg.MetricsFile, a.ForceShadow, cfg.FallbackOptions)
+		}
 	}
 	copts := control.Options{
 		Identity:  id,
@@ -230,6 +240,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	} else {
 		close(fsDone)
 	}
+	fbDone := make(chan struct{})
+	if a.Fallback != nil {
+		go func() { a.Fallback.Run(pushCtx); close(fbDone) }()
+	} else {
+		close(fbDone)
+	}
 	metricsDone := make(chan error, 1)
 	if a.cfg.MetricsAddr != "" {
 		go func() { metricsDone <- shmmetrics.Serve(pushCtx, a.cfg.MetricsAddr, a.Registry) }()
@@ -261,6 +277,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	errs = append(errs, <-controlDone)
 	<-fsDone
+	<-fbDone
 	return errors.Join(errs...)
 }
 

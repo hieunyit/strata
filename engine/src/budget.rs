@@ -225,16 +225,20 @@ mod tests {
 
     #[test]
     fn credited_time_does_not_count() {
-        // a 5 ms call with 4 ms of one-time work fits a 2 ms budget
-        let mut b = TxBudget::new(2_000);
-        assert!(b.enter().is_ok());
-        sleep(Duration::from_millis(5));
-        b.credit(Duration::from_millis(4));
+        // a 5 s call with 4 s of one-time work fits a 2 s budget. The call
+        // started 5 s ago (enter_at) instead of sleeping, and the margins are
+        // seconds: a loaded machine cannot push check() past them (#44)
+        let Some(start) = Instant::now().checked_sub(Duration::from_secs(5)) else {
+            return; // a clock younger than 5 s
+        };
+        let mut b = TxBudget::new(2_000_000);
+        assert!(b.enter_at(start).is_ok());
+        b.credit(Duration::from_secs(4));
         assert!(b.check().is_ok(), "the deadline moves by the credit");
-        b.exit_with(Duration::from_millis(5));
+        b.exit_with(Duration::from_secs(5));
         assert!(!b.is_exceeded());
         assert!(b.enter().is_ok(), "the credit is not counted later either");
-        b.exit_with(Duration::from_micros(500));
+        b.exit_with(Duration::from_millis(500));
         assert!(!b.is_exceeded());
     }
 

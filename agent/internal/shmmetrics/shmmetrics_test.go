@@ -231,3 +231,40 @@ func TestHeaderVersions(t *testing.T) {
 		t.Fatalf("%+v %v", s, err)
 	}
 }
+
+// W11-N-01: a module with the circuit breaker counters (21..23).
+func TestBreakerCounters(t *testing.T) {
+	w0 := append(append([]uint64{}, worker0...), BreakerOpen, 3, 120)
+	w2 := append(append([]uint64{}, worker2...), BreakerClosed, 1, 5)
+	p := write(t, fixture{slots: 4, counters: 24, values: map[int][]uint64{0: w0, 2: w2}}.bytes())
+	s, err := Read(p)
+	if err != nil || !s.Workers[0].HasBreaker || s.Workers[0].BreakerState != BreakerOpen || s.Workers[1].Degraded != 5 {
+		t.Fatalf("Read: %+v %v", s, err)
+	}
+	want := `
+# HELP strata_breaker_opens_total Times a worker circuit breaker opened.
+# TYPE strata_breaker_opens_total counter
+strata_breaker_opens_total 4
+# HELP strata_breaker_state Circuit breaker of each worker: 0 closed, 1 open, 2 half-open.
+# TYPE strata_breaker_state gauge
+strata_breaker_state{worker="0"} 1
+strata_breaker_state{worker="2"} 0
+# HELP strata_degraded_requests_total Requests run in degraded mode (circuit breaker open or half-open).
+# TYPE strata_degraded_requests_total counter
+strata_degraded_requests_total 125
+`
+	c := NewCollector(p)
+	if err := testutil.CollectAndCompare(c, strings.NewReader(want),
+		"strata_breaker_opens_total", "strata_breaker_state", "strata_degraded_requests_total"); err != nil {
+		t.Fatal(err)
+	}
+	if problems, err := testutil.CollectAndLint(c); err != nil || len(problems) != 0 {
+		t.Fatalf("lint: %v %+v", err, problems)
+	}
+
+	// an older module: no breaker series at all
+	old := NewCollector(write(t, fixture{slots: 1, values: map[int][]uint64{0: worker0}}.bytes()))
+	if n := testutil.CollectAndCount(old, "strata_breaker_state", "strata_breaker_opens_total"); n != 0 {
+		t.Fatalf("older module: %d breaker series", n)
+	}
+}

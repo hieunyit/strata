@@ -42,6 +42,26 @@ mode hoặc vượt CPU budget.
 3. `closed` trả 503 cho người dùng: nếu kéo dài, **ép shadow** cho policy đó trong lúc
    điều tra.
 
+## Circuit breaker mở
+
+Cảnh báo `StrataBreakerOpen` (một worker), `StrataBreakerOpenManyWorkers` (từ 2 worker
+trên cùng node, nghiêm trọng): lỗi nội bộ của engine (panic) vượt 2% trong 10 giây, worker
+chạy **chế độ giảm cấp**: chỉ lớp protocol và rule `ip_match`, không có rule đầy đủ.
+Location đặt `strata_breaker_action reject` trả 503 kèm Event ID.
+
+1. Dashboard **Strata module**, panel "Circuit breaker per worker": worker nào, open (1)
+   hay half-open (2). Breaker tự thử lại: mở 30 giây, half-open 10 giây với 5% request
+   qua engine đầy đủ; mở lại liên tiếp thì thời gian nhân đôi, tối đa 5 phút.
+2. `error.log` của NGINX: `strata: circuit breaker open, N internal errors in M requests`
+   và các dòng `strata: engine error 3` (panic) trước đó, kèm Event ID. Tra Event ID trên
+   trang Sự kiện để thấy request gây lỗi.
+3. Nhiều worker cùng mở ngay sau một lần deploy: **rollback bundle** (mục dưới). Không
+   liên quan tới deploy: báo nhóm libstrata kèm Event ID; trong lúc chờ, giảm cấp vẫn chặn
+   request mơ hồ, nên chỉ **tắt module** khi chính chế độ giảm cấp cũng lỗi (fail mode
+   tăng, mục trên).
+4. Request vượt CPU budget **không** làm breaker mở (cố ý); budget tăng thì xem mục
+   "Fail mode tăng".
+
 ## Sự kiện bị bỏ
 
 Cảnh báo `StrataEventsDropped`: trên 0,1% sự kiện bị bỏ ở event socket.
@@ -100,6 +120,25 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 ```
 
 Cảnh báo `StrataForceShadowActive` (mức info) nhắc rằng node đang bị giữ ở shadow.
+
+## Node tự về shadow
+
+Cảnh báo `StrataNodeFallback`: agent tự ép **mọi policy** của node về shadow (tầng 1 của
+fallback tự động), lý do ở nhãn `reason`:
+
+- `block_rate`: node chặn hơn 3 lần mức "lẽ ra chặn" học được (trung bình động mỗi 5
+  giây, khởi động 1 phút);
+- `engine_errors`: request đi fail mode (lỗi engine) tăng hơn 3 lần (tối thiểu 1,5%);
+- `budget`: request vượt CPU budget tăng hơn 3 lần (tối thiểu 1,5%).
+
+Node giữ shadow trong `--fallback-hold` (mặc định 1 giờ). Việc cần làm:
+
+1. Trang Sự kiện, lọc node và 15 phút trước cảnh báo: Rule ID nào tăng? Nhiều IP khác
+   nhau trên một rule mới deploy thường là chặn nhầm; ít IP với payload tấn công rõ là
+   đợt tấn công thật (khi đó shadow để lọt tấn công: cân nhắc gỡ sớm).
+2. Chặn nhầm: **rollback bundle** hoặc tắt rule, rồi để hạn tự hết. Tấn công thật: gỡ
+   bằng `clearForceShadow` (mục Ép shadow, `policy_id` để trống).
+3. Tắt hẳn tầng này trên một node: `strata-agent --fallback=false`.
 
 ## Tắt module
 

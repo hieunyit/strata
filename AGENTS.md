@@ -16,6 +16,20 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 11** (khối B1 · Circuit breaker và canary 1%; mở sớm 13/10, PO duyệt; kế hoạch `docs/plan/w11-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W11-R-01 | Hash nhóm canary, tỉ lệ canary trong bundle; lõi replay Parquet | Claude Code (phiên cloud) | — | ✅ Done (PR #61; kiểm trên lab: `docs/reports/w11-early-review.md`) |
+| W11-N-01 | Circuit breaker cấp worker, chế độ giảm cấp | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
+| W11-G1-01 | Tự fallback tại node | Claude Code (phiên cloud) | — | ✅ Done (PR #61; #65: lợi dụng được, bắn nhầm ở lưu lượng thấp, phải sửa trước canary) |
+| W11-G2-01 | Định dạng traffic mẫu cho replay | Claude Code (phiên cloud) | — | 🔄 Code xong (PR #61); chờ pháp chế duyệt |
+| RV-S-01 | Tách gói core / signature | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
+| W11-F-01 | Policy editor phần 1 | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
+| W11-S-01 | Xử lý FP sau tuần shadow, phát hành pack v0.1 | Claude Code | W10-G2-01, W10-S-01, RV-S-01 | ⏳ |
+| RV-G2-01 | Ngữ cảnh điều tra trong sự kiện (+ `would_block`, #57) | Claude Code (phiên engine) | RV-R-01 | 🔄 Nhánh `rv-g2-01-event-context` |
+| Vận hành | Bật canary 1% trên route thí điểm | Người | W11-S-01, **Gate A**, #65 | ⛔ Gate A chưa đạt (`docs/reports/gate-a.md`) |
+
 **Nhiệm vụ tuần 10** (khối A3 · Đóng gói và shadow · Gate A; kế hoạch chi tiết `docs/plan/w10-plan.md`, trạng thái Gate A ở mục 1 của file đó)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |

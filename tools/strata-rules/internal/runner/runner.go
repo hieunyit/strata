@@ -88,7 +88,9 @@ type Bundle struct {
 	Dir, Path, PubKey string
 }
 
-// PolicyName of the single enforcing policy test bundles carry.
+// PolicyName of the single enforcing policy test bundles carry. The
+// signature pack is enforced too (RV-S-01), so every rule is measured as if
+// it may block.
 const PolicyName = "strata-rules"
 
 // Build compiles IR documents (JSON) into a bundle signed with a fresh
@@ -114,7 +116,7 @@ func (t Tools) Build(irDocs [][]byte) (*Bundle, error) {
 		return nil, err
 	}
 	pol := filepath.Join(dir, "policies.json")
-	if err := os.WriteFile(pol, []byte(`{"policies":[{"name":"`+PolicyName+`","mode":"enforce"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(pol, []byte(`{"policies":[{"name":"`+PolicyName+`","mode":"enforce","signatures":"enforce"}]}`), 0o644); err != nil {
 		b.Close()
 		return nil, err
 	}
