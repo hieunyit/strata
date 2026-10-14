@@ -1,0 +1,108 @@
+{
+  "comment": "Replay sample anonymization vectors with a policy's privacy settings (#75; docs/spec/replay-sample.md). Test key only.",
+  "key_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+  "key_id": "test-1",
+  "sensitive_fields": [
+    "ma_khach_hang",
+    "X-Branch-Code"
+  ],
+  "mask_patterns": [
+    "KH[0-9]{8}"
+  ],
+  "cases": [
+    {
+      "input": {
+        "TsMs": 1791939600000,
+        "NodeID": "edge-01",
+        "Policy": "example-api",
+        "Method": "POST",
+        "RawURI": "/v1/orders?Ma_Khach_Hang=C0012345\u0026ref=KH12345678\u0026q=1%27%20OR%201%3D1",
+        "URI": "/v1/orders",
+        "Args": "Ma_Khach_Hang=C0012345\u0026ref=KH12345678\u0026q=1%27%20OR%201%3D1",
+        "Proto": "HTTP/1.1",
+        "Client": "198.51.100.7",
+        "Headers": [
+          [
+            "Host",
+            "api.example.test"
+          ],
+          [
+            "X-Branch-Code",
+            "HN-042"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
+        ],
+        "Body": "eyJvcmRlciI6eyJtYV9raGFjaF9oYW5nIjoiQzAwMTIzNDUiLCJub3RlIjoiS0gxMjM0NTY3OCBvayJ9LCJxIjoiJyBVTklPTiBTRUxFQ1QgMS0tIn0=",
+        "Action": "block",
+        "Rules": [
+          942100
+        ],
+        "body": "{\"order\":{\"ma_khach_hang\":\"C0012345\",\"note\":\"KH12345678 ok\"},\"q\":\"' UNION SELECT 1--\"}"
+      },
+      "output": {
+        "ts_ms": 1791939600000,
+        "node_id": "edge-01",
+        "policy": "example-api",
+        "method": "POST",
+        "raw_uri": "/v1/orders?Ma_Khach_Hang=~h%3A9ef69c2c26b64316%3Ax8\u0026ref=~h%3Af6eb4b1b339a648e%3Ax10\u0026q=1%27%20OR%201%3D1",
+        "uri": "/v1/orders",
+        "args": "Ma_Khach_Hang=~h%3A9ef69c2c26b64316%3Ax8\u0026ref=~h%3Af6eb4b1b339a648e%3Ax10\u0026q=1%27%20OR%201%3D1",
+        "proto": "HTTP/1.1",
+        "client": "~h:c2a1c489add65cea:s12",
+        "headers": "[[\"Host\",\"api.example.test\"],[\"X-Branch-Code\",\"~h:404d037825ba40be:s6\"],[\"Content-Type\",\"application/json\"]]",
+        "body": "eyJvcmRlciI6eyJtYV9raGFjaF9oYW5nIjoifmg6OWVmNjljMmMyNmI2NDMxNjp4OCIsIm5vdGUiOiJ+aDpmNmViNGIxYjMzOWE2NDhlOngxMCBvayJ9LCJxIjoiJyBVTklPTiBTRUxFQ1QgMS0tIn0=",
+        "body_len": 86,
+        "body_truncated": false,
+        "action": "block",
+        "rules": "942100"
+      }
+    },
+    {
+      "input": {
+        "TsMs": 1791939600001,
+        "NodeID": "edge-01",
+        "Policy": "example-api",
+        "Method": "POST",
+        "RawURI": "/v1/forms",
+        "URI": "/v1/forms",
+        "Args": "",
+        "Proto": "HTTP/1.1",
+        "Client": "198.51.100.8",
+        "Headers": [
+          [
+            "Host",
+            "api.example.test"
+          ],
+          [
+            "Content-Type",
+            "multipart/form-data; boundary=b"
+          ]
+        ],
+        "Body": "LS1iDQpDb250ZW50LURpc3Bvc2l0aW9uOiBmb3JtLWRhdGE7IG5hbWU9Ik1BX0tIQUNIX0hBTkciDQoNCkMwMDEyMzQ1DQotLWINCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0icmVmIg0KDQpLSDEyMzQ1Njc4DQotLWItLQ0K",
+        "Action": "allow",
+        "Rules": null,
+        "body": "--b\r\nContent-Disposition: form-data; name=\"MA_KHACH_HANG\"\r\n\r\nC0012345\r\n--b\r\nContent-Disposition: form-data; name=\"ref\"\r\n\r\nKH12345678\r\n--b--\r\n"
+      },
+      "output": {
+        "ts_ms": 1791939600001,
+        "node_id": "edge-01",
+        "policy": "example-api",
+        "method": "POST",
+        "raw_uri": "/v1/forms",
+        "uri": "/v1/forms",
+        "args": "",
+        "proto": "HTTP/1.1",
+        "client": "~h:85fc249c56288453:s12",
+        "headers": "[[\"Host\",\"api.example.test\"],[\"Content-Type\",\"multipart/form-data; boundary=b\"]]",
+        "body": "LS1iDQpDb250ZW50LURpc3Bvc2l0aW9uOiBmb3JtLWRhdGE7IG5hbWU9Ik1BX0tIQUNIX0hBTkciDQoNCn5oOjllZjY5YzJjMjZiNjQzMTY6eDgNCi0tYg0KQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPSJyZWYiDQoNCn5oOmY2ZWI0YjFiMzM5YTY0OGU6eDEwDQotLWItLQ0K",
+        "body_len": 141,
+        "body_truncated": false,
+        "action": "allow",
+        "rules": ""
+      }
+    }
+  ]
+}

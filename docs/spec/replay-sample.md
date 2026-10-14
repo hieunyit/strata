@@ -82,6 +82,18 @@ Một giá trị nhạy cảm được thay **cả giá trị** bằng token; c�
    dung file luôn thành token** (file có thể là ảnh giấy tờ); kiểu khác (XML, thô) qua mục 3.
    JSON không đọc được thì xử lý như body thô.
 5. **Client**: luôn thành token. Rule `ip_match` vì vậy không replay được.
+6. **Cài đặt privacy của policy** (P-01 §1, #75, thêm 15/10/2026): mẫu dùng thêm cài đặt của
+   policy chứa request, giống sự kiện:
+   - `privacy.sensitive_fields`: tham số, khóa JSON, field multipart và **header** có tên trùng
+     **cả tên** (ASCII, không phân biệt hoa thường) được xử lý như mục 2; header trùng tên thì
+     cả giá trị thành token. Khác sự kiện ở một điểm: sự kiện còn so phần cuối sau dấu `.`
+     (`order.ma_khach_hang`), còn mẫu so từng khóa JSON ở mọi độ sâu nên không cần;
+   - `privacy.mask_patterns`: phần khớp được thay bằng token như mục 3 (không phải `*` như sự
+     kiện, để phép so bằng vẫn còn). Pattern chạy trên byte; libstrata dịch bằng crate `regex`
+     (không Unicode), bên Go bằng `regexp`: pattern ASCII cho kết quả như nhau.
+
+   Node lấy cài đặt từ section PRIVACY của bundle. Policy không có cài đặt thì mẫu như mục
+   1–5.
 
 ## 3. Token
 
@@ -102,6 +114,9 @@ của group đó: xoay bằng `rotate_key`. Đổi khóa thì token của cùng 
 
 `docs/spec/examples/replay-anon-v1.json`: đầu vào, khóa thử và bản ghi mong đợi. Mọi bên
 ghi (Go hôm nay, libstrata ở W12-N-01) phải cho đúng các bản ghi đó.
+`docs/spec/examples/replay-anon-v1-privacy.json`: cùng dạng, thêm `sensitive_fields` và
+`mask_patterns` của một policy (mục 2.6, #75), ghi bởi `go test ./replay -run TestPrivacyVectors
+-update`.
 
 Thêm một corpus sinh tự động (seed cố định, 400 request: URL escape, cookie, JSON có escape và
 surrogate, multipart có header lạ và dòng kết thúc `\n`, tham số media type, UTF-8 hỏng, body cắt ở

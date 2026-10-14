@@ -135,6 +135,16 @@ impl Privacy {
             .any(|f| f.eq_ignore_ascii_case(key) || f.eq_ignore_ascii_case(last))
     }
 
+    /// The extra field names, lowercase (replay samples, #75).
+    pub fn fields(&self) -> &[String] {
+        &self.fields
+    }
+
+    /// The compiled mask patterns (replay samples, #75).
+    pub fn patterns(&self) -> &[regex::bytes::Regex] {
+        &self.patterns
+    }
+
     /// The identity as events carry it: `hmac:` and 32 hex digits when the
     /// policy pseudonymizes it, else None (kept as it is). Empty stays empty.
     pub fn identity(&self, identity: &[u8]) -> Option<String> {

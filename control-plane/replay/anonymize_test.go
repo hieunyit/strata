@@ -133,10 +133,13 @@ func vectorRequests() []Request {
 }
 
 type vectorFile struct {
-	Comment string         `json:"comment"`
-	KeyHex  string         `json:"key_hex"`
-	KeyID   string         `json:"key_id"`
-	Cases   []vectorRecord `json:"cases"`
+	Comment string `json:"comment"`
+	KeyHex  string `json:"key_hex"`
+	KeyID   string `json:"key_id"`
+	// the policy's privacy settings (#75), when the vectors use some
+	SensitiveFields []string       `json:"sensitive_fields,omitempty"`
+	MaskPatterns    []string       `json:"mask_patterns,omitempty"`
+	Cases           []vectorRecord `json:"cases"`
 }
 
 type vectorRecord struct {
@@ -364,4 +367,80 @@ func TestStoreInMinIO(t *testing.T) {
 		t.Fatalf("%s: %q %d %v", key, keyID, len(back), err)
 	}
 	t.Logf("stored and read back %s (%d bytes)", key, len(data))
+}
+
+// #75: vectors with a policy's privacy settings, for libstrata's writer
+// too (engine/tests/anon_vectors.rs); go test ./replay -run
+// TestPrivacyVectors -update writes them.
+func TestPrivacyVectors(t *testing.T) {
+	a := anon(t)
+	fields, patterns := []string{"ma_khach_hang", "X-Branch-Code"}, []string{`KH[0-9]{8}`}
+	if err := a.SetPrivacy(fields, patterns); err != nil {
+		t.Fatal(err)
+	}
+	reqs := []Request{
+		{
+			TsMs: 1791939600000, NodeID: "edge-01", Policy: "example-api", Method: "POST",
+			RawURI: "/v1/orders?Ma_Khach_Hang=C0012345&ref=KH12345678&q=1%27%20OR%201%3D1",
+			URI:    "/v1/orders", Args: "Ma_Khach_Hang=C0012345&ref=KH12345678&q=1%27%20OR%201%3D1", Proto: "HTTP/1.1",
+			Client:  "198.51.100.7",
+			Headers: [][2]string{{"Host", "api.example.test"}, {"X-Branch-Code", "HN-042"}, {"Content-Type", "application/json"}},
+			Body:    []byte(`{"order":{"ma_khach_hang":"C0012345","note":"KH12345678 ok"},"q":"' UNION SELECT 1--"}`),
+			Action:  "block", Rules: []uint32{942100},
+		},
+		{
+			TsMs: 1791939600001, NodeID: "edge-01", Policy: "example-api", Method: "POST",
+			RawURI: "/v1/forms", URI: "/v1/forms", Proto: "HTTP/1.1", Client: "198.51.100.8",
+			Headers: [][2]string{{"Host", "api.example.test"}, {"Content-Type", "multipart/form-data; boundary=b"}},
+			Body:    []byte("--b\r\nContent-Disposition: form-data; name=\"MA_KHACH_HANG\"\r\n\r\nC0012345\r\n--b\r\nContent-Disposition: form-data; name=\"ref\"\r\n\r\nKH12345678\r\n--b--\r\n"),
+			Action:  "allow",
+		},
+	}
+	path := filepath.Join("..", "..", "docs", "spec", "examples", "replay-anon-v1-privacy.json")
+	var got []vectorRecord
+	for _, r := range reqs {
+		rec := a.Anonymize(r)
+		for _, secret := range []string{"C0012345", "KH12345678", "HN-042"} {
+			if b, _ := json.Marshal(rec); bytes.Contains(b, []byte(secret)) || bytes.Contains(rec.Body, []byte(secret)) {
+				t.Errorf("%q survives in %s", secret, b)
+			}
+		}
+		got = append(got, vectorRecord{Input: vectorInput{Request: r, Body: string(r.Body)}, Output: rec})
+	}
+	if *update {
+		vf := vectorFile{
+			Comment: "Replay sample anonymization vectors with a policy's privacy settings (#75; docs/spec/replay-sample.md). Test key only.",
+			KeyHex:  strings.Repeat("5a", 32), KeyID: "test-1", SensitiveFields: fields, MaskPatterns: patterns, Cases: got,
+		}
+		b, err := json.MarshalIndent(vf, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (go test ./replay -run TestPrivacyVectors -update)", err)
+	}
+	var want vectorFile
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	if len(want.Cases) != len(got) {
+		t.Fatalf("%d vectors, want %d", len(got), len(want.Cases))
+	}
+	for i := range got {
+		g, _ := json.Marshal(got[i].Output)
+		w, _ := json.Marshal(want.Cases[i].Output)
+		if !bytes.Equal(g, w) {
+			t.Errorf("vector %d:\n got %s\nwant %s", i, g, w)
+		}
+	}
+	// without the settings the values stay (the vectors show something)
+	plain := anon(t).Anonymize(reqs[0])
+	if !strings.Contains(plain.RawURI, "C0012345") || !bytes.Contains(plain.Body, []byte("KH12345678")) {
+		t.Fatalf("built-in lists alone already hide them: %+v", plain)
+	}
 }

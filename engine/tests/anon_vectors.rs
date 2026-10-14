@@ -35,11 +35,29 @@ fn anonymizer(v: &serde_json::Value) -> Anonymizer {
 
 #[test]
 fn spec_vectors() {
-    let v: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo().join("docs/spec/examples/replay-anon-v1.json")).unwrap(),
-    )
-    .unwrap();
-    let a = anonymizer(&v);
+    check_vectors("docs/spec/examples/replay-anon-v1.json");
+}
+
+/// #75: the same records as the Go writer with a policy's privacy settings.
+#[test]
+fn privacy_vectors() {
+    check_vectors("docs/spec/examples/replay-anon-v1-privacy.json");
+}
+
+fn check_vectors(file: &str) {
+    let v: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repo().join(file)).unwrap()).unwrap();
+    let mut a = anonymizer(&v);
+    let strings = |k: &str| -> Vec<String> {
+        v[k].as_array().map_or(vec![], |x| {
+            x.iter().map(|s| s.as_str().unwrap().to_string()).collect()
+        })
+    };
+    let patterns: Vec<_> = strings("mask_patterns")
+        .iter()
+        .map(|p| libstrata::privacy::compile_pattern(p).unwrap())
+        .collect();
+    a.set_privacy(&strings("sensitive_fields"), &patterns);
     for (i, c) in v["cases"].as_array().unwrap().iter().enumerate() {
         let inp = &c["input"];
         let s = |k: &str| inp[k].as_str().unwrap_or_default().as_bytes().to_vec();

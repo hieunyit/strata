@@ -75,6 +75,39 @@ type Anonymizer struct {
 	Key     []byte // 32 random bytes, kept by the control plane only
 	KeyID   string
 	MaxBody int // 0: DefaultMaxBody
+
+	// The policy's privacy settings (P-01 §1, #75), set by SetPrivacy.
+	fields   map[string]bool
+	patterns []*regexp.Regexp
+}
+
+// SetPrivacy adds a policy's privacy.sensitive_fields (whole names, ASCII
+// case-insensitive: parameters, JSON keys, form fields, headers) and
+// privacy.mask_patterns (matches become tokens) to the built-in lists, as
+// libstrata does (engine/src/anon.rs).
+func (a *Anonymizer) SetPrivacy(fields, patterns []string) error {
+	a.fields = map[string]bool{}
+	for _, f := range fields {
+		a.fields[strings.ToLower(f)] = true
+	}
+	a.patterns = nil
+	for _, p := range patterns {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			return fmt.Errorf("replay: mask pattern %q: %w", p, err)
+		}
+		a.patterns = append(a.patterns, re)
+	}
+	return nil
+}
+
+func (a *Anonymizer) policyField(name string) bool {
+	return a.fields[strings.ToLower(name)]
+}
+
+// sensitive: the built-in name parts or the policy's fields.
+func (a *Anonymizer) sensitive(name string) bool {
+	return SensitiveName(name) || a.policyField(name)
 }
 
 // NewAnonymizer checks the key.
@@ -158,7 +191,7 @@ type span struct{ start, end int }
 // of s stays.
 func (a *Anonymizer) MaskValue(s string) string {
 	var spans []span
-	for _, re := range []*regexp.Regexp{reJWT, reEmail} {
+	for _, re := range append([]*regexp.Regexp{reJWT, reEmail}, a.patterns...) {
 		for _, m := range re.FindAllStringIndex(s, -1) {
 			spans = append(spans, span{m[0], m[1]})
 		}
@@ -296,6 +329,9 @@ func header(hs [][2]string, name string) string {
 
 func (a *Anonymizer) headerValue(name, value string) string {
 	n := strings.ToLower(name)
+	if a.policyField(name) && !sensitiveHeaders[n] {
+		return a.Token(value)
+	}
 	if !sensitiveHeaders[n] {
 		return a.MaskValue(value)
 	}
@@ -345,7 +381,7 @@ func (a *Anonymizer) query(q string) string {
 			pairs[i] = a.encoded(k, false, url.QueryUnescape, url.QueryEscape)
 			continue
 		}
-		pairs[i] = k + "=" + a.encoded(v, SensitiveName(name), url.QueryUnescape, url.QueryEscape)
+		pairs[i] = k + "=" + a.encoded(v, a.sensitive(name), url.QueryUnescape, url.QueryEscape)
 	}
 	return strings.Join(pairs, "&")
 }
@@ -430,7 +466,7 @@ func (a *Anonymizer) jsonValue(d *json.Decoder, out *bytes.Buffer, sensitive boo
 				}
 				writeJSONString(out, k)
 				out.WriteByte(':')
-				if err := a.jsonValue(d, out, sensitive || SensitiveName(k), depth+1); err != nil {
+				if err := a.jsonValue(d, out, sensitive || a.sensitive(k), depth+1); err != nil {
 					return err
 				}
 			}
@@ -502,7 +538,7 @@ func (a *Anonymizer) multipart(b []byte, boundary string) ([]byte, error) {
 		switch {
 		case p.FileName() != "":
 			out.WriteString(a.Token(string(content)))
-		case SensitiveName(p.FormName()):
+		case a.sensitive(p.FormName()):
 			out.WriteString(a.Token(string(content)))
 		default:
 			out.WriteString(a.MaskValue(string(content)))
