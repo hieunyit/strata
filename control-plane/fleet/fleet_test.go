@@ -235,6 +235,11 @@ func TestIngestAction(t *testing.T) {
 	ev := func(id string, a eventv1.Action, rules ...uint32) *eventv1.Event {
 		return &eventv1.Event{BlockId: id, Action: a, RuleIds: rules}
 	}
+	wb := func(e *eventv1.Event, would bool, in eventv1.Inspection) *eventv1.Event {
+		e.WouldBlock, e.Inspection = would, in
+		return e
+	}
+	full := eventv1.Inspection_INSPECTION_FULL
 	for _, c := range []struct {
 		name string
 		ev   *eventv1.Event
@@ -251,6 +256,14 @@ func TestIngestAction(t *testing.T) {
 		{"challenge", ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_CHALLENGE, 1), ""},
 		{"unspecified", ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_UNSPECIFIED, 1), ""},
 		{"no id", ev("", eventv1.Action_ACTION_BLOCK, 1), "block"},
+		// #57: modules with would_block (they always send inspection)
+		{"shadow, would block (new module)", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 942100), true, full), "shadow"},
+		{"enforce, below the threshold", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 920350), false, full), "pass"},
+		{"below the threshold, body skipped", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 920350), false, eventv1.Inspection_INSPECTION_BODY_SKIPPED), "pass"},
+		{"rules, then the CPU budget ran out", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 920350), false, eventv1.Inspection_INSPECTION_PARTIAL), "error"},
+		{"would block, budget ran out after", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG, 942100), true, eventv1.Inspection_INSPECTION_PARTIAL), "shadow"},
+		{"engine error, new module", wb(ev("EVT-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_LOG), false, eventv1.Inspection_INSPECTION_PARTIAL), "error"},
+		{"block, new module", wb(ev("STR-8F3K-Q2VD-7XNM-A1PC", eventv1.Action_ACTION_BLOCK, 942100), true, full), "block"},
 	} {
 		if got := ingestAction(c.ev); got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)

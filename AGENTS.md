@@ -27,7 +27,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | RV-S-01 | Tách gói core / signature | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
 | W11-F-01 | Policy editor phần 1 | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
 | W11-S-01 | Xử lý FP sau tuần shadow, phát hành pack v0.1 | Claude Code | W10-G2-01, W10-S-01, RV-S-01 | ⏳ |
-| RV-G2-01 | Ngữ cảnh điều tra trong sự kiện (+ `would_block`, #57) | Claude Code (phiên engine) | RV-R-01 | 🔄 Nhánh `rv-g2-01-event-context` |
+| RV-G2-01 | Ngữ cảnh điều tra trong sự kiện (+ `would_block`, #57) | Claude Code (phiên engine) | RV-R-01 | ✅ PR #68 (engine, proto, UI); `ingestAction` theo `would_block` (#57): nhánh `RV-G2-01-would-block` |
 | Vận hành | Bật canary 1% trên route thí điểm | Người | W11-S-01, **Gate A**, #65 | ⛔ Gate A chưa đạt (`docs/reports/gate-a.md`) |
 
 **Nhiệm vụ tuần 10** (khối A3 · Đóng gói và shadow · Gate A; kế hoạch chi tiết `docs/plan/w10-plan.md`, trạng thái Gate A ở mục 1 của file đó)

@@ -640,23 +640,32 @@ func (s *Server) PushEvents(st fleetv1.FleetService_PushEventsServer) error {
 // block, shadow, pass, error), from what libstrata encodes (tx.rs,
 // encode_event):
 //   - a block: BLOCK with a Block ID STR-…;
-//   - an EVT-… id with LOG: in shadow, a request that would have been
-//     blocked; or rules that matched below the threshold (any mode); or,
-//     without any rule, an engine error or an exceeded CPU budget handled
-//     by the fail mode.
+//   - an EVT-… id with LOG and rules: in shadow, a request that would have
+//     been blocked (would_block, field 21, #57; a would-be block of the
+//     signature pack counts too), stored as "shadow"; or rules that matched
+//     below the threshold (any mode), stored as "pass", or "error" when the
+//     CPU budget cut the inspection short (inspection PARTIAL: the fail
+//     mode decided);
+//   - an EVT-… id without any rule: an engine error or an exceeded CPU
+//     budget handled by the fail mode, "error".
 //
-// The event does not say yet whether an EVT- event would have blocked, so
-// every EVT- event with rules is stored as "shadow": exact for shadow
-// policies, but it counts below-threshold findings of enforce policies as
-// shadow too (#47). Anything else is "" and the validator rejects it;
-// before #47 every EVT- event was stored as "log" and refused.
+// Modules from before RV-G2-01 send neither would_block nor inspection
+// (UNSPECIFIED); their EVT- events with rules stay "shadow" as before #57.
+// Anything else is "" and the validator rejects it.
 func ingestAction(ev *eventv1.Event) string {
 	evt := strings.HasPrefix(ev.GetBlockId(), "EVT-")
 	switch a := ev.GetAction(); {
 	case !evt && a == eventv1.Action_ACTION_BLOCK:
 		return "block"
 	case evt && a == eventv1.Action_ACTION_LOG && len(ev.GetRuleIds()) > 0:
-		return "shadow"
+		switch {
+		case ev.GetWouldBlock(), ev.GetInspection() == eventv1.Inspection_INSPECTION_UNSPECIFIED:
+			return "shadow"
+		case ev.GetInspection() == eventv1.Inspection_INSPECTION_PARTIAL:
+			return "error"
+		default:
+			return "pass"
+		}
 	case evt && (a == eventv1.Action_ACTION_LOG || a == eventv1.Action_ACTION_ALLOW || a == eventv1.Action_ACTION_BLOCK):
 		return "error"
 	default:
