@@ -36,7 +36,13 @@ pub struct Engine {
     prefilter_on: bool,
     /// per policy index: its privacy settings (P-01 §1)
     privacy: Vec<Option<crate::privacy::Privacy>>,
+    /// Rule IDs switched off without reloading the bundle (W12-R-02),
+    /// sorted; each transaction takes the list current at its start.
+    disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
 }
+
+/// Most rule IDs `set_disabled_rules` takes at once.
+pub const MAX_DISABLED_RULES: usize = 4096;
 
 impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -154,6 +160,7 @@ impl Engine {
             prefilter,
             prefilter_on: true,
             privacy,
+            disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
@@ -165,6 +172,31 @@ impl Engine {
     /// Privacy settings of the policy at `index`, if it has some.
     pub fn privacy(&self, index: u32) -> Option<&crate::privacy::Privacy> {
         self.privacy.get(index as usize).and_then(Option::as_ref)
+    }
+
+    /// Switches off the rules `ids` (emergency kill switch): they no longer
+    /// match in transactions started from now on; an empty list switches
+    /// every rule back on. Replaces the previous list. The list belongs to
+    /// this engine: the connector applies it again to the engine of a new
+    /// bundle.
+    pub fn set_disabled_rules(&self, ids: &[u32]) -> Result<(), &'static str> {
+        if ids.len() > MAX_DISABLED_RULES {
+            return Err("too many rule ids");
+        }
+        let mut v = ids.to_vec();
+        v.sort_unstable();
+        v.dedup();
+        let mut cur = self.disabled.write().unwrap_or_else(|e| e.into_inner());
+        *cur = std::sync::Arc::from(v);
+        Ok(())
+    }
+
+    /// The rules switched off, sorted.
+    pub fn disabled_rules(&self) -> std::sync::Arc<[u32]> {
+        self.disabled
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Unique engine instance ID.

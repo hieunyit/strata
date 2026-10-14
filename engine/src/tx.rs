@@ -141,6 +141,8 @@ pub struct Tx {
     signatures: crate::bundle::Signatures,
     sig_score: i32,
     sig_matched: bool,
+    /// rules switched off on the engine when the transaction started
+    disabled: Arc<[u32]>,
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
@@ -181,6 +183,9 @@ impl Tx {
         let missing = engine.is_none();
         let version = engine.as_ref().map_or(0, |e| e.info().version);
         let has_body_rules = engine.as_ref().is_some_and(|e| e.has_body_rules());
+        let disabled = engine
+            .as_ref()
+            .map_or_else(|| Arc::from([]), |e| e.disabled_rules());
         let node_id_bounded = &node_id[..node_id.len().min(64)];
         let mut node_buf = [0u8; 64];
         node_buf[..node_id_bounded.len()].copy_from_slice(node_id_bounded);
@@ -238,6 +243,7 @@ impl Tx {
             signatures: crate::bundle::Signatures::Shadow,
             sig_score: 0,
             sig_matched: false,
+            disabled,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -496,8 +502,12 @@ impl Tx {
 
     /// Records a violation once; decides when it blocks alone or the
     /// total reaches the threshold.
+    fn is_disabled(&self, rule: u32) -> bool {
+        !self.disabled.is_empty() && self.disabled.binary_search(&rule).is_ok()
+    }
+
     fn add(&mut self, v: Violation) {
-        if self.rules[..self.n_rules].contains(&v.rule) {
+        if self.rules[..self.n_rules].contains(&v.rule) || self.is_disabled(v.rule) {
             return;
         }
         if self.n_rules < MAX_RULES {
@@ -556,7 +566,7 @@ impl Tx {
     /// Records a response-layer finding: listed with the rules, but the
     /// decision was taken with the request; an Event ID identifies it.
     fn record(&mut self, rule: u32) {
-        if self.rules[..self.n_rules].contains(&rule) {
+        if self.rules[..self.n_rules].contains(&rule) || self.is_disabled(rule) {
             return;
         }
         if self.n_rules < MAX_RULES {
@@ -762,6 +772,7 @@ impl Tx {
                 stage,
                 self.degraded,
                 self.signatures != crate::bundle::Signatures::Off,
+                &self.disabled,
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -827,6 +838,7 @@ impl Tx {
             stage,
             self.degraded,
             self.signatures != crate::bundle::Signatures::Off,
+            &self.disabled,
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );
@@ -1579,6 +1591,50 @@ mod tests {
         let v = t.verdict();
         assert_eq!(v.action, ACTION_BLOCK);
         assert_eq!(rules(&v), [protocol::CL_TE_CONFLICT]);
+    }
+
+    // W12-R-02: a disabled rule no longer matches, built-in detectors
+    // included; a transaction keeps the list of its start; an empty list
+    // switches the rules back on.
+    #[test]
+    fn disabled_rules_do_not_match() {
+        let e = Arc::new(test_engine());
+        // the protocol layer (encoded dot segment) and the stub rule
+        let run = |e: &Arc<Engine>, raw: &[u8]| {
+            let mut t = Tx::new(Some(e.clone()), b"n", 0);
+            t.set_policy(b"example-api");
+            t.request_line(b"GET", raw, b"/b", b"", b"HTTP/1.1");
+            headers(&mut t, &[]);
+            t.verdict()
+        };
+        let dot = &b"/a/%2e%2e/b"[..];
+        let stub = &b"/STRATA-TEST-BLOCK"[..];
+        assert_eq!(rules(&run(&e, dot)), [protocol::ENCODED_DOT_SEGMENT]);
+        assert_eq!(rules(&run(&e, stub)), [STUB_RULE_ID]);
+
+        let before = Tx::new(Some(e.clone()), b"n", 0);
+        e.set_disabled_rules(&[STUB_RULE_ID, protocol::ENCODED_DOT_SEGMENT, 42])
+            .unwrap();
+        for raw in [dot, stub] {
+            let v = run(&e, raw);
+            assert_eq!((v.action, v.n_rules), (ACTION_ALLOW, 0));
+        }
+        assert!(
+            before.disabled.is_empty(),
+            "a running transaction keeps its list"
+        );
+
+        e.set_disabled_rules(&[protocol::ENCODED_DOT_SEGMENT])
+            .unwrap();
+        assert_eq!(run(&e, dot).n_rules, 0);
+        assert_eq!(rules(&run(&e, stub)), [STUB_RULE_ID]);
+
+        e.set_disabled_rules(&[]).unwrap();
+        assert_eq!(run(&e, dot).action, ACTION_BLOCK);
+        assert!(
+            e.set_disabled_rules(&vec![1; crate::engine::MAX_DISABLED_RULES + 1])
+                .is_err()
+        );
     }
 
     // strata_mode shadow on an enforcing policy stays shadow.
