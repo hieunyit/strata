@@ -83,6 +83,7 @@ groups:
         annotations:
           summary: "{{ $labels.instance }}: engine errors or budget overruns jumped ({{ $labels.reason }}); policies left as they are"
           description: "The node fallback saw a jump it does not act on (#65): shadow does not change the fail mode. Requests go through the fail mode: open lets them pass uninspected, closed answers 503."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataNodeFallbackHeld
         expr: strata_agent_fallback_active == 1
         for: 1h
