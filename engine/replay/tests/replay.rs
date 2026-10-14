@@ -268,6 +268,13 @@ fn compare_a_draft_with_the_baseline() {
     );
     assert_eq!(api.examples_blocked.len(), 2);
     assert_eq!(api.examples_blocked[0].baseline, "allow");
+    // the samples recorded block and log when taken
+    assert_eq!(
+        api.newly_blocked_sampled.values().sum::<u64>(),
+        2,
+        "{:?}",
+        api.newly_blocked_sampled
+    );
     // the shadow policy never blocks: nothing changes there
     assert_eq!(c.routes["example-web"].newly_blocked, 0);
 
