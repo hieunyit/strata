@@ -31,14 +31,20 @@ type Type struct {
 
 // Report is the outcome of one run.
 type Report struct {
-	Rules       int             `json:"rules"`
-	Skipped     int             `json:"skipped"` // rules the engine cannot run yet
-	Benign      int             `json:"benign"`
-	BenignHit   int             `json:"benign_detected"`
-	BenignBlock int             `json:"benign_blocked"`
-	FPByRule    map[string]int  `json:"fp_by_rule"`
-	Attacks     map[string]Type `json:"attacks"`
+	Rules       int            `json:"rules"`
+	Skipped     int            `json:"skipped"` // rules the engine cannot run yet
+	Benign      int            `json:"benign"`
+	BenignHit   int            `json:"benign_detected"`
+	BenignBlock int            `json:"benign_blocked"`
+	FPByRule    map[string]int `json:"fp_by_rule"`
+	// FPSamples: the ids of the first benign requests each rule matched
+	// (at most FPSampleMax), to find what to tune (W11-S-01)
+	FPSamples map[string][]string `json:"fp_samples,omitempty"`
+	Attacks   map[string]Type     `json:"attacks"`
 }
+
+// FPSampleMax benign request ids are kept per rule in FPSamples.
+const FPSampleMax = 5
 
 // GateAttackTypes are the attack types whose recall the quality targets
 // name (plan.md, "Chỉ tiêu chất lượng": SQLi, XSS, CMDi, LFI).
@@ -117,7 +123,7 @@ func Run(tools runner.Tools, rulesDir string, c *corpus.Corpus) (*Report, error)
 	if err != nil {
 		return nil, err
 	}
-	rep := &Report{FPByRule: map[string]int{}, Attacks: map[string]Type{}}
+	rep := &Report{FPByRule: map[string]int{}, FPSamples: map[string][]string{}, Attacks: map[string]Type{}}
 	var rules []map[string]any
 	for _, r := range all {
 		if len(ruletest.Unsupported(r, caps)) > 0 {
@@ -145,7 +151,7 @@ func Run(tools runner.Tools, rulesDir string, c *corpus.Corpus) (*Report, error)
 		return nil, err
 	}
 	rep.Benign = len(bv)
-	for _, v := range bv {
+	for i, v := range bv {
 		if len(v.Rules) > 0 {
 			rep.BenignHit++
 		}
@@ -153,7 +159,11 @@ func Run(tools runner.Tools, rulesDir string, c *corpus.Corpus) (*Report, error)
 			rep.BenignBlock++
 		}
 		for _, r := range v.Rules {
-			rep.FPByRule[strconv.Itoa(int(r))]++
+			id := strconv.Itoa(int(r))
+			rep.FPByRule[id]++
+			if i < len(c.Benign) && len(rep.FPSamples[id]) < FPSampleMax {
+				rep.FPSamples[id] = append(rep.FPSamples[id], c.Benign[i].ID)
+			}
 		}
 	}
 
@@ -248,9 +258,9 @@ func (r *Report) Markdown(w io.Writer, base *Report) {
 			}
 			return ids[i] < ids[j]
 		})
-		fmt.Fprintf(w, "\nRules matching benign requests:\n\n| Rule | Benign requests matched |\n| --- | ---: |\n")
+		fmt.Fprintf(w, "\nRules matching benign requests:\n\n| Rule | Benign requests matched | First requests |\n| --- | ---: | --- |\n")
 		for _, id := range ids {
-			fmt.Fprintf(w, "| %s | %d |\n", id, r.FPByRule[id])
+			fmt.Fprintf(w, "| %s | %d | %s |\n", id, r.FPByRule[id], strings.Join(r.FPSamples[id], " "))
 		}
 	}
 }
