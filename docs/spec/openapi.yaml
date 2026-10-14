@@ -477,6 +477,8 @@ components:
           - allow
           - pass
           - error
+          - pass
+          - error
           example: block
         score_protocol:
           type: integer
@@ -553,6 +555,8 @@ components:
           - allow
           - pass
           - error
+          - pass
+          - error
         client_ip:
           type: string
         rule_id:
@@ -583,7 +587,7 @@ components:
           format: int64
     OverviewBucket:
       type: object
-      required: [start, block, shadow, other]
+      required: [start, block, shadow, other, error]
       properties:
         start:
           type: string
@@ -594,13 +598,17 @@ components:
         shadow:
           type: integer
           format: int64
+        error:
+          type: integer
+          format: int64
+          description: 'Of other, the events in fail mode (CPU budget, oversize body, engine error): the request was not inspected.'
         other:
           type: integer
           format: int64
           description: pass and error
     OverviewTotals:
       type: object
-      required: [events, block, shadow, other, clients, nodes, policies]
+      required: [events, block, shadow, other, error, clients, nodes, policies]
       properties:
         events:
           type: integer
@@ -614,6 +622,10 @@ components:
         other:
           type: integer
           format: int64
+        error:
+          type: integer
+          format: int64
+          description: 'Of other, the events in fail mode (not inspected).'
         clients:
           type: integer
           format: int64
@@ -642,7 +654,7 @@ components:
           format: int64
     OverviewRouteCount:
       type: object
-      required: [policy_id, host, path_prefix, events, block, shadow]
+      required: [policy_id, host, path_prefix, events, block, shadow, error]
       properties:
         policy_id:
           type: string
@@ -660,6 +672,10 @@ components:
         shadow:
           type: integer
           format: int64
+        error:
+          type: integer
+          format: int64
+          description: 'Events in fail mode on the route (not inspected).'
     OverviewClientCount:
       type: object
       required: [client_ip, events, block]

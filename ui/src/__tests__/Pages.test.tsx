@@ -33,10 +33,10 @@ describe('overview page (W10-F-01)', () => {
     from: '2026-10-12T12:00:00Z',
     to: '2026-10-13T12:00:00Z',
     step_seconds: 3600,
-    totals: { events: 40, block: 30, shadow: 6, other: 4, clients: 7, nodes: 2, policies: 2 },
-    series: [{ start: '2026-10-13T11:00:00Z', block: 30, shadow: 6, other: 4 }],
+    totals: { events: 40, block: 30, shadow: 6, other: 4, error: 3, clients: 7, nodes: 2, policies: 2 },
+    series: [{ start: '2026-10-13T11:00:00Z', block: 30, shadow: 6, other: 4, error: 3 }],
     top_rules: [{ rule_id: 942100, events: 25, block: 20, shadow: 5 }, { rule_id: 999999, events: 3, block: 3, shadow: 0 }],
-    top_routes: [{ policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 30, block: 28, shadow: 0 }],
+    top_routes: [{ policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 30, block: 28, shadow: 0, error: 2 }],
     top_clients: [{ client_ip: '198.51.100.1', events: 12, block: 12 }],
     rules: { '942100': { name: 'SQL Injection Attack Detected via libinjection' } },
   };
@@ -56,6 +56,9 @@ describe('overview page (W10-F-01)', () => {
     expect(await screen.findAllByTestId('top-rule')).toHaveLength(2);
     expect(screen.getByTestId('kpi-events')).toHaveTextContent('40');
     expect(screen.getByTestId('kpi-blocked')).toHaveTextContent('75% of events');
+    // fail mode is shown apart from the passed events
+    expect(screen.getByTestId('kpi-unchecked')).toHaveTextContent('3');
+    expect(screen.getByTestId('kpi-unchecked')).toHaveTextContent('fail mode, 7.5%');
     expect(screen.getByTestId('kpi-nodes')).toHaveTextContent('1/2');
     const [first, second] = screen.getAllByTestId('top-rule');
     expect(first).toHaveTextContent('SQL Injection Attack Detected via libinjection');

@@ -19,7 +19,8 @@ function label(start: string, stepSeconds: number, locale: string): string {
 }
 
 // The events of the window as layers: blocked at the bottom, shadow (would
-// have been blocked) above it, the rest on top, one column per bucket.
+// have been blocked) above it, then fail mode (not inspected), then passed,
+// one column per bucket.
 export const StrataChart: React.FC<{ series: OverviewBucket[]; stepSeconds: number; height?: number }> = ({
   series,
   stepSeconds,
@@ -50,14 +51,14 @@ export const StrataChart: React.FC<{ series: OverviewBucket[]; stepSeconds: numb
     const c = chart.current;
     if (!c) return;
     const locale = i18n.language;
-    const layer = (key: 'block' | 'shadow' | 'other', name: string) => ({
+    const layer = (color: string, name: string, data: number[]) => ({
       name,
       type: 'bar' as const,
       stack: 'events',
       barCategoryGap: '18%',
-      itemStyle: { color: css(key) },
+      itemStyle: { color: css(color) },
       emphasis: { focus: 'series' as const },
-      data: series.map((b) => b[key]),
+      data,
     });
     c.setOption(
       {
@@ -84,9 +85,11 @@ export const StrataChart: React.FC<{ series: OverviewBucket[]; stepSeconds: numb
           axisLabel: { color: css('muted'), fontFamily: 'IBM Plex Sans', fontSize: 11 },
         },
         series: [
-          layer('block', t('verdict.block')),
-          layer('shadow', t('verdict.shadow')),
-          layer('other', t('verdict.other')),
+          layer('block', t('verdict.block'), series.map((b) => b.block)),
+          layer('shadow', t('verdict.shadow'), series.map((b) => b.shadow)),
+          // fail mode: the request went through uninspected
+          layer('unchecked', t('verdict.unchecked'), series.map((b) => b.error ?? 0)),
+          layer('other', t('verdict.pass'), series.map((b) => Math.max(0, b.other - (b.error ?? 0)))),
         ],
       },
       true,

@@ -32,21 +32,22 @@ async function load(range: RangeKey, policy: string): Promise<Data> {
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
 // A horizontal bar split in the verdict colors, scaled to the list's top.
-const SplitBar: React.FC<{ block: number; shadow: number; total: number; max: number }> = ({ block, shadow, total, max }) => {
+const SplitBar: React.FC<{ block: number; shadow: number; error?: number; total: number; max: number }> = ({ block, shadow, error = 0, total, max }) => {
   const w = (n: number) => `${max > 0 ? (n / max) * 100 : 0}%`;
   return (
     <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-sunken" aria-hidden>
       <div className="bg-block" style={{ width: w(block) }} />
       <div className="bg-shadow" style={{ width: w(shadow) }} />
-      <div className="bg-other/60" style={{ width: w(Math.max(0, total - block - shadow)) }} />
+      <div className="bg-unchecked" style={{ width: w(error) }} />
+      <div className="bg-other/60" style={{ width: w(Math.max(0, total - block - shadow - error)) }} />
     </div>
   );
 };
 
-const Kpi: React.FC<{ label: string; value: string; note?: string; tone?: 'block' | 'shadow'; testId: string }> = ({ label, value, note, tone, testId }) => (
+const Kpi: React.FC<{ label: string; value: string; note?: string; tone?: 'block' | 'shadow' | 'unchecked'; testId: string }> = ({ label, value, note, tone, testId }) => (
   <div data-testid={testId} className="min-w-0 py-4 pr-4 xl:px-5 xl:first:pl-0 xl:border-l xl:first:border-l-0 border-line">
     <div className="text-xs text-muted">{label}</div>
-    <div className={`mt-1 text-[26px] leading-none font-semibold tabular-nums ${tone === 'block' ? 'text-block' : tone === 'shadow' ? 'text-shadow' : 'text-ink'}`}>
+    <div className={`mt-1 text-[26px] leading-none font-semibold tabular-nums ${tone ? { block: 'text-block', shadow: 'text-shadow', unchecked: 'text-unchecked' }[tone] : 'text-ink'}`}>
       {value}
     </div>
     {note && <div className="mt-1.5 text-xs text-muted truncate">{note}</div>}
@@ -142,7 +143,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       <ErrorBanner message={error && t('common.refreshError', { error })} />
 
       <section className="panel mb-5" aria-label={t('overview.totals')}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 px-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 px-5">
           <Kpi testId="kpi-events" label={t('overview.kpi.events')} value={loading && !o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
           <Kpi
             testId="kpi-blocked"
@@ -158,6 +159,13 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             value={loading && !o ? '—' : formatCount(totals?.shadow, locale)}
             note={t('overview.kpi.shadowNote')}
           />
+          <Kpi
+            testId="kpi-unchecked"
+            tone={totals && totals.error > 0 ? 'unchecked' : undefined}
+            label={t('overview.kpi.unchecked')}
+            value={loading && !o ? '—' : formatCount(totals?.error, locale)}
+            note={totals ? t('overview.kpi.uncheckedNote', { pct: pct(totals.error ?? 0, totals.events) }) : undefined}
+          />
           <Kpi testId="kpi-clients" label={t('overview.kpi.clients')} value={loading && !o ? '—' : formatCount(totals?.clients, locale)} note={t('overview.kpi.policies', { count: totals?.policies ?? 0 })} />
           <Kpi
             testId="kpi-nodes"
@@ -172,9 +180,9 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
         <SectionTitle
           aside={
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {(['block', 'shadow', 'other'] as const).map((k) => (
+              {(['block', 'shadow', 'unchecked', 'pass'] as const).map((k) => (
                 <span key={k} className="inline-flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-sm ${k === 'block' ? 'bg-block' : k === 'shadow' ? 'bg-shadow' : 'bg-other'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-sm ${{ block: 'bg-block', shadow: 'bg-shadow', unchecked: 'bg-unchecked', pass: 'bg-other' }[k]}`} />
                   {t(`verdict.${k}`)}
                 </span>
               ))}
@@ -256,7 +264,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
                     </td>
                     <td className="td">
                       <div className="flex items-center gap-3">
-                        <SplitBar block={r.block} shadow={r.shadow} total={r.events} max={routeMax} />
+                        <SplitBar block={r.block} shadow={r.shadow} error={r.error} total={r.events} max={routeMax} />
                         <span className="w-14 text-right tabular-nums">{formatCount(r.events, locale)}</span>
                       </div>
                     </td>
