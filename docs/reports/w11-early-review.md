@@ -48,5 +48,5 @@ tấn công kích hoạt, và bắn nhầm ở lưu lượng thấp (#65).
 | --- | --- |
 | W11-S-01 | Làm ngay sau khi merge: xử lý FP từ shadow (route thí điểm, corpus benign v0), corpus benign từ lưu lượng thí điểm (giả lập, ghi rõ), phát hành pack **v0.1** theo 2 gói core/signature của RV-S-01, đưa lên staging (mốc 7 ngày mới cho v0.1) |
 | RV-G2-01 | Phiên engine làm tiếp (`rv-g2-01-event-context`, có thêm `would_block` #57); tôi làm phần control plane sau khi merge |
-| #65 (fallback) | Làm trước khi bật canary, ở đầu tuần 12 (W12-G1-01 cũng đụng phần này) |
+| #65 (fallback) | Đã sửa ngày 14/10 (nhánh `W11-G1-01-fallback-65`, `nginx-module.md` › "Sửa #65"); `lab-fallback.sh` kiểm cả trường hợp một nguồn gửi dồn |
 | Bật canary 1% | **Không bật**: Gate A chưa đạt (`gate-a.md`) |
