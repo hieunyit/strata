@@ -268,3 +268,72 @@ strata_degraded_requests_total 125
 		t.Fatalf("older module: %d breaker series", n)
 	}
 }
+
+// W12-G2-01: the canary group counters (24..49) of a module that writes
+// them, summed over the workers.
+func TestCanaryCounters(t *testing.T) {
+	slot := func(base []uint64, canary, shadow []uint64) []uint64 {
+		v := append(append([]uint64{}, base...), BreakerClosed, 0, 0)
+		return append(append(v, canary...), shadow...)
+	}
+	// requests, blocked, logged, 5xx, 9 latency buckets
+	w0 := slot(worker0, []uint64{10, 4, 0, 1, 5, 3, 2, 0, 0, 0, 0, 0, 0}, []uint64{90, 0, 30, 2, 80, 10, 0, 0, 0, 0, 0, 0, 0})
+	w2 := slot(worker2, []uint64{5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1}, []uint64{45, 0, 15, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0})
+	p := write(t, fixture{slots: 3, counters: 50, slotSize: 448, values: map[int][]uint64{0: w0, 2: w2}}.bytes())
+	s, err := Read(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, ok := s.Canary()
+	if !ok || g[GroupCanary].Requests != 15 || g[GroupCanary].Blocked != 9 || g[GroupShadow].Logged != 45 ||
+		g[GroupShadow].Upstream5xx != 2 || g[GroupCanary].Latency[8] != 1 || g[GroupShadow].Latency[0] != 125 {
+		t.Fatalf("%v %+v", ok, g)
+	}
+	want := `
+# HELP strata_canary_blocked_total Of those, blocked, by canary group.
+# TYPE strata_canary_blocked_total counter
+strata_canary_blocked_total{group="canary"} 9
+strata_canary_blocked_total{group="shadow"} 0
+# HELP strata_canary_requests_total Requests of policies with an enforce canary, by canary group.
+# TYPE strata_canary_requests_total counter
+strata_canary_requests_total{group="canary"} 15
+strata_canary_requests_total{group="shadow"} 135
+# HELP strata_canary_request_seconds Request latency of those, by canary group.
+# TYPE strata_canary_request_seconds histogram
+strata_canary_request_seconds_bucket{group="canary",le="0.005"} 5
+strata_canary_request_seconds_bucket{group="canary",le="0.01"} 8
+strata_canary_request_seconds_bucket{group="canary",le="0.025"} 10
+strata_canary_request_seconds_bucket{group="canary",le="0.05"} 10
+strata_canary_request_seconds_bucket{group="canary",le="0.1"} 10
+strata_canary_request_seconds_bucket{group="canary",le="0.25"} 10
+strata_canary_request_seconds_bucket{group="canary",le="0.5"} 10
+strata_canary_request_seconds_bucket{group="canary",le="1"} 14
+strata_canary_request_seconds_bucket{group="canary",le="+Inf"} 15
+strata_canary_request_seconds_sum{group="canary"} 0
+strata_canary_request_seconds_count{group="canary"} 15
+strata_canary_request_seconds_bucket{group="shadow",le="0.005"} 125
+strata_canary_request_seconds_bucket{group="shadow",le="0.01"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="0.025"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="0.05"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="0.1"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="0.25"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="0.5"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="1"} 135
+strata_canary_request_seconds_bucket{group="shadow",le="+Inf"} 135
+strata_canary_request_seconds_sum{group="shadow"} 0
+strata_canary_request_seconds_count{group="shadow"} 135
+`
+	c := NewCollector(p)
+	if err := testutil.CollectAndCompare(c, strings.NewReader(want),
+		"strata_canary_blocked_total", "strata_canary_requests_total", "strata_canary_request_seconds"); err != nil {
+		t.Fatal(err)
+	}
+	if problems, err := testutil.CollectAndLint(c); err != nil || len(problems) != 0 {
+		t.Fatalf("lint: %v %+v", err, problems)
+	}
+	// an older module: no canary series
+	old := NewCollector(write(t, fixture{slots: 1, counters: 24, values: map[int][]uint64{0: slot(worker0, nil, nil)}}.bytes()))
+	if n := testutil.CollectAndCount(old, "strata_canary_requests_total"); n != 0 {
+		t.Fatalf("older module: %d canary series", n)
+	}
+}

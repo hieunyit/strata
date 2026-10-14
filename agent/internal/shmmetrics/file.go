@@ -48,6 +48,58 @@ const (
 	numBreakerFields = 24
 )
 
+// Canary group counters (W12-G2-01), read only when the module writes them:
+// two groups (inside the canary, enforced; outside, shadow) of requests,
+// blocked, logged, upstream 5xx and len(LatencyBounds)+1 latency buckets.
+const (
+	cCanary         = 24
+	canaryFields    = 4 + 9
+	numCanaryFields = cCanary + 2*canaryFields
+)
+
+// Canary groups, the index of Worker.Canary.
+const (
+	GroupCanary = 0 // inside the canary: enforced
+	GroupShadow = 1 // outside: shadow, what the canary is compared with
+)
+
+// LatencyBounds are the upper bounds of the request latency histogram of
+// the canary groups, in seconds; the last bucket (+Inf) has no bound.
+var LatencyBounds = []float64{5e-3, 10e-3, 25e-3, 50e-3, 100e-3, 250e-3, 500e-3, 1}
+
+// CanaryGroup: the counters of one canary group.
+type CanaryGroup struct {
+	Requests, Blocked, Logged, Upstream5xx uint64
+	Latency                                []uint64 // per bucket, not cumulative
+}
+
+func (g *CanaryGroup) add(o CanaryGroup) {
+	g.Requests += o.Requests
+	g.Blocked += o.Blocked
+	g.Logged += o.Logged
+	g.Upstream5xx += o.Upstream5xx
+	if g.Latency == nil {
+		g.Latency = make([]uint64, len(LatencyBounds)+1)
+	}
+	for i, n := range o.Latency {
+		g.Latency[i] += n
+	}
+}
+
+// Canary sums the canary groups of every worker; ok is false with a module
+// older than W12-G2-01.
+func (s Snapshot) Canary() (g [2]CanaryGroup, ok bool) {
+	for _, w := range s.Workers {
+		if !w.HasCanary {
+			continue
+		}
+		ok = true
+		g[GroupCanary].add(w.Canary[GroupCanary])
+		g[GroupShadow].add(w.Canary[GroupShadow])
+	}
+	return g, ok
+}
+
 // Circuit breaker states (cBreakerState).
 const (
 	BreakerClosed   = 0
@@ -81,6 +133,10 @@ type Worker struct {
 	BreakerState uint64
 	BreakerOpens uint64
 	Degraded     uint64
+	// Canary groups (GroupCanary, GroupShadow); HasCanary is false with a
+	// module older than W12-G2-01.
+	HasCanary bool
+	Canary    [2]CanaryGroup
 }
 
 // Snapshot is the content of one metrics file.
@@ -170,6 +226,18 @@ func parse(m []byte) (Snapshot, error) {
 			w.BreakerState = c(cBreakerState)
 			w.BreakerOpens = c(cBreakerOpens)
 			w.Degraded = c(cDegradedReqs)
+		}
+		if counters >= numCanaryFields {
+			w.HasCanary = true
+			for g := range w.Canary {
+				base := cCanary + g*canaryFields
+				cg := CanaryGroup{Requests: c(base), Blocked: c(base + 1), Logged: c(base + 2), Upstream5xx: c(base + 3),
+					Latency: make([]uint64, len(LatencyBounds)+1)}
+				for b := range cg.Latency {
+					cg.Latency[b] = c(base + 4 + b)
+				}
+				w.Canary[g] = cg
+			}
 		}
 		s.Workers = append(s.Workers, w)
 	}

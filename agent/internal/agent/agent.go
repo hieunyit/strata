@@ -191,7 +191,13 @@ func New(cfg Config) (*Agent, error) {
 		Node: &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
-			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+			if cfg.MetricsFile != "" {
+				if snap, err := shmmetrics.Read(cfg.MetricsFile); err == nil {
+					fillCounters(nc, snap)
+				}
+			}
+			return nc
 		},
 	}
 	if cfg.MetricsFile != "" {
@@ -327,4 +333,27 @@ func clientTLS(cfg Config, id *identity.Identity) (credentials.TransportCredenti
 		ServerName:   cfg.ServerName,
 		MinVersion:   tls.VersionTLS13,
 	}), nil
+}
+
+// fillCounters adds the workers' counters to a heartbeat: requests,
+// blocks, fail open, and the canary groups the control plane compares
+// (W12-G2-01).
+func fillCounters(nc *fleetv1.NodeCounters, snap shmmetrics.Snapshot) {
+	for _, w := range snap.Workers {
+		for _, n := range w.Requests {
+			nc.Requests += n
+		}
+		nc.Blocked += w.Requests[3]
+		nc.FailOpen += w.FailOpen
+	}
+	nc.MetricsCreatedMs = snap.CreatedMs
+	g, ok := snap.Canary()
+	if !ok {
+		return
+	}
+	pb := func(c shmmetrics.CanaryGroup) *fleetv1.CanaryCounters {
+		return &fleetv1.CanaryCounters{Requests: c.Requests, Blocked: c.Blocked, Logged: c.Logged,
+			UpstreamServerErrors: c.Upstream5xx, Latency: c.Latency}
+	}
+	nc.Canary, nc.CanaryShadow = pb(g[shmmetrics.GroupCanary]), pb(g[shmmetrics.GroupShadow])
 }
