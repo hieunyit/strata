@@ -482,6 +482,18 @@ impl Tx {
         }
     }
 
+    /// The snippet an event keeps for a violation: masked (built-in masks
+    /// and the policy's privacy settings) and cut to the policy's
+    /// max_snippet_size. Every path that records a match goes through it.
+    fn event_snippet(&self, field: &str, raw: &[u8]) -> Vec<u8> {
+        let privacy = self
+            .engine
+            .as_deref()
+            .zip(self.policy_index)
+            .and_then(|(e, i)| e.privacy(i));
+        crate::event::prepare_snippet_with(field, raw, self.snippet_max, privacy)
+    }
+
     /// Records a violation once; decides when it blocks alone or the
     /// total reaches the threshold.
     fn add(&mut self, v: Violation) {
@@ -498,7 +510,7 @@ impl Tx {
             // pack is logged with an Event ID, like a shadow policy
             self.sig_score = self.sig_score.saturating_add(v.score);
             if self.matches.len() < MAX_RULES {
-                let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
+                let snippet = self.event_snippet(&v.field, &v.snippet);
                 self.matches.push(MatchEntry {
                     rule_id: v.rule,
                     layer: v.layer,
@@ -528,13 +540,7 @@ impl Tx {
             _ => {}
         }
         if self.matches.len() < MAX_RULES {
-            let engine = self.engine.clone();
-            let privacy = engine
-                .as_deref()
-                .zip(self.policy_index)
-                .and_then(|(e, i)| e.privacy(i));
-            let snippet =
-                crate::event::prepare_snippet_with(&v.field, &v.snippet, self.snippet_max, privacy);
+            let snippet = self.event_snippet(&v.field, &v.snippet);
             self.matches.push(MatchEntry {
                 rule_id: v.rule,
                 layer: v.layer,
@@ -565,7 +571,7 @@ impl Tx {
             _ => ("RESPONSE_BODY".to_string(), Vec::new()),
         };
         if self.matches.len() < MAX_RULES {
-            let snippet = crate::event::prepare_snippet(&field, &raw_snippet);
+            let snippet = self.event_snippet(&field, &raw_snippet);
             self.matches.push(MatchEntry {
                 rule_id: rule,
                 layer: "response",
@@ -1162,7 +1168,8 @@ impl Tx {
             referer: &ctx.referer,
             headers: &ctx_headers,
             inspection,
-            would_block: self.matched,
+            // a would-be block of the signature pack in shadow counts too
+            would_block: self.matched || self.sig_matched,
         };
 
         Some(crate::event::encode(&ev))

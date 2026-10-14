@@ -210,3 +210,78 @@ fn identity_key_file_formats() {
         assert!(read_identity_key(bad).is_err(), "{bad:?}");
     }
 }
+
+/// PR #68 review: a rule of the signature pack in shadow (the default of a
+/// policy) records its match through the same masking and size as the
+/// others, and its would-be block is would_block.
+#[test]
+fn signature_pack_matches_follow_the_policy() {
+    let rules = r#"
+ir_version: 1
+ruleset: { name: privacy-sig, version: "1" }
+rules:
+  - id: 400951
+    name: sigma marker
+    layer: managed
+    stage: request_headers
+    score: 100
+    severity: critical
+    action_mode: block_alone
+    match:
+      all:
+        - targets: [ { var: args } ]
+          operator: { type: contains, value: "sigattack" }
+    metadata: { source: sigma, license: DRL-1.1, upstream_id: example-uuid, upstream_version: r2026-09, author: Example Sigma Author }
+"#;
+    let defs = rules_from_ir(&from_yaml(rules).unwrap()).unwrap();
+    let p = "policies:\n  - name: example-api\n    mode: enforce\n    max_snippet_size: 4096\n    privacy:\n      sensitive_fields: [ma_khach_hang]\n      mask_patterns: ['KH[0-9]{8}']";
+    let pol = policies_from(&from_yaml(p).unwrap(), Path::new(".")).unwrap();
+    let b = compile(
+        &defs,
+        &pol,
+        &Build {
+            version: 1,
+            created_at_ms: 0,
+            rollback: false,
+        },
+        &SEED,
+    )
+    .unwrap();
+    let e = Arc::new(
+        Engine::map(
+            Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+            &public_key(&SEED),
+        )
+        .unwrap(),
+    );
+
+    let pad = "x".repeat(300);
+    let ev = event(
+        &e,
+        b"example-api",
+        &format!("q=sigattack+KH12345678+{pad}"),
+        &[],
+    );
+    assert!(!has(&ev, b"KH12345678"), "the policy's pattern is masked");
+    assert!(has(&ev, b"**********"));
+    assert!(
+        has(&ev, pad.as_bytes()),
+        "the policy's 4 KB snippet, not 128 bytes"
+    );
+    // field 21 (would_block) = true: the signature pack would have blocked
+    assert!(
+        has(&ev, &[0xa8, 0x01, 0x01]),
+        "would_block for a signature would-be block"
+    );
+
+    let ev = event(
+        &e,
+        b"example-api",
+        "ma_khach_hang=sigattack-secret-value",
+        &[],
+    );
+    assert!(
+        !has(&ev, b"sigattack-secret-value"),
+        "the policy's field keeps no snippet"
+    );
+}
