@@ -66,9 +66,13 @@ máy này:
   ```bash
   deploy/staging/pilot.sh [--env prod-sim] up        # dựng hoặc dựng lại node, enroll lần đầu
   deploy/staging/pilot.sh [--env prod-sim] status
-  deploy/staging/pilot.sh [--env prod-sim] --inspect up   # bật kiểm tra (policy pilot-*, W10-G2-01)
+  deploy/staging/pilot.sh [--env prod-sim] --inspect up   # bật kiểm tra (policy pilot-*, W10-G2-01); được nhớ
+  deploy/staging/pilot.sh [--env prod-sim] --no-inspect up  # tắt kiểm tra
+  deploy/staging/pilot-traffic.sh [--env prod-sim] up|status|sources|down   # lưu lượng giả lập
   ```
 
   Cổng: 28480 (verify) và 28481 (upload); prod-sim dùng 38480 và 38481. Mỗi lần
   `deploy.sh` cần chạy lại `pilot.sh up`: deploy dựng lại `scrape.yml` từ tag, nên mất job
-  `strata-agent-pilot`.
+  `strata-agent-pilot`. Trạng thái `--inspect` được giữ. Trước khi chạy `fp-report`,
+  chạy `pilot-traffic.sh sources`: IP của container tấn công có thể đổi khi container
+  được tạo lại.
