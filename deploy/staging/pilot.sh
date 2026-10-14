@@ -194,9 +194,15 @@ EOF
         docker kill -s HUP "$project-victoriametrics-1" >/dev/null
     fi
     for r in "${routes[@]}"; do
-        c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Host: api.example.test' -H 'Content-Type: application/json' \
-            -d '{"id":"example"}' "http://127.0.0.1:$(port "$r")/v1/${r#pilot-}")
-        [ "$c" = 200 ] || die "$r does not answer 200 ($c)"
+        # a node just started may still reset connections while its NGINX
+        # loads the bundle; curl then exits non-zero, which set -e turned
+        # into a silent exit of the whole script (deploy.sh, 14/10)
+        start=$SECONDS
+        until c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Host: api.example.test' -H 'Content-Type: application/json' \
+            -d '{"id":"example"}' "http://127.0.0.1:$(port "$r")/v1/${r#pilot-}") && [ "$c" = 200 ]; do
+            [ $((SECONDS - start)) -lt 30 ] || die "$r does not answer 200 in 30 s (${c:-no answer})"
+            sleep 1
+        done
     done
     say "pilot nodes up on :${d}8480 (verify) and :${d}8481 (upload), inspection $([ "$inspect" = 1 ] && echo on || echo off)"
     status ;;
