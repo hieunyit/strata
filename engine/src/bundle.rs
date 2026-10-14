@@ -47,8 +47,11 @@ pub mod kind {
     pub const STRINGS: u32 = 5;
     pub const BLOCK_PAGE: u32 = 6;
     pub const HYPERSCAN: u32 = 7;
-    /// Privacy settings of the policies (P-01 §1, `crate::privacy`); kind 8
-    /// is HYPERSCAN_BLOCK (#27, another branch).
+    /// The patterns of HYPERSCAN again, compiled in block mode, for short
+    /// values (#27). Engines before it skip the section and scan with
+    /// HYPERSCAN alone.
+    pub const HYPERSCAN_BLOCK: u32 = 8;
+    /// Privacy settings of the policies (P-01 §1, `crate::privacy`).
     pub const PRIVACY: u32 = 9;
     /// Highest kind this engine reads.
     pub const KNOWN: u32 = 9;

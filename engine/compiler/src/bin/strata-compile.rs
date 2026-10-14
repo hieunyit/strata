@@ -4,7 +4,7 @@
 //! strata-compile --policies <file> (--key <seed file> | --unsigned)
 //!                --version <n> --out <file>
 //!                [--rules <file>]... [--created-at <ms>] [--rollback]
-//!                [--cost-report <file>] [--identity-key <file>]
+//!                [--cost-report <file>] [--identity-key <file>] [--no-hs-block]
 //! ```
 //! Files are JSON or YAML by extension. Without --created-at the current
 //! time is used (fixtures pass it to stay reproducible).
@@ -15,13 +15,17 @@
 //! `{"total": n, "rules": [{"id", "name", "cost"}...]}`, costliest first.
 //! `--identity-key` is the installation's key for policies with
 //! `privacy: { identity: hmac }` (32 bytes, or 64 hex digits).
+//! The block-mode copy of the Hyperscan database (section HYPERSCAN_BLOCK,
+//! #27), which engines scan short values with, is written by default (PO
+//! 14/10/2026); `--no-hs-block` leaves it out (smaller bundle, slower
+//! scans). `--hs-block` is accepted and changes nothing.
 
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use strata_compiler::{
-    Build, compile_unsigned, load, policies_from, read_identity_key, rules_from_ir,
+    Build, Options, compile_unsigned_opts, load, policies_from, read_identity_key, rules_from_ir,
 };
 
 fn run(args: &[String]) -> Result<(), String> {
@@ -29,6 +33,8 @@ fn run(args: &[String]) -> Result<(), String> {
         (vec![], None, None, None, None);
     let (mut created, mut rollback, mut unsigned, mut cost_report) = (None, false, false, None);
     let mut identity_key: Option<String> = None;
+    // HYPERSCAN_BLOCK by default (PO 14/10/2026)
+    let mut opts = Options { hs_block: true };
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -53,6 +59,8 @@ fn run(args: &[String]) -> Result<(), String> {
             "--out" => out = Some(val()?),
             "--rollback" => rollback = true,
             "--identity-key" => identity_key = Some(val()?),
+            "--hs-block" => opts.hs_block = true,
+            "--no-hs-block" => opts.hs_block = false,
             "--unsigned" => unsigned = true,
             "--cost-report" => cost_report = Some(val()?),
             _ => return Err(format!("unexpected argument {a}")),
@@ -90,7 +98,7 @@ fn run(args: &[String]) -> Result<(), String> {
             .unwrap_or(0)
     });
 
-    let (mut bundle, mut costs) = compile_unsigned(
+    let (mut bundle, mut costs) = compile_unsigned_opts(
         &rules,
         &pol,
         &Build {
@@ -98,6 +106,7 @@ fn run(args: &[String]) -> Result<(), String> {
             created_at_ms,
             rollback,
         },
+        opts,
     )?;
     if let Some(seed) = &seed {
         bundle = libstrata::bundle::sign(bundle, seed);

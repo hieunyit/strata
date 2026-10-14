@@ -9,6 +9,11 @@
 //! the path for traversal) and the benign corpus run through both: action,
 //! score and matched rules must be identical.
 //!
+//! #27: a third bundle has the block-mode copy of the database
+//! (HYPERSCAN_BLOCK), which scans values up to 2048 bytes; it must give
+//! the same verdicts too. Payloads are also sent padded to just under,
+//! at and just over that length, so both databases are used.
+//!
 //! Slow in debug builds (two full Hyperscan compiles); run with
 //! `make test-prefilter` (cargo test --release ... -- --ignored).
 
@@ -19,7 +24,10 @@ use libstrata::bundle::public_key;
 use libstrata::engine::Engine;
 use libstrata::tx::Tx;
 use serde_json::Value;
-use strata_compiler::{Build, compile, compile_reference, from_yaml, policies_from, rules_from_ir};
+use strata_compiler::{
+    Build, Options, compile, compile_opts, compile_reference, from_yaml, policies_from,
+    rules_from_ir,
+};
 
 const SEED: [u8; 32] = [9; 32];
 
@@ -46,7 +54,7 @@ fn rule_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn engines() -> (Arc<Engine>, Arc<Engine>) {
+fn engines() -> (Arc<Engine>, Arc<Engine>, Arc<Engine>) {
     let mut files = vec![];
     rule_files(&repo().join("rules"), &mut files);
     let mut defs = vec![];
@@ -82,7 +90,13 @@ fn engines() -> (Arc<Engine>, Arc<Engine>) {
     let mut reference = map(compile_reference(&defs, &pol, &build, &SEED).unwrap());
     reference.disable_prefilter();
     let fast = map(compile(&defs, &pol, &build, &SEED).unwrap());
-    (Arc::new(reference), Arc::new(fast))
+    let block = map(compile_opts(&defs, &pol, &build, &SEED, Options { hs_block: true }).unwrap());
+    assert!(fast.hyperscan_block().is_none());
+    assert!(
+        block.hyperscan_block().is_some(),
+        "no HYPERSCAN_BLOCK section"
+    );
+    (Arc::new(reference), Arc::new(fast), Arc::new(block))
 }
 
 struct Req {
@@ -131,6 +145,20 @@ fn requests() -> Vec<Req> {
                 headers: host(),
                 body: String::new(),
             });
+            // around the block scan limit: the value (q, decoded) just
+            // under, at and over 2048 bytes, the payload at its end
+            if n % 4 == 0 {
+                for len in [2047usize, 2048, 2049, 4200] {
+                    let pad = len.saturating_sub(payload.len());
+                    out.push(Req {
+                        id: format!("{id}/long{len}"),
+                        method: "GET".into(),
+                        uri: format!("/search?q={}{q}", "a".repeat(pad)),
+                        headers: host(),
+                        body: String::new(),
+                    });
+                }
+            }
             let mut h = host();
             h.push((
                 "Content-Type".into(),
@@ -218,18 +246,25 @@ fn verdict(e: &Arc<Engine>, r: &Req) -> (u32, i32, Vec<u32>) {
 #[test]
 #[ignore]
 fn prefilter_gives_the_verdicts_of_before() {
-    let (reference, fast) = engines();
+    let (reference, fast, block) = engines();
     let reqs = requests();
     assert!(reqs.len() > 7000, "only {} requests", reqs.len());
     let mut differ = vec![];
     let mut matched = 0;
     for r in &reqs {
-        let (a, b) = (verdict(&reference, r), verdict(&fast, r));
+        let (a, b, c) = (
+            verdict(&reference, r),
+            verdict(&fast, r),
+            verdict(&block, r),
+        );
         if !a.2.is_empty() {
             matched += 1;
         }
         if a != b {
             differ.push(format!("{}: reference {a:?}, fast {b:?}", r.id));
+        }
+        if a != c {
+            differ.push(format!("{}: reference {a:?}, hs block {c:?}", r.id));
         }
     }
     eprintln!(

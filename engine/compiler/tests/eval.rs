@@ -632,6 +632,52 @@ mod regex_fallback {
         rules(&t.verdict())
     }
 
+    /// #49: a rule evaluated on every request (932230 has no gate) gets its
+    /// fallback regex compiled when the bundle is mapped, not by the first
+    /// request; the regexes of gated rules stay lazy.
+    #[test]
+    fn hot_fallback_regexes_are_compiled_at_map() {
+        assert_eq!(engine_932230().regexes().compiled_count(), 1);
+        let gated = r#"
+ir_version: 1
+ruleset: { name: p, version: "1" }
+rules:
+  - { id: 800603, name: lazy-rx, layer: managed, stage: request_headers, score: 100, severity: critical,
+      match: { all: [
+        { targets: [ { var: args } ], operator: { type: contains, value: "zzgate" } },
+        { targets: [ { var: args } ], operator: { type: rx, value: "w1x(?:a|b)+y" } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+        let defs = rules_from_ir(&from_yaml(gated).unwrap()).unwrap();
+        let pol = policies_from(
+            &from_yaml("policies: [{ name: example-api, mode: enforce }]").unwrap(),
+            std::path::Path::new("."),
+        )
+        .unwrap();
+        let b = compile(
+            &defs,
+            &pol,
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Engine::map(
+            Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+            &public_key(&SEED),
+        )
+        .unwrap();
+        assert_eq!(e.regexes().len(), 1, "the secondary rx is a fallback regex");
+        assert_eq!(
+            e.regexes().compiled_count(),
+            0,
+            "a gated rule's regex stays lazy"
+        );
+    }
+
     #[test]
     fn too_large_for_hyperscan_still_matches() {
         let e = engine_932230();

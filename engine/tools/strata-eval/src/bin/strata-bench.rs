@@ -3,7 +3,7 @@
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
 //!              [--budget-us N] [--only small|nul|attack|json|64k|1m] [--event] [--diagnose]
-//!              [--cold N]
+//!              [--cold N [--warm]]
 //!
 //! For each request kind (small GET, 64 KB and 1 MB urlencoded POST, JSON
 //! POST, an attack GET) prints one JSON line: mean, p50, p99 and max in µs,
@@ -12,7 +12,8 @@
 //!
 //! `--cold N` times instead the first request of a freshly mapped engine, N
 //! times per request kind: what a worker pays right after a bundle load
-//! (fallback regexes are compiled on first use).
+//! (fallback regexes of gated rules are compiled on first use). `--warm`
+//! allocates the thread's Hyperscan scratch first (#49).
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -197,8 +198,14 @@ fn main() {
             let mut first = Vec::with_capacity(n);
             let mut warm = Vec::with_capacity(n);
             let mut last = (0, vec![]);
+            let warm_first = args.iter().any(|a| a == "--warm");
             for _ in 0..n {
                 let e = map();
+                // as a connector may do after loading a bundle, off the
+                // request path
+                if warm_first {
+                    e.warm_thread();
+                }
                 let s = Instant::now();
                 last = run_one(&e, policy.as_bytes(), budget_us, event, &r);
                 first.push(s.elapsed().as_secs_f64() * 1e6);
@@ -254,6 +261,11 @@ fn main() {
             t.elapsed().as_millis()
         );
     }
+    eprintln!(
+        "strata-bench: {} of {} fallback regexes compiled at map (rules evaluated on every request)",
+        e.precompile_hot_regexes(),
+        e.regexes().len()
+    );
     let (gated, groups) = e.prefilter().stats();
     eprintln!(
         "strata-bench: {} rules, {gated} gated by the prefilter, {groups} scan groups",

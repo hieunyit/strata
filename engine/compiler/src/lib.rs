@@ -413,6 +413,16 @@ pub struct Build {
     pub rollback: bool,
 }
 
+/// Optional parts of a bundle.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Options {
+    /// Also store the patterns compiled in block mode (section
+    /// HYPERSCAN_BLOCK, #27): engines that read it scan short values with
+    /// it, older ones skip it. About doubles the Hyperscan part of the
+    /// bundle and its compile time.
+    pub hs_block: bool,
+}
+
 /// `\xHH` for every byte that is not alphanumeric: a literal as a regex.
 fn escape(lit: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(lit.len() * 2);
@@ -480,7 +490,7 @@ pub fn compile_reference(
     build: &Build,
     seed: &[u8; 32],
 ) -> Result<Vec<u8>> {
-    let (out, _) = compile_unsigned_with(rules, policies, build, false)?;
+    let (out, _) = compile_unsigned_with(rules, policies, build, false, Options::default())?;
     Ok(bundle::sign(out, seed))
 }
 
@@ -718,7 +728,29 @@ pub fn compile_unsigned(
     policies: &Policies,
     build: &Build,
 ) -> Result<(Vec<u8>, Vec<RuleCost>)> {
-    compile_unsigned_with(rules, policies, build, true)
+    compile_unsigned_with(rules, policies, build, true, Options::default())
+}
+
+/// As `compile_unsigned`, with optional parts.
+pub fn compile_unsigned_opts(
+    rules: &[RuleDef],
+    policies: &Policies,
+    build: &Build,
+    opts: Options,
+) -> Result<(Vec<u8>, Vec<RuleCost>)> {
+    compile_unsigned_with(rules, policies, build, true, opts)
+}
+
+/// As `compile`, with optional parts.
+pub fn compile_opts(
+    rules: &[RuleDef],
+    policies: &Policies,
+    build: &Build,
+    seed: &[u8; 32],
+    opts: Options,
+) -> Result<Vec<u8>> {
+    let (out, _) = compile_unsigned_opts(rules, policies, build, opts)?;
+    Ok(bundle::sign(out, seed))
 }
 
 fn compile_unsigned_with(
@@ -726,6 +758,7 @@ fn compile_unsigned_with(
     policies: &Policies,
     build: &Build,
     lower: bool,
+    opts: Options,
 ) -> Result<(Vec<u8>, Vec<RuleCost>)> {
     let mut ids = BTreeSet::new();
     for r in rules {
@@ -775,6 +808,22 @@ fn compile_unsigned_with(
             libstrata::bundle::kind::HYPERSCAN,
             rules::encode_hyperscan(strata_hs::version(), &conds, &image),
         ));
+        if opts.hs_block {
+            // the same patterns, ids and index as the stream database, which
+            // the engine checks; a pattern only stream mode takes (none
+            // known) leaves the section out rather than failing the build
+            if let Ok(block) = strata_hs::compile_mode(&pats, strata_hs::HS_MODE_BLOCK) {
+                sections.push((
+                    libstrata::bundle::kind::HYPERSCAN_BLOCK,
+                    rules::encode_hyperscan_mode(
+                        rules::HS_MAGIC,
+                        strata_hs::version(),
+                        &conds,
+                        &block,
+                    ),
+                ));
+            }
+        }
         break;
     }
     let privacy = libstrata::privacy::encode(&policies.privacy, policies.identity_key.as_ref())

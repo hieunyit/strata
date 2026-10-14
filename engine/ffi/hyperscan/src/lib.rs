@@ -119,8 +119,13 @@ pub struct MappedDb<'a> {
 struct Scratch {
     ptr: *mut HsScratch,
     /// engine or database ID the scratch and stream were configured for
+    /// (stream mode)
     engine_id: u64,
     stream: *mut HsStream,
+    /// database ID the scratch was last grown for in block mode. A scratch
+    /// grown for a database stays large enough for the ones before it, so
+    /// a stream database and a block database of one bundle share it.
+    block_id: u64,
 }
 
 impl Drop for Scratch {
@@ -142,6 +147,7 @@ thread_local! {
             ptr: std::ptr::null_mut(),
             engine_id: 0,
             stream: std::ptr::null_mut(),
+            block_id: 0,
         })
     };
 }
@@ -204,17 +210,15 @@ impl<'a> MappedDb<'a> {
         let len = c_uint::try_from(data.len()).map_err(|_| Error::Scan(-1))?;
         SCRATCH.with(|cell| {
             let mut s = cell.borrow_mut();
-            if s.engine_id != self.id {
-                if !s.stream.is_null() {
-                    unsafe { hs_close_stream(s.stream, s.ptr, None, std::ptr::null_mut()) };
-                    s.stream = std::ptr::null_mut();
-                }
+            // the stream of a stream database, if open, is left as it is:
+            // block and stream databases of one bundle are used in turn
+            if s.block_id != self.id {
                 // SAFETY: db was validated; grows (or creates) the scratch.
                 let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.engine_id = self.id;
+                s.block_id = self.id;
             }
             let mut ctx = Ctx {
                 f: on_match,
@@ -239,6 +243,24 @@ impl<'a> MappedDb<'a> {
                 HS_SUCCESS | HS_SCAN_TERMINATED => Ok(()),
                 rc => Err(Error::Scan(rc)),
             }
+        })
+    }
+
+    /// Warms up the thread-local scratch for this block-mode database, so
+    /// the first request does not allocate it.
+    pub fn warm_block(&self) -> Result<(), Error> {
+        let db = self.bytes.as_ptr().cast::<HsDatabase>();
+        SCRATCH.with(|cell| {
+            let mut s = cell.borrow_mut();
+            if s.block_id != self.id {
+                // SAFETY: db was validated; grows (or creates) the scratch.
+                let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
+                if rc != HS_SUCCESS {
+                    return Err(Error::Invalid(rc));
+                }
+                s.block_id = self.id;
+            }
+            Ok(())
         })
     }
 
@@ -473,4 +495,4 @@ impl AsRef<[u8]> for AlignedBuf {
 #[cfg(feature = "compile")]
 pub mod compile;
 #[cfg(feature = "compile")]
-pub use compile::{Pattern, compile};
+pub use compile::{HS_MODE_BLOCK, Pattern, compile, compile_mode};

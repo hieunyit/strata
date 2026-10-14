@@ -210,6 +210,82 @@ mod tests {
         assert_eq!(stream_hits, [7, 9]);
     }
 
+    /// A bundle's stream and block databases (same patterns) are used in
+    /// turn on one thread: the scratch grows for both, the open stream is
+    /// kept, and both give the same matches, end-anchored ones included.
+    #[test]
+    fn stream_and_block_databases_share_the_thread_scratch() {
+        let mut pats: Vec<Pattern> = (0..400)
+            .map(|i| Pattern {
+                expression: format!("w{i}x[a-z]{{2,5}}\\d").into_bytes(),
+                flags: CASELESS | SINGLEMATCH,
+                id: i,
+            })
+            .collect();
+        pats.push(Pattern {
+            expression: b"tail$".to_vec(),
+            flags: SINGLEMATCH,
+            id: 1000,
+        });
+        let small = vec![Pattern {
+            expression: b"abc".to_vec(),
+            flags: 0,
+            id: 0,
+        }];
+        let (bs, bb, bt) = (
+            AlignedBuf::from_bytes(&compile(&pats).unwrap()),
+            AlignedBuf::from_bytes(&compile_mode(&pats, HS_MODE_BLOCK).unwrap()),
+            AlignedBuf::from_bytes(&compile_mode(&small, HS_MODE_BLOCK).unwrap()),
+        );
+        // ids as the engine gives them: one per database
+        let stream = MappedDb::assume_valid_with_id(bs.as_ref(), 41);
+        let block = MappedDb::assume_valid_with_id(bb.as_ref(), 41 | (1 << 62));
+        let tiny = MappedDb::validate(bt.as_ref()).unwrap();
+        let via_stream = |data: &[u8]| {
+            let mut h = vec![];
+            stream
+                .scan_stream_chunks(data, 2048, || true, &mut |id| {
+                    h.push(id);
+                    true
+                })
+                .unwrap();
+            h.sort();
+            h
+        };
+        let via_block = |db: &MappedDb<'_>, data: &[u8]| {
+            let mut h = vec![];
+            db.scan(data, &mut |id| {
+                h.push(id);
+                true
+            })
+            .unwrap();
+            h.sort();
+            h
+        };
+        // the small block database first: the scratch is too small for the
+        // others until they grow it
+        assert_eq!(via_block(&tiny, b"xxabcxx"), [0]);
+        let inputs: [&[u8]; 4] = [
+            b"W7Xab1 and w399xzzzzz9 tail",
+            b"tail",
+            b"nothing",
+            b"w12xqq3 tai",
+        ];
+        for _ in 0..3 {
+            for data in inputs {
+                let s = via_stream(data);
+                assert_eq!(
+                    via_block(&block, data),
+                    s,
+                    "{:?}",
+                    String::from_utf8_lossy(data)
+                );
+                assert_eq!(via_block(&tiny, data), Vec::<u32>::new());
+            }
+        }
+        assert_eq!(via_stream(b"x w5xabc0 tail"), [5, 1000]);
+    }
+
     #[test]
     fn bad_pattern_reports_its_index() {
         let pats = vec![
