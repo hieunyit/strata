@@ -25,7 +25,7 @@
 #include "ngx_http_strata_module.h"
 
 
-#define NGX_HTTP_STRATA_BREAKER_OPEN_MAX   (5 * 60 * 1000)
+#define NGX_HTTP_STRATA_BREAKER_OPEN_MAX   ((ngx_msec_t) 5 * 60 * 1000)
 #define NGX_HTTP_STRATA_BREAKER_SAMPLE     20      /* 5% in half-open */
 #define NGX_HTTP_STRATA_BREAKER_CLOSE_BP   50      /* 0.5% */
 
