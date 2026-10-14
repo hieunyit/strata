@@ -41,7 +41,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W10-S-01 | Bảng FP theo Rule ID trong shadow, cập nhật hằng ngày | Antigravity (PO giao) | W10-G2-01 | 🔄 Code xong (PR #45), chờ số liệu shadow |
 | W10-F-01 | Trang Tổng quan v0 (bị chặn theo giờ, top rule, top route); kèm giao diện mới và đăng nhập cục bộ (PO giao) | Claude Code (phiên UI, PO giao) | W10-G2-01 (dữ liệu thật) | ✅ Done (PR #50; dữ liệu staging: review tuần 10 và PR #62, fail mode tách riêng) |
 | RV-R-01 | Đóng #27/#28 (Hyperscan block mode theo nhóm scan), đo trước/sau | Claude Code (phiên engine) | — | 🔄 PR #54 |
-| RV-N-01 | Fail-open nhìn thấy được (cờ `inspection` trong sự kiện, tỉ lệ theo route) | Claude Code (phiên engine) | đổi proto cùng RV-G2-01 | 🔄 Trên nhánh `rv-g2-01-event-context` (chưa push) |
+| RV-N-01 | Fail-open nhìn thấy được (cờ `inspection` trong sự kiện, tỉ lệ theo route) | Claude Code (phiên engine) | đổi proto cùng RV-G2-01 | 🔄 Cờ `inspection` trong sự kiện: PR RV-G2-01 (`docs/reports/rv-g2-01.md`); còn tỉ lệ theo route trên Tổng quan |
 | RV-Q-01 | Trạng thái thật của tính năng (`docs/status.md`, README) | Claude Code | — | ✅ Done |
 
 **Nhiệm vụ tuần 9** (khối A3 · Benchmark, soak, staging; kế hoạch chi tiết `docs/plan/w09-plan.md`); review lại: `docs/reports/w09-review.md`
