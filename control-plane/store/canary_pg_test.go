@@ -16,7 +16,7 @@ import (
 )
 
 // Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN, an empty database):
-// migration 0010 and the canary trips of the cluster fallback (W12-G2-01):
+// migration 0011 and the canary trips of the cluster fallback (W12-G2-01):
 // one open trip per group, renewal, clearing policy by policy, and the
 // policies with a canary; then down to 0009 and up again.
 func TestCanaryTripsInPostgres(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"github.com/strata/strata/control-plane/store"
 )
 
-// Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN): migration 0011,
+// Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN): migration 0012,
 // the replay sampling of a group (W12-N-01): a key made once and kept,
 // a new one on rotation, never in the audit log; REPLAY_SYNC commands.
 func TestReplaySamplingInPostgres(t *testing.T) {

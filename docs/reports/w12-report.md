@@ -38,14 +38,14 @@ disabled-rules của control file → worker NGINX đọc trong tick 1 giây →
   (`docs/design/control-file.md`). Module cũ không đọc khối này: trên node chưa nâng module, lệnh
   vẫn báo thành công nhưng rule **không** tắt. Nâng module trước khi dựa vào kill switch.
 - **Fleet**: `DisableRules{rule_ids, replace}`, `EnableRules{rule_ids, all}` trong `fleet.proto`;
-  migration 0008 thêm cột `rule_ids` cho `node_commands`.
+  migration 0009 thêm cột `rule_ids` cho `node_commands`.
 - **Worker** (`ngx_http_strata_bundle.c`, +48 dòng, C 2.880/3.000): chép danh sách trong cửa sổ
   seqlock, áp khi danh sách đổi hoặc engine đổi. Lỗi tìm được khi viết test: sau đổi bundle và khi
   worker mới khởi động, các request tới tick kế tiếp chạy engine mới chưa có danh sách; đã sửa (áp
   ngay trong `load_done` và `init_process`), `t/100` có subtest reload.
 - **API**: `:emergencyDisable`, `:enable`, `GET /v1/rules:disabled`; quyền mới `rules:disable`
   (operator, approver, admin). Node kết nối lại nhận cả danh sách của group (`DisableRules` thay thế,
-  id `sync-<node>`, không lưu thành lệnh), nên node offline lúc tắt vẫn bắt kịp. Migration 0009.
+  id `sync-<node>`, không lưu thành lệnh), nên node offline lúc tắt vẫn bắt kịp. Migration 0010.
 - Giám sát: metric `strata_agent_disabled_rules`, cảnh báo `StrataRulesDisabled` (info); runbook
   mục "Tắt rule khẩn cấp".
 - Chưa có nút trên UI (không nằm trong nhiệm vụ nào của tuần 12).
@@ -85,7 +85,7 @@ policy canary, giữ tới khi gỡ.
 - **Control plane** (`fleet/canary.go`): cửa sổ 1 phút, tính mỗi 5 s, cần ≥ 200 request mỗi nhóm.
   Ngắt khi: 5xx canary hơn nhóm còn lại 1 điểm % và gấp 2; p99 gấp 1,5 và hơn 50 ms; tỉ lệ chặn
   > 3 lần mức nền (EWMA 1 giờ, khởi động 12 lần tính) và > 1%. Khi ngắt: `ForceShadow` 24 giờ cho
-  policy canary, gia hạn mỗi 12 giờ tới khi gỡ; dừng rollout; bảng `canary_trips` (migration 0010);
+  policy canary, gia hạn mỗi 12 giờ tới khi gỡ; dừng rollout; bảng `canary_trips` (migration 0011);
   cảnh báo `StrataCanaryFallback`; runbook "Canary về shadow".
 - API policy có `canary_percent`; UI: trường trong policy editor và trong diff.
 
@@ -103,7 +103,7 @@ Quyết định PO: khóa HMAC riêng mỗi connector group.
   Mẫu gửi qua event socket trước `tx_free`. Test `t/110-canary-metrics.t`, `t/120-replay-sample.t`.
 - **Agent**: lệnh `SetReplaySampling` (Command field 6), không lưu cài đặt ra đĩa: sau restart giữ
   nguyên file cho tới khi control plane gửi lại khi kết nối. Mẫu đi trong `EventBatch.samples`.
-- **Control plane**: bảng `replay_sampling` (migration 0011), `POST /v1/groups/{group_id}:setReplaySampling`
+- **Control plane**: bảng `replay_sampling` (migration 0012), `POST /v1/groups/{group_id}:setReplaySampling`
   (quyền `replay:configure`, chỉ admin). Khóa không bao giờ ghi vào `node_commands` hay audit log.
   Collector ghi Parquet theo (policy, node, khóa), có cột `canary`.
 - **Mặc định tắt**: tỉ lệ > 0 bị từ chối trừ khi server chạy với `-replay-sampling-approved`, chỉ

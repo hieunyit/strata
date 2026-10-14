@@ -14,7 +14,7 @@ import (
 )
 
 // Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN, an empty database):
-// migration 0008 and the kill-switch commands with their rule IDs
+// migration 0009 and the kill-switch commands with their rule IDs
 // (W12-G1-02), then down to 0007 and up again.
 func TestKillSwitchCommandsInPostgres(t *testing.T) {
 	dsn := os.Getenv("STRATA_TEST_POSTGRES_DSN")

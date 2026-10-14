@@ -15,7 +15,7 @@ import (
 )
 
 // Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN, an empty database):
-// migration 0009, the per-group disabled rules with their commands and
+// migration 0010, the per-group disabled rules with their commands and
 // audit entry (W12-G2-02), then down to 0008 and up again.
 func TestDisabledRulesInPostgres(t *testing.T) {
 	dsn := os.Getenv("STRATA_TEST_POSTGRES_DSN")
