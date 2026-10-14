@@ -22,7 +22,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | --- | --- | --- | --- | --- |
 | W11-R-01 | Hash nhóm canary, tỉ lệ canary trong bundle; lõi replay Parquet | Claude Code (phiên cloud) | — | ✅ Done (PR #61; kiểm trên lab: `docs/reports/w11-early-review.md`) |
 | W11-N-01 | Circuit breaker cấp worker, chế độ giảm cấp | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
-| W11-G1-01 | Tự fallback tại node | Claude Code (phiên cloud) | — | ✅ Done (PR #61; #65 sửa ở nhánh `W11-G1-01-fallback-65`: đếm theo nguồn, kiểm định Poisson, lỗi engine/budget chỉ cảnh báo, chờ PO xác nhận) |
+| W11-G1-01 | Tự fallback tại node | Claude Code (phiên cloud) | — | ✅ Done (PR #61; #65 sửa ở PR #72: đếm theo nguồn, kiểm định Poisson, lỗi engine/budget chỉ cảnh báo, chờ PO xác nhận) |
 | W11-G2-01 | Định dạng traffic mẫu cho replay | Claude Code (phiên cloud) | — | 🔄 Code xong (PR #61); chờ pháp chế duyệt |
 | RV-S-01 | Tách gói core / signature | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
 | W11-F-01 | Policy editor phần 1 | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |

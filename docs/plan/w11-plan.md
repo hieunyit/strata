@@ -20,11 +20,11 @@ một hoặc vài commit. Phiên này không có staging, lab hay Docker: chỉ 
 | 5 | RV-S-01 | Tách gói core và signature | ✅ |
 | 6 | W11-F-01 | Policy editor phần 1 | ✅ |
 
-## 2. Không làm
+## 2. Không làm (lúc lập kế hoạch, 13/10)
 
-- **W11-S-01**: cần ít nhất một tuần dữ liệu shadow của route thí điểm.
-- **RV-G2-01**: cần RV-R-01 xong trước (nhánh `issue-28-hs-groups`, chờ PO quyết `--hs-block`).
-- **Bật canary 1%**: việc vận hành, sau W11-S-01 và Gate A.
+- **W11-S-01**: cần ít nhất một tuần dữ liệu shadow của route thí điểm. *14/10: PO giao làm luôn. Đã làm với khoảng 1 ngày dữ liệu shadow giả lập (PR #67, #69, #71; `docs/reports/w11-s-01.md` §4)*.
+- **RV-G2-01**: cần RV-R-01 xong trước (nhánh `issue-28-hs-groups`, chờ PO quyết `--hs-block`). *14/10: PO cho làm trước. Đã xong: PR #68, và `would_block` ở control plane PR #70 (#57)*.
+- **Bật canary 1%**: việc vận hành, sau W11-S-01 và Gate A. *Vẫn bị chặn: Gate A chưa đạt. #65 (điều kiện trước canary) đã sửa ở PR #72*.
 
 ## 3. Quyết định của PO cho chỗ thiết kế còn thiếu (13/10/2026)
 
