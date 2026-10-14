@@ -487,6 +487,11 @@ pub struct CompareRoute {
     pub newly_allowed_rules: BTreeMap<u32, u64>,
     /// path (first two segments) -> newly blocked
     pub newly_blocked_paths: BTreeMap<String, u64>,
+    /// the action recorded when the sample was taken (the bundle in force
+    /// then; the label of corpus samples: allow benign, block attack) ->
+    /// newly blocked, and -> newly allowed
+    pub newly_blocked_sampled: BTreeMap<String, u64>,
+    pub newly_allowed_sampled: BTreeMap<String, u64>,
     pub examples_blocked: Vec<Example>,
     pub examples_allowed: Vec<Example>,
 }
@@ -520,6 +525,12 @@ impl Acc for Comparison {
                 for (a, n) in src {
                     *dst.entry(a).or_default() += n;
                 }
+            }
+            for (a, n) in v.newly_blocked_sampled {
+                *r.newly_blocked_sampled.entry(a).or_default() += n;
+            }
+            for (a, n) in v.newly_allowed_sampled {
+                *r.newly_allowed_sampled.entry(a).or_default() += n;
             }
             for (a, n) in v.newly_blocked_paths {
                 *r.newly_blocked_paths.entry(a).or_default() += n;
@@ -585,12 +596,14 @@ pub fn compare(
                 *r.newly_blocked_paths
                     .entry(path_prefix(&s.uri))
                     .or_default() += 1;
+                *r.newly_blocked_sampled.entry(s.action.clone()).or_default() += 1;
                 if r.examples_blocked.len() < EXAMPLES {
                     r.examples_blocked.push(ex());
                 }
             }
             (false, true) => {
                 r.newly_allowed += 1;
+                *r.newly_allowed_sampled.entry(s.action.clone()).or_default() += 1;
                 for id in &b.rules {
                     *r.newly_allowed_rules.entry(*id).or_default() += 1;
                 }
@@ -639,7 +652,17 @@ impl Comparison {
                     .collect::<Vec<_>>()
                     .join(", ")
             };
+            let sampled = |m: &BTreeMap<String, u64>| {
+                m.iter()
+                    .map(|(k, n)| format!("{k} {n}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
             if r.newly_blocked > 0 {
+                o.push_str(&format!(
+                    "Newly blocked, by action when sampled (the label of corpus samples): {}\n\n",
+                    sampled(&r.newly_blocked_sampled)
+                ));
                 o.push_str(&format!(
                     "Rules of the newly blocked: {}\n\n",
                     top(&r.newly_blocked_rules)
@@ -656,6 +679,10 @@ impl Comparison {
                 ));
             }
             if r.newly_allowed > 0 {
+                o.push_str(&format!(
+                    "Newly allowed, by action when sampled: {}\n\n",
+                    sampled(&r.newly_allowed_sampled)
+                ));
                 o.push_str(&format!(
                     "Baseline rules of the newly allowed: {}\n\n",
                     top(&r.newly_allowed_rules)
