@@ -145,6 +145,9 @@ func main() {
 			log.Fatalf("[FATAL] Failed to connect to ClickHouse: %v", err)
 		}
 		defer chStore.Close()
+		if err := chStore.EnsureColumns(ctx); err != nil {
+			log.Fatalf("[FATAL] ClickHouse: %v", err)
+		}
 		if err := chStore.EnsureTTL(ctx, *ttlDays); err != nil {
 			log.Fatalf("[FATAL] %v", err)
 		}
@@ -274,7 +277,12 @@ func main() {
 				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
 		}
 		if signer != nil || *signingKey != "" {
-			d := newDeployer(pg, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
+			if k := os.Getenv("STRATA_IDENTITY_HMAC_KEY"); k != "" {
+				if _, err := policy.ParseIdentityKey(k); err != nil {
+					log.Fatalf("[FATAL] STRATA_IDENTITY_HMAC_KEY: %v", err)
+				}
+			}
+			d := newDeployer(pg, pool, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
 		}
@@ -452,7 +460,7 @@ func connectS3(ctx context.Context, cfg policy.S3Config) *policy.S3 {
 }
 
 // newDeployer wires the compiler, the signing key and the object store.
-func newDeployer(pg *store.Store, objects *policy.S3, signer policy.Signer, key string, pub []byte, rules, blockPage, contact, bin string, budget uint64) *policy.Deployer {
+func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer policy.Signer, key string, pub []byte, rules, blockPage, contact, bin string, budget uint64) *policy.Deployer {
 	if len(pub) == 0 || objects == nil {
 		log.Fatal("[FATAL] deploys need the bundle public key (-bundle-pubkey or Vault) and -s3-endpoint")
 	}
@@ -466,7 +474,9 @@ func newDeployer(pg *store.Store, objects *policy.S3, signer policy.Signer, key 
 	return &policy.Deployer{
 		Store: pg,
 		Builder: &policy.Compiler{Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
-			SupportContact: contact, CostBudget: budget},
+			SupportContact: contact, CostBudget: budget,
+			// P-01 §1: from a secret manager, or kept by the control plane
+			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key},
 		Objects: objects,
 		PubKey:  pub,
 	}

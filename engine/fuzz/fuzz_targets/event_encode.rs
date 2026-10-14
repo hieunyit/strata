@@ -184,6 +184,11 @@ fuzz_target!(|data: &[u8]| {
         layer_scores: &[("anomaly", 100), ("managed", 100), ("protocol", 50)],
         rule_ids: &[100001, 100002],
         matches: &matches,
+        user_agent: b"",
+        referer: b"",
+        headers: &[],
+        inspection: Default::default(),
+        would_block: false,
     };
 
     let encoded = event::encode(&ev);

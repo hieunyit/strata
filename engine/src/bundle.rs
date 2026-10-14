@@ -47,8 +47,11 @@ pub mod kind {
     pub const STRINGS: u32 = 5;
     pub const BLOCK_PAGE: u32 = 6;
     pub const HYPERSCAN: u32 = 7;
+    /// Privacy settings of the policies (P-01 §1, `crate::privacy`); kind 8
+    /// is HYPERSCAN_BLOCK (#27, another branch).
+    pub const PRIVACY: u32 = 9;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 7;
+    pub const KNOWN: u32 = 9;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.
@@ -77,10 +80,53 @@ impl Response {
     pub const GUARD_CCCD: u8 = 1 << 2;
     /// Data guard: JSON Web Tokens (rule 600202).
     pub const GUARD_JWT: u8 = 1 << 3;
-    pub const ALL: u8 = 0x0f;
+    /// Data guard: payment card numbers (rule 600203, P-01 §1). Engines
+    /// before it refuse a bundle with this bit.
+    pub const GUARD_PAN: u8 = 1 << 4;
+    pub const ALL: u8 = 0x1f;
 
     pub fn has(self, flag: u8) -> bool {
         self.0 & flag != 0
+    }
+}
+
+/// Byte of the policy entry for its events (RV-G2-01): bits 0-1 the snippet
+/// size, bit 2 the privacy flag, other bits 0. Bytes 59-61 belong to the
+/// canary (u16) and the signature pack (W11-R-01, RV-S-01). Engines from
+/// before it refuse a bundle with this byte set.
+const EVENT_BYTE: usize = POLICY_NAME_LEN + 6;
+const SNIPPET_MASK: u8 = 0b11;
+const PRIVACY_BIT: u8 = 1 << 2;
+
+/// Longest snippet of a match in the policy's events (P-01 §1b, set by
+/// admins with `max_snippet_size`): bits 0-1 of EVENT_BYTE, 0 in bundles
+/// written before it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SnippetSize {
+    /// 128 bytes
+    #[default]
+    Small = 0,
+    /// 2 KB, for investigation
+    Kb2 = 1,
+    /// 4 KB
+    Kb4 = 2,
+}
+
+impl SnippetSize {
+    pub fn bytes(self) -> usize {
+        match self {
+            SnippetSize::Small => 128,
+            SnippetSize::Kb2 => 2048,
+            SnippetSize::Kb4 => 4096,
+        }
+    }
+
+    fn of(b: u8) -> SnippetSize {
+        match b {
+            1 => SnippetSize::Kb2,
+            2 => SnippetSize::Kb4,
+            _ => SnippetSize::Small,
+        }
     }
 }
 
@@ -98,6 +144,9 @@ pub struct Policy<'a> {
     pub canary: u16,
     /// What the rules of the signature pack do for this policy.
     pub signatures: Signatures,
+    pub snippet: SnippetSize,
+    /// the policy has privacy settings (section PRIVACY)
+    pub privacy: bool,
 }
 
 /// Rules of the signature pack for a policy (RV-S-01). The default (0 in
@@ -136,6 +185,10 @@ pub struct PolicySpec<'a> {
     pub canary: u16,
     /// See `Policy::signatures`.
     pub signatures: Signatures,
+    pub snippet: SnippetSize,
+    /// bit 2 of EVENT_BYTE: the policy has privacy settings; engines that do not
+    /// read section PRIVACY refuse the bundle rather than ignore them
+    pub privacy: bool,
 }
 
 impl<'a> PolicySpec<'a> {
@@ -148,6 +201,8 @@ impl<'a> PolicySpec<'a> {
             response: Response::default(),
             canary: 0,
             signatures: Signatures::Shadow,
+            snippet: SnippetSize::Small,
+            privacy: false,
         }
     }
 }
@@ -232,7 +287,9 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
         && valid_canary(entry_mode(entry), entry_canary(entry))
         && Signatures::from_byte(entry[POLICY_NAME_LEN + 5]).is_some()
-        && entry[POLICY_NAME_LEN + 6..].iter().all(|&c| c == 0)
+        && entry[EVENT_BYTE] & !(SNIPPET_MASK | PRIVACY_BIT) == 0
+        && entry[EVENT_BYTE] & SNIPPET_MASK <= SnippetSize::Kb4 as u8
+        && entry[EVENT_BYTE + 1..].iter().all(|&c| c == 0)
 }
 
 /// A canary share only makes sense on an enforce policy.
@@ -386,6 +443,8 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             response: Response(e[POLICY_NAME_LEN + 2]),
             canary: entry_canary(e),
             signatures: Signatures::from_byte(e[POLICY_NAME_LEN + 5]).unwrap_or_default(),
+            snippet: SnippetSize::of(e[EVENT_BYTE] & SNIPPET_MASK),
+            privacy: e[EVENT_BYTE] & PRIVACY_BIT != 0,
         })
 }
 
@@ -458,6 +517,7 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
         out[at + POLICY_NAME_LEN + 3..at + POLICY_NAME_LEN + 5]
             .copy_from_slice(&p.canary.to_le_bytes());
         out[at + POLICY_NAME_LEN + 5] = p.signatures as u8;
+        out[at + EVENT_BYTE] = p.snippet as u8 | if p.privacy { PRIVACY_BIT } else { 0 };
     }
 
     if spec.sections.len() > MAX_SECTIONS {
@@ -640,8 +700,51 @@ mod tests {
         assert!(got.has(Response::STATUS) && got.has(Response::GUARD_JWT));
         assert!(!got.has(Response::DB_ERRORS) && !got.has(Response::GUARD_CCCD));
 
+        // max_snippet_size: bits 0-1 of byte 62, 0..=2 (P-01 §1b)
+        let big = PolicySpec {
+            snippet: SnippetSize::Kb4,
+            ..p
+        };
+        let bb = build(&spec(&[big]), &SEED).unwrap();
+        let info = verify(&bb, &public_key(&SEED)).unwrap();
+        assert_eq!(
+            find_policy(&bb, &info, b"example-api").unwrap().snippet,
+            SnippetSize::Kb4
+        );
+        assert_eq!(SnippetSize::Kb2.bytes(), 2048);
+        let mut bad3 = bb.clone();
+        bad3.truncate(bad3.len() - SIG_LEN);
+        bad3[HEADER_LEN + EVENT_BYTE] = 3;
+        let sig = SigningKey::from_bytes(&SEED).sign(&bad3);
+        bad3.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&bad3, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
+
+        // privacy flag: bit 2 of byte 62; bit 3 is not known (P-01 §1)
+        let pv = PolicySpec { privacy: true, ..p };
+        let pb = build(&spec(&[pv]), &SEED).unwrap();
+        let info = verify(&pb, &public_key(&SEED)).unwrap();
+        assert!(find_policy(&pb, &info, b"example-api").unwrap().privacy);
+        let mut bad4 = pb;
+        bad4.truncate(bad4.len() - SIG_LEN);
+        bad4[HEADER_LEN + EVENT_BYTE] = 1 << 3;
+        let sig = SigningKey::from_bytes(&SEED).sign(&bad4);
+        bad4.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&bad4, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
+
+        // bit 4 (PAN) is known since P-01 §1; bit 5 is not
+        let pan = PolicySpec {
+            response: Response(Response::GUARD_PAN),
+            ..p
+        };
+        assert!(build(&spec(&[pan]), &SEED).is_ok());
         let bad = PolicySpec {
-            response: Response(0x10),
+            response: Response(0x20),
             ..p
         };
         assert!(build(&spec(&[bad]), &SEED).is_err());

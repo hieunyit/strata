@@ -2,11 +2,13 @@
 //!
 //! Hand-written zero-prost encoder guaranteeing datagram size <= 8192 bytes
 //! (MaxDatagram). Sensitive parameters and headers never leak snippet bytes;
-//! other snippets are truncated to <= 128 bytes after masking for CCCD and JWT.
+//! other snippets are truncated to <= 128 bytes after masking for CCCD,
+//! JWT and payment card numbers.
 #![forbid(unsafe_code)]
 
-use crate::detectors::response::{cccd, jwt};
+use crate::detectors::response::{cccd, jwt, pan};
 use crate::guard::{Ctx, Matcher};
+use crate::privacy::Privacy;
 
 /// Agent Unix datagram max size (8 KB).
 pub const MAX_DATAGRAM: usize = 8192;
@@ -37,6 +39,29 @@ impl Action {
     }
 }
 
+/// How much of the request the engine inspected (RV-N-01); the values of
+/// `strata.event.v1.Inspection`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum Inspection {
+    #[default]
+    Unspecified = 0,
+    Full = 1,
+    /// the CPU budget ran out
+    Partial = 2,
+    /// the body, or part of it, was not inspected
+    BodySkipped = 3,
+}
+
+/// Longest User-Agent and Referer kept in an event.
+pub const MAX_UA_LEN: usize = 512;
+/// Headers kept in an event: at most this many, names and values together
+/// at most `MAX_HEADERS_BYTES`.
+pub const MAX_HEADERS: usize = 32;
+pub const MAX_HEADERS_BYTES: usize = 2048;
+/// What a masked header value becomes.
+pub const MASKED: &[u8] = b"[MASKED]";
+
 /// One match inside an EventData (borrowed).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MatchData<'a> {
@@ -65,6 +90,121 @@ pub struct EventData<'a> {
     pub layer_scores: &'a [(&'a str, i32)],
     pub rule_ids: &'a [u32],
     pub matches: &'a [MatchData<'a>],
+    /// masked already (`context`)
+    pub user_agent: &'a [u8],
+    pub referer: &'a [u8],
+    pub headers: &'a [(&'a [u8], &'a [u8])],
+    pub inspection: Inspection,
+    /// #57: blocked, or would be in shadow
+    pub would_block: bool,
+}
+
+/// Request context of an event (RV-G2-01), masked and bounded: the
+/// User-Agent and the Referer apart, then the other headers in order.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Context {
+    pub user_agent: Vec<u8>,
+    pub referer: Vec<u8>,
+    pub headers: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+/// Masks the request headers for an event. Sensitive headers (by name, as
+/// for snippets) keep their name and lose their value; other values are
+/// masked like snippets (CCCD, JWT, card numbers); the Referer also loses
+/// the values of sensitive query parameters. Host is already in the
+/// event. Linear in the bytes kept.
+pub fn context(headers: &[(&[u8], &[u8])]) -> Context {
+    context_with(headers, None)
+}
+
+/// As `context`, with the policy's privacy settings: its field names are
+/// sensitive headers too, its patterns masked like the built-in ones.
+pub fn context_with(headers: &[(&[u8], &[u8])], privacy: Option<&Privacy>) -> Context {
+    let mut c = Context::default();
+    let mut room = MAX_HEADERS_BYTES;
+    for &(name, value) in headers {
+        let n = String::from_utf8_lossy(name);
+        if n.eq_ignore_ascii_case("user-agent") {
+            if c.user_agent.is_empty() {
+                c.user_agent = utf8_cut(&bounded_mask(value, MAX_UA_LEN, privacy), MAX_UA_LEN);
+            }
+            continue;
+        }
+        if n.eq_ignore_ascii_case("referer") {
+            if c.referer.is_empty() {
+                c.referer = utf8_cut(
+                    &mask_query(&bounded_mask(value, MAX_UA_LEN, privacy)),
+                    MAX_UA_LEN,
+                );
+            }
+            continue;
+        }
+        if n.eq_ignore_ascii_case("host") || c.headers.len() >= MAX_HEADERS || name.len() >= room {
+            continue;
+        }
+        // the name is a proto string: valid UTF-8, or the agent's decoder
+        // refuses the whole event; the value is bytes
+        let name = utf8_cut(name, room);
+        let sensitive = is_sensitive_word(n.trim())
+            || privacy.is_some_and(|p| p.sensitive(&format!("REQUEST_HEADERS:{}", n.trim())));
+        let v = if sensitive {
+            MASKED.to_vec()
+        } else {
+            bounded_mask(value, room.saturating_sub(name.len()), privacy)
+        };
+        room = room.saturating_sub(name.len() + v.len());
+        c.headers.push((name, v));
+    }
+    c
+}
+
+/// `b` as valid UTF-8 (invalid bytes replaced), at most `max` bytes, cut on
+/// a character boundary: proto strings must be UTF-8.
+pub fn utf8_cut(b: &[u8], max: usize) -> Vec<u8> {
+    let s = String::from_utf8_lossy(b);
+    let mut end = s.len().min(max);
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s.as_bytes()[..end].to_vec()
+}
+
+/// `v` masked (on its first MASK_WINDOW bytes, before cutting) and cut to
+/// `max` bytes.
+fn bounded_mask(v: &[u8], max: usize, privacy: Option<&Privacy>) -> Vec<u8> {
+    let mut m = mask_snippet(&v[..v.len().min(MASK_WINDOW)]);
+    if let Some(p) = privacy {
+        p.mask(&mut m);
+    }
+    m.truncate(max);
+    m
+}
+
+/// The values of sensitive query parameters of a URL replaced by
+/// [MASKED] (`?access_token=...`, `&password=...`).
+pub fn mask_query(url: &[u8]) -> Vec<u8> {
+    let Some(q) = url.iter().position(|&c| c == b'?') else {
+        return url.to_vec();
+    };
+    let mut out = url[..=q].to_vec();
+    let (query, fragment) = match url[q + 1..].iter().position(|&c| c == b'#') {
+        Some(f) => (&url[q + 1..q + 1 + f], &url[q + 1 + f..]),
+        None => (&url[q + 1..], &b""[..]),
+    };
+    for (i, pair) in query.split(|&c| c == b'&').enumerate() {
+        if i > 0 {
+            out.push(b'&');
+        }
+        match pair.iter().position(|&c| c == b'=') {
+            Some(e) if is_sensitive_word(&String::from_utf8_lossy(&pair[..e])) => {
+                out.extend_from_slice(&pair[..=e]);
+                out.extend_from_slice(MASKED);
+            }
+            _ => out.extend_from_slice(pair),
+        }
+    }
+    out.extend_from_slice(fragment);
+    out
 }
 
 fn is_sensitive_word(word: &str) -> bool {
@@ -88,6 +228,22 @@ fn is_sensitive_word(word: &str) -> bool {
             | "proxy-authorization"
             | "x-api-key"
             | "x-auth-token"
+            // P-01 §1: Vietnamese names, cards, keys and sessions
+            | "matkhau"
+            | "mat_khau"
+            | "card_number"
+            | "cardnumber"
+            | "pan"
+            | "cvc"
+            | "cvv2"
+            | "so_the"
+            | "sothe"
+            | "so_cccd"
+            | "private_key"
+            | "client_secret"
+            | "id_token"
+            | "session"
+            | "set-cookie"
     )
 }
 
@@ -109,7 +265,8 @@ pub fn is_sensitive_target(field: &str) -> bool {
         .is_some_and(|(_, last)| is_sensitive_word(last.trim()))
 }
 
-/// Masks CCCD (12 digits) and JWT tokens across the entire snippet, preserving length.
+/// Masks CCCD (12 digits), JWT tokens and payment card numbers (PAN)
+/// across the entire snippet, preserving length.
 pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
     if snippet.is_empty() {
         return Vec::new();
@@ -123,6 +280,7 @@ pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
     let mut hits = Vec::new();
     cccd::Cccd.find(&out, ctx, &mut hits);
     jwt::Jwt::new().find(&out, ctx, &mut hits);
+    pan::Pan.find(&out, ctx, &mut hits);
     for h in hits {
         let start = h.start.min(out.len());
         let end = h.end.min(out.len());
@@ -136,13 +294,34 @@ pub fn mask_snippet(snippet: &[u8]) -> Vec<u8> {
 /// Sanitizes and masks a candidate snippet for a given field name.
 /// Performs bounded-window masking before truncation to prevent token leakage.
 pub fn prepare_snippet(field: &str, raw_snippet: &[u8]) -> Vec<u8> {
-    if is_sensitive_target(field) {
+    prepare_snippet_max(field, raw_snippet, MAX_SNIPPET_LEN)
+}
+
+/// As `prepare_snippet`, cut to `max` bytes (the policy's
+/// max_snippet_size, at most MASK_WINDOW).
+pub fn prepare_snippet_max(field: &str, raw_snippet: &[u8], max: usize) -> Vec<u8> {
+    prepare_snippet_with(field, raw_snippet, max, None)
+}
+
+/// As `prepare_snippet_max`, with the policy's privacy settings: its
+/// field names keep no snippet, its patterns are masked on the window
+/// before the cut, so a value across the cut never shows in part.
+pub fn prepare_snippet_with(
+    field: &str,
+    raw_snippet: &[u8],
+    max: usize,
+    privacy: Option<&Privacy>,
+) -> Vec<u8> {
+    if is_sensitive_target(field) || privacy.is_some_and(|p| p.sensitive(field)) {
         return Vec::new();
     }
     let window_len = raw_snippet.len().min(MASK_WINDOW);
     let window = &raw_snippet[..window_len];
-    let masked = mask_snippet(window);
-    masked[..masked.len().min(MAX_SNIPPET_LEN)].to_vec()
+    let mut masked = mask_snippet(window);
+    if let Some(p) = privacy {
+        p.mask(&mut masked);
+    }
+    masked[..masked.len().min(max.min(MASK_WINDOW))].to_vec()
 }
 
 fn put_varint(v: u64, out: &mut Vec<u8>) {
@@ -258,6 +437,32 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
         put_varint(m_buf.len() as u64, out);
         out.extend_from_slice(&m_buf);
     }
+    // 17, 18: user_agent, referer (valid UTF-8 is not required by the
+    // decoders the agent uses, but lossy text keeps ClickHouse strings
+    // printable)
+    put_bytes(17, ev.user_agent, out);
+    put_bytes(18, ev.referer, out);
+    // 19: repeated Header headers
+    for (name, value) in ev.headers {
+        let mut h = Vec::with_capacity(name.len() + value.len() + 4);
+        put_bytes(1, name, &mut h);
+        put_bytes(2, value, &mut h);
+        put_tag(19, 2, out);
+        put_varint(h.len() as u64, out);
+        out.extend_from_slice(&h);
+    }
+    // 20: inspection
+    put_uint32(20, ev.inspection as u32, out);
+    // 21: would_block
+    put_uint32(21, ev.would_block as u32, out);
+}
+
+/// The first `max` bytes of UTF-8 `b`, cut on a character boundary.
+fn str_prefix(b: &[u8], max: usize) -> &[u8] {
+    match std::str::from_utf8(b) {
+        Ok(s) => truncate_str(s, max).as_bytes(),
+        Err(_) => &b[..0],
+    }
 }
 
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -281,11 +486,38 @@ pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
         return buf;
     }
 
+    // Step 0 (RV-G2-01): the context goes first: headers from the end,
+    // then long snippets cut to the default size, before any match.
+    let mut n_headers = cur.headers.len();
+    while buf.len() > MAX_DATAGRAM && n_headers > 0 {
+        n_headers -= 1;
+        cur.headers = &ev.headers[..n_headers];
+        buf.clear();
+        encode_raw(&cur, &mut buf);
+    }
+    if buf.len() <= MAX_DATAGRAM {
+        return buf;
+    }
+    let short: Vec<MatchData<'_>> = ev
+        .matches
+        .iter()
+        .map(|m| MatchData {
+            snippet: &m.snippet[..m.snippet.len().min(MAX_SNIPPET_LEN)],
+            ..*m
+        })
+        .collect();
+    cur.matches = &short;
+    buf.clear();
+    encode_raw(&cur, &mut buf);
+    if buf.len() <= MAX_DATAGRAM {
+        return buf;
+    }
+
     // Step 1: Drop matches from the end until it fits or matches are empty.
     let mut n_matches = cur.matches.len();
     while buf.len() > MAX_DATAGRAM && n_matches > 0 {
         n_matches -= 1;
-        cur.matches = &ev.matches[..n_matches];
+        cur.matches = &short[..n_matches];
         buf.clear();
         encode_raw(&cur, &mut buf);
     }
@@ -308,7 +540,14 @@ pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
         return buf;
     }
 
-    // Step 3: Progressively truncate host / identity / request_id if hostile
+    // Step 3: Progressively truncate the context, host / identity /
+    // request_id if hostile
+    if cur.user_agent.len() > 64 || cur.referer.len() > 64 {
+        cur.user_agent = str_prefix(cur.user_agent, 64);
+        cur.referer = str_prefix(cur.referer, 64);
+        buf.clear();
+        encode_raw(&cur, &mut buf);
+    }
     if cur.host.len() > 32 {
         cur.host = truncate_str(cur.host, 32);
         buf.clear();
@@ -357,6 +596,126 @@ mod tests {
         assert!(!snippet.windows(3).any(|w| w == b"eyJ"));
         // Assert asterisks are present
         assert!(snippet.contains(&b'*'));
+    }
+
+    #[test]
+    fn test_mask_pan_in_snippets() {
+        // P-01 §1: a card number in a field with an ordinary name
+        let s = prepare_snippet("ARGS:data", b"pay with 4111 1111 1111 1111 now");
+        assert_eq!(s, b"pay with ******************* now");
+        let s = prepare_snippet("ARGS_NAMES", br#"{"q":{"n":"5500000000000004"}}"#);
+        assert_eq!(s, br#"{"q":{"n":"****************"}}"#);
+        // order numbers and timestamps stay readable
+        assert_eq!(
+            prepare_snippet("ARGS:t", b"1791907725413"),
+            b"1791907725413"
+        );
+    }
+
+    #[test]
+    fn test_context_bounds_and_utf8() {
+        let long = vec![b'a'; 5000];
+        let bad_utf8: &[u8] = b"Mozilla \xff\xfe ok";
+        let mut hs: Vec<(&[u8], &[u8])> = vec![(b"User-Agent", bad_utf8), (b"Referer", &long)];
+        let names: Vec<String> = (0..50).map(|i| format!("X-H{i}")).collect();
+        for n in &names {
+            hs.push((n.as_bytes(), b"0123456789012345678901234567890123456789"));
+        }
+        let c = context(&hs);
+        assert!(
+            std::str::from_utf8(&c.user_agent).is_ok(),
+            "user agent is UTF-8"
+        );
+        assert!(c.user_agent.starts_with(b"Mozilla "));
+        assert_eq!(c.referer.len(), MAX_UA_LEN);
+        assert!(c.headers.len() <= MAX_HEADERS);
+        let bytes: usize = c.headers.iter().map(|(k, v)| k.len() + v.len()).sum();
+        assert!(bytes <= MAX_HEADERS_BYTES, "{bytes}");
+        // a sensitive header keeps its name, never its value
+        let c = context(&[
+            (b"X-Api-Key", b"k-123"),
+            (b"Proxy-Authorization", b"Basic xyz"),
+        ]);
+        assert_eq!(
+            c.headers,
+            vec![
+                (b"X-Api-Key".to_vec(), MASKED.to_vec()),
+                (b"Proxy-Authorization".to_vec(), MASKED.to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_mask_query() {
+        assert_eq!(mask_query(b"https://x.test/p"), b"https://x.test/p");
+        assert_eq!(
+            mask_query(b"https://x.test/p?a=1&Password=p&token=t&b#f?x=1"),
+            b"https://x.test/p?a=1&Password=[MASKED]&token=[MASKED]&b#f?x=1"
+        );
+    }
+
+    #[test]
+    fn test_context_is_shed_before_matches() {
+        // a full datagram: headers go first, then long snippets are cut,
+        // and only then matches
+        let big = vec![b'v'; 4000];
+        let matches: Vec<MatchData<'_>> = (0..3)
+            .map(|i| MatchData {
+                rule_id: 942100 + i,
+                layer: "managed",
+                field: "ARGS:q",
+                snippet: &big,
+            })
+            .collect();
+        let hs: Vec<(&[u8], &[u8])> = (0..32).map(|_| (&b"X-Long"[..], &big[..60])).collect();
+        let ev = EventData {
+            block_id: "STR-AAAA-BBBB-CCCC-DDDD",
+            time_unix_ms: 1,
+            node_id: "n",
+            request_id: "",
+            policy_id: "example-api",
+            bundle_version: 1,
+            client_ip: "192.0.2.1",
+            identity: "",
+            method: "GET",
+            host: "api.example.test",
+            path: "/",
+            status: 403,
+            action: Action::Block,
+            layer_scores: &[],
+            rule_ids: &[942100, 942101, 942102],
+            matches: &matches,
+            user_agent: b"ua",
+            referer: b"",
+            headers: &hs,
+            inspection: Inspection::Full,
+            would_block: false,
+        };
+        let out = encode(&ev);
+        assert!(out.len() <= MAX_DATAGRAM);
+        // the three rules stay, with cut snippets
+        for r in [942100u32, 942101, 942102] {
+            let mut tag = vec![0x08];
+            put_varint(r as u64, &mut tag);
+            assert!(out.windows(tag.len()).any(|w| w == &tag[..]), "rule {r}");
+        }
+    }
+
+    #[test]
+    fn test_p01_sensitive_names() {
+        for f in [
+            "ARGS:mat_khau",
+            "ARGS:MatKhau",
+            "ARGS:so_the",
+            "ARGS:card_number",
+            "ARGS:user.client_secret",
+            "REQUEST_HEADERS:Set-Cookie",
+            "ARGS:id_token",
+        ] {
+            assert!(is_sensitive_target(f), "{f}");
+            assert_eq!(prepare_snippet(f, b"value"), b"", "{f}");
+        }
+        assert!(!is_sensitive_target("ARGS:sessionless_query"));
     }
 
     #[test]
@@ -414,6 +773,11 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 100)],
             rule_ids: &[100001],
             matches: &matches,
+            user_agent: b"",
+            referer: b"",
+            headers: &[],
+            inspection: Default::default(),
+            would_block: false,
         };
 
         let b1 = encode(&ev);
@@ -451,6 +815,11 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 50)],
             rule_ids: &[100001, 100002],
             matches: &matches,
+            user_agent: b"",
+            referer: b"",
+            headers: &[],
+            inspection: Default::default(),
+            would_block: false,
         };
 
         let encoded = encode(&ev);
@@ -523,6 +892,11 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 50)],
             rule_ids: &[100001, 100002],
             matches: &matches,
+            user_agent: b"",
+            referer: b"",
+            headers: &[],
+            inspection: Default::default(),
+            would_block: false,
         };
 
         let encoded = encode(&ev);

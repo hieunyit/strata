@@ -195,7 +195,12 @@
     "investigate": "Investigate",
     "sameIp": "Events from this client IP, last 7 days",
     "sameRule": "Events matching rule {{id}}, last 24 hours",
-    "policyOverview": "Overview of this policy"
+    "policyOverview": "Overview of this policy",
+    "headers": "Request headers ({{count}}), sensitive values masked",
+    "inspection": {
+      "partial": "Not fully inspected: the CPU budget ran out and the fail mode applied. Rules after that point did not run.",
+      "body_skipped": "The request body, or part of it, was not inspected (over the inspection limit or spooled to disk)."
+    }
   },
   "login": {
     "tagline": "Every blocked request has an ID, and every ID has a reason.",

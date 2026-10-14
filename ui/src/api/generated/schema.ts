@@ -176,6 +176,21 @@ export interface components {
       violations?: components["schemas"]["Violation"][];
       /** Format: date-time */
       received_at?: string;
+      /** @description User-Agent of the request, at most 512 bytes, masked like snippets (RV-G2-01). Only in GET /v1/events/{block_id}; absent for events of modules from before it. */
+      user_agent?: string;
+      /** @description Referer of the request, at most 512 bytes; values of sensitive query parameters are [MASKED]. [REDACTED] for callers without events:read_sensitive. Only in GET /v1/events/{block_id}. */
+      referer?: string;
+      /** @description Other request headers, at most 32 and 2 KB; values of sensitive headers (Authorization, Cookie, X-Api-Key, the policy's privacy.sensitive_fields...) are [MASKED], others masked like snippets. Values are [REDACTED] for callers without events:read_sensitive. Only in GET /v1/events/{block_id}. */
+      headers?: components["schemas"]["Header"][];
+      /**
+       * @description How much of the request was inspected (RV-N-01): full; partial (the CPU budget ran out, the fail mode applied); body_skipped (the body, or part of it, was not inspected). Empty for modules from before it.
+       * @enum {string}
+       */
+      inspection?: "" | "full" | "partial" | "body_skipped";
+    };
+    Header: {
+      name: string;
+      value: string;
     };
     GetEventResponse: {
       event: components["schemas"]["Event"];

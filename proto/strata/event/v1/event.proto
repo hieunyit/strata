@@ -29,6 +29,36 @@ message Event {
   map<string, int32> layer_scores = 14;
   repeated uint32 rule_ids = 15;
   repeated Match matches = 16;
+  // RV-G2-01 (P-01 §1): context for the investigation. User-Agent and
+  // Referer, at most 512 bytes each, sensitive query values of the Referer
+  // masked; the other request headers, at most 32 and 2 KB in all, values
+  // of sensitive headers (Authorization, Cookie, X-Api-Key...) replaced by
+  // [MASKED], the others masked like snippets (CCCD, JWT, card numbers).
+  // Empty when the module did not keep them (see nginx-module.md).
+  string user_agent = 17;
+  string referer = 18;
+  repeated Header headers = 19;
+  // RV-N-01: how much of the request the engine inspected.
+  Inspection inspection = 20;
+  // #57: the request is blocked, or would be in shadow (score at the
+  // threshold or a block_alone rule). False for findings below the
+  // threshold and for engine errors.
+  bool would_block = 21;
+}
+
+message Header {
+  string name = 1;
+  bytes value = 2;
+}
+
+enum Inspection {
+  // events of modules before the field
+  INSPECTION_UNSPECIFIED = 0;
+  INSPECTION_FULL = 1;
+  // the CPU budget ran out: not every rule was evaluated (fail mode)
+  INSPECTION_PARTIAL = 2;
+  // the body, or part of it, was not inspected (over the limit, spooled)
+  INSPECTION_BODY_SKIPPED = 3;
 }
 
 // Mirrors STRATA_ACTION_* in strata.h, shifted by one so that 0 stays
@@ -46,6 +76,7 @@ message Match {
   string layer = 2;
   // Where the input came from, e.g. ARGS:id or REQUEST_BODY.
   string field = 3;
-  // Normalized input with sensitive data masked, at most 1 KB.
+  // Normalized input with sensitive data masked: 128 bytes, or what the
+  // policy's max_snippet_size allows (2 or 4 KB).
   bytes snippet = 4;
 }

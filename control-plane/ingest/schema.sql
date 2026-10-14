@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS events (
 
     received_at      DateTime64(3, 'UTC') DEFAULT now64(3) CODEC(DoubleDelta, ZSTD(1)),
 
+    -- RV-G2-01: the request's context, masked by the engine. RV-N-01: how
+    -- much of it was inspected. Tables made before these columns get them
+    -- from the control plane at start (ClickHouseStore.EnsureColumns).
+    user_agent       String CODEC(ZSTD(1)),
+    referer          String CODEC(ZSTD(1)),
+    headers Nested (
+        name         LowCardinality(String),
+        value        String
+    ),
+    inspection       LowCardinality(String),
+
     INDEX idx_ts timestamp TYPE minmax GRANULARITY 1,
     INDEX idx_policy policy_id TYPE set(100) GRANULARITY 2,
     INDEX idx_action action TYPE set(10) GRANULARITY 1,

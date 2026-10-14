@@ -67,6 +67,18 @@ func sanitizeEvent(e ingest.Event, p *auth.Principal) ingest.Event {
 		maskedViolations[i] = v
 	}
 	e.Violations = maskedViolations
+	// RV-G2-01 context: header names and the User-Agent stay, values and
+	// the Referer (it may carry personal data in its query) do not
+	if e.Referer != "" {
+		e.Referer = "[REDACTED]"
+	}
+	if len(e.Headers) > 0 {
+		hs := make([]ingest.Header, len(e.Headers))
+		for i, h := range e.Headers {
+			hs[i] = ingest.Header{Name: h.Name, Value: "[REDACTED]"}
+		}
+		e.Headers = hs
+	}
 	return e
 }
 

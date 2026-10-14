@@ -12,6 +12,13 @@ type Violation struct {
 	Snippet string `json:"snippet" ch:"snippet"`
 }
 
+// Header is a request header of an event's context (RV-G2-01), masked by
+// the engine: sensitive values are [MASKED].
+type Header struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 // Event represents a security event produced by proxy connectors and agent.
 type Event struct {
 	BlockID       string      `json:"block_id" ch:"block_id"`
@@ -35,6 +42,14 @@ type Event struct {
 	MatchedRules  []uint32    `json:"matched_rules" ch:"matched_rules"`
 	Violations    []Violation `json:"violations" ch:"violations"`
 	ReceivedAt    time.Time   `json:"received_at" ch:"received_at"`
+	// RV-G2-01: the request's context, masked by the engine; read by the
+	// event lookup (GetEvent), not by searches.
+	UserAgent string   `json:"user_agent,omitempty" ch:"user_agent"`
+	Referer   string   `json:"referer,omitempty" ch:"referer"`
+	Headers   []Header `json:"headers,omitempty" ch:"headers"`
+	// RV-N-01: full, partial (CPU budget ran out), body_skipped; empty for
+	// modules from before the field.
+	Inspection string `json:"inspection,omitempty" ch:"inspection"`
 }
 
 // EventBatch models a batch of events sent by an agent with a monotonic sequence number.

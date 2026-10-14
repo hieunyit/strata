@@ -3,7 +3,9 @@ package policy
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -34,6 +36,9 @@ type Compiler struct {
 	// CostBudget: a bundle whose rules cost more cost units is refused
 	// (CostError); 0: no limit.
 	CostBudget uint64
+	// IdentityKey gives the installation's identity key, asked only when
+	// a policy has privacy.identity hmac; nil: such policies fail to build.
+	IdentityKey func(context.Context) ([]byte, error)
 }
 
 // DefaultCostBudget: CRS 4.25 PL1 as imported costs about 15 000 units
@@ -61,6 +66,15 @@ func (e *CostError) Error() string {
 	return fmt.Sprintf("the rules cost %d units, over the budget of %d; costliest: %s", e.Total, e.Budget, strings.Join(names, ", "))
 }
 
+func needsIdentityKey(policies []Named) bool {
+	for _, p := range policies {
+		if p.Spec.Privacy != nil && p.Spec.Privacy.Identity == "hmac" {
+			return true
+		}
+	}
+	return false
+}
+
 // Build compiles and signs a bundle of version holding policies.
 func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) ([]byte, error) {
 	if len(policies) == 0 {
@@ -77,11 +91,13 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		Mode     string    `json:"mode"`
 		Oversize string    `json:"oversize,omitempty"`
 		Response *Response `json:"response,omitempty"`
+		Snippet  int       `json:"max_snippet_size,omitempty"`
+		Privacy  *Privacy  `json:"privacy,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
-		items = append(items, item{Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response})
+		items = append(items, item{Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy})
 	}
 	doc["policies"] = items
 	if c.BlockPage != "" {
@@ -113,6 +129,20 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 	}
 	for _, r := range c.Rules {
 		args = append(args, "--rules", r)
+	}
+	if needsIdentityKey(policies) {
+		if c.IdentityKey == nil {
+			return nil, errors.New("policy: privacy.identity hmac needs the identity key (STRATA_IDENTITY_HMAC_KEY or PostgreSQL)")
+		}
+		key, err := c.IdentityKey(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("policy: %w", err)
+		}
+		keyFile := filepath.Join(dir, "identity.key")
+		if err := os.WriteFile(keyFile, []byte(hex.EncodeToString(key)), 0o600); err != nil {
+			return nil, err
+		}
+		args = append(args, "--identity-key", keyFile)
 	}
 	bin := c.Binary
 	if bin == "" {

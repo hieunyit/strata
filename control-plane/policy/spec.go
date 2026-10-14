@@ -18,7 +18,24 @@ type Spec struct {
 	Mode     string    `json:"mode"`               // shadow | enforce
 	Oversize string    `json:"oversize,omitempty"` // pass | block
 	Response *Response `json:"response,omitempty"`
+	// MaxSnippetSize: 0 (128 bytes), 128, 2048 or 4096 (P-01 §1b).
+	MaxSnippetSize int `json:"max_snippet_size,omitempty"`
+	// Privacy settings (P-01 §1).
+	Privacy *Privacy `json:"privacy,omitempty"`
 }
+
+// Privacy settings of a policy: more names that keep no snippet, and
+// patterns masked in events. strata-compile checks the patterns again with
+// the engine's regex syntax.
+type Privacy struct {
+	SensitiveFields []string `json:"sensitive_fields,omitempty"`
+	MaskPatterns    []string `json:"mask_patterns,omitempty"`
+	// Identity: "" or "plain" (as it is) or "hmac" (pseudonymized with the
+	// installation's identity key).
+	Identity string `json:"identity,omitempty"`
+}
+
+var fieldPattern = regexp.MustCompile(`^[!-~]{1,64}$`)
 
 // Response is the policy's response layer.
 type Response struct {
@@ -46,11 +63,43 @@ func (s Spec) Validate() error {
 	default:
 		return fmt.Errorf("oversize must be pass or block, got %q", s.Oversize)
 	}
+	switch s.MaxSnippetSize {
+	case 0, 128, 2048, 4096:
+	default:
+		return fmt.Errorf("max_snippet_size must be 128, 2048 or 4096, got %d", s.MaxSnippetSize)
+	}
+	if p := s.Privacy; p != nil {
+		if len(p.SensitiveFields) > 64 || len(p.MaskPatterns) > 16 {
+			return errors.New("privacy: at most 64 sensitive_fields and 16 mask_patterns")
+		}
+		switch p.Identity {
+		case "", "plain", "hmac":
+		default:
+			return fmt.Errorf("privacy: identity must be plain or hmac, got %q", p.Identity)
+		}
+		for _, f := range p.SensitiveFields {
+			if !fieldPattern.MatchString(f) {
+				return fmt.Errorf("privacy: sensitive field %q: 1 to 64 printable characters, no space", f)
+			}
+		}
+		for _, m := range p.MaskPatterns {
+			if m == "" || len(m) > 256 {
+				return fmt.Errorf("privacy: mask pattern %q: 1 to 256 bytes", m)
+			}
+			re, err := regexp.Compile(m)
+			if err != nil {
+				return fmt.Errorf("privacy: mask pattern %q: %v", m, err)
+			}
+			if re.MatchString("") {
+				return fmt.Errorf("privacy: mask pattern %q matches the empty string", m)
+			}
+		}
+	}
 	if s.Response != nil {
 		seen := map[string]bool{}
 		for _, g := range s.Response.DataGuard {
-			if g != "cccd" && g != "jwt" {
-				return fmt.Errorf("data_guard accepts cccd and jwt, got %q", g)
+			if g != "cccd" && g != "jwt" && g != "pan" {
+				return fmt.Errorf("data_guard accepts cccd, jwt and pan, got %q", g)
 			}
 			if seen[g] {
 				return fmt.Errorf("data_guard lists %q twice", g)

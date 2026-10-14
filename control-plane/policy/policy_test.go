@@ -18,7 +18,10 @@ import (
 )
 
 func TestSpecValidate(t *testing.T) {
-	good := []Spec{{Mode: "shadow"}, {Mode: "enforce", Oversize: "block", Response: &Response{DataGuard: []string{"cccd", "jwt"}}}}
+	good := []Spec{{Mode: "shadow"}, {Mode: "enforce", Oversize: "block", Response: &Response{DataGuard: []string{"cccd", "jwt", "pan"}}},
+		{Mode: "shadow", MaxSnippetSize: 128}, {Mode: "shadow", MaxSnippetSize: 2048}, {Mode: "enforce", MaxSnippetSize: 4096},
+		{Mode: "shadow", Privacy: &Privacy{SensitiveFields: []string{"ma_khach_hang"}, MaskPatterns: []string{"KH[0-9]{8}"}}},
+		{Mode: "shadow", Privacy: &Privacy{Identity: "hmac"}}, {Mode: "shadow", Privacy: &Privacy{Identity: "plain"}}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -26,7 +29,12 @@ func TestSpecValidate(t *testing.T) {
 	}
 	bad := []Spec{{}, {Mode: "block"}, {Mode: "shadow", Oversize: "drop"},
 		{Mode: "shadow", Response: &Response{DataGuard: []string{"ssn"}}},
-		{Mode: "shadow", Response: &Response{DataGuard: []string{"jwt", "jwt"}}}}
+		{Mode: "shadow", Response: &Response{DataGuard: []string{"jwt", "jwt"}}},
+		{Mode: "shadow", MaxSnippetSize: 1000}, {Mode: "shadow", MaxSnippetSize: 8192}, {Mode: "shadow", MaxSnippetSize: -1},
+		{Mode: "shadow", Privacy: &Privacy{MaskPatterns: []string{"a*"}}},
+		{Mode: "shadow", Privacy: &Privacy{MaskPatterns: []string{"(unclosed"}}},
+		{Mode: "shadow", Privacy: &Privacy{SensitiveFields: []string{"has space"}}},
+		{Mode: "shadow", Privacy: &Privacy{Identity: "sha1"}}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)

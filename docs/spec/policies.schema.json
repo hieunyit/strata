@@ -31,6 +31,29 @@
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]
           },
+          "privacy": {
+            "description": "Privacy settings (P-01 §1), on top of the built-in ones (sensitive names, CCCD, JWT, card numbers, always on): field names whose input is never kept in events (case-insensitive: a parameter, a header, the last part of a JSON path), and patterns masked with '*' in event snippets and headers (regex crate syntax, linear time, must not match the empty string). Engines from before the setting refuse a bundle with it.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sensitive_fields": {
+                "type": "array", "maxItems": 64, "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[!-~]+$" }
+              },
+              "mask_patterns": {
+                "type": "array", "maxItems": 16, "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+              },
+              "identity": {
+                "description": "plain (default): events carry the identity as it is; hmac: events carry hmac: and the hex of the first 16 bytes of HMAC-SHA256 with the installation's identity key, so the same client keeps the same value without the value leaving the node. Another key gives other values.",
+                "enum": ["plain", "hmac"]
+              }
+            }
+          },
+          "max_snippet_size": {
+            "description": "Longest input snippet of a match in the policy's events, in bytes, masked before it is cut (P-01 §1b): 128 by default; 2048 or 4096 to investigate. Engines from before the setting refuse a bundle with 2048 or 4096: upgrade the module on every node first.",
+            "enum": [128, 2048, 4096]
+          },
           "response": {
             "description": "Response layer, all off by default. Findings are recorded (rules 600000-699999), never block: the response headers are already on their way. Data guard masks only in enforce mode; in shadow it only records.",
             "type": "object",
@@ -39,9 +62,9 @@
               "allowed_codes_check": { "description": "Status outside the allowed codes: rule 600001.", "type": "boolean" },
               "db_errors": { "description": "Database error messages in the body: rules 600101-600107.", "type": "boolean" },
               "data_guard": {
-                "description": "Values masked with '*' (same length) in the body: cccd (Vietnamese citizen ID, rule 600201), jwt (JSON Web Token, rule 600202). Do not enable jwt on routes that issue tokens.",
+                "description": "Values masked with '*' (same length) in the body: cccd (Vietnamese citizen ID, rule 600201), jwt (JSON Web Token, rule 600202), pan (payment card number, 13-19 digits with a valid Luhn check, rule 600203). Do not enable jwt on routes that issue tokens.",
                 "type": "array",
-                "items": { "enum": ["cccd", "jwt"] },
+                "items": { "enum": ["cccd", "jwt", "pan"] },
                 "uniqueItems": true
               }
             }

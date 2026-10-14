@@ -1,6 +1,6 @@
 //! Response layer (W06-R-01), rules 600000-699999: allowed status codes,
 //! database error messages, and the data guard values (citizen ID numbers,
-//! JSON Web Tokens). Findings are recorded, never block: the response
+//! JSON Web Tokens, payment card numbers). Findings are recorded, never block: the response
 //! headers are already on their way. Switched on per policy
 //! (`bundle::Response`).
 #![forbid(unsafe_code)]
@@ -8,6 +8,7 @@
 pub mod cccd;
 pub mod db_errors;
 pub mod jwt;
+pub mod pan;
 
 /// Status outside the allowed codes.
 pub const STATUS_NOT_ALLOWED: u32 = 600_001;

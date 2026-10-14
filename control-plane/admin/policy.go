@@ -47,7 +47,13 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	if pb == nil {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
-	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()]}
+	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize())}
+	if s.MaxSnippetSize == 128 {
+		s.MaxSnippetSize = 0 // the default, stored as absent
+	}
+	if pv := pb.GetPrivacy(); pv != nil && (len(pv.GetSensitiveFields()) > 0 || len(pv.GetMaskPatterns()) > 0 || pv.GetIdentity() == "hmac") {
+		s.Privacy = &policy.Privacy{SensitiveFields: pv.GetSensitiveFields(), MaskPatterns: pv.GetMaskPatterns(), Identity: pv.GetIdentity()}
+	}
 	if r := pb.GetResponse(); r != nil && (r.GetAllowedCodesCheck() || r.GetDbErrors() || len(r.GetDataGuard()) > 0) {
 		s.Response = &policy.Response{AllowedCodesCheck: r.GetAllowedCodesCheck(), DBErrors: r.GetDbErrors(), DataGuard: r.GetDataGuard()}
 	}
@@ -64,7 +70,10 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
-	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize]}
+	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize)}
+	if s.Privacy != nil {
+		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
+	}
 	if s.Response != nil {
 		out.Response = &adminv1.ResponseLayer{AllowedCodesCheck: s.Response.AllowedCodesCheck, DbErrors: s.Response.DBErrors, DataGuard: s.Response.DataGuard}
 	}

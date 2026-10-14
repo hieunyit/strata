@@ -128,6 +128,44 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
               <MarkedPath event={event} />
               {event.status_code ? <span className="ml-2 text-muted">→ {event.status_code}</span> : null}
             </div>
+            {(event.inspection === 'partial' || event.inspection === 'body_skipped') && (
+              <p data-testid="inspection-warning" className="mt-3 rounded border border-shadow/40 bg-shadow/10 px-3 py-2 text-[13px]">
+                {t(`detail.inspection.${event.inspection}`)}
+              </p>
+            )}
+            {(event.user_agent || event.referer) && (
+              <dl className="mt-3">
+                {event.user_agent && (
+                  <Detail label="User-Agent" testId="detail-user-agent">
+                    <span className="font-mono text-xs break-all">{event.user_agent}</span>
+                  </Detail>
+                )}
+                {event.referer && (
+                  <Detail label="Referer" testId="detail-referer">
+                    <span className="font-mono text-xs break-all">{event.referer}</span>
+                  </Detail>
+                )}
+              </dl>
+            )}
+            {(event.headers?.length ?? 0) > 0 && (
+              <details className="mt-3" data-testid="detail-headers">
+                <summary className="cursor-pointer text-[13px] text-muted hover:text-ink">
+                  {t('detail.headers', { count: event.headers?.length ?? 0 })}
+                </summary>
+                <table className="mt-2 w-full text-xs">
+                  <tbody>
+                    {event.headers?.map((h, i) => (
+                      <tr key={i} className="border-b border-line last:border-0" data-testid="header-row">
+                        <td className="py-1.5 pr-3 align-top font-mono text-muted whitespace-nowrap">{h.name}</td>
+                        <td className={`py-1.5 font-mono break-all ${h.value === '[MASKED]' || h.value === '[REDACTED]' ? 'text-faint italic' : ''}`}>
+                          {h.value}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            )}
           </div>
         </section>
 

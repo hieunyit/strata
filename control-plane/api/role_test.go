@@ -67,6 +67,15 @@ func TestEvents_MaskingByRole(t *testing.T) {
 				t.Errorf("%s: snippet = %q, masked = %v", tc.role, v.Snippet, tc.masked)
 			}
 		}
+		// RV-G2-01 context: names and the User-Agent for everyone, values
+		// and the Referer only for roles that read sensitive data
+		e := resp.Event
+		if e.UserAgent != "sqlmap/1.8" || e.Inspection != "full" || len(e.Headers) != 2 || e.Headers[1].Name != "X-Request-Source" {
+			t.Errorf("%s: context %+v", tc.role, e)
+		}
+		if (e.Referer == "[REDACTED]") != tc.masked || (e.Headers[1].Value == "[REDACTED]") != tc.masked {
+			t.Errorf("%s: referer %q, header %q, masked = %v", tc.role, e.Referer, e.Headers[1].Value, tc.masked)
+		}
 	}
 }
 

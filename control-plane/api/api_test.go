@@ -43,6 +43,10 @@ func setupTestServer(t *testing.T) (*Server, *ingest.MockEventStore) {
 			Violations: []ingest.Violation{
 				{RuleID: 942100, Layer: "sqli", Field: "body.password", Snippet: "' OR '1'='1"},
 			},
+			UserAgent:  "sqlmap/1.8",
+			Referer:    "https://app.example.test/login?next=/home",
+			Headers:    []ingest.Header{{Name: "Authorization", Value: "[MASKED]"}, {Name: "X-Request-Source", Value: "mobile"}},
+			Inspection: "full",
 		},
 		{
 			BlockID:       "EVT-8F3K-Q2VD-7XNM-A1PC",

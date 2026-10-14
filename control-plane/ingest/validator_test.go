@@ -106,9 +106,9 @@ func TestValidateEvent(t *testing.T) {
 		}
 	})
 
-	t.Run("Snippet truncation to 1 KB", func(t *testing.T) {
+	t.Run("Snippet truncation to the largest max_snippet_size", func(t *testing.T) {
 		e := validEvent()
-		oversized := strings.Repeat("A", 2000)
+		oversized := strings.Repeat("A", MaxSnippetLength+1000)
 		e.Violations[0].Snippet = oversized
 		if err := ValidateEvent(&e, now); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -155,5 +155,33 @@ func TestBlockIDTime(t *testing.T) {
 	}
 	if _, ok := BlockIDTime("STR-0000-0000-0000-000"); ok {
 		t.Error("a short ID decoded")
+	}
+}
+
+// RV-G2-01: the context is bounded at ingest too (an agent might not keep
+// to the engine's limits), and an unknown inspection is dropped.
+func TestValidateEventContextBounds(t *testing.T) {
+	now := time.Now().UTC()
+	hs := make([]Header, 40)
+	for i := range hs {
+		hs[i] = Header{Name: "X-H", Value: strings.Repeat("v", 100)}
+	}
+	evt := &Event{
+		BlockID: "STR-8F3K-Q2VD-7XNM-A1PC", Timestamp: now, Action: "block",
+		UserAgent: strings.Repeat("u", 600) + "é", Referer: strings.Repeat("r", 513),
+		Headers: hs, Inspection: "everything",
+		Violations: []Violation{{Snippet: strings.Repeat("s", 5000)}},
+	}
+	if err := ValidateEvent(evt, now); err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, h := range evt.Headers {
+		total += len(h.Name) + len(h.Value)
+	}
+	if len(evt.UserAgent) > MaxContextLength || len(evt.Referer) > MaxContextLength || len(evt.Headers) > MaxHeaders ||
+		total > MaxHeadersBytes || evt.Inspection != "" || len(evt.Violations[0].Snippet) != MaxSnippetLength {
+		t.Fatalf("not bounded: ua %d ref %d headers %d (%d B) inspection %q snippet %d",
+			len(evt.UserAgent), len(evt.Referer), len(evt.Headers), total, evt.Inspection, len(evt.Violations[0].Snippet))
 	}
 }

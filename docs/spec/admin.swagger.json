@@ -1360,6 +1360,15 @@
         },
         "response": {
           "$ref": "#/definitions/v1ResponseLayer"
+        },
+        "max_snippet_size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Longest input snippet of a match in the policy's events, in bytes:\n0 or 128 (default), 2048 or 4096 (P-01 §1b). Modules from before the\nsetting refuse bundles with 2048 or 4096: upgrade them first."
+        },
+        "privacy": {
+          "$ref": "#/definitions/v1PrivacySettings",
+          "description": "Privacy settings on top of the built-in masks (P-01 §1)."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
@@ -1389,6 +1398,29 @@
         }
       }
     },
+    "v1PrivacySettings": {
+      "type": "object",
+      "properties": {
+        "sensitive_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Field names whose input is never kept in events (parameters, headers,\nthe last part of a JSON path), case-insensitive; at most 64."
+        },
+        "mask_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Patterns masked with '*' in event snippets and headers (linear-time\nregex, not matching the empty string); at most 16, 256 bytes each."
+        },
+        "identity": {
+          "type": "string",
+          "description": "plain (default) or hmac: events carry hmac: and 32 hex digits of\nHMAC-SHA256 with the installation's identity key instead of the\nidentity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps)."
+        }
+      }
+    },
     "v1ResponseLayer": {
       "type": "object",
       "properties": {
@@ -1403,7 +1435,7 @@
           "items": {
             "type": "string"
           },
-          "title": "cccd, jwt"
+          "title": "cccd, jwt, pan"
         }
       }
     },

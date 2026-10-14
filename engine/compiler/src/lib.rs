@@ -16,7 +16,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Signatures, Spec};
+use libstrata::bundle::{
+    self, Mode, Oversize, PolicySpec, Response, Signatures, SnippetSize, Spec,
+};
 use libstrata::rules::{
     self, BlockPage, CondDef, LAYERS, OPERATORS, RuleDef, SEVERITIES, STAGES, TRANSFORMS,
     TargetDef, VARS, Value as RValue,
@@ -235,9 +237,47 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 #[derive(Debug)]
 pub struct Policies {
     /// (name, mode, oversize, response flags, canary share in basis points,
-    /// signature pack)
-    pub policies: Vec<(String, Mode, Oversize, Response, u16, Signatures)>,
+    /// signature pack, snippet size)
+    pub policies: Vec<(
+        String,
+        Mode,
+        Oversize,
+        Response,
+        u16,
+        Signatures,
+        SnippetSize,
+    )>,
     pub block_page: Option<BlockPage>,
+    /// privacy settings, by index in `policies` (P-01 §1)
+    pub privacy: Vec<libstrata::privacy::PrivacySpec>,
+    /// the installation's identity key, for policies with `identity: hmac`
+    /// (strata-compile --identity-key; the control plane keeps it)
+    pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
+}
+
+/// Reads an identity key file: 32 raw bytes, or 64 hex digits (a final
+/// newline allowed).
+pub fn read_identity_key(bytes: &[u8]) -> Result<[u8; libstrata::privacy::KEY_LEN]> {
+    let k: Vec<u8> = if bytes.len() == libstrata::privacy::KEY_LEN {
+        bytes.to_vec()
+    } else {
+        let t = std::str::from_utf8(bytes)
+            .map_err(|_| "identity key: 32 bytes or 64 hex digits")?
+            .trim();
+        if t.len() != 64 {
+            return Err("identity key: 32 bytes or 64 hex digits".into());
+        }
+        (0..32)
+            .map(|i| u8::from_str_radix(&t[2 * i..2 * i + 2], 16))
+            .collect::<std::result::Result<_, _>>()
+            .map_err(|_| "identity key: 32 bytes or 64 hex digits")?
+    };
+    let k: [u8; libstrata::privacy::KEY_LEN] =
+        k.try_into().map_err(|_| "identity key: 32 bytes")?;
+    if k.iter().all(|&b| b == 0) {
+        return Err("identity key: all zeros".into());
+    }
+    Ok(k)
 }
 
 /// Policies document, after schema validation; `base` resolves html_file.
@@ -245,6 +285,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     check(POLICIES_SCHEMA, doc, "policies")?;
     let mut seen = BTreeSet::new();
     let mut policies = vec![];
+    let mut privacy = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
         let name = s(p, "name").to_string();
         if !seen.insert(name.clone()) {
@@ -271,6 +312,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         for d in r["data_guard"].as_array().into_iter().flatten() {
             response |= match d.as_str() {
                 Some("cccd") => Response::GUARD_CCCD,
+                Some("pan") => Response::GUARD_PAN,
                 _ => Response::GUARD_JWT,
             };
         }
@@ -296,7 +338,46 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             "enforce" => Signatures::Enforce,
             _ => Signatures::Shadow,
         };
-        policies.push((name, mode, oversize, Response(response), canary, signatures));
+        let snippet = match p["max_snippet_size"].as_u64() {
+            Some(2048) => SnippetSize::Kb2,
+            Some(4096) => SnippetSize::Kb4,
+            _ => SnippetSize::Small,
+        };
+        let pv = &p["privacy"];
+        let strings = |k: &str| -> Vec<String> {
+            pv[k]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        };
+        let (fields, patterns) = (strings("sensitive_fields"), strings("mask_patterns"));
+        for f in &fields {
+            libstrata::privacy::check_field(f).map_err(|e| format!("policy {name:?}: {e}"))?;
+        }
+        for pat in &patterns {
+            libstrata::privacy::compile_pattern(pat)
+                .map_err(|e| format!("policy {name:?}: {e}"))?;
+        }
+        let identity_hmac = pv["identity"].as_str() == Some("hmac");
+        if !fields.is_empty() || !patterns.is_empty() || identity_hmac {
+            privacy.push(libstrata::privacy::PrivacySpec {
+                policy_index: policies.len() as u32,
+                sensitive_fields: fields,
+                mask_patterns: patterns,
+                identity_hmac,
+            });
+        }
+        policies.push((
+            name,
+            mode,
+            oversize,
+            Response(response),
+            canary,
+            signatures,
+            snippet,
+        ));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -321,6 +402,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     Ok(Policies {
         policies,
         block_page,
+        privacy,
+        identity_key: None,
     })
 }
 
@@ -694,14 +777,22 @@ fn compile_unsigned_with(
         ));
         break;
     }
+    let privacy = libstrata::privacy::encode(&policies.privacy, policies.identity_key.as_ref())
+        .map_err(|e| format!("{e} (strata-compile --identity-key)"))?;
+    if !privacy.is_empty() {
+        sections.push((libstrata::bundle::kind::PRIVACY, privacy));
+    }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
     let names: Vec<PolicySpec> = policies
         .policies
         .iter()
-        .map(|(n, m, o, r, c, g)| PolicySpec {
+        .enumerate()
+        .map(|(i, (n, m, o, r, c, g, sn))| PolicySpec {
             response: *r,
             canary: *c,
             signatures: *g,
+            snippet: *sn,
+            privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
             ..PolicySpec::new(n, *m, *o)
         })
         .collect();

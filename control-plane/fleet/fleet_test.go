@@ -290,3 +290,28 @@ func TestPushShadowAndErrorEvents(t *testing.T) {
 		}
 	}
 }
+
+// RV-G2-01, RV-N-01: the event's context reaches ingest as the engine
+// masked it.
+func TestToIngestCarriesTheContext(t *testing.T) {
+	ev := event("STR-8F3K-Q2VD-7XNM-A1PC")
+	ev.UserAgent, ev.Referer = "sqlmap/1.8", "https://app.example.test/?token=[MASKED]"
+	ev.Headers = []*eventv1.Header{{Name: "Cookie", Value: []byte("[MASKED]")}, {Name: "Accept", Value: []byte("*/*")}}
+	for in, want := range map[eventv1.Inspection]string{
+		eventv1.Inspection_INSPECTION_UNSPECIFIED:  "",
+		eventv1.Inspection_INSPECTION_FULL:         "full",
+		eventv1.Inspection_INSPECTION_PARTIAL:      "partial",
+		eventv1.Inspection_INSPECTION_BODY_SKIPPED: "body_skipped",
+		eventv1.Inspection(42):                     "",
+	} {
+		ev.Inspection = in
+		got := toIngest(ev, "node-1", time.Now())
+		if got.Inspection != want {
+			t.Errorf("%v: %q, want %q", in, got.Inspection, want)
+		}
+		if got.UserAgent != ev.UserAgent || got.Referer != ev.Referer || len(got.Headers) != 2 ||
+			got.Headers[0] != (ingest.Header{Name: "Cookie", Value: "[MASKED]"}) {
+			t.Errorf("context %+v", got)
+		}
+	}
+}

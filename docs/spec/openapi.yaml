@@ -505,6 +505,41 @@ components:
         received_at:
           type: string
           format: date-time
+        user_agent:
+          type: string
+          description: User-Agent of the request, at most 512 bytes, masked like snippets (RV-G2-01). Only in GET
+            /v1/events/{block_id}; absent for events of modules from before it.
+        referer:
+          type: string
+          description: Referer of the request, at most 512 bytes; values of sensitive query parameters are [MASKED].
+            [REDACTED] for callers without events:read_sensitive. Only in GET /v1/events/{block_id}.
+        headers:
+          type: array
+          description: Other request headers, at most 32 and 2 KB; values of sensitive headers (Authorization, Cookie,
+            X-Api-Key, the policy's privacy.sensitive_fields...) are [MASKED], others masked like snippets. Values are
+            [REDACTED] for callers without events:read_sensitive. Only in GET /v1/events/{block_id}.
+          items:
+            $ref: '#/components/schemas/Header'
+        inspection:
+          type: string
+          description: 'How much of the request was inspected (RV-N-01): full; partial (the CPU budget ran out, the
+            fail mode applied); body_skipped (the body, or part of it, was not inspected). Empty for modules from
+            before it.'
+          enum:
+          - ''
+          - full
+          - partial
+          - body_skipped
+    Header:
+      type: object
+      required:
+      - name
+      - value
+      properties:
+        name:
+          type: string
+        value:
+          type: string
     GetEventResponse:
       type: object
       required:

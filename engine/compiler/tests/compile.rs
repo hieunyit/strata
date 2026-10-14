@@ -148,6 +148,34 @@ fn policies_are_checked() {
     assert!(policies_from(&both, Path::new(".")).is_err());
 }
 
+/// P-01 §1b: max_snippet_size is one of 128, 2048, 4096 (schema), signed
+/// into the policy entry; data_guard takes pan (P-01 §1).
+#[test]
+fn snippet_size_and_pan_guard() {
+    use libstrata::bundle::{Response, SnippetSize};
+    let doc = from_yaml(
+        "policies:\n\
+         - { name: a, mode: enforce, max_snippet_size: 4096, response: { data_guard: [pan] } }\n\
+         - { name: b, mode: shadow, max_snippet_size: 2048 }\n\
+         - { name: c, mode: shadow }",
+    )
+    .unwrap();
+    let p = policies_from(&doc, Path::new(".")).unwrap().policies;
+    assert_eq!(
+        p.iter().map(|p| p.6).collect::<Vec<_>>(),
+        [SnippetSize::Kb4, SnippetSize::Kb2, SnippetSize::Small]
+    );
+    assert_eq!(p[0].3.0, Response::GUARD_PAN);
+    for bad in [
+        "max_snippet_size: 1000",
+        "max_snippet_size: 8192",
+        "response: { data_guard: [iban] }",
+    ] {
+        let doc = from_yaml(&format!("policies:\n - {{ name: a, mode: shadow, {bad} }}")).unwrap();
+        assert!(policies_from(&doc, Path::new(".")).is_err(), "{bad}");
+    }
+}
+
 #[test]
 fn response_layer_flags() {
     use libstrata::bundle::Response;

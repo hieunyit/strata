@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use libstrata::bundle::{Mode, Oversize, PolicySpec, Response, Spec, build, public_key};
-use libstrata::detectors::response::{STATUS_NOT_ALLOWED, cccd, db_errors, jwt};
+use libstrata::detectors::response::{STATUS_NOT_ALLOWED, cccd, db_errors, jwt, pan};
 use libstrata::engine::Engine;
 use libstrata::tx::Tx;
 use libstrata::verdict::{ACTION_ALLOW, OK, TXF_FORCE_SHADOW, Verdict};
@@ -141,6 +141,17 @@ fn case10_unknown_province_not_masked() {
 fn case11_thirteen_digits_not_masked() {
     let (out, _) = guard(&[br#"{"ts":1760000000123}"#]);
     assert_eq!(out, br#"{"ts":1760000000123}"#);
+}
+
+#[test]
+fn case11b_card_number_masked_split_between_chunks() {
+    // P-01 §1: data_guard pan, rule 600203
+    let (out, v) = guard(&[
+        br#"{"card":"4111 1111 11"#,
+        br#"11 1111","ts":1760000000123}"#,
+    ]);
+    assert_eq!(out, br#"{"card":"*******************","ts":1760000000123}"#);
+    assert_eq!(rules(&v), [pan::RULE]);
 }
 
 #[test]

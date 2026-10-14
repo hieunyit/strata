@@ -698,5 +698,19 @@ func toIngest(ev *eventv1.Event, node string, now time.Time) ingest.Event {
 			RuleID: m.GetRuleId(), Layer: m.GetLayer(), Field: m.GetField(), Snippet: string(m.GetSnippet()),
 		})
 	}
+	// RV-G2-01, RV-N-01: the context, masked by the engine
+	out.UserAgent, out.Referer = ev.GetUserAgent(), ev.GetReferer()
+	for _, h := range ev.GetHeaders() {
+		out.Headers = append(out.Headers, ingest.Header{Name: h.GetName(), Value: string(h.GetValue())})
+	}
+	out.Inspection = inspections[ev.GetInspection()]
 	return out
+}
+
+// inspections maps the event's Inspection to the stored value ("" for
+// events of modules from before the field).
+var inspections = map[eventv1.Inspection]string{
+	eventv1.Inspection_INSPECTION_FULL:         "full",
+	eventv1.Inspection_INSPECTION_PARTIAL:      "partial",
+	eventv1.Inspection_INSPECTION_BODY_SKIPPED: "body_skipped",
 }
