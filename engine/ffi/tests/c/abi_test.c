@@ -196,6 +196,23 @@ main(int argc, char **argv)
     CHECK(strata_engine_policy(NULL, S("example-api"), &pol) == STRATA_E_INVALID);
     CHECK(strata_engine_policy(e, S("example-api"), NULL) == STRATA_E_INVALID);
 
+    /* kill switch list (1.3): arguments; what it skips is tested in Rust */
+    {
+        static uint32_t many[4097];
+        uint32_t ids[2] = { 942100, 941100 };
+
+        CHECK(strata_engine_disable_rules(e, ids, 2) == STRATA_OK);
+        CHECK(strata_engine_disable_rules(e, NULL, 0) == STRATA_OK);
+        CHECK(strata_engine_disable_rules(NULL, ids, 2) == STRATA_E_INVALID);
+        CHECK(strata_engine_disable_rules(e, NULL, 1) == STRATA_E_INVALID);
+        for (size_t i = 0; i < 4097; i++) {
+            many[i] = (uint32_t) i + 1;
+        }
+        CHECK(strata_engine_disable_rules(e, many, 4097) == STRATA_E_INVALID);
+        CHECK(strata_engine_disable_rules(e, many, 4096) == STRATA_OK);
+        CHECK(strata_engine_disable_rules(e, NULL, 0) == STRATA_OK);
+    }
+
     /* default block page, read in place from the bundle */
     CHECK(strata_engine_block_page(e, &html, &contact) == STRATA_OK);
     CHECK(html.len > 0 && memmem(html.ptr, html.len, "{{block_id}}", 12) != NULL);
