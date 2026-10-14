@@ -112,3 +112,20 @@ func FuzzDecode(f *testing.F) {
 		}
 	})
 }
+
+// W12-N-01: a datagram that starts with SampleMagic is a replay sample.
+func TestSamples(t *testing.T) {
+	good, _ := proto.Marshal(&eventv1.ReplaySample{AnonKeyId: "k1", Policy: []byte("example-api"), Method: []byte("GET")})
+	if s, ok := DecodeSample(good); !ok || string(s.GetPolicy()) != "example-api" {
+		t.Fatalf("%v %v", s, ok)
+	}
+	for _, bad := range []*eventv1.ReplaySample{{Policy: []byte("p")}, {AnonKeyId: "k1"}, {AnonKeyId: "a-key-id-longer-than-16", Policy: []byte("p")}} {
+		b, _ := proto.Marshal(bad)
+		if _, ok := DecodeSample(b); ok {
+			t.Errorf("%v accepted", bad)
+		}
+	}
+	if _, ok := DecodeSample([]byte{0xff, 0xff}); ok {
+		t.Error("garbage accepted")
+	}
+}
