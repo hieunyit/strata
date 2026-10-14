@@ -8,20 +8,21 @@ Ngày: 14/10/2026. Người lập: Claude Code. Tiêu chí lấy từ `docs/plan
 ## 1. Kết luận
 
 **Gate A chưa đạt trọn.** Đạt: shadow chạy được, sự kiện về ClickHouse, tra Block ID,
-runbook đã diễn tập, chất lượng gói signature, conformance. **Chưa đạt**: hiệu năng (A1, A2).
-**Chờ thời gian**: soak 24 giờ (tới 14/10 khoảng 10:35 UTC) và mốc 7 ngày của gói (tới
-20/10 11:18 UTC).
+runbook đã diễn tập, chất lượng gói signature, conformance. **Chưa đạt**: hiệu năng (A1, A2;
+PR #54 đã merge nhưng chưa đủ) và **soak (A3)**: soak 24 giờ FAIL do RSS worker tăng khi nạp
+gói đầy đủ; đã tìm ra nguyên nhân và sửa, soak 1 giờ với bản sửa PASS, còn phải soak lại 24
+giờ. **Chờ thời gian**: mốc 7 ngày của gói (tới 20/10 11:18 UTC).
 
-Theo cột "Nếu chưa đạt" của plan: **giữ shadow, không bật canary**. Giai đoạn B (canary,
-tuần 11–12) phải chờ RV-R-01 hoặc một quyết định ngoại lệ của PO (mục 4).
+Theo cột "Nếu chưa đạt" của plan: **giữ shadow, không bật canary**. PO quyết ngày 14/10: giữ
+Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 
 ## 2. Từng tiêu chí
 
 | # | Tiêu chí | Trạng thái | Bằng chứng |
 | --- | --- | --- | --- |
-| A1 | Overhead p99 < 1 ms (request < 64 KB) | **Chưa đạt** | Phase 0–1, Linux: GET +900 đến +1.160 µs (dao động quanh ngưỡng), POST form 64 KB +2,8 đến +3,2 ms (`w09-q-01.md` §7, #28). Gói đầy đủ: GET p99 +5,5 đến +6,6 ms; trên route thí điểm, JSON 300 byte 1,6–2,7 ms, upload 2–32 KB khoảng 20 ms (`w10-g2-01.md` §4) |
-| A2 | Throughput giảm ≤ 10% | **Chưa đạt** | Phase 0–1, Linux: −43,3% / −39,6% (1.30.5 / 1.31.6), HTTP/2 −36 đến −38% (#27). Gói đầy đủ: −87% |
-| A3 | Hot reload không rớt request | **Đạt, chờ soak** | `t/004-reload.t`, hot reload dưới tải (W08-N-01). Soak 24 giờ + ≥ 1.000 lần đổi bundle (`strata-soak-24h`, run `24h-rc3`) kết thúc khoảng 14/10 10:35 UTC; verdict sẽ ghi vào `w09-q-02.md` §3 |
+| A1 | Overhead p99 < 1 ms (request < 64 KB) | **Chưa đạt** | Phase 0–1, Linux: GET +900 đến +1.160 µs (dao động quanh ngưỡng), POST form 64 KB +2,8 đến +3,2 ms (`w09-q-01.md` §7, #28). Gói đầy đủ: GET p99 +5,5 đến +6,6 ms; trên route thí điểm, JSON 300 byte 1,6–2,7 ms, upload 2–32 KB khoảng 20 ms (`w10-g2-01.md` §4). Sau PR #54 (14/10): thời gian engine giảm 10–18%; POST 64 KB với gói đầy đủ vẫn 100% fail-open (#28, `issue-27-28-prototype.md`) |
+| A2 | Throughput giảm ≤ 10% | **Chưa đạt** | Phase 0–1, Linux: −43,3% / −39,6% (1.30.5 / 1.31.6), HTTP/2 −36 đến −38% (#27). Gói đầy đủ: −87%. Sau PR #54 (14/10): phase 0–1 −42% → −37%, gói đầy đủ HTTP/2 +12% so với trước; vẫn xa mục tiêu −10% |
+| A3 | Hot reload không rớt request | **Chưa đạt (soak lại)** | Hot reload không rớt request: `t/004-reload.t`, hot reload dưới tải (W08-N-01), soak 0 crash. Nhưng soak 24 giờ (`24h-rc3`, 1.004 lần đổi) **FAIL**: RSS worker 8 → 147 MB, tăng khoảng 18 MB mỗi lần nạp gói đầy đủ, vì mỗi luồng của thread pool NGINX giữ một arena glibc riêng. Đã sửa: libstrata nạp bundle trên một luồng riêng; soak 1 giờ có bản sửa PASS (RSS phẳng qua 10 lần nạp gói đầy đủ). Soak 24 giờ mới chạy sau khi merge (`w09-q-02.md` §3) |
 | A4 | Fuzz không crash | **Đạt theo quyết định PO** | Plan ghi "72 giờ fuzz". PO quyết ngày 13/10/2026: 30 phút đến 1 giờ là đủ. Đã chạy: FFI dưới ASan khoảng 9 giờ 50 phút, khoảng 122 triệu lần chạy, 0 crash (W08-R-01). Lần đó dừng vì máy khởi động lại, không phải vì crash |
 | A5 | Conformance 100% | **Đạt** | Corpus v1 qua engine và qua NGINX (W08-Q-01), `t/080-conformance.t` |
 | A6 | Sự kiện về ClickHouse | **Đạt (từ 13/10)** | Block: từ W06. **Shadow: chỉ từ PR #55 (13/10)**; trước đó mọi sự kiện shadow bị ingest từ chối (#47). `tests/e2e/lab-shadow-events.sh`, `tests/e2e/pilot-shadow.sh` (staging, prod-sim) PASS. Phân loại shadow cho policy enforce: đúng từ 14/10 với module có RV-G2-01 (`would_block`, #57); module cũ vẫn đếm finding dưới ngưỡng là shadow |
@@ -38,6 +39,7 @@ tuần 11–12) phải chờ RV-R-01 hoặc một quyết định ngoại lệ c
 | Cô lập lỗi | `catch_unwind` biến panic Rust thành lỗi engine. Nó **không** bắt abort, OOM, stack overflow hay lỗi bộ nhớ trong `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: W11-N-01 |
 | Connector | Chỉ NGINX OSS 1.30.5 / 1.31.6, x86_64. Gói deb/rpm đã thử trên Ubuntu 24.04, Debian 12, Rocky 9 (`w10-n-01.md`) |
 | Fuzz | Như A4; không có fuzz 72 giờ mỗi PR |
+| Tỉ lệ phát hiện (GoTestWAF) | Không dùng con số 8,9% đo trên prod-sim: 687/805 request ở lượt đó là E_BUDGET (fail-open), vì prod-sim dùng chung 2 CPU với 33 container. Phiên engine đo lại ngày 14/10 trên CPU riêng, gói đầy đủ, enforce: budget 2 ms cho TP 27,6% (612/823 request vẫn vượt budget, #27); budget 1 s cho TP 47,8%, TN 90,8%. Nút thắt đầu tiên là hiệu năng, sau đó mới tới độ phủ rule (base64, XXE, LDAP, header tùy ý) |
 
 ## 4. Quyết định cần từ PO
 
@@ -45,6 +47,8 @@ tuần 11–12) phải chờ RV-R-01 hoặc một quyết định ngoại lệ c
    không chặn request, nhưng vẫn cộng độ trễ, và một phần request không được kiểm), và
    đưa A1/A2 thành điều kiện trước canary 1% (tuần 11)? Hoặc giữ Gate A mở cho tới khi
    RV-R-01 (PR #54) có số đo trước/sau.
+   **PO quyết 14/10: giữ Gate A mở chờ PR #54.** PR #54 merge ngày 14/10, nhưng A1/A2
+   vẫn chưa đạt (mục 2), nên Gate A vẫn mở.
 2. **`strata_cpu_budget` cho shadow**: route thí điểm đang dùng 20 ms để có dữ liệu. Giữ
    mức này cho tới khi có RV-R-01, hay quay về 2 ms (chấp nhận phần lớn request không được
    kiểm)?
@@ -52,12 +56,14 @@ tuần 11–12) phải chờ RV-R-01 hoặc một quyết định ngoại lệ c
    Shadow trên route thật phải chạy ít nhất 14 ngày trước canary.
 4. **Người tiếp tục RV-G2-01 / RV-N-01**: nhánh `rv-g2-01-event-context` (5 commit chưa
    push) của phiên engine đã dừng giữa chừng; #57 (`would_block`) chờ nhánh này.
+   *Đã xong 14/10: PR #68 (phiên engine), #70 (#57).*
 
 ## 5. Mốc còn chờ
 
 | Mốc | Thời điểm (UTC) | Ai cập nhật |
 | --- | --- | --- |
-| Verdict soak 24 giờ | 14/10 khoảng 10:35 | phiên review W09 (`w09-q-02.md` §3); báo cáo này cập nhật A3 |
+| Verdict soak 24 giờ | 14/10: FAIL, đã sửa | Claude Code (`w09-q-02.md` §3) |
+| Soak 24 giờ với bản sửa | khoảng 24 giờ sau khi merge | Claude Code; báo cáo này cập nhật A3 |
 | Bảng FP đủ 2 ngày | sau 15/10 khoảng 21:50 | Claude Code (`w10-s-01.md`) |
 | 7 ngày của gói 0.0.1 | 20/10 11:18 | người PO giao đóng W09-S-01 |
-| RV-R-01 số đo trước/sau | khi PR #54 xong | phiên engine; A1/A2 cập nhật theo |
+| RV-R-01 số đo trước/sau | PR #54 merge 14/10: A1/A2 vẫn chưa đạt (mục 2) | phiên engine |
