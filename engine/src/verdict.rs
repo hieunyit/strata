@@ -26,6 +26,9 @@ pub const ACTION_BLOCK: u32 = 3;
 
 /// Per-request option: never block, report would-be blocks as `log`.
 pub const TXF_FORCE_SHADOW: u32 = 1 << 16;
+/// Degraded mode: only the protocol layer and the `ip_match` rules run
+/// (connector circuit breaker, nginx-module.md › Circuit breaker cấp worker).
+pub const TXF_DEGRADED: u32 = 1 << 17;
 
 pub const MAX_RULES: usize = 16;
 pub const PUBKEY_LEN: usize = 32;

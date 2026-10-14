@@ -217,7 +217,7 @@ impl Tx {
             protocol_score: 0,
             matches: Vec::new(),
             budget: None,
-            degraded: false,
+            degraded: flags & TXF_DEGRADED != 0,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -538,6 +538,10 @@ impl Tx {
     }
 
     fn scan(&mut self, data: &[u8], field: &str) {
+        // The test hooks stand for the full engine: degraded mode skips them.
+        if self.degraded {
+            return;
+        }
         #[cfg(feature = "test-hooks")]
         if contains_panic(data) {
             panic!("test hook: deliberate panic");
@@ -627,7 +631,7 @@ impl Tx {
         }
         self.headers.header(key, val);
         #[cfg(feature = "test-hooks")]
-        if contains_panic(key) || contains_panic(val) {
+        if !self.degraded && (contains_panic(key) || contains_panic(val)) {
             panic!("test hook: deliberate panic");
         }
         #[cfg(feature = "test-hooks")]
@@ -787,10 +791,10 @@ impl Tx {
         }
         let has_s = memchr::memchr(b'S', data).is_some();
         #[cfg(feature = "test-hooks")]
-        if has_s && contains_panic(data) {
+        if has_s && !self.degraded && contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
-        if !self.matched {
+        if !self.matched && !self.degraded {
             let head = &data[..data.len().min(TAIL)];
             let head_has_s = has_s && memchr::memchr(b'S', head).is_some();
             if self.tail_has_s || head_has_s {
@@ -916,7 +920,7 @@ impl Tx {
             return (E_STATE, None);
         }
         #[cfg(feature = "test-hooks")]
-        if contains_panic(data) {
+        if !self.degraded && contains_panic(data) {
             panic!("test hook: deliberate panic");
         }
         let Some(g) = self.guard.as_mut() else {
@@ -1426,6 +1430,31 @@ mod tests {
             assert!(run(inside.as_bytes(), addr));
             assert!(!run(outside.as_bytes(), addr));
         }
+    }
+
+    // Degraded mode (circuit breaker): the protocol layer still blocks,
+    // the rules of the full engine (here the stub rule) do not run.
+    #[test]
+    fn degraded_runs_the_protocol_layer_only() {
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_DEGRADED);
+        t.set_policy(b"example-api");
+        line(&mut t, b"/STRATA-TEST-BLOCK");
+        t.request_body_chunk(b"xxSTRATA-TEST-BLOCKyy", true);
+        assert_eq!(t.verdict().action, ACTION_ALLOW);
+
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_DEGRADED);
+        t.set_policy(b"example-api");
+        t.request_line(b"POST", b"/", b"/", b"", b"HTTP/1.1");
+        headers(
+            &mut t,
+            &[
+                (b"Content-Length", b"1"),
+                (b"Transfer-Encoding", b"chunked"),
+            ],
+        );
+        let v = t.verdict();
+        assert_eq!(v.action, ACTION_BLOCK);
+        assert_eq!(rules(&v), [protocol::CL_TE_CONFLICT]);
     }
 
     // strata_mode shadow on an enforcing policy stays shadow.

@@ -24,6 +24,7 @@ const _: () = {
     assert!(v::ACTION_CHALLENGE == STRATA_ACTION_CHALLENGE);
     assert!(v::ACTION_BLOCK == STRATA_ACTION_BLOCK);
     assert!(v::TXF_FORCE_SHADOW == STRATA_TXF_FORCE_SHADOW);
+    assert!(v::TXF_DEGRADED == STRATA_TXF_DEGRADED);
     assert!(v::MAX_RULES == STRATA_MAX_RULES);
     assert!(v::PUBKEY_LEN == STRATA_PUBKEY_LEN);
     assert!(libstrata::block_id::ID_LEN < STRATA_BLOCK_ID_SIZE);
