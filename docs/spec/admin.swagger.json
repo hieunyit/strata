@@ -205,6 +205,76 @@
         ]
       }
     },
+    "/v1/groups/{group_id}/replaySampling": {
+      "get": {
+        "summary": "REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never\nthe key.",
+        "operationId": "FleetAdminService_GetReplaySampling",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetReplaySamplingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/groups/{group_id}:setReplaySampling": {
+      "post": {
+        "summary": "REST: POST /v1/groups/{group_id}:setReplaySampling. The share of\nrequests the group's nodes sample for replay, anonymized with the\ngroup's key (W12-N-01); a new key when the group has none or\nrotate_key is set. Above 0 only once the control plane runs with\n-replay-sampling-approved (legal review of the sample format). Needs\nreplay:configure (admin).",
+        "operationId": "FleetAdminService_SetReplaySampling",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetReplaySamplingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceSetReplaySamplingBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
     "/v1/nodes": {
       "get": {
         "summary": "REST: GET /v1/nodes",
@@ -976,6 +1046,18 @@
         }
       }
     },
+    "FleetAdminServiceSetReplaySamplingBody": {
+      "type": "object",
+      "properties": {
+        "rate_percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "rotate_key": {
+          "type": "boolean"
+        }
+      }
+    },
     "PolicyServiceDeployPolicyBody": {
       "type": "object"
     },
@@ -1267,6 +1349,14 @@
       "properties": {
         "version": {
           "$ref": "#/definitions/v1PolicyVersion"
+        }
+      }
+    },
+    "v1GetReplaySamplingResponse": {
+      "type": "object",
+      "properties": {
+        "sampling": {
+          "$ref": "#/definitions/v1ReplaySampling"
         }
       }
     },
@@ -1632,6 +1722,29 @@
         }
       }
     },
+    "v1ReplaySampling": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "rate_percent": {
+          "type": "number",
+          "format": "double",
+          "title": "0 (off) to 100, two decimals"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "updated_by": {
+          "type": "string"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "v1ResponseLayer": {
       "type": "object",
       "properties": {
@@ -1740,6 +1853,21 @@
         "update_time": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "v1SetReplaySamplingResponse": {
+      "type": "object",
+      "properties": {
+        "sampling": {
+          "$ref": "#/definitions/v1ReplaySampling"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          }
         }
       }
     },

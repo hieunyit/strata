@@ -27,6 +27,24 @@ export interface paths {
     /** REST: POST /v1/groups/{group_id}/enrollmentTokens */
     post: operations["FleetAdminService_CreateEnrollmentToken"];
   };
+  "/v1/groups/{group_id}/replaySampling": {
+    /**
+     * REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+     * the key.
+     */
+    get: operations["FleetAdminService_GetReplaySampling"];
+  };
+  "/v1/groups/{group_id}:setReplaySampling": {
+    /**
+     * REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+     * requests the group's nodes sample for replay, anonymized with the
+     * group's key (W12-N-01); a new key when the group has none or
+     * rotate_key is set. Above 0 only once the control plane runs with
+     * -replay-sampling-approved (legal review of the sample format). Needs
+     * replay:configure (admin).
+     */
+    post: operations["FleetAdminService_SetReplaySampling"];
+  };
   "/v1/nodes": {
     /** REST: GET /v1/nodes */
     get: operations["FleetAdminService_ListNodes"];
@@ -168,6 +186,11 @@ export interface components {
       /** 1..500 characters, required */
       reason?: string;
     };
+    FleetAdminServiceSetReplaySamplingBody: {
+      /** Format: double */
+      rate_percent?: number;
+      rotate_key?: boolean;
+    };
     PolicyServiceDeployPolicyBody: Record<string, never>;
     /**
      * @default MODE_UNSPECIFIED
@@ -289,6 +312,9 @@ export interface components {
     };
     v1GetPolicyVersionResponse: {
       version?: components["schemas"]["v1PolicyVersion"];
+    };
+    v1GetReplaySamplingResponse: {
+      sampling?: components["schemas"]["v1ReplaySampling"];
     };
     v1GetRolloutResponse: {
       rollout?: components["schemas"]["v1Rollout"];
@@ -456,6 +482,18 @@ export interface components {
        */
       identity?: string;
     };
+    v1ReplaySampling: {
+      group_id?: string;
+      /**
+       * 0 (off) to 100, two decimals
+       * Format: double
+       */
+      rate_percent?: number;
+      key_id?: string;
+      updated_by?: string;
+      /** Format: date-time */
+      update_time?: string;
+    };
     v1ResponseLayer: {
       allowed_codes_check?: boolean;
       db_errors?: boolean;
@@ -498,6 +536,10 @@ export interface components {
       error?: string;
       /** Format: date-time */
       update_time?: string;
+    };
+    v1SetReplaySamplingResponse: {
+      sampling?: components["schemas"]["v1ReplaySampling"];
+      commands?: components["schemas"]["v1NodeCommand"][];
     };
     v1UpdatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
@@ -635,6 +677,65 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1CreateEnrollmentTokenResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+   * the key.
+   */
+  FleetAdminService_GetReplaySampling: {
+    parameters: {
+      path: {
+        group_id: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetReplaySamplingResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+   * requests the group's nodes sample for replay, anonymized with the
+   * group's key (W12-N-01); a new key when the group has none or
+   * rotate_key is set. Above 0 only once the control plane runs with
+   * -replay-sampling-approved (legal review of the sample format). Needs
+   * replay:configure (admin).
+   */
+  FleetAdminService_SetReplaySampling: {
+    parameters: {
+      path: {
+        group_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FleetAdminServiceSetReplaySamplingBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1SetReplaySamplingResponse"];
         };
       };
       /** @description An unexpected error response. */

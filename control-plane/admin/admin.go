@@ -38,6 +38,8 @@ var Permissions = auth.MethodPermissions{
 	adminv1.FleetAdminService_EmergencyDisableRule_FullMethodName:  auth.PermRulesDisable,
 	adminv1.FleetAdminService_EnableRule_FullMethodName:            auth.PermRulesDisable,
 	adminv1.FleetAdminService_ListDisabledRules_FullMethodName:     auth.PermNodesRead,
+	adminv1.FleetAdminService_SetReplaySampling_FullMethodName:     auth.PermReplayConfigure,
+	adminv1.FleetAdminService_GetReplaySampling_FullMethodName:     auth.PermNodesRead,
 	adminv1.PolicyService_ListPolicies_FullMethodName:              auth.PermPoliciesRead,
 	adminv1.PolicyService_GetPolicy_FullMethodName:                 auth.PermPoliciesRead,
 	adminv1.PolicyService_CreatePolicy_FullMethodName:              auth.PermPoliciesWrite,
@@ -70,7 +72,11 @@ type Deps struct {
 	// CanaryTrips: clearForceShadow on a group also ends the canary
 	// fallback's hold of the policy there (W12-G2-01).
 	CanaryTrips TripClearer
-	Now         func() time.Time
+	// Replay enables replay sampling (W12-N-01); ReplayApproved allows a
+	// rate above 0 once the sample format passed legal review.
+	Replay         ReplayStore
+	ReplayApproved bool
+	Now            func() time.Time
 }
 
 // BuildInfo is reported by VersionService.
@@ -101,7 +107,8 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	adminv1.RegisterVersionServiceServer(gs, &versionServer{info: info})
 	if deps.Fleet != nil && deps.Presence != nil {
 		adminv1.RegisterFleetAdminServiceServer(gs, &fleetAdmin{store: deps.Fleet, presence: deps.Presence,
-			commands: deps.Commands, kick: deps.CommandKicker, rules: deps.KillSwitch, trips: deps.CanaryTrips, now: deps.Now})
+			commands: deps.Commands, kick: deps.CommandKicker, rules: deps.KillSwitch, trips: deps.CanaryTrips,
+			replay: deps.Replay, replayApproved: deps.ReplayApproved, now: deps.Now})
 	}
 	if deps.Policies != nil {
 		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})
