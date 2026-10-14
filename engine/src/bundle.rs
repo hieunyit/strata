@@ -10,7 +10,8 @@
 //!          (0 shadow, 1 enforce) | oversize u8 (0 pass, 1 block: request
 //!          bodies larger than the connector inspects) | response u8 (flags,
 //!          `Response`) | canary u16 (enforce share in basis points, 0 = no
-//!          canary; only with mode enforce, < 10000) | reserved [u8; 3]
+//!          canary; only with mode enforce, < 10000) | signatures u8
+//!          (`Signatures`: 0 shadow, 1 off, 2 enforce) | reserved [u8; 2]
 //! ...    zero padding up to sections_off (multiple of 4096)
 //! off    section directory: count u32 | reserved u32 |
 //!          count x { kind u32 | reserved u32 | offset u64 | len u64 }
@@ -95,6 +96,30 @@ pub struct Policy<'a> {
     /// whose requests an enforce policy blocks; the others run in shadow.
     /// 0 = no canary (every request follows `mode`).
     pub canary: u16,
+    /// What the rules of the signature pack do for this policy.
+    pub signatures: Signatures,
+}
+
+/// Rules of the signature pack for a policy (RV-S-01). The default (0 in
+/// the bundle, so every bundle from before it) is shadow: they run and are
+/// reported, but never block, even in an enforce policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Signatures {
+    #[default]
+    Shadow = 0,
+    Off = 1,
+    Enforce = 2,
+}
+
+impl Signatures {
+    fn from_byte(b: u8) -> Option<Signatures> {
+        match b {
+            0 => Some(Signatures::Shadow),
+            1 => Some(Signatures::Off),
+            2 => Some(Signatures::Enforce),
+            _ => None,
+        }
+    }
 }
 
 /// Highest canary share: 100% is a plain enforce policy (canary 0).
@@ -109,6 +134,8 @@ pub struct PolicySpec<'a> {
     pub response: Response,
     /// See `Policy::canary`.
     pub canary: u16,
+    /// See `Policy::signatures`.
+    pub signatures: Signatures,
 }
 
 impl<'a> PolicySpec<'a> {
@@ -120,6 +147,7 @@ impl<'a> PolicySpec<'a> {
             oversize,
             response: Response::default(),
             canary: 0,
+            signatures: Signatures::Shadow,
         }
     }
 }
@@ -203,7 +231,8 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && entry[POLICY_NAME_LEN + 1] <= Oversize::Block as u8
         && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
         && valid_canary(entry_mode(entry), entry_canary(entry))
-        && entry[POLICY_NAME_LEN + 5..].iter().all(|&c| c == 0)
+        && Signatures::from_byte(entry[POLICY_NAME_LEN + 5]).is_some()
+        && entry[POLICY_NAME_LEN + 6..].iter().all(|&c| c == 0)
 }
 
 /// A canary share only makes sense on an enforce policy.
@@ -356,6 +385,7 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             oversize: entry_oversize(e),
             response: Response(e[POLICY_NAME_LEN + 2]),
             canary: entry_canary(e),
+            signatures: Signatures::from_byte(e[POLICY_NAME_LEN + 5]).unwrap_or_default(),
         })
 }
 
@@ -427,6 +457,7 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
         out[at + POLICY_NAME_LEN + 2] = p.response.0;
         out[at + POLICY_NAME_LEN + 3..at + POLICY_NAME_LEN + 5]
             .copy_from_slice(&p.canary.to_le_bytes());
+        out[at + POLICY_NAME_LEN + 5] = p.signatures as u8;
     }
 
     if spec.sections.len() > MAX_SECTIONS {
@@ -687,5 +718,39 @@ mod tests {
                 "mode {mode} canary {canary}"
             );
         }
+    }
+
+    #[test]
+    fn signatures_round_trip_and_bad_values_are_rejected() {
+        for sig in [Signatures::Shadow, Signatures::Off, Signatures::Enforce] {
+            let p = PolicySpec {
+                signatures: sig,
+                ..PolicySpec::new("example-api", Mode::Enforce, Oversize::Pass)
+            };
+            let b = build(&spec(&[p]), &SEED).unwrap();
+            let info = verify(&b, &public_key(&SEED)).unwrap();
+            assert_eq!(
+                find_policy(&b, &info, b"example-api").unwrap().signatures,
+                sig
+            );
+            assert_eq!(b[HEADER_LEN + POLICY_NAME_LEN + 5], sig as u8);
+        }
+        let mut b = build(
+            &spec(&[PolicySpec::new(
+                "example-api",
+                Mode::Enforce,
+                Oversize::Pass,
+            )]),
+            &SEED,
+        )
+        .unwrap();
+        b.truncate(b.len() - SIG_LEN);
+        b[HEADER_LEN + POLICY_NAME_LEN + 5] = 3;
+        let sig = SigningKey::from_bytes(&SEED).sign(&b);
+        b.extend_from_slice(&sig.to_bytes());
+        assert_eq!(
+            verify(&b, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
     }
 }

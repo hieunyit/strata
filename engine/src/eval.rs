@@ -1606,7 +1606,7 @@ pub fn evaluate(
 ) {
     let engine_id = db.as_ref().map(|d| d.id()).unwrap_or(0);
     let _ = evaluate_with_budget(
-        engine_id, tables, db, regexes, operators, None, req, stage, false, None, report,
+        engine_id, tables, db, regexes, operators, None, req, stage, false, true, None, report,
     );
 }
 
@@ -1622,6 +1622,7 @@ pub fn evaluate_with_budget(
     req: &Request<'_>,
     stage: u8,
     degraded: bool,
+    signatures: bool,
     mut budget: Option<&mut crate::budget::TxBudget>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), crate::budget::BudgetExceeded> {
@@ -1718,7 +1719,7 @@ pub fn evaluate_with_budget(
     for i in order {
         let i = i as usize;
         let Some(r) = tables.rule(i) else { continue };
-        if r.stage != stage {
+        if r.stage != stage || (r.signature && !signatures) {
             continue;
         }
         if degraded {
@@ -1766,6 +1767,7 @@ pub fn evaluate_with_budget(
                 rule: r.id,
                 score: r.score,
                 block_alone: r.block_alone,
+                signature: r.signature,
                 layer: layer_name,
                 field,
                 snippet,

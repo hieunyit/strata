@@ -31,6 +31,7 @@ pub const BODY_OVER_LIMIT: u32 = 100_020;
 
 fn alone(rule: u32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
+        signature: false,
         rule,
         score: 0,
         block_alone: true,
@@ -42,6 +43,7 @@ fn alone(rule: u32, field: &str, snippet: &[u8]) -> Violation {
 
 fn scored(rule: u32, score: i32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
+        signature: false,
         rule,
         score,
         block_alone: false,

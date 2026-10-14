@@ -127,6 +127,11 @@ pub struct Tx {
     matches: Vec<MatchEntry>,
     budget: Option<crate::budget::TxBudget>,
     degraded: bool,
+    /// signature pack of the policy (RV-S-01); in shadow its rules keep
+    /// their own score and never block
+    signatures: crate::bundle::Signatures,
+    sig_score: i32,
+    sig_matched: bool,
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
@@ -218,6 +223,9 @@ impl Tx {
             matches: Vec::new(),
             budget: None,
             degraded: flags & TXF_DEGRADED != 0,
+            signatures: crate::bundle::Signatures::Shadow,
+            sig_score: 0,
+            sig_matched: false,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -351,6 +359,7 @@ impl Tx {
             self.shadow |= !crate::canary::enforced(name, key, p.canary);
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
+            self.signatures = p.signatures;
         } else {
             self.policy_index = None;
         }
@@ -379,6 +388,7 @@ impl Tx {
         }
         if bytes > 0 {
             self.add(Violation {
+                signature: false,
                 rule: protocol::BODY_OVER_LIMIT,
                 score: 0,
                 block_alone: self.oversize_block,
@@ -468,6 +478,28 @@ impl Tx {
             self.rules[self.n_rules] = v.rule;
             self.n_rules += 1;
         }
+        let sig_shadow = v.signature && self.signatures == crate::bundle::Signatures::Shadow;
+        if sig_shadow {
+            // reported, never blocks: a would-be block of the signature
+            // pack is logged with an Event ID, like a shadow policy
+            self.sig_score = self.sig_score.saturating_add(v.score);
+            if self.matches.len() < MAX_RULES {
+                let snippet = crate::event::prepare_snippet(&v.field, &v.snippet);
+                self.matches.push(MatchEntry {
+                    rule_id: v.rule,
+                    layer: v.layer,
+                    field: v.field,
+                    snippet,
+                });
+            }
+            if (v.block_alone || self.sig_score >= BLOCK_THRESHOLD) && !self.sig_matched {
+                self.sig_matched = true;
+                if self.id.is_none() {
+                    self.id = Some(block_id::generate(Kind::Event, self.node));
+                }
+            }
+            return;
+        }
         self.score = self.score.saturating_add(v.score);
         match v.layer {
             "pre" => self.layer_scores[0] = self.layer_scores[0].saturating_add(v.score),
@@ -528,6 +560,7 @@ impl Tx {
     fn stub_rule(&mut self, field: &str, data: &[u8]) {
         let snippet = event::prepare_snippet(field, data);
         self.add(Violation {
+            signature: false,
             rule: STUB_RULE_ID,
             score: STUB_SCORE,
             block_alone: false,
@@ -700,6 +733,7 @@ impl Tx {
                 &req,
                 stage,
                 self.degraded,
+                self.signatures != crate::bundle::Signatures::Off,
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -759,6 +793,7 @@ impl Tx {
             &req,
             stage,
             self.degraded,
+            self.signatures != crate::bundle::Signatures::Off,
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );
@@ -953,8 +988,13 @@ impl Tx {
                 v.action = ACTION_BLOCK;
                 v.status = 403;
             }
-        } else if self.error == OK && self.stage < Stage::BodyDone {
-            v.need_body = true;
+        } else {
+            if self.sig_matched {
+                v.action = ACTION_LOG;
+            }
+            if self.error == OK && self.stage < Stage::BodyDone {
+                v.need_body = true;
+            }
         }
         // the connector inspects the response only when something can be
         // found or rewritten in it
@@ -1502,6 +1542,7 @@ mod tests {
         line(&mut t, b"/");
         for i in 0..25 {
             t.add(Violation {
+                signature: false,
                 rule: 700_000 + i,
                 score: 1,
                 block_alone: false,

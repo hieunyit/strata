@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Spec};
+use libstrata::bundle::{self, Mode, Oversize, PolicySpec, Response, Signatures, Spec};
 use libstrata::rules::{
     self, BlockPage, CondDef, LAYERS, OPERATORS, RuleDef, SEVERITIES, STAGES, TRANSFORMS,
     TargetDef, VARS, Value as RValue,
@@ -221,6 +221,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 any,
                 // absent means score (see ir.schema.json action_mode)
                 block_alone: r["action_mode"].as_str() == Some("block_alone"),
+                signature: libstrata::rules::signature_source(s(&r["metadata"], "source")),
                 conditions: conds
                     .iter()
                     .map(condition)
@@ -233,8 +234,9 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 #[derive(Debug)]
 pub struct Policies {
-    /// (name, mode, oversize, response flags, canary share in basis points)
-    pub policies: Vec<(String, Mode, Oversize, Response, u16)>,
+    /// (name, mode, oversize, response flags, canary share in basis points,
+    /// signature pack)
+    pub policies: Vec<(String, Mode, Oversize, Response, u16, Signatures)>,
     pub block_page: Option<BlockPage>,
 }
 
@@ -289,7 +291,12 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 bp as u16
             }
         };
-        policies.push((name, mode, oversize, Response(response), canary));
+        let signatures = match s(p, "signatures") {
+            "off" => Signatures::Off,
+            "enforce" => Signatures::Enforce,
+            _ => Signatures::Shadow,
+        };
+        policies.push((name, mode, oversize, Response(response), canary, signatures));
     }
     let block_page = match doc.get("block_page") {
         None => None,
@@ -691,9 +698,10 @@ fn compile_unsigned_with(
     let names: Vec<PolicySpec> = policies
         .policies
         .iter()
-        .map(|(n, m, o, r, c)| PolicySpec {
+        .map(|(n, m, o, r, c, g)| PolicySpec {
             response: *r,
             canary: *c,
+            signatures: *g,
             ..PolicySpec::new(n, *m, *o)
         })
         .collect();

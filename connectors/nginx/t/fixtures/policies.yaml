@@ -1,6 +1,8 @@
-# Policies of the test bundles (strata-compile input).
+# Policies of the test bundles (strata-compile input). example-api enforces
+# the signature pack too (RV-S-01): the suites check the connector with the
+# sample Sigma and bot rules scoring like any other rule.
 policies:
-  - { name: example-api, mode: enforce, oversize: block }
+  - { name: example-api, mode: enforce, oversize: block, signatures: enforce }
   - { name: example-api-upload, mode: shadow }
   - { name: example-web, mode: shadow, oversize: pass }
   - name: example-guard

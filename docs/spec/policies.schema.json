@@ -23,6 +23,10 @@
             "exclusiveMinimum": 0,
             "exclusiveMaximum": 100
           },
+          "signatures": {
+            "description": "Rules of the signature pack (RV-S-01: metadata.source sigma, et-open, crawler-user-agents): shadow (default) runs and reports them but never lets them block, even in enforce; off skips them; enforce lets them block like the core pack (CRS, protocol, virtual patches, organization rules). Needs libstrata with RV-S-01 on every node for off and enforce.",
+            "enum": ["off", "shadow", "enforce"]
+          },
           "oversize": {
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]

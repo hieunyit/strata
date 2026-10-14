@@ -189,3 +189,87 @@ func TestBuildWithPolicies(t *testing.T) {
 		t.Fatal("a broken policies file was not compiled in")
 	}
 }
+
+// RV-S-01: one release run per pack; each package holds only its rules.
+func TestBuildTwoPacks(t *testing.T) {
+	requireTools(t)
+	rulesDir := t.TempDir()
+	sig := `ir_version: 1
+ruleset: { name: rel-sig, version: "1" }
+rules:
+  - id: 400500
+    name: et-open sample
+    layer: managed
+    stage: request_headers
+    score: 100
+    action_mode: block_alone
+    severity: critical
+    match: { all: [ { targets: [ { var: path } ], operator: { type: ends_with, value: /c99.php } } ] }
+    metadata: { source: et-open, license: BSD-3-Clause, upstream_id: "2000500", upstream_version: "1", author: Example ET Author }
+`
+	for f, body := range map[string]string{"rel.yaml": ruleset, "sig.yaml": sig} {
+		if err := os.WriteFile(filepath.Join(rulesDir, f), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	key, pub := seedFile(t)
+	for _, c := range []struct {
+		pack, bundle string
+		ids          []int
+	}{
+		{PackCore, "strata-core-2026.w43.sbn", []int{700500, 800500}},
+		{PackSignature, "strata-signatures-2026.w43.sbn", []int{400500}},
+		{"", "strata-signatures-2026.w43.sbn", []int{400500, 700500, 800500}},
+	} {
+		out := t.TempDir()
+		m, err := Build(Options{Repo: repo, RulesDir: rulesDir, Version: "2026.w43", KeyFile: key, Out: out, Pack: c.pack})
+		if err != nil {
+			t.Fatalf("%q: %v", c.pack, err)
+		}
+		if m.Pack != c.pack || m.Bundle != c.bundle || !equalInts(m.RuleIDs, c.ids) {
+			t.Fatalf("%q: pack %q bundle %s ids %v", c.pack, m.Pack, m.Bundle, m.RuleIDs)
+		}
+		if _, err := Verify(out, pub); err != nil {
+			t.Fatalf("%q: verify: %v", c.pack, err)
+		}
+	}
+	if _, err := Build(Options{Repo: repo, RulesDir: rulesDir, Version: "x", KeyFile: key, Out: t.TempDir(), Pack: "bots"}); err == nil {
+		t.Fatal("unknown pack accepted")
+	}
+}
+
+func equalInts(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// The engine flags the same sources (the policy's signatures setting).
+func TestSignatureSourcesMatchTheEngine(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(repo, "engine/src/rules.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := ""
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, "pub const SIGNATURE_SOURCES") {
+			line = l
+		}
+	}
+	want := `pub const SIGNATURE_SOURCES: &[&str] = &["` + strings.Join(SignatureSources, `", "`) + `"];`
+	if line != want {
+		t.Fatalf("engine/src/rules.rs:\n  %s\nwant\n  %s", line, want)
+	}
+	for src, pack := range map[string]string{"crs": PackCore, "strata": PackCore, "organization": PackCore,
+		"sigma": PackSignature, "et-open": PackSignature, "crawler-user-agents": PackSignature} {
+		if !InPack(pack, src) || InPack(map[string]string{PackCore: PackSignature, PackSignature: PackCore}[pack], src) {
+			t.Fatalf("%s is not only in %s", src, pack)
+		}
+	}
+}
