@@ -86,7 +86,11 @@ Máy là VM và các nhân dùng chung cache L3 với soak, staging và lab. Khi
 - Compile chậm hơn khoảng gấp đôi.
 - Payload ký qua Vault cũng lớn hơn: khi bật mặc định cần kiểm lại giới hạn của signer.
 
-## 4. Cần PO quyết
+## 4. PO đã quyết (14/10/2026): merge và bật mặc định
+
+Section 8 được nhận vào định dạng và `strata-compile` ghi nó mặc định (`--no-hs-block` để bỏ). Giới hạn cần theo dõi: bundle 21,7 MB so với giới hạn ký Vault 24 MiB của control plane (dư khoảng 3,5 MB).
+
+### Phương án đã đưa PO
 
 1. **Bật `--hs-block` mặc định** trong `strata-rules release` và trong compile của control plane?
    - Được: engine nhanh hơn 10–18%, ít fail-open hơn với gói đầy đủ, ít dao động hơn.

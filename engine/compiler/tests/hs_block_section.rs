@@ -243,3 +243,49 @@ fn unknown_kinds_are_still_skipped() {
     assert!(e.hyperscan_block().is_none());
     assert_eq!(verdict(&e, "q=block_needle").1, [930001]);
 }
+
+/// PO 14/10/2026: strata-compile writes HYPERSCAN_BLOCK by default;
+/// --no-hs-block leaves it out.
+#[test]
+fn strata_compile_writes_the_block_section_by_default() {
+    let dir = std::env::temp_dir().join(format!("hs-block-cli-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let rules = dir.join("rules.yaml");
+    std::fs::write(&rules, RULES).unwrap();
+    let pol = dir.join("policies.yaml");
+    std::fs::write(&pol, "policies: [{ name: example-api, mode: enforce }]").unwrap();
+    let key = dir.join("seed");
+    std::fs::write(&key, SEED).unwrap();
+    let build = |extra: &[&str]| -> Vec<u8> {
+        let out = dir.join("b.sbn");
+        let st = std::process::Command::new(env!("CARGO_BIN_EXE_strata-compile"))
+            .args([
+                "--rules",
+                rules.to_str().unwrap(),
+                "--policies",
+                pol.to_str().unwrap(),
+            ])
+            .args([
+                "--key",
+                key.to_str().unwrap(),
+                "--version",
+                "1",
+                "--created-at",
+                "0",
+            ])
+            .args(["--out", out.to_str().unwrap()])
+            .args(extra)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        std::fs::read(&out).unwrap()
+    };
+    let has_block = |b: &[u8]| sections(b).iter().any(|(k, _)| *k == kind::HYPERSCAN_BLOCK);
+    assert!(has_block(&build(&[])), "on by default");
+    assert!(has_block(&build(&["--hs-block"])));
+    assert!(
+        !has_block(&build(&["--no-hs-block"])),
+        "--no-hs-block leaves it out"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

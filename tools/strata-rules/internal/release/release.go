@@ -62,7 +62,7 @@ type Options struct {
 	Baseline      string // previous manifest.json for the changelog (optional)
 	Policies      string // policies file compiled in (optional; default none)
 	Pack          string // PackCore, PackSignature, or "" for every rule
-	HSBlock       bool   // strata-compile --hs-block: block-mode copy of the Hyperscan database
+	NoHSBlock     bool   // strata-compile --no-hs-block: leave out the block-mode copy of the Hyperscan database (on by default)
 }
 
 // Packs (RV-S-01).
@@ -295,8 +295,8 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 		"--out", out,
 		"--cost-report", filepath.Join(filepath.Dir(out), "cost.json"),
 	}
-	if o.HSBlock {
-		args = append(args, "--hs-block")
+	if o.NoHSBlock {
+		args = append(args, "--no-hs-block")
 	}
 	cmd := exec.Command(bin, args...)
 	if b, err := cmd.CombinedOutput(); err != nil {
