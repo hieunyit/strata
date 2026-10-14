@@ -65,6 +65,7 @@ static void ngx_http_strata_post(void (*handler)(void *data, ngx_log_t *log),
     ngx_http_strata_done_pt done, void *ctx);
 static void ngx_http_strata_tick(ngx_event_t *ev);
 static void ngx_http_strata_schedule(void);
+static void ngx_http_strata_apply_disabled(ngx_log_t *log);
 static void ngx_http_strata_bundle_cleanup(void *data);
 static ngx_int_t ngx_http_strata_bundle_page(ngx_http_strata_bundle_t *bundle,
     ngx_pool_t *pool);
@@ -77,6 +78,14 @@ typedef struct {
 } ngx_http_strata_force_shadow_t;
 
 static ngx_http_strata_force_shadow_t  ngx_http_strata_force_shadow;
+
+/* rules disabled by the kill switch (W12-N-02), and the engine they were
+   last applied to */
+#define NGX_HTTP_STRATA_MAX_DISABLED  480
+static uint32_t    ngx_http_strata_disabled[NGX_HTTP_STRATA_MAX_DISABLED];
+static uint32_t    ngx_http_strata_ndisabled;
+static ngx_uint_t  ngx_http_strata_disabled_dirty;
+static void       *ngx_http_strata_disabled_engine;
 static ngx_uint_t                      ngx_http_strata_fs_warned = 0;
 static u_char                          ngx_http_strata_current_name[NGX_HTTP_STRATA_CTL_NAME_MAX + 1];
 static size_t                          ngx_http_strata_current_name_len = 0;
@@ -394,6 +403,8 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
     u_char                          magic[8];
     uint32_t                        raw_flags, raw_npol;
     u_char                          raw_pols[32][56];
+    uint32_t                        raw_nrules;
+    uint32_t                        raw_rules[NGX_HTTP_STRATA_MAX_DISABLED];
     ngx_uint_t                      valid;
     ngx_http_strata_force_shadow_t  fs;
     static u_char                   name_buf[NGX_HTTP_STRATA_CTL_NAME_MAX];
@@ -414,6 +425,10 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
     ngx_memcpy(&raw_npol, ctl + 328, 4);
     if (raw_npol <= 32) {
         ngx_memcpy(raw_pols, ctl + 336, (size_t) raw_npol * 56);
+    }
+    ngx_memcpy(&raw_nrules, ctl + 2128, 4);
+    if (raw_nrules <= NGX_HTTP_STRATA_MAX_DISABLED) {
+        ngx_memcpy(raw_rules, ctl + 2136, (size_t) raw_nrules * 4);
     }
 
     ngx_memory_barrier();
@@ -487,6 +502,17 @@ ngx_http_strata_ctl_read(const u_char *ctl, uint64_t *gen, ngx_str_t *name)
 
     /* the requests of this worker read it from now on */
     ngx_http_strata_force_shadow = fs;
+
+    /* disabled rules: applied to the engine by the timer (W12-N-02) */
+    if (raw_nrules <= NGX_HTTP_STRATA_MAX_DISABLED
+        && (raw_nrules != ngx_http_strata_ndisabled
+            || ngx_memcmp(raw_rules, ngx_http_strata_disabled,
+                          (size_t) raw_nrules * 4) != 0))
+    {
+        ngx_memcpy(ngx_http_strata_disabled, raw_rules, (size_t) raw_nrules * 4);
+        ngx_http_strata_ndisabled = raw_nrules;
+        ngx_http_strata_disabled_dirty = 1;
+    }
     *gen = g1;
 
     return NGX_OK;
@@ -636,6 +662,7 @@ ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle)
 
     ngx_http_strata_smcf = smcf;
     ngx_http_strata_current = smcf->bundle;   /* holds its "current" ref */
+    ngx_http_strata_apply_disabled(cycle->log); /* read by the master */
     ngx_http_strata_seen = smcf->generation;
 
     /* one-time syscalls at worker start, not on the request path */
@@ -807,7 +834,39 @@ ngx_http_strata_tick(ngx_event_t *ev)
 
 next:
 
+    ngx_http_strata_apply_disabled(ev->log);
     ngx_http_strata_schedule();
+}
+
+
+/* the kill switch list changed, or another engine is current (W12-N-02) */
+
+static void
+ngx_http_strata_apply_disabled(ngx_log_t *log)
+{
+    if (ngx_http_strata_current == NULL
+        || (!ngx_http_strata_disabled_dirty
+            && ngx_http_strata_disabled_engine == ngx_http_strata_current->engine))
+    {
+        return;
+    }
+
+    if (strata_engine_disable_rules(ngx_http_strata_current->engine,
+                                    ngx_http_strata_disabled,
+                                    ngx_http_strata_ndisabled)
+        != STRATA_OK)
+    {
+        return;
+    }
+
+    if (ngx_http_strata_disabled_dirty) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                      "strata: %uD rules disabled by the kill switch",
+                      ngx_http_strata_ndisabled);
+    }
+
+    ngx_http_strata_disabled_dirty = 0;
+    ngx_http_strata_disabled_engine = ngx_http_strata_current->engine;
 }
 
 
@@ -889,6 +948,9 @@ ngx_http_strata_load_done(void *data)
 
     old = ngx_http_strata_current;
     ngx_http_strata_current = bundle;
+
+    /* before any request runs on it */
+    ngx_http_strata_apply_disabled(log);
 
     ngx_memcpy(ngx_http_strata_current_name, ld->name, ld->name_len);
     ngx_http_strata_current_name[ld->name_len] = '\0';
