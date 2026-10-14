@@ -2,6 +2,8 @@
 //!
 //! ```text
 //! strata-replay run --bundle b.sbn --pubkey k.pub [--policy name] [--threads N] samples.parquet...
+//! strata-replay compare --bundle draft.sbn --baseline current.sbn --pubkey k.pub [--baseline-pubkey k2.pub]
+//!     [--policy name] [--threads N] [--md report.md] [--title T] samples.parquet...
 //! strata-replay gen --out s.parquet --count N [--corpus <repo>/corpus]
 //! ```
 //!
@@ -12,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use strata_replay::{Sample, load_engine, run, write_file};
+use strata_replay::{Sample, compare, load_engine, run, write_file};
 
 fn die(msg: impl std::fmt::Display) -> ! {
     eprintln!("strata-replay: {msg}");
@@ -22,7 +24,7 @@ fn die(msg: impl std::fmt::Display) -> ! {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(cmd) = args.first() else {
-        die("usage: strata-replay run|gen ... (see the source header)")
+        die("usage: strata-replay run|compare|gen ... (see the source header)")
     };
     let mut opts = std::collections::HashMap::new();
     let mut files = vec![];
@@ -58,6 +60,41 @@ fn main() {
             let policy = opt("policy");
             let r = run(engine, &refs, policy.as_deref(), threads).unwrap_or_else(|e| die(e));
             println!("{}", serde_json::to_string_pretty(&r).unwrap_or_default());
+        }
+        "compare" => {
+            let pubkey = opt("pubkey").unwrap_or_else(|| die("--pubkey is required"));
+            let draft = load_engine(
+                Path::new(
+                    &opt("bundle").unwrap_or_else(|| die("--bundle (the draft) is required")),
+                ),
+                Path::new(&pubkey),
+            )
+            .unwrap_or_else(|e| die(e));
+            let baseline = load_engine(
+                Path::new(&opt("baseline").unwrap_or_else(|| die("--baseline is required"))),
+                Path::new(&opt("baseline-pubkey").unwrap_or(pubkey)),
+            )
+            .unwrap_or_else(|e| die(e));
+            if files.is_empty() {
+                die("no sample file");
+            }
+            let threads = opt("threads")
+                .map(|t| t.parse().unwrap_or_else(|_| die("--threads is a number")))
+                .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+            let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
+            let policy = opt("policy");
+            let c = compare(draft, baseline, &refs, policy.as_deref(), threads)
+                .unwrap_or_else(|e| die(e));
+            if let Some(md) = opt("md") {
+                std::fs::write(
+                    &md,
+                    c.markdown(
+                        &opt("title").unwrap_or_else(|| "Replay: draft against baseline".into()),
+                    ),
+                )
+                .unwrap_or_else(|e| die(format!("{md}: {e}")));
+            }
+            println!("{}", serde_json::to_string_pretty(&c).unwrap_or_default());
         }
         "gen" => {
             let out = opt("out").unwrap_or_else(|| die("--out is required"));
