@@ -71,13 +71,14 @@ echo "$env: $tag = $local_commit (on $remote)"
 # 1b. the signature package: its manifest signed by the release key, and
 # every file as the manifest says
 sig_irs=() sig_versions=()
-for d in "${sigdirs[@]}"; do
-    rel="${d#"$root"/}"
-    [ "$rel" != "$d" ] || die "the signature package must be under the repository ($root)"
+# (not $d: that is the port prefix of the environment)
+for pkg in "${sigdirs[@]}"; do
+    rel="${pkg#"$root"/}"
+    [ "$rel" != "$pkg" ] || die "the signature package must be under the repository ($root)"
     (cd "$root" && deploy/dev/run.sh sh -c "cd tools/strata-rules && go run . verify --pub ../../rules/release/signatures.pub ../../$rel") \
-        || die "signature package $d does not verify"
-    sig_irs+=("$(ls "$d"/*.rules.json)")
-    sig_versions+=("$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$d/manifest.json" | head -1)")
+        || die "signature package $pkg does not verify"
+    sig_irs+=("$(ls "$pkg"/*.rules.json)")
+    sig_versions+=("$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$pkg/manifest.json" | head -1)")
 done
 sig_version=$(IFS=+; echo "${sig_versions[*]}")
 
