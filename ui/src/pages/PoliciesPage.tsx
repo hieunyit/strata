@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Pencil } from 'lucide-react';
+import { Download, GitCompare, Pencil } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
@@ -10,6 +10,7 @@ import { href } from '../router';
 import { useAuth } from '../context/AuthContext';
 import { canWritePolicies } from '../auth/roles';
 import { PolicyEditor } from '../components/policy/PolicyEditor';
+import { PolicyDiff } from '../components/policy/PolicyDiff';
 
 const modeClass: Record<string, string> = {
   MODE_ENFORCE: 'text-block border-block/30 bg-block/10',
@@ -17,8 +18,9 @@ const modeClass: Record<string, string> = {
 };
 
 // Policies and their versions; operators and admins edit a policy with the
-// editor (W11-F-01), which saves a draft version. Diff and deploy from the
-// UI come later (W12-F-01).
+// editor (W11-F-01), which saves a draft version; anyone who can read
+// policies compares two versions block by block (W12-F-01). Deploy from
+// the UI comes later.
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { roles } = useAuth();
@@ -26,6 +28,7 @@ export const PoliciesPage: React.FC = () => {
   const { data, error, loading, refresh } = usePolling(() => apiClient.listPolicies(), 0);
   const [selected, setSelected] = useState<Policy | null>(null);
   const [editing, setEditing] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const [saved, setSaved] = useState<number | undefined>();
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
   const [versionsError, setVersionsError] = useState<string | undefined>();
@@ -33,6 +36,7 @@ export const PoliciesPage: React.FC = () => {
   const open = async (p: Policy) => {
     setSelected(p);
     setEditing(false);
+    setComparing(false);
     setSaved(undefined);
     setVersions([]);
     setVersionsError(undefined);
@@ -87,6 +91,11 @@ export const PoliciesPage: React.FC = () => {
           />
         </div>
       )}
+      {comparing && selected && versions.length >= 2 && (
+        <div className="mb-5">
+          <PolicyDiff name={selected.name ?? ''} versions={versions} onClose={() => setComparing(false)} />
+        </div>
+      )}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="panel overflow-x-auto">
           <table className="w-full text-[13px]" data-testid="policies-table">
@@ -139,6 +148,12 @@ export const PoliciesPage: React.FC = () => {
               <SectionTitle
                 aside={
                   <span className="flex items-center gap-3">
+                    {versions.length >= 2 && !comparing && (
+                      <button type="button" className="btn" onClick={() => setComparing(true)} data-testid="policy-compare">
+                        <GitCompare className="w-3.5 h-3.5" />
+                        {t('policies.compare')}
+                      </button>
+                    )}
                     {canEdit && !editing && (
                       <button type="button" className="btn" onClick={() => setEditing(true)} data-testid="policy-edit">
                         <Pencil className="w-3.5 h-3.5" />
