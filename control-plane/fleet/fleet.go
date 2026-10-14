@@ -411,6 +411,12 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 						return err
 					}
 				}
+				// and the rules its group has switched off (W12-G2-02)
+				if m := s.disabledRules(ctx, id); m != nil {
+					if err := st.Send(m); err != nil {
+						return err
+					}
+				}
 			case *fleetv1.AgentMessage_Heartbeat:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
@@ -449,6 +455,12 @@ func (s *Server) commandResult(ctx context.Context, node string, r *fleetv1.Comm
 	if s.cfg.Registry == nil || len(r.GetCommandId()) == 0 || len(r.GetCommandId()) > 64 {
 		return
 	}
+	if strings.HasPrefix(r.GetCommandId(), syncCommandPrefix) {
+		if !r.GetOk() {
+			log.Printf("[WARN] fleet: node %s refused the disabled rules: %s", node, clean(r.GetError(), maxCommandError))
+		}
+		return // not a stored command
+	}
 	out := r.GetOutput()
 	if len(out) > maxCommandOutput || !utf8.ValidString(out) {
 		out = ""
@@ -483,6 +495,31 @@ func (s *Server) bundleStatus(ctx context.Context, node string, bs *fleetv1.Bund
 	if s.cfg.Rollouts != nil {
 		s.cfg.Rollouts.Kick()
 	}
+}
+
+// DisabledRulesSource is implemented by registries that keep the kill
+// switch (store.Store).
+type DisabledRulesSource interface {
+	NodeDisabledRules(ctx context.Context, node string) ([]int32, error)
+}
+
+// syncCommandPrefix: ids of the commands sent on Hello, which are not
+// stored in node_commands.
+const syncCommandPrefix = "sync-"
+
+// disabledRules is the DisableRules (replace) bringing a connecting node's
+// list in line with its group, or nil without a kill switch store.
+func (s *Server) disabledRules(ctx context.Context, node string) *fleetv1.ControlMessage {
+	src, ok := s.cfg.Registry.(DisabledRulesSource)
+	if !ok {
+		return nil
+	}
+	ids, err := src.NodeDisabledRules(ctx, node)
+	if err != nil {
+		log.Printf("[WARN] fleet: disabled rules of %s: %v", node, err)
+		return nil
+	}
+	return CommandMessage(store.Command{ID: syncCommandPrefix + node, Kind: store.CommandSetRules, RuleIDs: ids})
 }
 
 // desired is the BundleAvailable for a node not running its desired

@@ -94,7 +94,8 @@ var (
 		"/v1/auth/methods": true, "/v1/auth/password": true}
 	subresources = map[string]bool{"versions": true, "enrollmentTokens": true}
 	verbs        = map[string]bool{"search": true, "deploy": true, "abort": true, "pause": true, "resume": true,
-		"forceShadow": true, "clearForceShadow": true, "collectDiagnostics": true}
+		"forceShadow": true, "clearForceShadow": true, "collectDiagnostics": true,
+		"emergencyDisable": true, "enable": true, "disabled": true}
 )
 
 // Route maps a request path to a bounded label: /v1/<resource>[:verb],

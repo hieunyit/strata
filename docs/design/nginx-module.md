@@ -586,7 +586,7 @@ Mọi thao tác trên Web UI đều đi qua cùng một API: định nghĩa mộ
 | --- | --- | --- |
 | Policy | `GET/POST /v1/policies`, `GET/PATCH /v1/policies/{id}` | `:replay`, `:submit`, `:approve`, `:deploy`, `:rollback` |
 | Phiên bản policy | `GET /v1/policies/{id}/versions`, `GET …/versions/{v}` | `:diff?from=&to=` |
-| Rule, signature | `GET /v1/rules`, `GET /v1/rules/{rule_id}`, `POST /v1/rules` (rule riêng dải 800000) | `:stage`, `:enable`, `:disable` theo policy/route |
+| Rule, signature | `GET /v1/rules`, `GET /v1/rules/{rule_id}`, `POST /v1/rules` (rule riêng dải 800000) | `:stage`, `:enable`, `:disable` theo policy/route; tắt khẩn cấp theo connector group (W12-G2-02): `POST /v1/rules/{rule_id}:emergencyDisable` và `:enable` (`group_id`, `reason` 1..500 ký tự bắt buộc; quyền `rules:disable` cho `operator` trở lên; audit ghi người, lý do, group), `GET /v1/rules:disabled?group_id=`. Danh sách là trạng thái mong muốn của group: node kết nối lại nhận `DisableRules` thay thế toàn bộ |
 | Exception | `GET/POST /v1/exceptions`, `DELETE /v1/exceptions/{id}` | `POST /v1/exceptions:fromBlockId` |
 | API schema, gRPC descriptor | `POST /v1/schemas` (OpenAPI hoặc `FileDescriptorSet`) | `:validate` |
 | Sự kiện | `GET /v1/events/{block_id}`, `POST /v1/events:search` | `:markFalsePositive` |

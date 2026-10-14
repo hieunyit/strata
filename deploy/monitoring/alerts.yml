@@ -114,6 +114,14 @@ groups:
           summary: "{{ $labels.instance }}: held in shadow by a ForceShadow command"
           description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
           runbook_url: docs/runbook/README.md#ép-shadow
+      - alert: StrataRulesDisabled
+        expr: strata_agent_disabled_rules > 0
+        for: 1m
+        labels: { severity: info, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} rules switched off by the kill switch"
+          description: "Expected during an incident; switch them back on with POST /v1/rules/{rule_id}:enable once the rule is fixed."
+          runbook_url: docs/runbook/README.md#tắt-rule-khẩn-cấp
       - alert: StrataDgramQueueTooShort
         expr: strata_agent_unix_max_dgram_qlen > 0 and strata_agent_unix_max_dgram_qlen < 8192
         labels: { severity: warning, component: agent }

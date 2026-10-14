@@ -35,6 +35,9 @@ var Permissions = auth.MethodPermissions{
 	adminv1.FleetAdminService_CollectDiagnostics_FullMethodName:    auth.PermNodesWrite,
 	adminv1.FleetAdminService_ListCommands_FullMethodName:          auth.PermNodesRead,
 	adminv1.FleetAdminService_GetCommand_FullMethodName:            auth.PermNodesRead,
+	adminv1.FleetAdminService_EmergencyDisableRule_FullMethodName:  auth.PermRulesDisable,
+	adminv1.FleetAdminService_EnableRule_FullMethodName:            auth.PermRulesDisable,
+	adminv1.FleetAdminService_ListDisabledRules_FullMethodName:     auth.PermNodesRead,
 	adminv1.PolicyService_ListPolicies_FullMethodName:              auth.PermPoliciesRead,
 	adminv1.PolicyService_GetPolicy_FullMethodName:                 auth.PermPoliciesRead,
 	adminv1.PolicyService_CreatePolicy_FullMethodName:              auth.PermPoliciesWrite,
@@ -62,7 +65,9 @@ type Deps struct {
 	// Commands and CommandKicker enable ForceShadow and diagnostics.
 	Commands      CommandStore
 	CommandKicker Kicker
-	Now           func() time.Time
+	// KillSwitch enables the emergency rule kill switch (with Commands).
+	KillSwitch RuleStore
+	Now        func() time.Time
 }
 
 // BuildInfo is reported by VersionService.
@@ -93,7 +98,7 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 	adminv1.RegisterVersionServiceServer(gs, &versionServer{info: info})
 	if deps.Fleet != nil && deps.Presence != nil {
 		adminv1.RegisterFleetAdminServiceServer(gs, &fleetAdmin{store: deps.Fleet, presence: deps.Presence,
-			commands: deps.Commands, kick: deps.CommandKicker, now: deps.Now})
+			commands: deps.Commands, kick: deps.CommandKicker, rules: deps.KillSwitch, now: deps.Now})
 	}
 	if deps.Policies != nil {
 		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})

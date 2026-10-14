@@ -29,6 +29,9 @@ const (
 	FleetAdminService_CollectDiagnostics_FullMethodName    = "/strata.admin.v1.FleetAdminService/CollectDiagnostics"
 	FleetAdminService_ListCommands_FullMethodName          = "/strata.admin.v1.FleetAdminService/ListCommands"
 	FleetAdminService_GetCommand_FullMethodName            = "/strata.admin.v1.FleetAdminService/GetCommand"
+	FleetAdminService_EmergencyDisableRule_FullMethodName  = "/strata.admin.v1.FleetAdminService/EmergencyDisableRule"
+	FleetAdminService_EnableRule_FullMethodName            = "/strata.admin.v1.FleetAdminService/EnableRule"
+	FleetAdminService_ListDisabledRules_FullMethodName     = "/strata.admin.v1.FleetAdminService/ListDisabledRules"
 )
 
 // FleetAdminServiceClient is the client API for FleetAdminService service.
@@ -67,6 +70,18 @@ type FleetAdminServiceClient interface {
 	ListCommands(ctx context.Context, in *ListCommandsRequest, opts ...grpc.CallOption) (*ListCommandsResponse, error)
 	// REST: GET /v1/commands/{command_id}
 	GetCommand(ctx context.Context, in *GetCommandRequest, opts ...grpc.CallOption) (*GetCommandResponse, error)
+	// REST: POST /v1/rules/{rule_id}:emergencyDisable. Emergency kill switch
+	// (W12-G2-02): the rule stops matching, in every policy, on every node of
+	// the group within seconds, without a deploy. It stays off (also for
+	// nodes that connect later) until EnableRule. A reason is required;
+	// operator and above (rules:disable); audited with the reason.
+	EmergencyDisableRule(ctx context.Context, in *EmergencyDisableRuleRequest, opts ...grpc.CallOption) (*EmergencyDisableRuleResponse, error)
+	// REST: POST /v1/rules/{rule_id}:enable. Switches the rule back on in
+	// the group. Same permission, reason and audit.
+	EnableRule(ctx context.Context, in *EnableRuleRequest, opts ...grpc.CallOption) (*EnableRuleResponse, error)
+	// REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
+	// group or of every group. Needs nodes:read.
+	ListDisabledRules(ctx context.Context, in *ListDisabledRulesRequest, opts ...grpc.CallOption) (*ListDisabledRulesResponse, error)
 }
 
 type fleetAdminServiceClient struct {
@@ -177,6 +192,36 @@ func (c *fleetAdminServiceClient) GetCommand(ctx context.Context, in *GetCommand
 	return out, nil
 }
 
+func (c *fleetAdminServiceClient) EmergencyDisableRule(ctx context.Context, in *EmergencyDisableRuleRequest, opts ...grpc.CallOption) (*EmergencyDisableRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmergencyDisableRuleResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_EmergencyDisableRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) EnableRule(ctx context.Context, in *EnableRuleRequest, opts ...grpc.CallOption) (*EnableRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnableRuleResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_EnableRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) ListDisabledRules(ctx context.Context, in *ListDisabledRulesRequest, opts ...grpc.CallOption) (*ListDisabledRulesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDisabledRulesResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_ListDisabledRules_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FleetAdminServiceServer is the server API for FleetAdminService service.
 // All implementations must embed UnimplementedFleetAdminServiceServer
 // for forward compatibility.
@@ -213,6 +258,18 @@ type FleetAdminServiceServer interface {
 	ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error)
 	// REST: GET /v1/commands/{command_id}
 	GetCommand(context.Context, *GetCommandRequest) (*GetCommandResponse, error)
+	// REST: POST /v1/rules/{rule_id}:emergencyDisable. Emergency kill switch
+	// (W12-G2-02): the rule stops matching, in every policy, on every node of
+	// the group within seconds, without a deploy. It stays off (also for
+	// nodes that connect later) until EnableRule. A reason is required;
+	// operator and above (rules:disable); audited with the reason.
+	EmergencyDisableRule(context.Context, *EmergencyDisableRuleRequest) (*EmergencyDisableRuleResponse, error)
+	// REST: POST /v1/rules/{rule_id}:enable. Switches the rule back on in
+	// the group. Same permission, reason and audit.
+	EnableRule(context.Context, *EnableRuleRequest) (*EnableRuleResponse, error)
+	// REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
+	// group or of every group. Needs nodes:read.
+	ListDisabledRules(context.Context, *ListDisabledRulesRequest) (*ListDisabledRulesResponse, error)
 	mustEmbedUnimplementedFleetAdminServiceServer()
 }
 
@@ -252,6 +309,15 @@ func (UnimplementedFleetAdminServiceServer) ListCommands(context.Context, *ListC
 }
 func (UnimplementedFleetAdminServiceServer) GetCommand(context.Context, *GetCommandRequest) (*GetCommandResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCommand not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) EmergencyDisableRule(context.Context, *EmergencyDisableRuleRequest) (*EmergencyDisableRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EmergencyDisableRule not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) EnableRule(context.Context, *EnableRuleRequest) (*EnableRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnableRule not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) ListDisabledRules(context.Context, *ListDisabledRulesRequest) (*ListDisabledRulesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDisabledRules not implemented")
 }
 func (UnimplementedFleetAdminServiceServer) mustEmbedUnimplementedFleetAdminServiceServer() {}
 func (UnimplementedFleetAdminServiceServer) testEmbeddedByValue()                           {}
@@ -454,6 +520,60 @@ func _FleetAdminService_GetCommand_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetAdminService_EmergencyDisableRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmergencyDisableRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).EmergencyDisableRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_EmergencyDisableRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).EmergencyDisableRule(ctx, req.(*EmergencyDisableRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_EnableRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).EnableRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_EnableRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).EnableRule(ctx, req.(*EnableRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_ListDisabledRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDisabledRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).ListDisabledRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_ListDisabledRules_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).ListDisabledRules(ctx, req.(*ListDisabledRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FleetAdminService_ServiceDesc is the grpc.ServiceDesc for FleetAdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -500,6 +620,18 @@ var FleetAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCommand",
 			Handler:    _FleetAdminService_GetCommand_Handler,
+		},
+		{
+			MethodName: "EmergencyDisableRule",
+			Handler:    _FleetAdminService_EmergencyDisableRule_Handler,
+		},
+		{
+			MethodName: "EnableRule",
+			Handler:    _FleetAdminService_EnableRule_Handler,
+		},
+		{
+			MethodName: "ListDisabledRules",
+			Handler:    _FleetAdminService_ListDisabledRules_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

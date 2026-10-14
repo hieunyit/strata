@@ -31,6 +31,14 @@ http:
       get: /v1/commands
     - selector: strata.admin.v1.FleetAdminService.GetCommand
       get: /v1/commands/{command_id}
+    - selector: strata.admin.v1.FleetAdminService.EmergencyDisableRule
+      post: /v1/rules/{rule_id}:emergencyDisable
+      body: "*"
+    - selector: strata.admin.v1.FleetAdminService.EnableRule
+      post: /v1/rules/{rule_id}:enable
+      body: "*"
+    - selector: strata.admin.v1.FleetAdminService.ListDisabledRules
+      get: /v1/rules:disabled
     - selector: strata.admin.v1.PolicyService.ListPolicies
       get: /v1/policies
     - selector: strata.admin.v1.PolicyService.GetPolicy
