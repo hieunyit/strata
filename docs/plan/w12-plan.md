@@ -17,7 +17,7 @@ không có staging, lab hay Docker: chỉ build và test cục bộ. Không ch�
 | 5 | W12-G1-01 | Hoàn thiện fallback tại node: test ngưỡng, chỉ control plane gỡ cờ | ✅ |
 | 6 | W12-F-01 | Diff giữa các version | ✅ |
 | 7 | W12-G2-01 | Giám sát canary toàn cụm | ✅ |
-| 8 | W12-R-01, W12-N-01 | Runner replay đầy đủ, lấy mẫu tại connector | đang làm, N-01 trước (lấy mẫu mặc định tắt cho tới khi pháp chế duyệt định dạng) |
+| 8 | W12-R-01, W12-N-01 | Runner replay đầy đủ, lấy mẫu tại connector | ✅ (N-01 trước; lấy mẫu mặc định tắt cho tới khi pháp chế duyệt định dạng) |
 
 Quyết định PO 14/10/2026 (đánh dấu nhóm canary): **bộ đếm theo nhóm trong metrics file + cờ canary
 trong sự kiện và mẫu replay**. Chỉ thêm vào cuối slot của metrics file và thêm trường protobuf, không
