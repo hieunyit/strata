@@ -29,6 +29,19 @@ message Event {
   map<string, int32> layer_scores = 14;
   repeated uint32 rule_ids = 15;
   repeated Match matches = 16;
+  // Side of the policy's enforce canary the client fell on (W12-G2-01).
+  CanaryGroup canary = 17;
+}
+
+// Canary group of a request: whether its policy has an enforce canary
+// (canary_percent) and whether the client is inside it.
+enum CanaryGroup {
+  // The policy has no canary (or the event predates W12-G2-01).
+  CANARY_GROUP_UNSPECIFIED = 0;
+  // Inside the canary: the policy is enforced.
+  CANARY_GROUP_ENFORCE = 1;
+  // Outside the canary: the policy runs in shadow.
+  CANARY_GROUP_SHADOW = 2;
 }
 
 // Mirrors STRATA_ACTION_* in strata.h, shifted by one so that 0 stays

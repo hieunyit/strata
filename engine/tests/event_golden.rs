@@ -10,7 +10,9 @@ use std::sync::Arc;
 
 use libstrata::bundle::{Mode, Oversize, PolicySpec, Spec, build, public_key};
 use libstrata::engine::Engine;
-use libstrata::event::{Action, EventData, MAX_DATAGRAM, MatchData, encode, prepare_snippet};
+use libstrata::event::{
+    Action, CanaryGroup, EventData, MAX_DATAGRAM, MatchData, encode, prepare_snippet,
+};
 use libstrata::tx::Tx;
 
 const SEED: [u8; 32] = [9; 32];
@@ -83,6 +85,7 @@ fn golden_blocked_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -115,6 +118,7 @@ fn golden_shadow_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -141,6 +145,7 @@ fn golden_engine_error_scenario() {
         layer_scores: &[("anomaly", 0)],
         rule_ids: &[],
         matches: &[],
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -175,6 +180,7 @@ fn golden_long_snippet_scenario() {
         layer_scores: &[("anomaly", 100), ("managed", 100)],
         rule_ids: &[899001],
         matches: &matches,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -212,6 +218,7 @@ fn golden_large_event_truncated_scenario() {
         layer_scores: &[("anomaly", 150), ("managed", 100), ("protocol", 50)],
         rule_ids: &[800001, 800002],
         matches: &matches,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);

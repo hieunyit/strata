@@ -25,6 +25,20 @@ pub enum Action {
     Block = 4,
 }
 
+/// Canary group of the request (event.proto `CanaryGroup`): whether its
+/// policy has an enforce canary and on which side of it the client fell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum CanaryGroup {
+    /// The policy has no canary.
+    #[default]
+    None = 0,
+    /// Inside the canary: enforced.
+    Enforce = 1,
+    /// Outside the canary: shadow.
+    Shadow = 2,
+}
+
 impl Action {
     pub const fn from_verdict_action(a: u32) -> Self {
         match a {
@@ -65,6 +79,7 @@ pub struct EventData<'a> {
     pub layer_scores: &'a [(&'a str, i32)],
     pub rule_ids: &'a [u32],
     pub matches: &'a [MatchData<'a>],
+    pub canary: CanaryGroup,
 }
 
 fn is_sensitive_word(word: &str) -> bool {
@@ -258,6 +273,8 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
         put_varint(m_buf.len() as u64, out);
         out.extend_from_slice(&m_buf);
     }
+    // 17: CanaryGroup canary (W12-G2-01)
+    put_uint32(17, ev.canary as u32, out);
 }
 
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -414,6 +431,7 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 100)],
             rule_ids: &[100001],
             matches: &matches,
+            canary: CanaryGroup::None,
         };
 
         let b1 = encode(&ev);
@@ -451,6 +469,7 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 50)],
             rule_ids: &[100001, 100002],
             matches: &matches,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);
@@ -523,6 +542,7 @@ mod tests {
             layer_scores: &[("anomaly", 100), ("protocol", 50)],
             rule_ids: &[100001, 100002],
             matches: &matches,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);

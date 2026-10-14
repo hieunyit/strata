@@ -184,6 +184,7 @@ fuzz_target!(|data: &[u8]| {
         layer_scores: &[("anomaly", 100), ("managed", 100), ("protocol", 50)],
         rule_ids: &[100001, 100002],
         matches: &matches,
+        canary: event::CanaryGroup::None,
     };
 
     let encoded = event::encode(&ev);

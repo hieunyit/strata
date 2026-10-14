@@ -77,6 +77,8 @@ pub struct Tx {
     line: Option<Line>,
     node: u16,
     shadow: bool,
+    /// Canary group from `set_policy` (W12-G2-01).
+    canary: crate::event::CanaryGroup,
     json: bool,
     /// the policy blocks request bodies larger than what is inspected
     oversize_block: bool,
@@ -187,6 +189,7 @@ impl Tx {
             line: None,
             node: block_id::node_hash(node_id),
             shadow: flags & TXF_FORCE_SHADOW != 0,
+            canary: crate::event::CanaryGroup::None,
             json: false,
             oversize_block: false,
             response: Response::default(),
@@ -362,13 +365,27 @@ impl Tx {
                 &self.identity[..self.identity_len],
                 &self.client_addr[..self.client_addr_len],
             );
-            self.shadow |= !crate::canary::enforced(name, key, p.canary);
+            let enforced = crate::canary::enforced(name, key, p.canary);
+            self.shadow |= !enforced;
+            // the group follows the hash, also under TXF_FORCE_SHADOW: the
+            // control plane compares the two sides (W12-G2-01)
+            self.canary = match (p.canary, enforced) {
+                (0, _) => crate::event::CanaryGroup::None,
+                (_, true) => crate::event::CanaryGroup::Enforce,
+                (_, false) => crate::event::CanaryGroup::Shadow,
+            };
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
             self.signatures = p.signatures;
         } else {
             self.policy_index = None;
+            self.canary = crate::event::CanaryGroup::None;
         }
+    }
+
+    /// Canary group of the transaction (W12-G2-01).
+    pub fn canary(&self) -> crate::event::CanaryGroup {
+        self.canary
     }
 
     /// Client identity for event reporting (at most 128 bytes).
@@ -1012,6 +1029,7 @@ impl Tx {
         // found or rewritten in it
         v.need_response = (self.error == OK || self.error == E_BUDGET) && self.wants_body();
         v.id = self.id;
+        v.canary = self.canary;
         v
     }
 
@@ -1113,6 +1131,7 @@ impl Tx {
             layer_scores: &layer_scores_arr[..n_scores],
             rule_ids: &self.rules[..self.n_rules],
             matches: &match_datas,
+            canary: self.canary,
         };
 
         Some(crate::event::encode(&ev))
@@ -1123,6 +1142,7 @@ impl Tx {
 mod tests {
     use super::*;
     use crate::engine::tests::test_engine;
+    use crate::event::CanaryGroup;
 
     fn tx() -> Tx {
         Tx::new(Some(Arc::new(test_engine())), b"node-a", 0)
@@ -1452,6 +1472,15 @@ mod tests {
                 crate::canary::key(identity, addr),
                 1000,
             );
+            // W12-G2-01: the group, in the verdict and in the event
+            let want = if enforced {
+                CanaryGroup::Enforce
+            } else {
+                CanaryGroup::Shadow
+            };
+            assert_eq!((t.canary(), v.canary), (want, want));
+            let ev = t.encode_event().unwrap();
+            assert!(ev.ends_with(&[0x88, 0x01, want as u8]), "{ev:?}"); // tag 17, varint
             if enforced {
                 assert_eq!(v.action, ACTION_BLOCK);
                 assert!(id_str(&v).starts_with("STR-"));
@@ -1482,6 +1511,37 @@ mod tests {
             assert!(run(inside.as_bytes(), addr));
             assert!(!run(outside.as_bytes(), addr));
         }
+    }
+
+    // W12-G2-01: no canary, an unknown policy, and a forced shadow: the
+    // group follows the policy's canary and the hash only.
+    #[test]
+    fn canary_group_of_other_policies() {
+        for (policy, flags) in [(&b"example-api"[..], 0), (b"no-such-policy", 0)] {
+            let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", flags);
+            t.set_client_addr(b"192.0.2.1");
+            t.set_policy(policy);
+            line(&mut t, b"/STRATA-TEST-BLOCK");
+            assert_eq!(t.verdict().canary, CanaryGroup::None);
+            let ev = t.encode_event().unwrap();
+            assert!(!ev.windows(2).any(|w| w == [0x88, 0x01]), "no field 17");
+        }
+        let addr = (0..1000)
+            .map(|i| format!("198.51.{}.{}", i / 256, i % 256))
+            .find(|a| {
+                crate::canary::enforced(
+                    b"example-canary",
+                    crate::canary::key(b"", a.as_bytes()),
+                    1000,
+                )
+            })
+            .unwrap();
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_FORCE_SHADOW);
+        t.set_client_addr(addr.as_bytes());
+        t.set_policy(b"example-canary");
+        line(&mut t, b"/STRATA-TEST-BLOCK");
+        let v = t.verdict();
+        assert_eq!((v.action, v.canary), (ACTION_LOG, CanaryGroup::Enforce));
     }
 
     // Degraded mode (circuit breaker): the protocol layer still blocks,

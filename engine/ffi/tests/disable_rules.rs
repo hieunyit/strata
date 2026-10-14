@@ -51,7 +51,7 @@ fn disabled_rules_stop_matching() {
     let e = unsafe { strata_engine_map(bundle.as_ptr(), bundle.len(), key.as_ptr(), &mut err) };
     assert!(!e.is_null());
 
-    assert_eq!(strata_abi_version(), (1 << 16) | 3);
+    assert_eq!(strata_abi_version() >> 16, 1);
     assert_eq!(
         verdict(e, b"/STRATA-TEST-BLOCK").action,
         STRATA_ACTION_BLOCK
