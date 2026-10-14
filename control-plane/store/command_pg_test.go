@@ -27,7 +27,7 @@ func TestKillSwitchCommandsInPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pool.Close()
+	t.Cleanup(pool.Close) // after the migration back to 0 below
 	latest, err := db.Latest()
 	if err != nil {
 		t.Fatal(err)

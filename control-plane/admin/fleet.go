@@ -48,6 +48,7 @@ type fleetAdmin struct {
 	presence NodePresence
 	commands CommandStore // nil: the command routes answer FailedPrecondition
 	kick     Kicker       // wakes the command dispatcher
+	rules    RuleStore    // nil: the kill switch answers FailedPrecondition
 	now      func() time.Time
 }
 

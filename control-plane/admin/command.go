@@ -37,7 +37,11 @@ var (
 )
 
 func commandPB(c store.Command) *adminv1.NodeCommand {
-	return &adminv1.NodeCommand{Id: c.ID, NodeId: c.NodeID, Kind: c.Kind, PolicyId: c.PolicyID,
+	ids := make([]uint32, 0, len(c.RuleIDs))
+	for _, id := range c.RuleIDs {
+		ids = append(ids, uint32(id))
+	}
+	return &adminv1.NodeCommand{Id: c.ID, NodeId: c.NodeID, Kind: c.Kind, PolicyId: c.PolicyID, RuleIds: ids,
 		DurationSeconds: uint32(c.DurationSeconds), State: c.State, Error: c.Error, Output: c.Output,
 		CreatedBy: c.CreatedBy, CreateTime: timestamppb.New(c.CreatedAt), ExpireTime: timestamppb.New(c.ExpiresAt),
 		UpdateTime: timestamppb.New(c.UpdatedAt)}

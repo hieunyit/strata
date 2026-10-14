@@ -1,6 +1,7 @@
 package fleet
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -104,5 +105,50 @@ func TestKillSwitchCommandMessages(t *testing.T) {
 	e = CommandMessage(store.Command{Kind: store.CommandEnableRules, RuleIDs: []int32{941100}}).GetCommand().GetEnableRules()
 	if e.GetAll() || e.GetRuleIds()[0] != 941100 {
 		t.Fatalf("%v", e)
+	}
+}
+
+// killSwitchRegistry adds the kill switch store to memRegistry.
+type killSwitchRegistry struct {
+	*memRegistry
+	off []int32
+}
+
+func (k *killSwitchRegistry) NodeDisabledRules(context.Context, string) ([]int32, error) {
+	return k.off, nil
+}
+
+// W12-G2-02: a node that connects gets its group's disabled rules as a
+// DisableRules replace, so one offline during emergencyDisable catches up;
+// its answer is not a stored command.
+func TestHelloSendsTheGroupsDisabledRules(t *testing.T) {
+	e := newEnrollEnv(t)
+	reg := &killSwitchRegistry{memRegistry: e.reg, off: []int32{941100, 942100}}
+	e.srv = NewServer(Config{Ingest: nopIngest{}, Registry: reg, CA: e.p.nodeCA(t), TrustBundle: []byte("trust"), BundlePubKey: []byte("bundle-pub"), Presence: NewPresence()})
+	e.addr = serveServer(t, e.p, e.srv)
+	e.reg.addToken("tok-a", time.Hour)
+	r, pair, err := e.enroll(t, "tok-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, cancel := connect(t, dial(t, e.p, e.addr, &pair), true)
+	defer cancel()
+	m, err := st.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := m.GetCommand()
+	d := c.GetDisableRules()
+	if c.GetId() != syncCommandPrefix+r.GetNodeId() || !d.GetReplace() || len(d.GetRuleIds()) != 2 || d.GetRuleIds()[1] != 942100 {
+		t.Fatalf("got %v", m)
+	}
+	if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_CommandResult{CommandResult: &fleetv1.CommandResult{CommandId: c.GetId(), Ok: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	e.reg.mu.Lock()
+	defer e.reg.mu.Unlock()
+	if len(e.reg.commands) != 0 {
+		t.Fatalf("the sync answer was stored: %v", e.reg.commands)
 	}
 }

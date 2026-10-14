@@ -271,6 +271,7 @@ func main() {
 		go rollouts.Run(ctx)
 		commands := fleet.NewCommands(pg, presence)
 		deps.Commands, deps.CommandKicker = pg, commands
+		deps.KillSwitch = pg
 		go commands.Run(ctx)
 		if *s3Endpoint != "" {
 			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
