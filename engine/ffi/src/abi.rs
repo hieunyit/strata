@@ -13,7 +13,7 @@ use std::os::raw::c_char;
 /// version differs from the one it was compiled against.
 pub const STRATA_ABI_VERSION_MAJOR: u32 = 1;
 /// Minor ABI version: additive, backward-compatible changes only.
-pub const STRATA_ABI_VERSION_MINOR: u32 = 4;
+pub const STRATA_ABI_VERSION_MINOR: u32 = 5;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 

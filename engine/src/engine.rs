@@ -39,10 +39,24 @@ pub struct Engine {
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
+    /// Replay sampling (W12-N-01), off by default.
+    replay: std::sync::RwLock<Option<std::sync::Arc<ReplayConfig>>>,
 }
 
 /// Most rule IDs `set_disabled_rules` takes at once.
 pub const MAX_DISABLED_RULES: usize = 4096;
+
+/// Longest replay key id (control file, docs/design/control-file.md).
+pub const MAX_KEY_ID: usize = 16;
+
+/// Replay sampling of an engine (W12-N-01).
+pub struct ReplayConfig {
+    /// HMAC key of the connector group's samples.
+    pub key: [u8; 32],
+    pub key_id: String,
+    /// Share of transactions sampled, in basis points (1..10000).
+    pub rate_bp: u16,
+}
 
 impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -161,6 +175,7 @@ impl Engine {
             prefilter_on: true,
             privacy,
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
+            replay: std::sync::RwLock::new(None),
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
@@ -189,6 +204,37 @@ impl Engine {
         let mut cur = self.disabled.write().unwrap_or_else(|e| e.into_inner());
         *cur = std::sync::Arc::from(v);
         Ok(())
+    }
+
+    /// Samples a share of the transactions started from now on for replay
+    /// (W12-N-01): anonymized at once with the connector group's key
+    /// (`crate::anon`). None switches sampling off.
+    pub fn set_replay(&self, cfg: Option<ReplayConfig>) -> Result<(), &'static str> {
+        if let Some(c) = &cfg {
+            if c.rate_bp > 10_000 {
+                return Err("rate above 100%");
+            }
+            if c.key_id.is_empty()
+                || c.key_id.len() > MAX_KEY_ID
+                || !c
+                    .key_id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+            {
+                return Err("bad key id");
+            }
+        }
+        let cfg = cfg.filter(|c| c.rate_bp > 0).map(std::sync::Arc::new);
+        *self.replay.write().unwrap_or_else(|e| e.into_inner()) = cfg;
+        Ok(())
+    }
+
+    /// The sampling in force.
+    pub fn replay(&self) -> Option<std::sync::Arc<ReplayConfig>> {
+        self.replay
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// The rules switched off, sorted.

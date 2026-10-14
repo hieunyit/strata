@@ -100,7 +100,7 @@ fn seed() -> u64 {
     h.finish() | 1
 }
 
-fn next_rand() -> u32 {
+pub(crate) fn next_rand() -> u32 {
     RNG.with(|s| {
         // SplitMix64: uniqueness, not secrecy, is what matters here.
         let mut z = s.get().wrapping_add(0x9e37_79b9_7f4a_7c15);
