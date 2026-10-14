@@ -21,6 +21,9 @@
 # that stands in for production until the PO names one: project
 # strata-prodsim, ports 3xxxx, its own state in .state-prod-sim.
 #
+# When the environment has pilot routes (pilot.sh), they are rebuilt from
+# the tag after the smoke test and before any bundle is rolled out.
+#
 # --signatures may be given more than once (W11-S-01: pack v0.1 is a core
 # and a signature package, RV-S-01); every package's IR goes into -rules.
 #
@@ -84,7 +87,10 @@ sig_version=$(IFS=+; echo "${sig_versions[*]}")
 
 # 2. the sources of the tag, and the build from them
 src="$root/build/$env/$tag"
-rm -rf "$src" && mkdir -p "$src"
+# the Go module cache of an earlier build of the same tag is read-only
+[ -d "$src" ] && chmod -R u+w "$src"
+rm -rf "$src"
+mkdir -p "$src"
 git -C "$root" archive "$tag" | tar -x -C "$src"
 (cd "$src" && deploy/dev/run.sh deploy/lab/build.sh)
 
@@ -123,6 +129,13 @@ compose=(docker compose -f "$lab/compose.yaml" --env-file "$state/env")
 printf 'tag=%s\ncommit=%s\ndeployed_at=%s\n' "$tag" "$local_commit" "$(date -u +%FT%TZ)" > "$state/deployed"
 [ -n "$sigs" ] && printf 'signatures=%s\nsignatures_sha256=%s\n' "$sig_version" "$(cat "${sig_irs[@]}" | sha256sum | cut -d' ' -f1)" >> "$state/deployed"
 "$lab/smoke.sh"
+# 4b. the pilot routes (pilot.sh) run the module of this tag before any new
+# bundle reaches them: an older module refuses a bundle it does not know
+# (signature package byte, W11-R-01) and the rollout stops at that node
+# (v0.11.0-rc.1 on prod-sim, 14/10)
+if [ -d "$state/pilot" ]; then
+    "$here/pilot.sh" --env "$env" up || die "pilot routes did not come up on $tag"
+fi
 if [ -n "$sigs" ]; then
     # the policies again, compiled with the package; then a request only
     # the package blocks

@@ -71,8 +71,10 @@ máy này:
   deploy/staging/pilot-traffic.sh [--env prod-sim] up|status|sources|down   # lưu lượng giả lập
   ```
 
-  Cổng: 28480 (verify) và 28481 (upload); prod-sim dùng 38480 và 38481. Mỗi lần
-  `deploy.sh` cần chạy lại `pilot.sh up`: deploy dựng lại `scrape.yml` từ tag, nên mất job
-  `strata-agent-pilot`. Trạng thái `--inspect` được giữ. Trước khi chạy `fp-report`,
+  Cổng: 28480 (verify) và 28481 (upload); prod-sim dùng 38480 và 38481. Từ 14/10,
+  `deploy.sh` tự chạy `pilot.sh up` (khi môi trường đã có route thí điểm), ngay sau smoke
+  và **trước** khi rollout bundle mới. Lý do: node thí điểm chạy module cũ sẽ từ chối bundle
+  mà nó không biết, và rollout dừng ở đó (prod-sim, `v0.11.0-rc.1`). Bước này cũng dựng lại
+  job `strata-agent-pilot` trong `scrape.yml`. Trạng thái `--inspect` được giữ. Trước khi chạy `fp-report`,
   chạy `pilot-traffic.sh sources`: IP của container tấn công có thể đổi khi container
   được tạo lại.
