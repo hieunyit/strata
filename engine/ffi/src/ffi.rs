@@ -214,8 +214,12 @@ pub unsafe extern "C" fn strata_engine_map(
                 return Err((STRATA_E_INVALID, "public key is NULL"));
             }
             // SAFETY: caller contract: pubkey points to STRATA_PUBKEY_LEN bytes.
-            let key = unsafe { slice::from_raw_parts(pubkey, STRATA_PUBKEY_LEN) };
-            Engine::map(Box::new(Mapped { ptr: base, len }), key)
+            let key = unsafe { slice::from_raw_parts(pubkey, STRATA_PUBKEY_LEN) }.to_vec();
+            let bytes = Mapped { ptr: base, len };
+            // on the process's loader thread: one malloc arena for every
+            // bundle (crate::loader, soak 14/10)
+            crate::loader::run(move || Engine::map(Box::new(bytes), &key))
+                .unwrap_or(Err((STRATA_E_INTERNAL, "panic in strata_engine_map")))
         },
     );
     let (code, msg, handle) = match result {
