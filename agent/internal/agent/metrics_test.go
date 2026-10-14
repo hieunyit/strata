@@ -25,6 +25,10 @@ func TestAgentMetrics(t *testing.T) {
 	for r.a.Socket.C.Invalid.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
+	// the server has the events before the agent reads its ack
+	for st := r.a.Spool.Stats(); st.LastSeq != st.AckedSeq && time.Now().Before(deadline); st = r.a.Spool.Stats() {
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	want := `
 # HELP strata_agent_events_received_total Datagrams read from the event socket.
