@@ -217,7 +217,7 @@
   },
   "policies": {
     "title": "Policy",
-    "subtitle": "Policy và lịch sử phiên bản. Chỉ đọc: thay đổi đi qua GitOps hoặc API.",
+    "subtitle": "Policy và lịch sử phiên bản. Operator sửa policy thành phiên bản nháp; deploy là một bước riêng.",
     "empty": "Chưa có policy nào.",
     "loading": "Đang tải policy…",
     "pick": "Chọn một policy để xem các phiên bản.",
@@ -341,6 +341,50 @@
       "lastLogin": "Đăng nhập gần nhất",
       "created": "Tạo lúc",
       "actions": "Thao tác"
+    }
+  },
+  "editor": {
+    "edit": "Sửa",
+    "title": "Sửa {{name}} (từ phiên bản {{version}})",
+    "draftNote": "Lưu sẽ tạo phiên bản mới ở trạng thái nháp: node vẫn chạy phiên bản đã deploy cho tới khi deploy.",
+    "mode": "Chế độ",
+    "oversize": "Body request lớn hơn phần được kiểm",
+    "response": "Lớp response",
+    "allowedCodes": "Kiểm mã trạng thái response theo danh sách cho phép",
+    "dbErrors": "Tìm thông báo lỗi cơ sở dữ liệu trong body",
+    "guard": {
+      "cccd": "Che số căn cước công dân (CCCD)",
+      "jwt": "Che JSON Web Token"
+    },
+    "yaml": "YAML",
+    "yamlError": "Dòng {{line}}: {{message}}",
+    "cancel": "Hủy",
+    "saveDraft": "Lưu nháp",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu thành phiên bản nháp {{version}}.",
+    "conflict": "Có người đã lưu policy này trong lúc bạn sửa. Đóng trình sửa, mở lại policy rồi sửa lại.",
+    "saveError": "Không lưu được: {{error}}",
+    "state": {
+      "DRAFT": "nháp",
+      "SUBMITTED": "đã gửi duyệt",
+      "APPROVED": "đã duyệt",
+      "REJECTED": "bị từ chối",
+      "DEPLOYED": "đã deploy"
+    },
+    "yamlErr": {
+      "tab": "không dùng tab, thụt lề bằng dấu cách",
+      "indent": "thụt lề không đúng chỗ",
+      "keyValue": "cần dạng \"khóa: giá trị\"",
+      "twice": "\"{{key}}\" được đặt hai lần",
+      "mode": "mode là shadow hoặc enforce",
+      "oversize": "oversize là pass hoặc block",
+      "responseNext": "các khóa của response nằm ở các dòng tiếp theo",
+      "bool": "cần true hoặc false, nhận \"{{value}}\"",
+      "list": "cần một danh sách: [cccd, jwt]",
+      "guard": "data_guard chỉ nhận cccd và jwt, nhận \"{{value}}\"",
+      "guardTwice": "data_guard có giá trị lặp lại",
+      "unknown": "khóa không hợp lệ \"{{key}}\"",
+      "modeRequired": "thiếu mode"
     }
   }
 }

@@ -28,6 +28,12 @@ export function primaryRole(roles: UserRole[]): UserRole | undefined {
   return undefined;
 }
 
+// canWritePolicies: the roles with policies:write in the control plane
+// (control-plane/auth/rbac.go). Only hides the editor; the API checks.
+export function canWritePolicies(roles: UserRole[]): boolean {
+  return roles.includes('operator') || roles.includes('admin');
+}
+
 // knownRoles keeps the four roles of a list (a local session's roles).
 export function knownRoles(roles: string[]): UserRole[] {
   return known.filter((r) => roles.includes(r));
