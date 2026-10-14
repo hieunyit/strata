@@ -23,7 +23,7 @@ COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
 .PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
-	nginx-asan test-nginx-asan test-nginx-valgrind mutate bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
+	nginx-asan test-nginx-asan test-nginx-valgrind mutate coraza-diff bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines test-alerts
 
 all: lib nginx
@@ -188,6 +188,20 @@ mutate: rules-tools
 	$(MUTATE_OUT)/strata-mutate --repo . --bundle $(MUTATE_OUT)/pkg/strata-signatures-mutate.sbn \
 		--pubkey connectors/nginx/t/fixtures/bundle.pub --md docs/mutation-report.md --json $(MUTATE_OUT)/summary.json
 
+# W12-R-01: Strata (core pack) against Coraza + the CRS release it imports,
+# in docs/reports/w12/r01-coraza-diff.md (tools/coraza-diff). CORAZA_CRS: a
+# CRS 4.25.2 tree already there instead of fetch-crs.sh.
+CORAZA_OUT ?= build/coraza-diff
+coraza-diff: rules-tools
+	mkdir -p $(CORAZA_OUT)
+	printf 'policies:\n  - { name: example-api, mode: enforce, signatures: off }\n' > $(CORAZA_OUT)/policies.yaml
+	cd tools/strata-rules && go run . release --repo ../.. --pack core --version coraza-diff --key ../../connectors/nginx/t/fixtures/test.key \
+		--policies ../../$(CORAZA_OUT)/policies.yaml --out ../../$(CORAZA_OUT)/pkg
+	crs=$${CORAZA_CRS:-$$(tools/strata-import-crs/fetch-crs.sh)} && cd tools/coraza-diff && go build -o ../../$(CORAZA_OUT)/coraza-diff . && \
+		cd ../.. && $(CORAZA_OUT)/coraza-diff --crs "$$crs" --bundle $(CORAZA_OUT)/pkg/strata-core-coraza-diff.sbn \
+		--pubkey connectors/nginx/t/fixtures/bundle.pub --strata-eval target/release/strata-eval \
+		--md docs/reports/w12/r01-coraza-diff.md --json $(CORAZA_OUT)/diff.json
+
 # W05-N-01 measurements (see docs/reports/w05-hot-reload.md)
 bench-reload: $(MKBUNDLE) $(COMPILE)
 	connectors/nginx/scripts/reload-under-load.sh $(NGINX_VERSION) 8 100
@@ -227,6 +241,7 @@ test-go: test-agent
 	tools/strata-import-crs/fetch-crs.sh >/dev/null
 	cd tools/strata-import-crs && go vet ./... && go test -race ./... && golangci-lint run ./...
 	cd tools/strata-import-signatures && go vet ./... && go test -race ./... && golangci-lint run ./...
+	cd tools/coraza-diff && go vet ./... && go test -race ./... && golangci-lint run ./...
 
 # Alert rules of the lab, staging and packages, against their unit tests
 # (W10-Q-01); dashboards are valid JSON with the datasource variable.
