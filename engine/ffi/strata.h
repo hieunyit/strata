@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 2
+#define STRATA_ABI_VERSION_MINOR 3
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -371,6 +371,20 @@ void strata_engine_info(const strata_engine_t *e, strata_engine_info_t *out);
 strata_rc_t strata_engine_policy(const strata_engine_t *e,
                                  strata_str_t name,
                                  strata_policy_info_t *out);
+
+/**
+ * Emergency kill switch (ABI 1.3, W12-R-02): the `n` rule IDs at `ids`
+ * stop matching in every transaction started on this engine from now on,
+ * without reloading the bundle. Replaces the previous list; `n == 0`
+ * switches every rule back on. The list belongs to the engine: apply it
+ * again to the engine of a newly loaded bundle. Returns `STRATA_E_INVALID`
+ * for a NULL engine, NULL `ids` with `n != 0`, or more than 4096 IDs.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle; `ids` must point to `n`
+ * readable `uint32_t` (or be NULL with `n == 0`).
+ */
+strata_rc_t strata_engine_disable_rules(const strata_engine_t *e, const uint32_t *ids, size_t n);
 
 /**
  * Default block page of the engine's bundle: `html` (template with

@@ -34,7 +34,13 @@ pub struct Engine {
     /// rules the Hyperscan prefilter may skip (W09-R-01)
     prefilter: crate::eval::Prefilter,
     prefilter_on: bool,
+    /// Rule IDs switched off without reloading the bundle (W12-R-02),
+    /// sorted; each transaction takes the list current at its start.
+    disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
 }
+
+/// Most rule IDs `set_disabled_rules` takes at once.
+pub const MAX_DISABLED_RULES: usize = 4096;
 
 impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -137,7 +143,33 @@ impl Engine {
             operators,
             prefilter,
             prefilter_on: true,
+            disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
         })
+    }
+
+    /// Switches off the rules `ids` (emergency kill switch): they no longer
+    /// match in transactions started from now on; an empty list switches
+    /// every rule back on. Replaces the previous list. The list belongs to
+    /// this engine: the connector applies it again to the engine of a new
+    /// bundle.
+    pub fn set_disabled_rules(&self, ids: &[u32]) -> Result<(), &'static str> {
+        if ids.len() > MAX_DISABLED_RULES {
+            return Err("too many rule ids");
+        }
+        let mut v = ids.to_vec();
+        v.sort_unstable();
+        v.dedup();
+        let mut cur = self.disabled.write().unwrap_or_else(|e| e.into_inner());
+        *cur = std::sync::Arc::from(v);
+        Ok(())
+    }
+
+    /// The rules switched off, sorted.
+    pub fn disabled_rules(&self) -> std::sync::Arc<[u32]> {
+        self.disabled
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Unique engine instance ID.

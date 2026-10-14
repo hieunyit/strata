@@ -305,6 +305,41 @@ pub unsafe extern "C" fn strata_engine_policy(
     })
 }
 
+/// Emergency kill switch (ABI 1.3, W12-R-02): the `n` rule IDs at `ids`
+/// stop matching in every transaction started on this engine from now on,
+/// without reloading the bundle. Replaces the previous list; `n == 0`
+/// switches every rule back on. The list belongs to the engine: apply it
+/// again to the engine of a newly loaded bundle. Returns `STRATA_E_INVALID`
+/// for a NULL engine, NULL `ids` with `n != 0`, or more than 4096 IDs.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle; `ids` must point to `n`
+/// readable `uint32_t` (or be NULL with `n == 0`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_disable_rules(
+    e: *const EngineHandle,
+    ids: *const u32,
+    n: usize,
+) -> strata_rc_t {
+    if e.is_null() || (ids.is_null() && n != 0) {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        // SAFETY: live handle per contract.
+        let engine = unsafe { &*e.cast::<Engine>() };
+        let list: &[u32] = if n == 0 {
+            &[]
+        } else {
+            // SAFETY: ids points to n readable u32 per contract.
+            unsafe { std::slice::from_raw_parts(ids, n) }
+        };
+        match engine.set_disabled_rules(list) {
+            Ok(()) => STRATA_OK,
+            Err(_) => STRATA_E_INVALID,
+        }
+    })
+}
+
 /// Default block page of the engine's bundle: `html` (template with
 /// `{{block_id}}`, `{{time}}`, `{{support_contact}}`) and `contact` point
 /// into the bundle mapping and stay valid while the caller holds a reference

@@ -279,7 +279,7 @@ typedef strata_str_pair_t strata_header_t;
 - So khớp tên header không phân biệt hoa thường bằng so sánh byte ASCII, không cấp phát.
 - Rust chỉ copy dữ liệu cần giữ qua nhiều lời gọi, và chỉ trong hai trường hợp: đoạn input khớp rule để đưa vào sự kiện (tối đa 1 KB mỗi match, đã che), và một số ít header cần đối chiếu với response (ví dụ `Origin`, `Content-Type`). Phần copy nằm trong arena riêng của transaction, có giới hạn kích thước, giải phóng một lần ở `strata_tx_free`.
 - `strata_tx_free` idempotent: libstrata bỏ qua con trỏ NULL, module đặt con trỏ trong context về NULL ngay sau khi gọi.
-- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`, 1.2 thêm cờ `STRATA_TXF_DEGRADED` (W11-N-01).
+- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`, 1.2 thêm cờ `STRATA_TXF_DEGRADED` (W11-N-01), 1.3 thêm `strata_engine_disable_rules` (W12-R-02: danh sách Rule ID bị tắt khẩn cấp, gắn với engine, mỗi transaction chụp danh sách lúc bắt đầu; bundle mới thì connector áp lại).
 
 `strata_verdict_t` gồm: action (`allow`, `log`, `challenge`, `block`), mã HTTP trả về, Block ID (24 byte), điểm tổng, tối đa 16 rule ID khớp, cờ `need_body` / `need_response`.
 
