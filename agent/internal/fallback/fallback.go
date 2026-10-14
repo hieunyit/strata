@@ -45,7 +45,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +52,7 @@ import (
 	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/shmmetrics"
+	"github.com/strata/strata/agent/pkg/stats"
 )
 
 // Options of the detector; zero values take the defaults.
@@ -220,22 +220,7 @@ func (d *Detector) StepCapped(t Totals, capped Capped) string {
 
 // PoissonTail is P(X >= k) for X ~ Poisson(lambda), for k above lambda
 // (summed from k up; the terms shrink).
-func PoissonTail(k uint64, lambda float64) float64 {
-	if k == 0 {
-		return 1
-	}
-	if lambda <= 0 {
-		return 0
-	}
-	lg, _ := math.Lgamma(float64(k) + 1)
-	term := math.Exp(-lambda + float64(k)*math.Log(lambda) - lg)
-	sum := 0.0
-	for i := k; term > sum*1e-15 && i < k+100000; i++ {
-		sum += term
-		term *= lambda / float64(i+1)
-	}
-	return min(sum, 1)
-}
+func PoissonTail(k uint64, lambda float64) float64 { return stats.PoissonTail(k, lambda) }
 
 // Capped counts of an interval: blocks, and blocks plus would-be blocks
 // logged in shadow, at most SourceCap per source.
@@ -298,20 +283,7 @@ func (s *Sources) Take(limit uint64) Capped {
 	return out
 }
 
-// sourceKey: the client address, IPv6 by /64 (one host easily has many
-// addresses of its /64).
-func sourceKey(ip string) string {
-	a, err := netip.ParseAddr(ip)
-	if err != nil {
-		return ip
-	}
-	a = a.Unmap()
-	if a.Is6() {
-		p, _ := a.Prefix(64)
-		return p.String()
-	}
-	return a.String()
-}
+func sourceKey(ip string) string { return stats.SourceKey(ip) }
 
 // Reference levels learnt so far.
 func (d *Detector) Reference() (would, errs, budget float64, samples int) {

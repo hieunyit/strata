@@ -181,8 +181,10 @@ nhóm ≥ 200 request (tầng 2 của fallback tự động, W12-G2-01). Lý do 
 
 - `upstream_5xx`: tỉ lệ 5xx của upstream ở canary hơn shadow ≥ 1 điểm % và ≥ 2 lần;
 - `latency`: p99 canary ≥ 1,5 lần p99 shadow và hơn 50 ms;
-- `block_rate`: tỉ lệ chặn của canary > 3 lần mức "lẽ ra chặn" học được trong 1 giờ trước, và
-  > 1%.
+- `block_rate`: tỉ lệ chặn của canary > 3 lần mức "lẽ ra chặn" học được trong 1 giờ trước,
+  > 1%, và khó xảy ra do ngẫu nhiên. Chặn đếm từ sự kiện, mỗi địa chỉ client tối đa 3 lần mỗi
+  phút trên cả group (#74): một vài client gửi dồn payload không kích hoạt được; `detail` của
+  lần ngắt có `canary_block_by_source` và `block_p_value`.
 
 Khi ngắt: mọi policy có `canary_percent` bị ép shadow trên mọi node của group (lệnh
 `forceShadow` 24 giờ, control plane gia hạn mỗi 12 giờ, không tự hết), rollout đang chạy dừng
