@@ -358,8 +358,26 @@ tests:
           - exp_labels: { instance: a, reason: block_rate, severity: warning, component: agent }
             exp_annotations:
               summary: "a: the node forced every policy into shadow on its own (block_rate)"
-              description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow for --fallback-hold (1 h)."
+              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow for --fallback-hold (1 h)."
               runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
       - eval_time: 15m
         alertname: StrataNodeFallback
+        exp_alerts: []
+
+  # #65: a jump of engine errors only alerts
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_fallback_alerts_total{instance="a",reason="engine_errors"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: StrataNodeErrorsJump
+        exp_alerts:
+          - exp_labels: { instance: a, reason: engine_errors, severity: warning, component: agent }
+            exp_annotations:
+              summary: "a: engine errors or budget overruns jumped (engine_errors); policies left as they are"
+              description: "The node fallback saw a jump it does not act on (#65): shadow does not change the fail mode. Requests go through the fail mode: open lets them pass uninspected, closed answers 503."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+      - eval_time: 15m
+        alertname: StrataNodeErrorsJump
         exp_alerts: []
