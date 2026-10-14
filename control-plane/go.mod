@@ -9,6 +9,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/minio/minio-go/v7 v7.0.77
+	github.com/parquet-go/parquet-go v0.25.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/strata/strata/agent v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.55.0

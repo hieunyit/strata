@@ -1,0 +1,196 @@
+{
+  "comment": "Replay sample anonymization vectors, format 1 (docs/spec/replay-sample.md). Test key only.",
+  "key_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+  "key_id": "test-1",
+  "cases": [
+    {
+      "input": {
+        "TsMs": 1791939600000,
+        "NodeID": "edge-01",
+        "Policy": "example-api",
+        "Method": "POST",
+        "RawURI": "/v1/verify?user=alice%40example.test\u0026q=1%27%20OR%201%3D1\u0026token=abc123",
+        "URI": "/v1/verify",
+        "Args": "user=alice%40example.test\u0026q=1%27%20OR%201%3D1\u0026token=abc123",
+        "Proto": "HTTP/1.1",
+        "Client": "198.51.100.7",
+        "Headers": [
+          [
+            "Host",
+            "api.example.test"
+          ],
+          [
+            "Authorization",
+            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln"
+          ],
+          [
+            "Cookie",
+            "sid=s3cr3t; theme=dark"
+          ],
+          [
+            "User-Agent",
+            "sqlmap/1.8"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ],
+          [
+            "Content-Length",
+            "106"
+          ]
+        ],
+        "Body": "eyJjY2NkIjoiMDAxMDk5MDEyMzQ1IiwibmFtZSI6Ik5ndXllbiBWYW4gQSIsInBob25lIjoiMDkxMjM0NTY3OCIsIm5vdGUiOiJjYWxsIDA5ODc2NTQzMjEiLCJxIjoiJyBVTklPTiBTRUxFQ1QgMS0tIiwibiI6NDJ9",
+        "Action": "block",
+        "Rules": [
+          942100,
+          942190
+        ],
+        "body": "{\"cccd\":\"001099012345\",\"name\":\"Nguyen Van A\",\"phone\":\"0912345678\",\"note\":\"call 0987654321\",\"q\":\"' UNION SELECT 1--\",\"n\":42}"
+      },
+      "output": {
+        "ts_ms": 1791939600000,
+        "node_id": "edge-01",
+        "policy": "example-api",
+        "method": "POST",
+        "raw_uri": "/v1/verify?user=~h%3Af282b58f36fa6635%3As18\u0026q=1%27%20OR%201%3D1\u0026token=~h%3Ad5e1dd7374daacdf%3Ax6",
+        "uri": "/v1/verify",
+        "args": "user=~h%3Af282b58f36fa6635%3As18\u0026q=1%27%20OR%201%3D1\u0026token=~h%3Ad5e1dd7374daacdf%3Ax6",
+        "proto": "HTTP/1.1",
+        "client": "~h:c2a1c489add65cea:s12",
+        "headers": "[[\"Host\",\"api.example.test\"],[\"Authorization\",\"Bearer ~h:65a33f2cf0d304e6:s41\"],[\"Cookie\",\"sid=~h:c6851b547ba23768:x6; theme=~h:e0fc38be663216ca:a4\"],[\"User-Agent\",\"sqlmap/1.8\"],[\"Content-Type\",\"application/json\"],[\"Content-Length\",\"171\"]]",
+        "body": "eyJjY2NkIjoifmg6MzFlMDEyNmE4NDBmN2NiMDpkMTIiLCJuYW1lIjoifmg6ZDJiODNlMDZlMWM2MGMzMjpzMTIiLCJwaG9uZSI6In5oOjg5YjMwYzdlYmVmZTY0YWQ6ZDEwIiwibm90ZSI6ImNhbGwgfmg6ZWMwZDk4ODQzNzhjZGIxMjpkMTAiLCJxIjoiJyBVTklPTiBTRUxFQ1QgMS0tIiwibiI6NDJ9",
+        "body_len": 123,
+        "body_truncated": false,
+        "action": "block",
+        "rules": "942100,942190"
+      }
+    },
+    {
+      "input": {
+        "TsMs": 1791939601000,
+        "NodeID": "edge-01",
+        "Policy": "example-api",
+        "Method": "POST",
+        "RawURI": "/v1/upload/0912345678",
+        "URI": "/v1/upload/0912345678",
+        "Args": "",
+        "Proto": "HTTP/2.0",
+        "Client": "2001:db8::7",
+        "Headers": [
+          [
+            "Content-Type",
+            "multipart/form-data; boundary=XyZ"
+          ],
+          [
+            "X-Forwarded-For",
+            "203.0.113.9"
+          ]
+        ],
+        "Body": "LS1YeVoNCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0iY29tbWVudCINCg0KPHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0PiBtYWlsIGJvYkBleGFtcGxlLnRlc3QNCi0tWHlaDQpDb250ZW50LURpc3Bvc2l0aW9uOiBmb3JtLWRhdGE7IG5hbWU9InBhc3N3b3JkIg0KDQpodW50ZXIyDQotLVh5Wg0KQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPSJkb2MiOyBmaWxlbmFtZT0iaWQuanBnIg0KQ29udGVudC1UeXBlOiBpbWFnZS9qcGVnDQoNCv/Y/+BKRklGLXBob3RvLW9mLWFuLUlEDQotLVh5Wi0tDQo=",
+        "Action": "log",
+        "Rules": [
+          941100
+        ],
+        "body": "--XyZ\r\nContent-Disposition: form-data; name=\"comment\"\r\n\r\n\u003cscript\u003ealert(1)\u003c/script\u003e mail bob@example.test\r\n--XyZ\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nhunter2\r\n--XyZ\r\nContent-Disposition: form-data; name=\"doc\"; filename=\"id.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n\ufffd\ufffd\ufffd\ufffdJFIF-photo-of-an-ID\r\n--XyZ--\r\n"
+      },
+      "output": {
+        "ts_ms": 1791939601000,
+        "node_id": "edge-01",
+        "policy": "example-api",
+        "method": "POST",
+        "raw_uri": "/v1/upload/~h:89b30c7ebefe64ad:d10",
+        "uri": "/v1/upload/~h:89b30c7ebefe64ad:d10",
+        "args": "",
+        "proto": "HTTP/2.0",
+        "client": "~h:a9f81e54cb87e5f8:s11",
+        "headers": "[[\"Content-Type\",\"multipart/form-data; boundary=XyZ\"],[\"X-Forwarded-For\",\"~h:578c2a9d73f47069:s11\"]]",
+        "body": "LS1YeVoNCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0iY29tbWVudCINCg0KPHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0PiBtYWlsIH5oOmU1ZWM3ZmQ3NzhiMDI5ZTE6czE2DQotLVh5Wg0KQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPSJwYXNzd29yZCINCg0Kfmg6MTMzZDI3YWFiZWEwN2Q5NTp4Nw0KLS1YeVoNCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0iZG9jIjsgZmlsZW5hbWU9ImlkLmpwZyINCkNvbnRlbnQtVHlwZTogaW1hZ2UvanBlZw0KDQp+aDo1MmRlMTZkMTExNjY1MDE2OnMyMw0KLS1YeVotLQ0K",
+        "body_len": 305,
+        "body_truncated": false,
+        "action": "log",
+        "rules": "941100"
+      }
+    },
+    {
+      "input": {
+        "TsMs": 1791939602000,
+        "NodeID": "edge-02",
+        "Policy": "example-web",
+        "Method": "GET",
+        "RawURI": "/search?q=%253Cscript%253E\u0026page=2",
+        "URI": "/search",
+        "Args": "q=%253Cscript%253E\u0026page=2",
+        "Proto": "HTTP/1.1",
+        "Client": "192.0.2.10",
+        "Headers": [
+          [
+            "Host",
+            "www.example.test"
+          ]
+        ],
+        "Body": null,
+        "Action": "allow",
+        "Rules": null,
+        "body": ""
+      },
+      "output": {
+        "ts_ms": 1791939602000,
+        "node_id": "edge-02",
+        "policy": "example-web",
+        "method": "GET",
+        "raw_uri": "/search?q=%253Cscript%253E\u0026page=2",
+        "uri": "/search",
+        "args": "q=%253Cscript%253E\u0026page=2",
+        "proto": "HTTP/1.1",
+        "client": "~h:d415fd1997f03b17:s10",
+        "headers": "[[\"Host\",\"www.example.test\"]]",
+        "body": null,
+        "body_len": 0,
+        "body_truncated": false,
+        "action": "allow",
+        "rules": ""
+      }
+    },
+    {
+      "input": {
+        "TsMs": 1791939603000,
+        "NodeID": "edge-02",
+        "Policy": "example-web",
+        "Method": "POST",
+        "RawURI": "/login",
+        "URI": "/login",
+        "Args": "",
+        "Proto": "HTTP/1.1",
+        "Client": "192.0.2.11",
+        "Headers": [
+          [
+            "Content-Type",
+            "application/x-www-form-urlencoded"
+          ]
+        ],
+        "Body": "dXNlcm5hbWU9YWxpY2UmcGFzc3dvcmQ9aHVudGVyMiZyZW1lbWJlcj1vbiZvdHA9MTIzNDU2",
+        "Action": "allow",
+        "Rules": null,
+        "body": "username=alice\u0026password=hunter2\u0026remember=on\u0026otp=123456"
+      },
+      "output": {
+        "ts_ms": 1791939603000,
+        "node_id": "edge-02",
+        "policy": "example-web",
+        "method": "POST",
+        "raw_uri": "/login",
+        "uri": "/login",
+        "args": "",
+        "proto": "HTTP/1.1",
+        "client": "~h:a9a77dcb225ff4a2:s10",
+        "headers": "[[\"Content-Type\",\"application/x-www-form-urlencoded\"]]",
+        "body": "dXNlcm5hbWU9fmglM0EyMTgwMDAyNzQyMDM1MzcxJTNBYTUmcGFzc3dvcmQ9fmglM0ExMzNkMjdhYWJlYTA3ZDk1JTNBeDcmcmVtZW1iZXI9b24mb3RwPX5oJTNBMzczNzM4ZTc1OGE3YmM2ZCUzQWQ2",
+        "body_len": 54,
+        "body_truncated": false,
+        "action": "allow",
+        "rules": ""
+      }
+    }
+  ]
+}
