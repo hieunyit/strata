@@ -292,6 +292,20 @@ ngx_http_strata_metrics_bundle(uint64_t version)
 }
 
 
+void
+ngx_http_strata_metrics_breaker_state(ngx_uint_t state)
+{
+    ngx_http_strata_metric_set(NGX_HTTP_STRATA_METRIC_BREAKER, state);
+}
+
+
+void
+ngx_http_strata_metrics_breaker_open(void)
+{
+    ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_BREAKER_OPENS, 1);
+}
+
+
 /* once per request, when its transaction ends */
 
 void
@@ -310,6 +324,10 @@ ngx_http_strata_metrics_record(ngx_http_strata_ctx_t *ctx, uint64_t engine_us)
 
     ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_BODY,
                                (uint64_t) ctx->body_inspected);
+
+    if (ctx->degraded) {
+        ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_DEGRADED, 1);
+    }
 
     if (ctx->failed) {
         ngx_http_strata_metric_add(ctx->fail_closed

@@ -303,3 +303,43 @@ tests:
               summary: "a: 3% of requests run over the CPU budget"
               description: "Large bodies or a slow-down attack (nginx-module.md, Theo dõi tấn công làm chậm)."
               runbook_url: "docs/runbook/README.md#fail-mode-tăng"
+
+  # W11-N-01: one worker open on a fires at once (warning); two workers open
+  # or half-open on b fire the critical one; a closed node fires nothing
+  - interval: 1m
+    input_series:
+      - series: 'strata_breaker_state{instance="a",worker="0"}'
+        values: "0 1 1"
+      - series: 'strata_breaker_state{instance="a",worker="1"}'
+        values: "0 0 0"
+      - series: 'strata_breaker_state{instance="b",worker="0"}'
+        values: "0 1 1"
+      - series: 'strata_breaker_state{instance="b",worker="1"}'
+        values: "0 2 2"
+      - series: 'strata_breaker_state{instance="c",worker="0"}'
+        values: "0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: StrataBreakerOpen
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: module }
+            exp_annotations:
+              summary: "a: a worker circuit breaker is open, requests run in degraded mode"
+              description: "Engine internal errors (panics) over 2% in 10 s: the worker runs only the protocol layer and ip_match rules (nginx-module.md, Circuit breaker cấp worker)."
+              runbook_url: "docs/runbook/README.md#circuit-breaker-mở"
+          - exp_labels: { instance: b, severity: warning, component: module }
+            exp_annotations:
+              summary: "b: a worker circuit breaker is open, requests run in degraded mode"
+              description: "Engine internal errors (panics) over 2% in 10 s: the worker runs only the protocol layer and ip_match rules (nginx-module.md, Circuit breaker cấp worker)."
+              runbook_url: "docs/runbook/README.md#circuit-breaker-mở"
+      - eval_time: 1m
+        alertname: StrataBreakerOpenManyWorkers
+        exp_alerts:
+          - exp_labels: { instance: b, severity: critical, component: module }
+            exp_annotations:
+              summary: "b: 2 workers have their circuit breaker open"
+              description: "Several workers of one node run in degraded mode: likely a bad bundle or a libstrata bug, not one request."
+              runbook_url: "docs/runbook/README.md#circuit-breaker-mở"
+      - eval_time: 0m
+        alertname: StrataBreakerOpen
+        exp_alerts: []

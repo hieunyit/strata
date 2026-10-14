@@ -293,3 +293,59 @@ GET /t?STRATA-TEST-BLOCK
 --- must_die
 --- error_log
 rejected
+
+
+
+=== TEST 20: strata_breaker_threshold: share, window, minimum, open time
+--- http_config
+    strata_control_file  $TEST_NGINX_STRATA_FIXTURES/bundle/control;
+    strata_bundle_dir    $TEST_NGINX_STRATA_FIXTURES/bundle;
+    strata_bundle_pubkey $TEST_NGINX_STRATA_FIXTURES/bundle.pub;
+    strata_breaker_threshold 0.5% 5s 100 open=1m;
+--- config
+    location /t { strata on; strata_policy example-api; proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/; }
+--- request
+GET /t
+--- error_code: 200
+--- no_error_log
+[emerg]
+
+
+
+=== TEST 21: strata_breaker_threshold: share needs a percent sign
+--- http_config
+    strata_breaker_threshold 2 10s 200;
+--- config
+--- must_die
+--- error_log
+invalid strata_breaker_threshold, expected <share>% <window> <min requests> [open=<time>]
+
+
+
+=== TEST 22: strata_breaker_threshold: open time is at most 5 minutes
+--- http_config
+    strata_breaker_threshold 2% 10s 200 open=10m;
+--- config
+--- must_die
+--- error_log
+invalid strata_breaker_threshold
+
+
+
+=== TEST 23: strata_breaker_action takes degrade or reject
+--- http_config
+--- config
+    location /t { strata on; strata_breaker_action bypass; }
+--- must_die
+--- error_log
+invalid value "bypass"
+
+
+
+=== TEST 24: strata_breaker is http only
+--- http_config
+--- config
+    location /t { strata on; strata_breaker off; }
+--- must_die
+--- error_log
+"strata_breaker" directive is not allowed here

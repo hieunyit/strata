@@ -279,7 +279,7 @@ typedef strata_str_pair_t strata_header_t;
 - So khớp tên header không phân biệt hoa thường bằng so sánh byte ASCII, không cấp phát.
 - Rust chỉ copy dữ liệu cần giữ qua nhiều lời gọi, và chỉ trong hai trường hợp: đoạn input khớp rule để đưa vào sự kiện (tối đa 1 KB mỗi match, đã che), và một số ít header cần đối chiếu với response (ví dụ `Origin`, `Content-Type`). Phần copy nằm trong arena riêng của transaction, có giới hạn kích thước, giải phóng một lần ở `strata_tx_free`.
 - `strata_tx_free` idempotent: libstrata bỏ qua con trỏ NULL, module đặt con trỏ trong context về NULL ngay sau khi gọi.
-- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`.
+- Cả 5 connector dùng chung `strata.h` này; thay đổi ABI không tương thích sau tuần 2 phải tăng major và kèm lớp tương thích. Chỉ thêm hàm mới (không đổi hàm, kiểu đã có) thì tăng minor: 1.1 thêm `strata_tx_response_body_flush`, 1.2 thêm cờ `STRATA_TXF_DEGRADED` (W11-N-01).
 
 `strata_verdict_t` gồm: action (`allow`, `log`, `challenge`, `block`), mã HTTP trả về, Block ID (24 byte), điểm tổng, tối đa 16 rule ID khớp, cờ `need_body` / `need_response`.
 
@@ -325,6 +325,9 @@ Directive chỉ quy định cách module gắn vào NGINX; nội dung bảo mậ
 | `strata_block_page <path>` | http, server, location | template từ bundle | Ghi đè cục bộ template trang chặn mặc định của control plane |
 | `strata_event_socket <unix:path>` | http | `unix:/run/strata/events.sock` | Socket gửi sự kiện (protobuf) cho `strata-agent` |
 | `strata_cpu_budget <time>` | http, server, location | `2ms` | Thời gian CPU tối đa cho một request; vượt thì xử lý theo fail mode |
+| `strata_breaker on\|off` | http | `on` | Circuit breaker cấp worker (mục Circuit breaker cấp worker) |
+| `strata_breaker_threshold <tỉ lệ>% <cửa sổ> <tối thiểu> [open=<time>]` | http | `2% 10s 200 open=30s` | Ngưỡng mở breaker; `open=` là thời gian mở đầu tiên (tối đa 5 phút) |
+| `strata_breaker_action degrade\|reject` | http, server, location | `degrade` | Khi breaker mở: chạy giảm cấp, hoặc trả 503 kèm Event ID |
 
 IP client lấy từ `$remote_addr` sau module `realip`, nên cấu hình `set_real_ip_from` / `real_ip_header` như bình thường.
 
@@ -802,6 +805,8 @@ Mỗi worker tự theo dõi sức khỏe engine của mình; khi lỗi nội b�
 | `strata_fail_mode closed` (ví dụ eKYC) | Mặc định giảm cấp; đặt `strata_breaker_action reject` nếu muốn trả 503 thay vì chạy giảm cấp |
 
 Mỗi lần chuyển trạng thái phát một sự kiện và tăng metric `strata_breaker_state`; agent cảnh báo ngay, và cảnh báo mức nghiêm trọng nếu nhiều worker trên cùng node cùng mở. Directive: `strata_breaker on | off` (mặc định `on`), `strata_breaker_threshold 2% 10s 200`, `strata_breaker_action degrade | reject` (mặc định `degrade`).
+
+*Hiện trạng (W11-N-01):* breaker nằm trong `ngx_http_strata_breaker.c`, trạng thái riêng từng worker (biến tĩnh, không khóa). Chế độ giảm cấp là cờ `STRATA_TXF_DEGRADED` của `strata_conn_t` (ABI 1.2, chỉ thêm): libstrata chỉ chạy lớp protocol và rule toàn điều kiện `ip_match`, trong cùng `catch_unwind` của từng lời gọi FFI. Chưa có rate limit (RV-R-03). Khác thiết kế: (1) `strata_breaker` và `strata_breaker_threshold` chỉ ở mức `http`, vì breaker là của worker, không của location; (2) `strata_breaker_threshold` nhận thêm `open=<time>` (mặc định 30 s) cho test và vận hành; (3) cửa sổ đếm lỗi là cửa sổ cố định (tumbling), không trượt; half-open lấy 1/20 request, kết thúc sau một cửa sổ; (4) lỗi được tính: `STRATA_E_INTERNAL`, `STRATA_E_INVALID`, `STRATA_E_STATE` (gồm transaction NULL); không tính `STRATA_E_BUDGET`, `STRATA_E_BUNDLE` (đã có fail mode), `STRATA_E_INCOMPLETE`; request chạy giảm cấp không được tính; (5) chuyển trạng thái chưa phát **sự kiện** qua event socket (sự kiện do libstrata mã hóa theo transaction): mỗi lần chuyển ghi `error.log` (`strata: circuit breaker open|half-open|closed`) và cập nhật metrics file (bộ đếm 21 trạng thái, 22 số lần mở, 23 số request giảm cấp; `docs/design/control-file.md`), agent xuất `strata_breaker_state{worker}`, `strata_breaker_opens_total`, `strata_degraded_requests_total`, cảnh báo `StrataBreakerOpen` và `StrataBreakerOpenManyWorkers` (nghiêm trọng).
 
 ## Bật enforce theo canary
 

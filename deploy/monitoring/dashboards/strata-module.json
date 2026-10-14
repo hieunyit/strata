@@ -177,14 +177,75 @@
    }
   },
   {
-   "type": "row",
-   "title": "Bundles and events",
-   "collapsed": false,
-   "panels": [],
+   "type": "timeseries",
+   "title": "Circuit breaker per worker",
+   "description": "0 closed, 1 open, 2 half-open (alerts StrataBreakerOpen, StrataBreakerOpenManyWorkers).",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "strata_breaker_state{instance=~\"$instance\"}",
+     "legendFormat": "{{instance}} w{{worker}}",
+     "refId": "A"
+    }
+   ],
    "id": 6,
    "gridPos": {
     "x": 0,
     "y": 17,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Degraded requests and breaker opens",
+   "description": "Degraded mode runs only the protocol layer and ip_match rules.",
+   "datasource": {
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "sum (rate(strata_degraded_requests_total{instance=~\"$instance\"}[5m]))",
+     "legendFormat": "degraded req/s",
+     "refId": "A"
+    },
+    {
+     "expr": "sum (increase(strata_breaker_opens_total{instance=~\"$instance\"}[1h]))",
+     "legendFormat": "opens in 1 h",
+     "refId": "B"
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 12,
+    "y": 17,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "Bundles and events",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 25,
     "w": 24,
     "h": 1
    }
@@ -209,10 +270,10 @@
      "refId": "A"
     }
    ],
-   "id": 7,
+   "id": 9,
    "gridPos": {
     "x": 0,
-    "y": 18,
+    "y": 26,
     "w": 12,
     "h": 8
    }
@@ -242,10 +303,10 @@
      "refId": "B"
     }
    ],
-   "id": 8,
+   "id": 10,
    "gridPos": {
     "x": 12,
-    "y": 18,
+    "y": 26,
     "w": 12,
     "h": 8
    }
@@ -270,10 +331,10 @@
      "refId": "A"
     }
    ],
-   "id": 9,
+   "id": 11,
    "gridPos": {
     "x": 0,
-    "y": 26,
+    "y": 34,
     "w": 24,
     "h": 8
    }

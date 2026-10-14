@@ -25,6 +25,9 @@ var (
 	dDropped  = prometheus.NewDesc("strata_events_dropped_total", "Events a worker dropped because the event socket was full.", nil, nil)
 	dBudget   = prometheus.NewDesc("strata_budget_exceeded_total", "Requests that ran over the CPU budget.", nil, nil)
 	dBundle   = prometheus.NewDesc("strata_bundle_version", "Bundle version running in each worker.", []string{"worker"}, nil)
+	dBreaker  = prometheus.NewDesc("strata_breaker_state", "Circuit breaker of each worker: 0 closed, 1 open, 2 half-open.", []string{"worker"}, nil)
+	dOpens    = prometheus.NewDesc("strata_breaker_opens_total", "Times a worker circuit breaker opened.", nil, nil)
+	dDegraded = prometheus.NewDesc("strata_degraded_requests_total", "Requests run in degraded mode (circuit breaker open or half-open).", nil, nil)
 )
 
 // Collector exports one metrics file.
@@ -37,7 +40,7 @@ func NewCollector(path string) *Collector { return &Collector{path: path} }
 
 // Describe implements prometheus.Collector.
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
-	for _, d := range []*prometheus.Desc{dUp, dWorkers, dRequests, dEngine, dBody, dFail, dDropped, dBudget, dBundle} {
+	for _, d := range []*prometheus.Desc{dUp, dWorkers, dRequests, dEngine, dBody, dFail, dDropped, dBudget, dBundle, dBreaker, dOpens, dDegraded} {
 		ch <- d
 	}
 }
@@ -54,7 +57,8 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(dWorkers, prometheus.GaugeValue, float64(len(s.Workers)))
 
 	var req [4]uint64
-	var body, open, closed, dropped, budget, nanos uint64
+	var body, open, closed, dropped, budget, nanos, opens, degraded uint64
+	hasBreaker := false
 	buckets := make([]uint64, len(BucketBounds)+1)
 	for _, w := range s.Workers {
 		for i := range req {
@@ -70,6 +74,16 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			buckets[i] += n
 		}
 		ch <- prometheus.MustNewConstMetric(dBundle, prometheus.GaugeValue, float64(w.BundleVersion), strconv.Itoa(w.Index))
+		if w.HasBreaker {
+			hasBreaker = true
+			opens += w.BreakerOpens
+			degraded += w.Degraded
+			ch <- prometheus.MustNewConstMetric(dBreaker, prometheus.GaugeValue, float64(w.BreakerState), strconv.Itoa(w.Index))
+		}
+	}
+	if hasBreaker {
+		ch <- prometheus.MustNewConstMetric(dOpens, prometheus.CounterValue, float64(opens))
+		ch <- prometheus.MustNewConstMetric(dDegraded, prometheus.CounterValue, float64(degraded))
 	}
 	for i, a := range actions {
 		ch <- prometheus.MustNewConstMetric(dRequests, prometheus.CounterValue, float64(req[i]), a)

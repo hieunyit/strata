@@ -86,6 +86,12 @@ module = dashboard("strata-module", "Strata module", "label_values(strata_metric
         (f"sum by (mode) (rate(strata_fail_mode_total{I}[5m])) / scalar(clamp_min(sum (rate(strata_requests_total{I}[5m])), 1e-9))", "fail {{mode}}"),
         (f"sum (rate(strata_budget_exceeded_total{I}[5m])) / clamp_min(sum (rate(strata_requests_total{I}[5m])), 1e-9)", "over budget"),
     ], "percentunit", desc="Alerts StrataFailModeHigh, StrataBudgetExceeded above 1%."),
+    panel("Circuit breaker per worker", [(f"strata_breaker_state{I}", "{{instance}} w{{worker}}")], "none",
+          desc="0 closed, 1 open, 2 half-open (alerts StrataBreakerOpen, StrataBreakerOpenManyWorkers)."),
+    panel("Degraded requests and breaker opens", [
+        (f"sum (rate(strata_degraded_requests_total{I}[5m]))", "degraded req/s"),
+        (f"sum (increase(strata_breaker_opens_total{I}[1h]))", "opens in 1 h"),
+    ], "short", desc="Degraded mode runs only the protocol layer and ip_match rules."),
     row("Bundles and events"),
     panel("Bundle version per worker", [(f"strata_bundle_version{I}", "{{instance}} w{{worker}}")], "none",
           desc="All workers should run the version the agent installed (alert StrataWorkersOnOldBundle)."),

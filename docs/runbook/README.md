@@ -42,6 +42,26 @@ mode hoặc vượt CPU budget.
 3. `closed` trả 503 cho người dùng: nếu kéo dài, **ép shadow** cho policy đó trong lúc
    điều tra.
 
+## Circuit breaker mở
+
+Cảnh báo `StrataBreakerOpen` (một worker), `StrataBreakerOpenManyWorkers` (từ 2 worker
+trên cùng node, nghiêm trọng): lỗi nội bộ của engine (panic) vượt 2% trong 10 giây, worker
+chạy **chế độ giảm cấp**: chỉ lớp protocol và rule `ip_match`, không có rule đầy đủ.
+Location đặt `strata_breaker_action reject` trả 503 kèm Event ID.
+
+1. Dashboard **Strata module**, panel "Circuit breaker per worker": worker nào, open (1)
+   hay half-open (2). Breaker tự thử lại: mở 30 giây, half-open 10 giây với 5% request
+   qua engine đầy đủ; mở lại liên tiếp thì thời gian nhân đôi, tối đa 5 phút.
+2. `error.log` của NGINX: `strata: circuit breaker open, N internal errors in M requests`
+   và các dòng `strata: engine error 3` (panic) trước đó, kèm Event ID. Tra Event ID trên
+   trang Sự kiện để thấy request gây lỗi.
+3. Nhiều worker cùng mở ngay sau một lần deploy: **rollback bundle** (mục dưới). Không
+   liên quan tới deploy: báo nhóm libstrata kèm Event ID; trong lúc chờ, giảm cấp vẫn chặn
+   request mơ hồ, nên chỉ **tắt module** khi chính chế độ giảm cấp cũng lỗi (fail mode
+   tăng, mục trên).
+4. Request vượt CPU budget **không** làm breaker mở (cố ý); budget tăng thì xem mục
+   "Fail mode tăng".
+
 ## Sự kiện bị bỏ
 
 Cảnh báo `StrataEventsDropped`: trên 0,1% sự kiện bị bỏ ở event socket.

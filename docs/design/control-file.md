@@ -102,7 +102,7 @@ Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiệ
 | 8 | `u32` | phiên bản layout = 1 |
 | 12 | `u32` | số slot = số worker, 1..1.024 |
 | 16 | `u32` | kích thước slot (byte), bội số của 64, ≥ 8 × số bộ đếm |
-| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 |
+| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 (module từ W11-N-01 ghi 24) |
 | 24 | `u64` | thời điểm tạo file (ms); đổi khi file được tạo lại |
 | 32 | `u8[16]` | phiên bản NGINX (`NGINX_VERSION`, đệm NUL), W07-F-01 |
 | 48 | `u8[12]` | phiên bản module (đệm NUL) |
@@ -123,6 +123,9 @@ Slot của worker `i` (`ngx_worker`) nằm ở offset `64 + i × kích thước 
 | 10 | số lần vượt CPU budget (`strata_budget_exceeded`) |
 | 11 | tổng thời gian engine (ns) |
 | 12..20 | histogram thời gian engine, mỗi bucket đếm riêng (không cộng dồn), cận trên: 50 µs, 100 µs, 200 µs, 500 µs, 1 ms, 2 ms, 5 ms, 10 ms, +Inf |
+| 21 | trạng thái circuit breaker của worker (gauge): 0 closed, 1 open, 2 half-open (W11-N-01) |
+| 22 | số lần breaker mở |
+| 23 | số request chạy chế độ giảm cấp |
 
 Bộ đếm mới chỉ được thêm vào cuối slot (tăng số bộ đếm, không đổi phiên bản layout); agent bỏ qua bộ đếm nó không biết.
 
