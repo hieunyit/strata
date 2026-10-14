@@ -15,18 +15,40 @@
 // did not trip.
 //
 // A burst of real attacks also raises the would-block share. In shadow
-// nothing is blocked, so nothing trips; with enforce it trips and the node
-// stays in shadow for Hold. The control plane tier (W12-G2-01) compares the
-// canary and shadow groups instead, which an attack burst does not move.
+// nothing is blocked, so nothing trips; with enforce it could trip and put
+// the node in shadow for Hold: a way to switch the WAF off from outside
+// (#65). So:
+//   - the blocks of an interval count at most SourceCap per client address
+//     (IPv6 per /64), from the agent's own events: one source sending a
+//     flood of blocked payloads counts as SourceCap blocks; a rule that
+//     blocks real users blocks many sources. The reference is learnt from
+//     counts capped the same way (blocks and would-be blocks logged in
+//     shadow), or the same flood would first raise it;
+//   - a count trips only when it is both Factor times the reference and
+//     improbable under it (one-sided Poisson test, PValue): a fixed ratio
+//     on a few expected blocks tripped on chance alone at low traffic
+//     (lab, 14/10: 2 false trips out of 2 runs at 60 req/s, 1% attacks);
+//   - engine errors and budget overruns are only reported (Alerts), unless
+//     Options.Errors: shadow does not change the fail mode, so forcing it
+//     neither lets fail-closed requests through nor stops the overruns,
+//     while an attacker able to cause overruns (large bodies, #28) would
+//     switch the blocking off.
+//
+// The control plane tier (W12-G2-01) compares the canary and shadow groups
+// instead, which an attack burst does not move.
 package fallback
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
+	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/shmmetrics"
@@ -52,6 +74,18 @@ type Options struct {
 	Hold time.Duration
 	// Alpha of the moving averages (0.1).
 	Alpha float64
+	// PValue: a count trips only when its one-sided Poisson tail under the
+	// reference is below it (1e-6: at one test per 5 s, a false trip every
+	// few thousand hours per node).
+	PValue float64
+	// SourceCap: blocks of one client address counted per interval (3).
+	SourceCap uint64
+	// MaxSources tracked per interval (4096); blocks of further sources
+	// count one each.
+	MaxSources int
+	// Errors: also force shadow on engine errors and budget overruns, as
+	// before #65; by default they are only reported.
+	Errors bool
 }
 
 func (o Options) withDefaults() Options {
@@ -75,6 +109,15 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Alpha <= 0 || o.Alpha > 1 {
 		o.Alpha = 0.1
+	}
+	if o.PValue <= 0 || o.PValue >= 1 {
+		o.PValue = 1e-6
+	}
+	if o.SourceCap == 0 {
+		o.SourceCap = 3
+	}
+	if o.MaxSources <= 0 {
+		o.MaxSources = 4096
 	}
 	return o
 }
@@ -120,8 +163,15 @@ type Detector struct {
 func NewDetector(o Options) *Detector { return &Detector{o: o.withDefaults()} }
 
 // Step takes the totals read at the end of an interval and returns the
-// reason to trip, or "".
+// reason to trip, or "". Every block counts (no source information).
 func (d *Detector) Step(t Totals) string {
+	return d.StepCapped(t, Capped{math.MaxUint64, math.MaxUint64})
+}
+
+// StepCapped is Step with the interval's blocks and would-be blocks
+// counted at most SourceCap per source (Sources.Take): each count is the
+// smaller of the metrics file's and the capped one.
+func (d *Detector) StepCapped(t Totals, capped Capped) string {
 	prev := d.prev
 	d.prev = &t
 	if prev == nil {
@@ -138,19 +188,24 @@ func (d *Detector) Step(t Totals) string {
 		return ""
 	}
 	rate := func(a, b uint64) float64 { return float64(a-b) / float64(n) }
-	block := rate(t.Blocked, prev.Blocked)
-	would := block + rate(t.Logged, prev.Logged)
+	blocked := min(t.Blocked-prev.Blocked, capped.Blocked)
+	would := float64(min(t.Blocked-prev.Blocked+t.Logged-prev.Logged, capped.Would)) / float64(n)
 	errs := rate(t.Errors, prev.Errors)
 	budget := rate(t.Budget, prev.Budget)
 
-	over := func(v, ref float64) bool { return v > d.o.Factor*max(ref, d.o.Floor) }
+	// k events in the interval against the reference share: Factor times
+	// the expected count, and improbable under it
+	over := func(k uint64, ref float64) bool {
+		lambda := float64(n) * max(ref, d.o.Floor)
+		return float64(k) > d.o.Factor*lambda && PoissonTail(k, lambda) < d.o.PValue
+	}
 	if d.samples >= d.o.Warmup {
 		switch {
-		case block > 0 && over(block, d.would):
+		case blocked > 0 && over(blocked, d.would):
 			return ReasonBlockRate
-		case over(errs, d.errs):
+		case over(t.Errors-prev.Errors, d.errs):
 			return ReasonErrors
-		case over(budget, d.budget):
+		case over(t.Budget-prev.Budget, d.budget):
 			return ReasonBudget
 		}
 	}
@@ -167,6 +222,101 @@ func (d *Detector) Step(t Totals) string {
 	}
 	d.samples++
 	return ""
+}
+
+// PoissonTail is P(X >= k) for X ~ Poisson(lambda), for k above lambda
+// (summed from k up; the terms shrink).
+func PoissonTail(k uint64, lambda float64) float64 {
+	if k == 0 {
+		return 1
+	}
+	if lambda <= 0 {
+		return 0
+	}
+	lg, _ := math.Lgamma(float64(k) + 1)
+	term := math.Exp(-lambda + float64(k)*math.Log(lambda) - lg)
+	sum := 0.0
+	for i := k; term > sum*1e-15 && i < k+100000; i++ {
+		sum += term
+		term *= lambda / float64(i+1)
+	}
+	return min(sum, 1)
+}
+
+// Capped counts of an interval: blocks, and blocks plus would-be blocks
+// logged in shadow, at most SourceCap per source.
+type Capped struct{ Blocked, Would uint64 }
+
+// Sources counts an interval's blocks (a Block ID STR-, action BLOCK) and
+// would-be blocks (an Event ID with action LOG that would have blocked) by
+// client address, from the events the agent receives.
+type Sources struct {
+	max int
+	mu  sync.Mutex
+	n   map[string]*[2]uint64 // blocks, would-be blocks logged
+	// counts of sources past max
+	over [2]uint64
+}
+
+// NewSources tracks up to max sources per interval.
+func NewSources(max int) *Sources { return &Sources{max: max, n: map[string]*[2]uint64{}} }
+
+// Observe counts ev when it is a block or a would-be block.
+func (s *Sources) Observe(ev *eventv1.Event) {
+	var i int
+	switch {
+	case ev.GetAction() == eventv1.Action_ACTION_BLOCK && strings.HasPrefix(ev.GetBlockId(), "STR-"):
+		i = 0
+	case ev.GetAction() == eventv1.Action_ACTION_LOG && strings.HasPrefix(ev.GetBlockId(), "EVT-") && len(ev.GetRuleIds()) > 0 &&
+		// modules before RV-G2-01 send no inspection and no would_block
+		(ev.GetWouldBlock() || ev.GetInspection() == eventv1.Inspection_INSPECTION_UNSPECIFIED):
+		i = 1
+	default:
+		return
+	}
+	k := sourceKey(ev.GetClientIp())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.n[k]
+	if !ok {
+		if len(s.n) >= s.max {
+			s.over[i]++
+			return
+		}
+		c = new([2]uint64)
+		s.n[k] = c
+	}
+	c[i]++
+}
+
+// Take returns the counts since the last Take, at most limit per source,
+// and starts a new interval.
+func (s *Sources) Take(limit uint64) Capped {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := Capped{Blocked: s.over[0], Would: s.over[0] + s.over[1]}
+	for _, c := range s.n {
+		out.Blocked += min(c[0], limit)
+		out.Would += min(c[0]+c[1], limit)
+	}
+	clear(s.n)
+	s.over = [2]uint64{}
+	return out
+}
+
+// sourceKey: the client address, IPv6 by /64 (one host easily has many
+// addresses of its /64).
+func sourceKey(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.Unmap()
+	if a.Is6() {
+		p, _ := a.Prefix(64)
+		return p.String()
+	}
+	return a.String()
 }
 
 // Reference levels learnt so far.
@@ -187,17 +337,23 @@ type Watcher struct {
 	o     Options
 	d     *Detector
 	read  func(string) (shmmetrics.Snapshot, error)
+	src   *Sources
 
 	mu       sync.Mutex
 	triggers map[string]uint64
+	alerts   map[string]uint64
 }
 
 // NewWatcher reads metricsFile every o.Interval and forces shadow through f.
 func NewWatcher(metricsFile string, f Forcer, o Options) *Watcher {
 	o = o.withDefaults()
 	return &Watcher{file: metricsFile, force: f, o: o, d: NewDetector(o), read: shmmetrics.Read,
-		triggers: map[string]uint64{}}
+		src: NewSources(o.MaxSources), triggers: map[string]uint64{}, alerts: map[string]uint64{}}
 }
+
+// Observe feeds an event the agent received (the event socket) to the
+// per-source block count.
+func (w *Watcher) Observe(ev *eventv1.Event) { w.src.Observe(ev) }
 
 // Run until ctx is done.
 func (w *Watcher) Run(ctx context.Context) {
@@ -219,14 +375,22 @@ func (w *Watcher) tick() {
 	if err != nil {
 		return // no NGINX or a bad file: the metrics exporter reports it
 	}
-	reason := w.d.Step(FromSnapshot(s))
+	reason := w.d.StepCapped(FromSnapshot(s), w.src.Take(w.o.SourceCap))
 	if reason == "" {
+		return
+	}
+	would, errs, budget, _ := w.d.Reference()
+	if reason != ReasonBlockRate && !w.o.Errors {
+		w.mu.Lock()
+		w.alerts[reason]++
+		w.mu.Unlock()
+		slog.Warn("fallback: engine errors or budget overruns jumped; policies left as they are (--fallback-on-errors)",
+			"reason", reason, "ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
 		return
 	}
 	if !w.force.Snapshot().All.IsZero() {
 		return // already forced: an earlier trip or a ForceShadow command
 	}
-	would, errs, budget, _ := w.d.Reference()
 	err = w.force.Apply(&fleetv1.ForceShadow{DurationSeconds: uint32(w.o.Hold / time.Second)})
 	if err != nil {
 		slog.Error("fallback: force shadow", "reason", reason, "err", err)
@@ -238,6 +402,18 @@ func (w *Watcher) tick() {
 	slog.Warn("fallback: every policy of this node forced into shadow", "reason", reason,
 		"hold", w.o.Hold.String(), "ref_would_block", fmt.Sprintf("%.4f", would),
 		"ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
+}
+
+// Alerts: jumps of engine errors or budget overruns that did not force
+// shadow (Options.Errors off), by reason.
+func (w *Watcher) Alerts() map[string]uint64 {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	out := make(map[string]uint64, len(w.alerts))
+	for k, v := range w.alerts {
+		out[k] = v
+	}
+	return out
 }
 
 // Triggers: the trips so far, by reason.

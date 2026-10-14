@@ -228,7 +228,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	batchDone := make(chan error, 1)
 	pushDone := make(chan error, 1)
 	go func() {
-		sockDone <- a.Socket.Run(sockCtx, func(ev *eventv1.Event) { a.batch.Add(batchCtx, ev) })
+		sockDone <- a.Socket.Run(sockCtx, func(ev *eventv1.Event) {
+			if a.Fallback != nil {
+				a.Fallback.Observe(ev) // blocks by source (#65)
+			}
+			a.batch.Add(batchCtx, ev)
+		})
 	}()
 	go func() { batchDone <- a.batch.Run(batchCtx) }()
 	go func() { pushDone <- a.Pusher.Run(pushCtx) }()
