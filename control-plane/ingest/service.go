@@ -74,9 +74,10 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 		s.batchesDropped.Add(1)
 		// Return ACK for the duplicate batch so agent can clear its spool
 		return &EventAck{
-			NodeID:   batch.NodeID,
-			AckedSeq: batch.Seq,
-			Success:  true,
+			NodeID:    batch.NodeID,
+			AckedSeq:  batch.Seq,
+			Success:   true,
+			Duplicate: true,
 		}, nil
 	}
 

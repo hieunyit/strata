@@ -36,11 +36,22 @@ Một file Parquet cho mỗi lô mẫu, một hàng cho mỗi request. Metadata 
 | `body_truncated` | BOOLEAN | body gốc dài hơn `max_body` |
 | `action` | BYTE_ARRAY (UTF8) | verdict lúc lấy mẫu: `allow`, `log`, `block`, `error` |
 | `rules` | BYTE_ARRAY (UTF8) | Rule ID khớp lúc lấy mẫu, cách nhau bằng dấu phẩy |
+| `canary` | BYTE_ARRAY (UTF8) | nhóm canary của request (W12-G2-01): rỗng (policy không có canary), `enforce`, `shadow`. Cột thêm sau (W12-N-01); file thiếu cột này đọc là rỗng |
 
 Đặt trong object storage (MinIO trong lab): khóa
 `replay/v1/<policy>/<yyyy>/<mm>/<dd>/<node>-<ts_ms đầu>-<số thứ tự>.parquet`, metadata
 `Sha256`. Hạn lưu là lifecycle của bucket (đề xuất 7 ngày, khớp "mẫu traffic 7 ngày gần
 nhất"), cấu hình ở nơi triển khai.
+
+**Lấy mẫu tại connector (W12-N-01).** libstrata ẩn danh ngay trong worker NGINX
+(`engine/src/anon.rs`), trước khi mẫu rời worker; agent chuyển mẫu cùng lô sự kiện, control
+plane chỉ ghi file (`control-plane/replay/collector.go`, mỗi file một policy, một node, một khóa;
+ghi khi đủ 1.000 mẫu hoặc sau 5 phút). Một mẫu là một datagram của event socket (8 KB), nên
+`max_body` ở connector là **4 KB** (body cắt thì `body_truncated`; nếu sau ẩn danh vẫn quá 8 KB,
+phần body giữ lại giảm dần). Tỉ lệ lấy mẫu và khóa theo **connector group** (quyết định PO
+14/10/2026): `POST /v1/groups/{group_id}:setReplaySampling` (chỉ `admin`), mặc định tắt; tỉ lệ > 0
+bị từ chối cho tới khi control plane chạy với `-replay-sampling-approved` (sau khi pháp chế duyệt
+định dạng này). Khóa đi tới node qua luồng mTLS, không bao giờ nằm trong bảng lệnh hay audit.
 
 ## 2. Field nhạy cảm
 
@@ -83,7 +94,9 @@ Một giá trị nhạy cảm được thay **cả giá trị** bằng token; c�
 - độ dài: số byte của giá trị gốc.
 
 Khóa HMAC (32 byte ngẫu nhiên) do control plane giữ, có id (`anon_key_id`), xoay được; không
-bao giờ nằm cạnh mẫu. Đổi khóa thì token của cùng một giá trị đổi theo.
+bao giờ nằm cạnh mẫu. Mỗi connector group một khóa (W12-N-01); node của group giữ khóa đó
+(`replay.key` trong `strata_bundle_dir`, quyền 0640) để ẩn danh tại chỗ. Lộ một node là lộ khóa
+của group đó: xoay bằng `rotate_key`. Đổi khóa thì token của cùng một giá trị đổi theo.
 
 ## 4. Vector kiểm thử
 

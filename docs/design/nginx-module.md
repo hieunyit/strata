@@ -591,6 +591,7 @@ Mọi thao tác trên Web UI đều đi qua cùng một API: định nghĩa mộ
 | API schema, gRPC descriptor | `POST /v1/schemas` (OpenAPI hoặc `FileDescriptorSet`) | `:validate` |
 | Sự kiện | `GET /v1/events/{block_id}`, `POST /v1/events:search` | `:markFalsePositive` |
 | Connector group, node | `GET /v1/groups`, `GET /v1/nodes`, `DELETE /v1/nodes/{id}` (thu hồi) | `POST /v1/groups/{id}/enrollmentTokens` |
+| Lấy mẫu replay | `GET /v1/groups/{group_id}/replaySampling` (không bao giờ trả khóa) | `POST /v1/groups/{group_id}:setReplaySampling` (`rate_percent` 0..100, `rotate_key`; quyền `replay:configure`, chỉ `admin`; > 0 cần `-replay-sampling-approved`; W12-N-01) |
 | Lệnh tới node | `GET /v1/commands?node_id=`, `GET /v1/commands/{id}` | `POST /v1/nodes:forceShadow` (`node_id` hoặc `group_id`, `policy_id` rỗng = mọi policy, `duration_seconds` 1..86400; quyền `policies:deploy`), `POST /v1/nodes:clearForceShadow` (kết thúc trước hạn: `policy_id`, hoặc mọi force shadow khi rỗng; cùng quyền), `POST /v1/nodes/{id}:collectDiagnostics` (quyền `nodes:write`) |
 | Bundle, rollout | `GET /v1/bundles`, `GET /v1/rollouts/{id}` | `:pause`, `:resume`, `:abort` |
 | Người dùng, vai trò | `GET/POST /v1/roleBindings` | — |

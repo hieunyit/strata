@@ -196,6 +196,28 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 
 4. Tiếp tục rollout nếu cần (`:resume`).
 
+## Lấy mẫu replay
+
+Mẫu request đã ẩn danh cho replay (W12-N-01, `docs/spec/replay-sample.md`). **Chỉ bật sau khi
+pháp chế duyệt định dạng**: tới lúc đó control plane từ chối tỉ lệ > 0; sau đó chạy control
+plane với `-replay-sampling-approved`.
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"rate_percent":1}' "$CP/v1/groups/<group>:setReplaySampling"
+curl -fsS -H "Authorization: Bearer $TOKEN" "$CP/v1/groups/<group>/replaySampling"
+# xoay khóa (một node bị lộ), hoặc tắt hẳn
+curl -fsS -X POST ... -d '{"rate_percent":1,"rotate_key":true}' "$CP/v1/groups/<group>:setReplaySampling"
+curl -fsS -X POST ... -d '{"rate_percent":0}' "$CP/v1/groups/<group>:setReplaySampling"
+```
+
+- Chỉ vai trò `admin`; audit ghi người, tỉ lệ, id khóa (không có khóa).
+- Node áp trong vài giây (log `strata: replay sampling N bp, key "..."`). Cảnh báo `replay key "..."
+  not usable` nghĩa là `replay.key` không khớp id trong control file: kiểm agent (`--bundle-dir`).
+- Tắt (0) thì agent xóa `replay.key` khỏi node.
+- Metric: `strata_agent_replay_samples_total`, `strata_agent_replay_rate_bp`. Mẫu nằm trong
+  object storage `replay/v1/<policy>/...`; hạn lưu là lifecycle của bucket (đề xuất 7 ngày).
+
 ## Tắt module
 
 Dùng khi nghi module gây lỗi cho request (không phải chặn nhầm: chặn nhầm thì **ép

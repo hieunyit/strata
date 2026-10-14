@@ -32,6 +32,8 @@ const (
 	FleetAdminService_EmergencyDisableRule_FullMethodName  = "/strata.admin.v1.FleetAdminService/EmergencyDisableRule"
 	FleetAdminService_EnableRule_FullMethodName            = "/strata.admin.v1.FleetAdminService/EnableRule"
 	FleetAdminService_ListDisabledRules_FullMethodName     = "/strata.admin.v1.FleetAdminService/ListDisabledRules"
+	FleetAdminService_SetReplaySampling_FullMethodName     = "/strata.admin.v1.FleetAdminService/SetReplaySampling"
+	FleetAdminService_GetReplaySampling_FullMethodName     = "/strata.admin.v1.FleetAdminService/GetReplaySampling"
 )
 
 // FleetAdminServiceClient is the client API for FleetAdminService service.
@@ -82,6 +84,16 @@ type FleetAdminServiceClient interface {
 	// REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
 	// group or of every group. Needs nodes:read.
 	ListDisabledRules(ctx context.Context, in *ListDisabledRulesRequest, opts ...grpc.CallOption) (*ListDisabledRulesResponse, error)
+	// REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+	// requests the group's nodes sample for replay, anonymized with the
+	// group's key (W12-N-01); a new key when the group has none or
+	// rotate_key is set. Above 0 only once the control plane runs with
+	// -replay-sampling-approved (legal review of the sample format). Needs
+	// replay:configure (admin).
+	SetReplaySampling(ctx context.Context, in *SetReplaySamplingRequest, opts ...grpc.CallOption) (*SetReplaySamplingResponse, error)
+	// REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+	// the key.
+	GetReplaySampling(ctx context.Context, in *GetReplaySamplingRequest, opts ...grpc.CallOption) (*GetReplaySamplingResponse, error)
 }
 
 type fleetAdminServiceClient struct {
@@ -222,6 +234,26 @@ func (c *fleetAdminServiceClient) ListDisabledRules(ctx context.Context, in *Lis
 	return out, nil
 }
 
+func (c *fleetAdminServiceClient) SetReplaySampling(ctx context.Context, in *SetReplaySamplingRequest, opts ...grpc.CallOption) (*SetReplaySamplingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetReplaySamplingResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_SetReplaySampling_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetAdminServiceClient) GetReplaySampling(ctx context.Context, in *GetReplaySamplingRequest, opts ...grpc.CallOption) (*GetReplaySamplingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetReplaySamplingResponse)
+	err := c.cc.Invoke(ctx, FleetAdminService_GetReplaySampling_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FleetAdminServiceServer is the server API for FleetAdminService service.
 // All implementations must embed UnimplementedFleetAdminServiceServer
 // for forward compatibility.
@@ -270,6 +302,16 @@ type FleetAdminServiceServer interface {
 	// REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
 	// group or of every group. Needs nodes:read.
 	ListDisabledRules(context.Context, *ListDisabledRulesRequest) (*ListDisabledRulesResponse, error)
+	// REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+	// requests the group's nodes sample for replay, anonymized with the
+	// group's key (W12-N-01); a new key when the group has none or
+	// rotate_key is set. Above 0 only once the control plane runs with
+	// -replay-sampling-approved (legal review of the sample format). Needs
+	// replay:configure (admin).
+	SetReplaySampling(context.Context, *SetReplaySamplingRequest) (*SetReplaySamplingResponse, error)
+	// REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+	// the key.
+	GetReplaySampling(context.Context, *GetReplaySamplingRequest) (*GetReplaySamplingResponse, error)
 	mustEmbedUnimplementedFleetAdminServiceServer()
 }
 
@@ -318,6 +360,12 @@ func (UnimplementedFleetAdminServiceServer) EnableRule(context.Context, *EnableR
 }
 func (UnimplementedFleetAdminServiceServer) ListDisabledRules(context.Context, *ListDisabledRulesRequest) (*ListDisabledRulesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDisabledRules not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) SetReplaySampling(context.Context, *SetReplaySamplingRequest) (*SetReplaySamplingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetReplaySampling not implemented")
+}
+func (UnimplementedFleetAdminServiceServer) GetReplaySampling(context.Context, *GetReplaySamplingRequest) (*GetReplaySamplingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetReplaySampling not implemented")
 }
 func (UnimplementedFleetAdminServiceServer) mustEmbedUnimplementedFleetAdminServiceServer() {}
 func (UnimplementedFleetAdminServiceServer) testEmbeddedByValue()                           {}
@@ -574,6 +622,42 @@ func _FleetAdminService_ListDisabledRules_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetAdminService_SetReplaySampling_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetReplaySamplingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).SetReplaySampling(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_SetReplaySampling_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).SetReplaySampling(ctx, req.(*SetReplaySamplingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetAdminService_GetReplaySampling_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetReplaySamplingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetAdminServiceServer).GetReplaySampling(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetAdminService_GetReplaySampling_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetAdminServiceServer).GetReplaySampling(ctx, req.(*GetReplaySamplingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FleetAdminService_ServiceDesc is the grpc.ServiceDesc for FleetAdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -632,6 +716,14 @@ var FleetAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDisabledRules",
 			Handler:    _FleetAdminService_ListDisabledRules_Handler,
+		},
+		{
+			MethodName: "SetReplaySampling",
+			Handler:    _FleetAdminService_SetReplaySampling_Handler,
+		},
+		{
+			MethodName: "GetReplaySampling",
+			Handler:    _FleetAdminService_GetReplaySampling_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
