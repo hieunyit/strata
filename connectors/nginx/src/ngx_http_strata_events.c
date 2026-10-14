@@ -33,6 +33,9 @@
     } while (0)
 
 
+static void ngx_http_strata_metrics_canary(ngx_http_strata_ctx_t *ctx);
+
+
 u_char                     ngx_http_strata_event_buf[NGX_HTTP_STRATA_EVENT_MAX];
 
 /* per worker */
@@ -349,4 +352,66 @@ ngx_http_strata_metrics_record(ngx_http_strata_ctx_t *ctx, uint64_t engine_us)
     }
 
     ngx_http_strata_metric_add(NGX_HTTP_STRATA_METRIC_HISTOGRAM + b, 1);
+
+    ngx_http_strata_metrics_canary(ctx);
+}
+
+
+/*
+ * W12-G2-01: a request of a policy with an enforce canary counts in its
+ * group, so the control plane can compare the two sides. Runs from the pool
+ * cleanup: r and its upstream states are still in the pool.
+ */
+
+static void
+ngx_http_strata_metrics_canary(ngx_http_strata_ctx_t *ctx)
+{
+    static const ngx_msec_int_t  bounds[] = {
+        5, 10, 25, 50, 100, 250, 500, 1000
+    };
+
+    ngx_uint_t                  i, b;
+    ngx_time_t                 *tp;
+    ngx_msec_int_t              ms;
+    ngx_http_request_t         *r = ctx->r;
+    ngx_http_upstream_state_t  *us;
+
+    if (ctx->verdict.flags & STRATA_VF_CANARY) {
+        i = NGX_HTTP_STRATA_METRIC_CANARY;
+
+    } else if (ctx->verdict.flags & STRATA_VF_CANARY_SHADOW) {
+        i = NGX_HTTP_STRATA_METRIC_CANARY + NGX_HTTP_STRATA_METRIC_GROUP;
+
+    } else {
+        return;
+    }
+
+    ngx_http_strata_metric_add(i, 1);
+
+    if (ctx->verdict.action == STRATA_ACTION_BLOCK) {
+        ngx_http_strata_metric_add(i + 1, 1);
+
+    } else if (ctx->verdict.action == STRATA_ACTION_LOG) {
+        ngx_http_strata_metric_add(i + 2, 1);
+    }
+
+    if (r->upstream_states != NULL && r->upstream_states->nelts > 0) {
+        us = r->upstream_states->elts;
+
+        if (us[r->upstream_states->nelts - 1].status >= 500) {
+            ngx_http_strata_metric_add(i + 3, 1);
+        }
+    }
+
+    tp = ngx_timeofday();
+    ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * 1000
+                           + (tp->msec - r->start_msec));
+
+    for (b = 0; b < sizeof(bounds) / sizeof(bounds[0]); b++) {
+        if (ms <= bounds[b]) {
+            break;
+        }
+    }
+
+    ngx_http_strata_metric_add(i + 4 + b, 1);
 }
