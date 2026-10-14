@@ -11,15 +11,16 @@
 # of the same NGINX). Inspection is off until W10-G2-01 deploys the pilot
 # policies and runs pilot.sh --inspect.
 #
-# Usage: deploy/staging/pilot.sh [--env staging|prod-sim] [--inspect] up|status|down|policies
+# Usage: deploy/staging/pilot.sh [--env staging|prod-sim] [--inspect|--no-inspect] up|status|down|policies
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
-env=staging inspect=0
+env=staging inspect=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --env) env=${2:?}; shift 2 ;;
         --inspect) inspect=1; shift ;;
+        --no-inspect) inspect=0; shift ;;
         *) break ;;
     esac
 done
@@ -35,6 +36,14 @@ routes=(pilot-verify pilot-upload)
 port() { case "$1" in pilot-verify) echo "${d}8480" ;; pilot-upload) echo "${d}8481" ;; esac; }
 cp="http://127.0.0.1:${d}8090"
 [ -s "$state/deployed" ] || die "nothing deployed (deploy/staging/deploy.sh --env $env <tag>)"
+# --inspect / --no-inspect are remembered: a plain "up" after a deploy keeps
+# what the pilot routes had (it used to turn inspection off silently)
+mkdir -p "$state/pilot"
+case "$inspect" in
+    1) touch "$state/pilot/inspect" ;;
+    0) rm -f "$state/pilot/inspect" ;;
+    *) inspect=0; [ -e "$state/pilot/inspect" ] && inspect=1 ;;
+esac
 tag=$(sed -n 's/^tag=//p' "$state/deployed")
 src="$root/build/$env/$tag"
 # shellcheck disable=SC1091
@@ -191,5 +200,5 @@ EOF
     done
     say "pilot nodes up on :${d}8480 (verify) and :${d}8481 (upload), inspection $([ "$inspect" = 1 ] && echo on || echo off)"
     status ;;
-*) die "usage: pilot.sh [--env staging|prod-sim] [--inspect] up|status|down|policies" ;;
+*) die "usage: pilot.sh [--env staging|prod-sim] [--inspect|--no-inspect] up|status|down|policies" ;;
 esac
