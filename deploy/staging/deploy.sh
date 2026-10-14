@@ -21,7 +21,10 @@
 # that stands in for production until the PO names one: project
 # strata-prodsim, ports 3xxxx, its own state in .state-prod-sim.
 #
-# Usage: deploy/staging/deploy.sh [--env staging|prod-sim] [--signatures <dir>] <tag>   deploy (build, up, smoke)
+# --signatures may be given more than once (W11-S-01: pack v0.1 is a core
+# and a signature package, RV-S-01); every package's IR goes into -rules.
+#
+# Usage: deploy/staging/deploy.sh [--env staging|prod-sim] [--signatures <dir>]... <tag>   deploy (build, up, smoke)
 #        deploy/staging/deploy.sh [--env ...] --check <tag>                only the checks on the tag
 #        deploy/staging/deploy.sh [--env ...] --status                     what is deployed
 set -euo pipefail
@@ -44,7 +47,9 @@ if [ "${1:-}" = "--status" ]; then
 fi
 check_only=0 sigs=""
 if [ "${1:-}" = "--check" ]; then check_only=1; shift; fi
-if [ "${1:-}" = "--signatures" ]; then sigs="$(cd "${2:?--signatures <package dir>}" && pwd)"; shift 2; fi
+sigdirs=()
+while [ "${1:-}" = "--signatures" ]; do sigdirs+=("$(cd "${2:?--signatures <package dir>}" && pwd)"); shift 2; done
+sigs="${sigdirs[*]}"
 tag="${1:-}"
 [ -n "$tag" ] || die "usage: deploy.sh [--check] <tag>"
 
@@ -65,14 +70,16 @@ echo "$env: $tag = $local_commit (on $remote)"
 
 # 1b. the signature package: its manifest signed by the release key, and
 # every file as the manifest says
-if [ -n "$sigs" ]; then
-    rel="${sigs#"$root"/}"
-    [ "$rel" != "$sigs" ] || die "the signature package must be under the repository ($root)"
+sig_irs=() sig_versions=()
+for d in "${sigdirs[@]}"; do
+    rel="${d#"$root"/}"
+    [ "$rel" != "$d" ] || die "the signature package must be under the repository ($root)"
     (cd "$root" && deploy/dev/run.sh sh -c "cd tools/strata-rules && go run . verify --pub ../../rules/release/signatures.pub ../../$rel") \
-        || die "signature package $sigs does not verify"
-    sig_ir=$(ls "$sigs"/*.rules.json)
-    sig_version=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$sigs/manifest.json" | head -1)
-fi
+        || die "signature package $d does not verify"
+    sig_irs+=("$(ls "$d"/*.rules.json)")
+    sig_versions+=("$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$d/manifest.json" | head -1)")
+done
+sig_version=$(IFS=+; echo "${sig_versions[*]}")
 
 # 2. the sources of the tag, and the build from them
 src="$root/build/$env/$tag"
@@ -94,10 +101,15 @@ grep -q "^name: $project\$" "$lab/compose.yaml" || die "compose.yaml of $tag has
 if [ -n "$sigs" ]; then
     # the package's IR in the runtime image, as the control plane's rules;
     # its cost units are those of 9,000 rules (see docs/reports/w09-s-01.md)
-    cp "$sig_ir" "$src/build/lab/dist/signatures.rules.json"
-    sed -i 's|^COPY rules.yaml |COPY rules.yaml signatures.rules.json |' "$src/build/lab/dist/Dockerfile"
-    sed -i -e "s|- -rules=/opt/strata/rules.yaml|- -rules=/opt/strata/signatures.rules.json\n      - -cost-budget=${STAGING_COST_BUDGET:-2000000}|" "$lab/compose.yaml"
-    grep -q 'signatures.rules.json' "$lab/compose.yaml" || die "compose.yaml of $tag has no -rules flag to point at the package"
+    files="" paths=""
+    for i in "${!sig_irs[@]}"; do
+        cp "${sig_irs[$i]}" "$src/build/lab/dist/signatures-$i.rules.json"
+        files="$files signatures-$i.rules.json"
+        paths="$paths${paths:+,}/opt/strata/signatures-$i.rules.json"
+    done
+    sed -i "s|^COPY rules.yaml |COPY rules.yaml$files |" "$src/build/lab/dist/Dockerfile"
+    sed -i -e "s|- -rules=/opt/strata/rules.yaml|- -rules=$paths\n      - -cost-budget=${STAGING_COST_BUDGET:-2000000}|" "$lab/compose.yaml"
+    grep -q 'signatures-0.rules.json' "$lab/compose.yaml" || die "compose.yaml of $tag has no -rules flag to point at the package"
 fi
 mkdir -p "$state"
 rm -rf "$lab/.state" && ln -s "$state" "$lab/.state"
@@ -108,7 +120,7 @@ compose=(docker compose -f "$lab/compose.yaml" --env-file "$state/env")
 
 # 4. what is deployed, then the lab smoke test against it
 printf 'tag=%s\ncommit=%s\ndeployed_at=%s\n' "$tag" "$local_commit" "$(date -u +%FT%TZ)" > "$state/deployed"
-[ -n "$sigs" ] && printf 'signatures=%s\nsignatures_sha256=%s\n' "$sig_version" "$(sha256sum "$sig_ir" | cut -d' ' -f1)" >> "$state/deployed"
+[ -n "$sigs" ] && printf 'signatures=%s\nsignatures_sha256=%s\n' "$sig_version" "$(cat "${sig_irs[@]}" | sha256sum | cut -d' ' -f1)" >> "$state/deployed"
 "$lab/smoke.sh"
 if [ -n "$sigs" ]; then
     # the policies again, compiled with the package; then a request only
