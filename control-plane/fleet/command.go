@@ -85,6 +85,24 @@ func CommandMessage(cmd store.Command) *fleetv1.ControlMessage {
 		pc.Action = &fleetv1.Command_ForceShadow{ForceShadow: &fleetv1.ForceShadow{PolicyId: cmd.PolicyID, Clear: true}}
 	case store.CommandDiagnostics:
 		pc.Action = &fleetv1.Command_Diagnostics{Diagnostics: &fleetv1.CollectDiagnostics{}}
+	case store.CommandDisableRules, store.CommandSetRules:
+		pc.Action = &fleetv1.Command_DisableRules{DisableRules: &fleetv1.DisableRules{
+			RuleIds: ruleIDs(cmd.RuleIDs), Replace: cmd.Kind == store.CommandSetRules,
+		}}
+	case store.CommandEnableRules:
+		pc.Action = &fleetv1.Command_EnableRules{EnableRules: &fleetv1.EnableRules{
+			RuleIds: ruleIDs(cmd.RuleIDs), All: len(cmd.RuleIDs) == 0,
+		}}
 	}
 	return &fleetv1.ControlMessage{Msg: &fleetv1.ControlMessage_Command{Command: pc}}
+}
+
+func ruleIDs(ids []int32) []uint32 {
+	out := make([]uint32, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			out = append(out, uint32(id))
+		}
+	}
+	return out
 }

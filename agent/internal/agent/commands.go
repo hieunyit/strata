@@ -25,6 +25,22 @@ func (a *Agent) command(_ context.Context, cmd *fleetv1.Command) *fleetv1.Comman
 			return &fleetv1.CommandResult{Error: err.Error()}
 		}
 		return &fleetv1.CommandResult{Ok: true}
+	case *fleetv1.Command_DisableRules:
+		if a.KillSwitch == nil {
+			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
+		}
+		if err := a.KillSwitch.Disable(act.DisableRules); err != nil {
+			return &fleetv1.CommandResult{Error: err.Error()}
+		}
+		return &fleetv1.CommandResult{Ok: true}
+	case *fleetv1.Command_EnableRules:
+		if a.KillSwitch == nil {
+			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
+		}
+		if err := a.KillSwitch.Enable(act.EnableRules); err != nil {
+			return &fleetv1.CommandResult{Error: err.Error()}
+		}
+		return &fleetv1.CommandResult{Ok: true}
 	case *fleetv1.Command_Diagnostics:
 		b, err := json.Marshal(a.diagnostics())
 		if err != nil {
@@ -46,6 +62,7 @@ type Diagnostics struct {
 	UptimeSeconds int64            `json:"uptime_seconds"`
 	Bundle        *DiagBundle      `json:"bundle,omitempty"`
 	ForceShadow   *DiagForceShadow `json:"force_shadow,omitempty"`
+	DisabledRules []uint32         `json:"disabled_rules,omitempty"`
 	Spool         DiagSpool        `json:"spool"`
 	Workers       []DiagWorker     `json:"workers,omitempty"`
 	MetricsError  string           `json:"metrics_error,omitempty"`
@@ -113,6 +130,9 @@ func (a *Agent) diagnostics() Diagnostics {
 			fs.AllUntil = &s.All
 		}
 		d.ForceShadow = fs
+	}
+	if a.KillSwitch != nil {
+		d.DisabledRules = a.KillSwitch.Rules()
 	}
 	if a.cfg.MetricsFile != "" {
 		snap, err := shmmetrics.Read(a.cfg.MetricsFile)

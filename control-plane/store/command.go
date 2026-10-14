@@ -14,6 +14,12 @@ const (
 	CommandForceShadow = "FORCE_SHADOW"
 	CommandClearShadow = "CLEAR_FORCE_SHADOW"
 	CommandDiagnostics = "DIAGNOSTICS"
+	// Emergency kill switch (W12-G1-02): add rule_ids to the node's
+	// disabled rules, make them exactly rule_ids, or switch rule_ids (every
+	// rule when empty) back on.
+	CommandDisableRules = "DISABLE_RULES"
+	CommandSetRules     = "SET_DISABLED_RULES"
+	CommandEnableRules  = "ENABLE_RULES"
 
 	CommandPending = "PENDING"
 	CommandSent    = "SENT"
@@ -29,6 +35,7 @@ type Command struct {
 	Kind            string    `json:"kind"`
 	PolicyID        string    `json:"policy_id"`
 	DurationSeconds int       `json:"duration_seconds"`
+	RuleIDs         []int32   `json:"rule_ids,omitempty"`
 	State           string    `json:"state"`
 	Error           string    `json:"error"`
 	Output          string    `json:"-"` // not in the audit log
@@ -38,11 +45,11 @@ type Command struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
-const commandCols = `id, node_id, kind, policy_id, duration_seconds, state, error, output, created_by, created_at, expires_at, updated_at`
+const commandCols = `id, node_id, kind, policy_id, duration_seconds, rule_ids, state, error, output, created_by, created_at, expires_at, updated_at`
 
 func scanCommand(r pgx.Row) (Command, error) {
 	var c Command
-	err := r.Scan(&c.ID, &c.NodeID, &c.Kind, &c.PolicyID, &c.DurationSeconds, &c.State, &c.Error, &c.Output,
+	err := r.Scan(&c.ID, &c.NodeID, &c.Kind, &c.PolicyID, &c.DurationSeconds, &c.RuleIDs, &c.State, &c.Error, &c.Output,
 		&c.CreatedBy, &c.CreatedAt, &c.ExpiresAt, &c.UpdatedAt)
 	return c, err
 }
@@ -55,9 +62,13 @@ func (s *Store) CreateCommands(ctx context.Context, cmds []Command, a Audit) ([]
 	var out []Command
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		for _, c := range cmds {
-			row := tx.QueryRow(ctx, `INSERT INTO node_commands (id, node_id, kind, policy_id, duration_seconds, created_by, expires_at)
-				SELECT $1, id, $3, $4, $5, $6, $7 FROM nodes WHERE id = $2 AND revoked_at IS NULL
-				RETURNING `+commandCols, c.ID, c.NodeID, c.Kind, c.PolicyID, c.DurationSeconds, a.Actor, c.ExpiresAt)
+			ids := c.RuleIDs
+			if ids == nil {
+				ids = []int32{}
+			}
+			row := tx.QueryRow(ctx, `INSERT INTO node_commands (id, node_id, kind, policy_id, duration_seconds, rule_ids, created_by, expires_at)
+				SELECT $1, id, $3, $4, $5, $6, $7, $8 FROM nodes WHERE id = $2 AND revoked_at IS NULL
+				RETURNING `+commandCols, c.ID, c.NodeID, c.Kind, c.PolicyID, c.DurationSeconds, ids, a.Actor, c.ExpiresAt)
 			got, err := scanCommand(row)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound

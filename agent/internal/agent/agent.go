@@ -29,6 +29,7 @@ import (
 	"github.com/strata/strata/agent/internal/fallback"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/identity"
+	"github.com/strata/strata/agent/internal/killswitch"
 	"github.com/strata/strata/agent/internal/pusher"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 	"github.com/strata/strata/agent/internal/spool"
@@ -80,6 +81,8 @@ type Agent struct {
 	ForceShadow *forceshadow.Manager
 	// Fallback forces the node into shadow on its own; nil when off.
 	Fallback *fallback.Watcher
+	// KillSwitch applies DisableRules and EnableRules; nil without BundleDir.
+	KillSwitch *killswitch.Manager
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -173,6 +176,7 @@ func New(cfg Config) (*Agent, error) {
 	}
 	if bm != nil {
 		a.ForceShadow = forceshadow.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "force-shadow.json"))
+		a.KillSwitch = killswitch.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "disabled-rules.json"))
 		if cfg.Fallback && cfg.MetricsFile != "" {
 			a.Fallback = fallback.NewWatcher(cfg.MetricsFile, a.ForceShadow, cfg.FallbackOptions)
 		}
@@ -240,6 +244,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	} else {
 		close(fsDone)
 	}
+	ksDone := make(chan struct{})
+	if a.KillSwitch != nil {
+		go func() { a.KillSwitch.Run(pushCtx); close(ksDone) }()
+	} else {
+		close(ksDone)
+	}
 	fbDone := make(chan struct{})
 	if a.Fallback != nil {
 		go func() { a.Fallback.Run(pushCtx); close(fbDone) }()
@@ -278,6 +288,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	errs = append(errs, <-controlDone)
 	<-fsDone
 	<-fbDone
+	<-ksDone
 	return errors.Join(errs...)
 }
 
