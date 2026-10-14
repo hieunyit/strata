@@ -393,8 +393,12 @@
       "guard": "data_guard chỉ nhận cccd và jwt, nhận \"{{value}}\"",
       "guardTwice": "data_guard có giá trị lặp lại",
       "unknown": "khóa không hợp lệ \"{{key}}\"",
-      "modeRequired": "thiếu mode"
-    }
+      "modeRequired": "thiếu mode",
+      "canary": "canary_percent là số từ 0.01 đến 99.99, tối đa hai chữ số thập phân",
+      "canaryMode": "canary_percent chỉ dùng với mode enforce"
+    },
+    "canary": "Canary (% client bị chặn)",
+    "canaryNote": "Để trống: chặn với mọi client. Client ngoài nhóm canary chạy shadow; control plane tự ép shadow nếu canary tệ hơn nhóm shadow."
   },
   "diff": {
     "title": "So sánh phiên bản của {{name}}",
@@ -417,7 +421,8 @@
       "oversize": "Body request lớn hơn phần được kiểm",
       "allowed_codes_check": "Kiểm mã trạng thái response",
       "db_errors": "Lỗi cơ sở dữ liệu trong body",
-      "data_guard": "Che dữ liệu nhạy cảm"
+      "data_guard": "Che dữ liệu nhạy cảm",
+      "canary_percent": "Canary (%)"
     }
   }
 }

@@ -52,6 +52,23 @@ describe('policy YAML', () => {
     }
   });
 
+  // W12-G2-01: the canary of an enforce policy survives the editor
+  it('keeps canary_percent, on enforce only', () => {
+    const spec = { mode: 'MODE_ENFORCE' as const, canary_percent: 5 };
+    expect(specToYaml(spec)).toBe('mode: enforce\ncanary_percent: 5\n');
+    expect(yamlToSpec('mode: enforce\ncanary_percent: 12.5\n').spec).toEqual({ mode: 'MODE_ENFORCE', canary_percent: 12.5 });
+    expect(normalizeSpec(spec)).toEqual(spec);
+    expect(normalizeSpec({ mode: 'MODE_SHADOW', canary_percent: 5 })).toEqual({ mode: 'MODE_SHADOW' });
+    for (const [text, line, code] of [
+      ['mode: enforce\ncanary_percent: 100\n', 2, 'canary'],
+      ['mode: enforce\ncanary_percent: 0.001\n', 2, 'canary'],
+      ['mode: enforce\ncanary_percent: lots\n', 2, 'canary'],
+      ['mode: shadow\ncanary_percent: 5\n', 2, 'canaryMode'],
+    ] as [string, number, string][]) {
+      expect(yamlToSpec(text).error, text).toMatchObject({ line, code });
+    }
+  });
+
   it('normalizes what the API may send', () => {
     expect(normalizeSpec({ mode: 'MODE_UNSPECIFIED', oversize: 'OVERSIZE_UNSPECIFIED', response: {} })).toEqual({ mode: 'MODE_SHADOW' });
   });
@@ -139,6 +156,20 @@ describe('policy editor (W11-F-01)', () => {
     expect(screen.queryByTestId('policy-editor')).toBeNull();
     const states = await screen.findAllByTestId('policy-version-state');
     expect(states.map((s) => s.textContent)).toEqual(['draft', 'deployed']);
+  });
+
+  it('saves the canary set in the form, and the YAML shows it', async () => {
+    setup();
+    const update = vi.spyOn(apiClient, 'updatePolicy').mockResolvedValue({ ...policy, version: 4, etag: 'etag-4' });
+    await openEditor();
+    expect(screen.queryByTestId('editor-canary')).toBeNull(); // shadow: no canary
+    fireEvent.click(screen.getByTestId('editor-mode-MODE_ENFORCE'));
+    fireEvent.change(screen.getByTestId('editor-canary'), { target: { value: '5' } });
+    expect((screen.getByTestId('editor-yaml') as HTMLTextAreaElement).value).toBe('mode: enforce\noversize: pass\ncanary_percent: 5\n');
+    fireEvent.click(screen.getByTestId('editor-save'));
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('example-api', { mode: 'MODE_ENFORCE', oversize: 'OVERSIZE_PASS', canary_percent: 5 }, 'etag-3'),
+    );
   });
 
   it('a stale etag says someone else saved', async () => {

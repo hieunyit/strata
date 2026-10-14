@@ -420,6 +420,13 @@ export interface components {
        */
       max_snippet_size?: number;
       privacy?: components["schemas"]["v1PrivacySettings"];
+      /**
+       * Format: double
+       * @description Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,
+       * two decimals), whose requests this enforce policy blocks; the others
+       * run in shadow. 0: every client.
+       */
+      canary_percent?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;

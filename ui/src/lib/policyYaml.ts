@@ -23,6 +23,9 @@ export function specToYaml(spec: PolicySpec): string {
   if (spec.oversize && spec.oversize !== 'OVERSIZE_UNSPECIFIED') {
     lines.push(`oversize: ${oversizeOut[spec.oversize]}`);
   }
+  if (spec.mode === 'MODE_ENFORCE' && validCanary(spec.canary_percent)) {
+    lines.push(`canary_percent: ${spec.canary_percent}`);
+  }
   const r = spec.response;
   const guards = (r?.data_guard ?? []).filter((g) => (DATA_GUARDS as readonly string[]).includes(g));
   if (r && (r.allowed_codes_check || r.db_errors || guards.length)) {
@@ -38,7 +41,13 @@ export function specToYaml(spec: PolicySpec): string {
 // arguments, so the editor shows them in the user's language.
 export type YamlErrorCode =
   | 'tab' | 'indent' | 'keyValue' | 'twice' | 'mode' | 'oversize' | 'responseNext'
-  | 'bool' | 'list' | 'guard' | 'guardTwice' | 'unknown' | 'modeRequired';
+  | 'bool' | 'list' | 'guard' | 'guardTwice' | 'unknown' | 'modeRequired' | 'canary' | 'canaryMode';
+
+// canary_percent (W12-G2-01): 0.01 to 99.99, two decimals; leaving it out
+// means every client.
+export function validCanary(v: number | undefined): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0.01 && v <= 99.99 && Math.abs(v * 100 - Math.round(v * 100)) < 1e-6;
+}
 
 export interface YamlError {
   line: number; // 1-based
@@ -93,6 +102,7 @@ export function yamlToSpec(text: string): ParseResult {
   });
   const spec: PolicySpec = {};
   const seen = new Set<string>();
+  let canaryLine = 0;
   let i = 0;
   const fail = (line: number, code: YamlErrorCode, args?: Record<string, string>): ParseResult => ({
     error: { line, code, args },
@@ -119,6 +129,14 @@ export function yamlToSpec(text: string): ParseResult {
         const v = oversizeIn[scalar(rest)];
         if (!v) return fail(l.n, 'oversize');
         spec.oversize = v;
+        break;
+      }
+      case 'canary_percent': {
+        const v = scalar(rest);
+        const n = Number(v);
+        if (v === '' || !validCanary(n)) return fail(l.n, 'canary');
+        spec.canary_percent = n;
+        canaryLine = l.n;
         break;
       }
       case 'response': {
@@ -167,6 +185,7 @@ export function yamlToSpec(text: string): ParseResult {
     }
   }
   if (!spec.mode) return fail(1, 'modeRequired');
+  if (canaryLine && spec.mode !== 'MODE_ENFORCE') return fail(canaryLine, 'canaryMode');
   return { spec };
 }
 
@@ -175,6 +194,8 @@ export function yamlToSpec(text: string): ParseResult {
 export function normalizeSpec(spec: PolicySpec): PolicySpec {
   const out: PolicySpec = { mode: spec.mode && spec.mode !== 'MODE_UNSPECIFIED' ? spec.mode : 'MODE_SHADOW' };
   if (spec.oversize && spec.oversize !== 'OVERSIZE_UNSPECIFIED') out.oversize = spec.oversize;
+  // a canary only exists on an enforce policy
+  if (out.mode === 'MODE_ENFORCE' && validCanary(spec.canary_percent)) out.canary_percent = spec.canary_percent;
   const r = spec.response;
   const guards = (r?.data_guard ?? []).filter((g) => (DATA_GUARDS as readonly string[]).includes(g));
   if (r && (r.allowed_codes_check || r.db_errors || guards.length)) {

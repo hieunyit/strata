@@ -399,8 +399,12 @@
       "guard": "data_guard accepts cccd and jwt, got \"{{value}}\"",
       "guardTwice": "data_guard lists a value twice",
       "unknown": "unknown key \"{{key}}\"",
-      "modeRequired": "mode is required"
-    }
+      "modeRequired": "mode is required",
+      "canary": "canary_percent is a number from 0.01 to 99.99 with at most two decimals",
+      "canaryMode": "canary_percent needs mode enforce"
+    },
+    "canary": "Canary (% of clients blocked)",
+    "canaryNote": "Empty: every client. Clients outside the canary run in shadow; the control plane forces shadow if the canary does worse than its shadow group."
   },
   "diff": {
     "title": "Compare versions of {{name}}",
@@ -423,7 +427,8 @@
       "oversize": "Request body larger than what is inspected",
       "allowed_codes_check": "Check response status codes",
       "db_errors": "Database errors in the body",
-      "data_guard": "Mask sensitive data"
+      "data_guard": "Mask sensitive data",
+      "canary_percent": "Canary (%)"
     }
   }
 }
