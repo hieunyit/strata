@@ -10,7 +10,9 @@ use std::sync::Arc;
 
 use libstrata::bundle::{Mode, Oversize, PolicySpec, Spec, build, public_key};
 use libstrata::engine::Engine;
-use libstrata::event::{Action, EventData, MAX_DATAGRAM, MatchData, encode, prepare_snippet};
+use libstrata::event::{
+    Action, CanaryGroup, EventData, MAX_DATAGRAM, MatchData, encode, prepare_snippet,
+};
 use libstrata::tx::Tx;
 
 const SEED: [u8; 32] = [9; 32];
@@ -88,6 +90,7 @@ fn golden_blocked_scenario() {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -125,6 +128,7 @@ fn golden_shadow_scenario() {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -156,6 +160,7 @@ fn golden_engine_error_scenario() {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -195,6 +200,7 @@ fn golden_long_snippet_scenario() {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);
@@ -237,6 +243,7 @@ fn golden_large_event_truncated_scenario() {
         headers: &[],
         inspection: Default::default(),
         would_block: false,
+        canary: CanaryGroup::None,
     };
 
     let data = encode(&ev);

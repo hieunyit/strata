@@ -31,7 +31,13 @@ type Options struct {
 type Batcher struct {
 	opts Options
 	sp   Appender
-	in   chan *eventv1.Event
+	in   chan item
+}
+
+// item: an event or a replay sample (W12-N-01); both ride the batches.
+type item struct {
+	ev *eventv1.Event
+	s  *eventv1.ReplaySample
 }
 
 // New returns a batcher writing to sp.
@@ -45,14 +51,22 @@ func New(sp Appender, opts Options) *Batcher {
 	if opts.MaxDelay <= 0 {
 		opts.MaxDelay = time.Second
 	}
-	return &Batcher{opts: opts, sp: sp, in: make(chan *eventv1.Event, opts.MaxEvents)}
+	return &Batcher{opts: opts, sp: sp, in: make(chan item, opts.MaxEvents)}
 }
 
 // Add queues an event; it blocks while the batcher is writing to the
 // spool, which leaves new datagrams in the socket buffer.
 func (b *Batcher) Add(ctx context.Context, ev *eventv1.Event) {
 	select {
-	case b.in <- ev:
+	case b.in <- item{ev: ev}:
+	case <-ctx.Done():
+	}
+}
+
+// AddSample queues a replay sample like Add.
+func (b *Batcher) AddSample(ctx context.Context, s *eventv1.ReplaySample) {
+	select {
+	case b.in <- item{s: s}:
 	case <-ctx.Done():
 	}
 }
@@ -64,44 +78,57 @@ func (b *Batcher) Run(ctx context.Context) error {
 	defer t.Stop()
 	var cur fleetv1.EventBatch
 	size := 0
+	count := func() int { return len(cur.Events) + len(cur.Samples) }
 	flush := func() error {
-		if len(cur.Events) == 0 {
+		if count() == 0 {
 			return nil
 		}
 		payload, err := proto.Marshal(&cur)
 		if err != nil {
 			return fmt.Errorf("batch: encode: %w", err)
 		}
-		if _, err := b.sp.Append(payload, uint32(len(cur.Events))); err != nil {
+		if _, err := b.sp.Append(payload, uint32(count())); err != nil {
 			return fmt.Errorf("batch: spool: %w", err)
 		}
-		cur.Events, size = nil, 0
+		cur.Events, cur.Samples, size = nil, nil, 0
 		return nil
 	}
-	add := func(ev *eventv1.Event) error {
-		if b.opts.NodeID != "" {
-			ev.NodeId = b.opts.NodeID
+	add := func(it item) error {
+		var n int
+		if it.ev != nil {
+			if b.opts.NodeID != "" {
+				it.ev.NodeId = b.opts.NodeID
+			}
+			n = proto.Size(it.ev) + 8 // field tag and length prefix
+		} else {
+			if b.opts.NodeID != "" {
+				it.s.NodeId = []byte(b.opts.NodeID)
+			}
+			n = proto.Size(it.s) + 8
 		}
-		n := proto.Size(ev) + 8 // field tag and length prefix
 		if size > 0 && size+n > b.opts.MaxBytes {
 			if err := flush(); err != nil {
 				return err
 			}
 		}
-		if len(cur.Events) == 0 {
+		if count() == 0 {
 			t.Reset(b.opts.MaxDelay)
 		}
-		cur.Events = append(cur.Events, ev)
+		if it.ev != nil {
+			cur.Events = append(cur.Events, it.ev)
+		} else {
+			cur.Samples = append(cur.Samples, it.s)
+		}
 		size += n
-		if len(cur.Events) >= b.opts.MaxEvents {
+		if count() >= b.opts.MaxEvents {
 			return flush()
 		}
 		return nil
 	}
 	for {
 		select {
-		case ev := <-b.in:
-			if err := add(ev); err != nil {
+		case it := <-b.in:
+			if err := add(it); err != nil {
 				return err
 			}
 		case <-t.C:
@@ -113,8 +140,8 @@ func (b *Batcher) Run(ctx context.Context) error {
 			// Drain what Add already queued.
 			for {
 				select {
-				case ev := <-b.in:
-					if err := add(ev); err != nil {
+				case it := <-b.in:
+					if err := add(it); err != nil {
 						return err
 					}
 				default:

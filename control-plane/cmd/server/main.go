@@ -34,6 +34,7 @@ import (
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
+	"github.com/strata/strata/control-plane/replay"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -81,6 +82,8 @@ func main() {
 	s3Endpoint := flag.String("s3-endpoint", "", "Object store host:port for bundles; keys from STRATA_S3_ACCESS_KEY, STRATA_S3_SECRET_KEY")
 	s3Bucket := flag.String("s3-bucket", "strata-bundles", "Bucket for bundles")
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
+	replayApproved := flag.Bool("replay-sampling-approved", false,
+		"Allow sampling real traffic for replay (W12-N-01); only once the sample format (docs/spec/replay-sample.md) passed legal review")
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
@@ -260,6 +263,7 @@ func main() {
 	deps := admin.Deps{Presence: presence}
 	var objects *policy.S3
 	var rollouts *fleet.Rollouts
+	var canary *fleet.CanaryMonitor
 	if pg != nil {
 		deps.Fleet, deps.Policies, deps.Rollouts = pg, pg, pg
 		waves, err := parseWaves(*rolloutWaves)
@@ -271,7 +275,12 @@ func main() {
 		go rollouts.Run(ctx)
 		commands := fleet.NewCommands(pg, presence)
 		deps.Commands, deps.CommandKicker = pg, commands
+		deps.KillSwitch = pg
+		deps.Replay, deps.ReplayApproved = pg, *replayApproved
 		go commands.Run(ctx)
+		canary = fleet.NewCanaryMonitor(pg, commands, fleet.CanaryOptions{})
+		deps.CanaryTrips = pg
+		go canary.Run(ctx)
 		if *s3Endpoint != "" {
 			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
 				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
@@ -372,9 +381,13 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
-		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts}
+		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
 		if objects != nil {
 			fcfg.Objects = objects
+			// replay samples from the nodes, as sample files (W12-N-01)
+			samples := replay.NewCollector(&replay.Store{Objects: objects})
+			fcfg.Samples = samples
+			go samples.Run(ctx)
 		}
 		if *nodeCACert != "" {
 			if pg == nil {
@@ -407,6 +420,7 @@ func main() {
 		src := metrics.Sources{Connected: presence.ConnectedNodes}
 		if pg != nil {
 			src.Enrolled, src.Active = pg.EnrolledNodes, pg.ActiveRollouts
+			src.CanaryTrips, src.OpenTrips = canary.Trips, pg.OpenCanaryTrips
 		}
 		if ingestSvc != nil {
 			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors

@@ -48,7 +48,12 @@ type fleetAdmin struct {
 	presence NodePresence
 	commands CommandStore // nil: the command routes answer FailedPrecondition
 	kick     Kicker       // wakes the command dispatcher
-	now      func() time.Time
+	rules    RuleStore    // nil: the kill switch answers FailedPrecondition
+	trips    TripClearer  // nil: no canary fallback
+	replay   ReplayStore  // nil: no replay sampling
+	// replayApproved: sampling above 0 is allowed (legal review done)
+	replayApproved bool
+	now            func() time.Time
 }
 
 // audit describes the caller of a write for the audit log.

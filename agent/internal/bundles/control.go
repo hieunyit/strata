@@ -29,6 +29,18 @@ const (
 	forceNameSize = 56
 	// MaxForcePolicies the control file can name.
 	MaxForcePolicies = 32
+	// disabled-rules block (W12-G1-02): count u32, reserved u32, IDs
+	ctlRulesOff = 2128
+	ctlRulesIDs = ctlRulesOff + 8
+	ctlRulesEnd = ctlRulesIDs + MaxDisabledRules*4
+	// MaxDisabledRules the control file can hold.
+	MaxDisabledRules = 480
+	// replay sampling block (W12-N-01): rate u32, reserved u32, key id
+	ctlReplayOff   = 4056
+	ctlReplayKeyID = ctlReplayOff + 8
+	ctlReplayEnd   = ctlReplayKeyID + MaxReplayKeyID
+	// MaxReplayKeyID: longest replay key id.
+	MaxReplayKeyID = 16
 )
 
 var ctlMagic = []byte("STRCTL1\x00")
@@ -47,6 +59,11 @@ type Control struct {
 	// ForceAll and ForcePolicies: the force-shadow block.
 	ForceAll      bool
 	ForcePolicies []string
+	// DisabledRules: the disabled-rules block (emergency kill switch).
+	DisabledRules []uint32
+	// ReplayRate (basis points) and ReplayKeyID: the replay sampling block.
+	ReplayRate  uint32
+	ReplayKeyID string
 }
 
 // ReadControl reads path; os.ErrNotExist when there is none yet.
@@ -78,7 +95,104 @@ func ReadControl(path string) (Control, error) {
 		}
 		c.ForcePolicies = append(c.ForcePolicies, string(f[:end]))
 	}
+	nr := int(binary.LittleEndian.Uint32(b[ctlRulesOff:]))
+	if nr > MaxDisabledRules {
+		return Control{}, fmt.Errorf("bundles: %s: %d disabled rules", path, nr)
+	}
+	for i := 0; i < nr; i++ {
+		c.DisabledRules = append(c.DisabledRules, binary.LittleEndian.Uint32(b[ctlRulesIDs+4*i:]))
+	}
+	c.ReplayRate = binary.LittleEndian.Uint32(b[ctlReplayOff:])
+	id := b[ctlReplayKeyID:ctlReplayEnd]
+	end := 0
+	for end < len(id) && id[end] != 0 {
+		end++
+	}
+	c.ReplayKeyID = string(id[:end])
 	return c, nil
+}
+
+// ValidReplayKeyID: 1..16 of [A-Za-z0-9._-].
+func ValidReplayKeyID(id string) bool {
+	if id == "" || len(id) > MaxReplayKeyID {
+		return false
+	}
+	for _, c := range []byte(id) {
+		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-'
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// WriteReplay sets the replay sampling block of an existing control file
+// in place, with the seqlock (W12-N-01): workers read the key named keyID
+// from ReplayKeyFile and sample rate basis points of the requests. Rate 0
+// switches sampling off.
+func WriteReplay(path string, rate uint32, keyID string) (uint64, error) {
+	if rate > 10000 || (rate > 0 && !ValidReplayKeyID(keyID)) {
+		return 0, fmt.Errorf("bundles: replay rate %d, key id %q", rate, keyID)
+	}
+	block := make([]byte, ctlReplayEnd-ctlReplayOff)
+	binary.LittleEndian.PutUint32(block, rate)
+	if rate > 0 {
+		copy(block[8:], keyID)
+	}
+	ctlMu.Lock()
+	defer ctlMu.Unlock()
+	cur, err := ReadControl(path)
+	if err != nil {
+		return 0, err
+	}
+	return writeInPlace(path, cur.Generation, func(put func(int64, []byte) error) error {
+		return put(ctlReplayOff, block)
+	})
+}
+
+// ReplayKeyFile: the replay key in the bundle directory, which the
+// workers read when the key id of the control file changes.
+const ReplayKeyFile = "replay.key"
+
+// WriteReplayKey writes the key file atomically: "SRK1", the key id
+// (NUL-padded to 16 bytes), the 32-byte key. Mode 0640, like the bundles
+// the workers read.
+func WriteReplayKey(dir, keyID string, key []byte) error {
+	if !ValidReplayKeyID(keyID) || len(key) != 32 {
+		return fmt.Errorf("bundles: bad replay key")
+	}
+	b := make([]byte, 4+MaxReplayKeyID+32)
+	copy(b, "SRK1")
+	copy(b[4:], keyID)
+	copy(b[4+MaxReplayKeyID:], key)
+	tmp := filepath.Join(dir, "."+ReplayKeyFile+".new")
+	if err := os.WriteFile(tmp, b, 0o640); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, ReplayKeyFile))
+}
+
+// WriteDisabledRules sets the disabled-rules block of an existing control
+// file in place, with the seqlock; workers apply it at their next read
+// (≤ 1 s). os.ErrNotExist when there is no control file yet.
+func WriteDisabledRules(path string, ids []uint32) (uint64, error) {
+	if len(ids) > MaxDisabledRules {
+		return 0, fmt.Errorf("bundles: %d disabled rules, at most %d", len(ids), MaxDisabledRules)
+	}
+	block := make([]byte, ctlRulesEnd-ctlRulesOff)
+	binary.LittleEndian.PutUint32(block, uint32(len(ids)))
+	for i, id := range ids {
+		binary.LittleEndian.PutUint32(block[8+4*i:], id)
+	}
+	ctlMu.Lock()
+	defer ctlMu.Unlock()
+	cur, err := ReadControl(path)
+	if err != nil {
+		return 0, err
+	}
+	return writeInPlace(path, cur.Generation, func(put func(int64, []byte) error) error {
+		return put(ctlRulesOff, block)
+	})
 }
 
 // ValidPolicyName: what the control file and the bundle accept as a policy

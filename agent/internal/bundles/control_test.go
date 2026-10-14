@@ -131,3 +131,51 @@ func TestForceShadowSurvivesBundleSwitch(t *testing.T) {
 		t.Error("33 policies accepted")
 	}
 }
+
+// W12-G1-02: the disabled-rules block is independent of the bundle and the
+// force-shadow blocks, in place, at offset 2128.
+func TestDisabledRulesBlock(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "control")
+	if _, err := WriteDisabledRules(p, []uint32{1}); !os.IsNotExist(err) {
+		t.Fatalf("no control file yet: %v", err)
+	}
+	if _, err := WriteControl(p, 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	ino := inode(t, p)
+	if _, err := WriteForceShadow(p, false, []string{"example-api"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDisabledRules(p, []uint32{942100, 913100}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteControl(p, 2, [32]byte{}, "bundle-2.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	c, err := ReadControl(p)
+	if err != nil || c.Name != "bundle-2.sbn" || len(c.ForcePolicies) != 1 || len(c.DisabledRules) != 2 || c.DisabledRules[0] != 942100 {
+		t.Fatalf("%+v %v", c, err)
+	}
+	b, _ := os.ReadFile(p)
+	if binary.LittleEndian.Uint32(b[2128:]) != 2 || binary.LittleEndian.Uint32(b[2136:]) != 942100 || binary.LittleEndian.Uint32(b[2140:]) != 913100 {
+		t.Fatalf("layout: %x", b[2128:2148])
+	}
+	if inode(t, p) != ino {
+		t.Fatal("control file replaced")
+	}
+	if _, err := WriteDisabledRules(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := ReadControl(p); len(c.DisabledRules) != 0 || len(c.ForcePolicies) != 1 {
+		t.Fatalf("%+v", c)
+	}
+	if _, err := WriteDisabledRules(p, make([]uint32, MaxDisabledRules+1)); err == nil {
+		t.Fatal("481 rules accepted")
+	}
+	// a bad count in the file is refused on read
+	binary.LittleEndian.PutUint32(b[2128:], MaxDisabledRules+1)
+	_ = os.WriteFile(p, b, 0o644)
+	if _, err := ReadControl(p); err == nil {
+		t.Fatal("bad count read")
+	}
+}

@@ -27,6 +27,20 @@ pub enum Action {
     Block = 4,
 }
 
+/// Canary group of the request (event.proto `CanaryGroup`): whether its
+/// policy has an enforce canary and on which side of it the client fell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum CanaryGroup {
+    /// The policy has no canary.
+    #[default]
+    None = 0,
+    /// Inside the canary: enforced.
+    Enforce = 1,
+    /// Outside the canary: shadow.
+    Shadow = 2,
+}
+
 impl Action {
     pub const fn from_verdict_action(a: u32) -> Self {
         match a {
@@ -97,6 +111,8 @@ pub struct EventData<'a> {
     pub inspection: Inspection,
     /// #57: blocked, or would be in shadow
     pub would_block: bool,
+    /// W12-G2-01
+    pub canary: CanaryGroup,
 }
 
 /// Request context of an event (RV-G2-01), masked and bounded: the
@@ -324,7 +340,7 @@ pub fn prepare_snippet_with(
     masked[..masked.len().min(max.min(MASK_WINDOW))].to_vec()
 }
 
-fn put_varint(v: u64, out: &mut Vec<u8>) {
+pub(crate) fn put_varint(v: u64, out: &mut Vec<u8>) {
     let mut val = v;
     while val >= 0x80 {
         out.push((val as u8 & 0x7f) | 0x80);
@@ -333,11 +349,11 @@ fn put_varint(v: u64, out: &mut Vec<u8>) {
     out.push(val as u8);
 }
 
-fn put_tag(field_number: u32, wire_type: u8, out: &mut Vec<u8>) {
+pub(crate) fn put_tag(field_number: u32, wire_type: u8, out: &mut Vec<u8>) {
     put_varint(((field_number as u64) << 3) | (wire_type as u64), out);
 }
 
-fn put_string(field_number: u32, val: &str, out: &mut Vec<u8>) {
+pub(crate) fn put_string(field_number: u32, val: &str, out: &mut Vec<u8>) {
     if !val.is_empty() {
         put_tag(field_number, 2, out);
         put_varint(val.len() as u64, out);
@@ -345,7 +361,7 @@ fn put_string(field_number: u32, val: &str, out: &mut Vec<u8>) {
     }
 }
 
-fn put_bytes(field_number: u32, val: &[u8], out: &mut Vec<u8>) {
+pub(crate) fn put_bytes(field_number: u32, val: &[u8], out: &mut Vec<u8>) {
     if !val.is_empty() {
         put_tag(field_number, 2, out);
         put_varint(val.len() as u64, out);
@@ -353,14 +369,14 @@ fn put_bytes(field_number: u32, val: &[u8], out: &mut Vec<u8>) {
     }
 }
 
-fn put_uint64(field_number: u32, val: u64, out: &mut Vec<u8>) {
+pub(crate) fn put_uint64(field_number: u32, val: u64, out: &mut Vec<u8>) {
     if val != 0 {
         put_tag(field_number, 0, out);
         put_varint(val, out);
     }
 }
 
-fn put_uint32(field_number: u32, val: u32, out: &mut Vec<u8>) {
+pub(crate) fn put_uint32(field_number: u32, val: u32, out: &mut Vec<u8>) {
     if val != 0 {
         put_tag(field_number, 0, out);
         put_varint(val as u64, out);
@@ -455,6 +471,8 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
     put_uint32(20, ev.inspection as u32, out);
     // 21: would_block
     put_uint32(21, ev.would_block as u32, out);
+    // 22: CanaryGroup canary (W12-G2-01)
+    put_uint32(22, ev.canary as u32, out);
 }
 
 /// The first `max` bytes of UTF-8 `b`, cut on a character boundary.
@@ -565,6 +583,45 @@ pub fn encode(ev: &EventData<'_>) -> Vec<u8> {
     }
 
     buf
+}
+
+/// First bytes of a replay sample datagram on the event socket (W12-N-01).
+/// 0xff never starts a protobuf message, so the agent tells samples from
+/// events by it.
+pub const SAMPLE_MAGIC: &[u8; 4] = b"\xffSR1";
+
+/// Encodes a replay sample (event.proto `ReplaySample`) after SAMPLE_MAGIC.
+pub fn encode_sample(
+    r: &crate::anon::Record,
+    key_id: &str,
+    canary: CanaryGroup,
+    bundle_version: u64,
+) -> Vec<u8> {
+    let mut out = Vec::with_capacity(512 + r.headers.len() + r.body.len());
+    out.extend_from_slice(SAMPLE_MAGIC);
+    put_string(1, key_id, &mut out);
+    put_uint64(2, r.ts_ms as u64, &mut out);
+    for (n, v) in [
+        (3, &r.node_id),
+        (4, &r.policy),
+        (5, &r.method),
+        (6, &r.raw_uri),
+        (7, &r.uri),
+        (8, &r.args),
+        (9, &r.proto),
+        (10, &r.client),
+        (11, &r.headers),
+        (12, &r.body),
+    ] {
+        put_bytes(n, v, &mut out);
+    }
+    put_uint64(13, r.body_len as u64, &mut out);
+    put_uint32(14, u32::from(r.body_truncated), &mut out);
+    put_bytes(15, &r.action, &mut out);
+    put_bytes(16, &r.rules, &mut out);
+    put_uint32(17, canary as u32, &mut out);
+    put_uint64(18, bundle_version, &mut out);
+    out
 }
 
 #[cfg(test)]
@@ -690,6 +747,7 @@ mod tests {
             headers: &hs,
             inspection: Inspection::Full,
             would_block: false,
+            canary: CanaryGroup::None,
         };
         let out = encode(&ev);
         assert!(out.len() <= MAX_DATAGRAM);
@@ -778,6 +836,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let b1 = encode(&ev);
@@ -820,6 +879,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);
@@ -897,6 +957,7 @@ mod tests {
             headers: &[],
             inspection: Default::default(),
             would_block: false,
+            canary: CanaryGroup::None,
         };
 
         let encoded = encode(&ev);

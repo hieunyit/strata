@@ -61,6 +61,10 @@ type Record struct {
 	BodyTruncated bool   `parquet:"body_truncated" json:"body_truncated"`
 	Action        string `parquet:"action" json:"action"`
 	Rules         string `parquet:"rules" json:"rules"`
+	// Canary: the side of the policy's enforce canary the client fell on,
+	// "" (no canary), "enforce" or "shadow" (W12-G2-01, set by the
+	// connector; an added column of format 1).
+	Canary string `parquet:"canary" json:"canary,omitempty"`
 }
 
 // DefaultMaxBody is the body kept per request.

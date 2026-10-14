@@ -44,6 +44,8 @@ message Event {
   // threshold or a block_alone rule). False for findings below the
   // threshold and for engine errors.
   bool would_block = 21;
+  // Side of the policy's enforce canary the client fell on (W12-G2-01).
+  CanaryGroup canary = 22;
 }
 
 message Header {
@@ -59,6 +61,17 @@ enum Inspection {
   INSPECTION_PARTIAL = 2;
   // the body, or part of it, was not inspected (over the limit, spooled)
   INSPECTION_BODY_SKIPPED = 3;
+}
+
+// Canary group of a request: whether its policy has an enforce canary
+// (canary_percent) and whether the client is inside it.
+enum CanaryGroup {
+  // The policy has no canary (or the event predates W12-G2-01).
+  CANARY_GROUP_UNSPECIFIED = 0;
+  // Inside the canary: the policy is enforced.
+  CANARY_GROUP_ENFORCE = 1;
+  // Outside the canary: the policy runs in shadow.
+  CANARY_GROUP_SHADOW = 2;
 }
 
 // Mirrors STRATA_ACTION_* in strata.h, shifted by one so that 0 stays
@@ -79,4 +92,30 @@ message Match {
   // Normalized input with sensitive data masked: 128 bytes, or what the
   // policy's max_snippet_size allows (2 or 4 KB).
   bytes snippet = 4;
+}
+
+// A replay sample (W12-N-01): one request of a sampled transaction, already
+// anonymized at the connector with the connector group's key
+// (docs/spec/replay-sample.md). On the event socket it follows the 4 bytes
+// "\xffSR1", so the agent tells it from an Event. Fields 3..16 are the
+// columns of the sample file.
+message ReplaySample {
+  string anon_key_id = 1;
+  uint64 ts_ms = 2;
+  bytes node_id = 3;
+  bytes policy = 4;
+  bytes method = 5;
+  bytes raw_uri = 6;
+  bytes uri = 7;
+  bytes args = 8;
+  bytes proto = 9;
+  bytes client = 10;
+  bytes headers = 11; // JSON [[name, value], ...]
+  bytes body = 12;
+  uint64 body_len = 13;
+  bool body_truncated = 14;
+  bytes action = 15;
+  bytes rules = 16;
+  CanaryGroup canary = 17;
+  uint64 bundle_version = 18;
 }

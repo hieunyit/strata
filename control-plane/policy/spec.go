@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 )
 
@@ -22,7 +23,14 @@ type Spec struct {
 	MaxSnippetSize int `json:"max_snippet_size,omitempty"`
 	// Privacy settings (P-01 §1).
 	Privacy *Privacy `json:"privacy,omitempty"`
+	// CanaryPercent: enforce canary, share of clients whose requests this
+	// enforce policy blocks (0.01..99.99, two decimals); 0 = every client
+	// (W12-G2-01; policies.schema.json canary_percent).
+	CanaryPercent float64 `json:"canary_percent,omitempty"`
 }
+
+// CanaryBasisPoints of the spec's canary (0: none).
+func (s Spec) CanaryBasisPoints() int { return int(math.Round(s.CanaryPercent * 100)) }
 
 // Privacy settings of a policy: more names that keep no snippet, and
 // patterns masked in events. strata-compile checks the patterns again with
@@ -93,6 +101,15 @@ func (s Spec) Validate() error {
 			if re.MatchString("") {
 				return fmt.Errorf("privacy: mask pattern %q matches the empty string", m)
 			}
+		}
+	}
+	if s.CanaryPercent != 0 {
+		bp := s.CanaryPercent * 100
+		switch {
+		case s.Mode != "enforce":
+			return errors.New("canary_percent needs mode enforce")
+		case s.CanaryPercent < 0.01 || s.CanaryPercent > 99.99 || math.Abs(bp-math.Round(bp)) > 1e-6:
+			return fmt.Errorf("canary_percent must be 0.01 to 99.99 with at most two decimals, got %v", s.CanaryPercent)
 		}
 	}
 	if s.Response != nil {

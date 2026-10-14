@@ -65,4 +65,7 @@ type EventAck struct {
 	AckedSeq uint64 `json:"acked_seq"`
 	Success  bool   `json:"success"`
 	Error    string `json:"error,omitempty"`
+	// Duplicate: the batch was received before (a resend); what it
+	// carries besides events (replay samples) must not be taken again.
+	Duplicate bool `json:"duplicate,omitempty"`
 }

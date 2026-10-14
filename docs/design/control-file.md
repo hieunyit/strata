@@ -21,7 +21,13 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 | 328 | `u32` | số policy bị ép shadow (`num_policies`, 0..32) |
 | 332 | `u32` | đệm căn lề 8 byte, 0 |
 | 336 | `u8[32][56]` | danh sách tên policy bị ép shadow (mỗi tên tối đa 55 byte `[a-z0-9._-]`, đệm NUL) |
-| 2128 | — | dự phòng, 0 (1.968 byte) |
+| 2128 | `u32` | số rule bị tắt khẩn cấp (`n`, 0..480; W12-G1-02) |
+| 2132 | `u32` | dự phòng, 0 |
+| 2136 | `u32[480]` | Rule ID bị tắt, `n` mục đầu có nghĩa |
+| 4056 | `u32` | tỉ lệ lấy mẫu replay, basis point 0..10.000 (0 = tắt; W12-N-01) |
+| 4060 | `u32` | dự phòng, 0 |
+| 4064 | `u8[16]` | id khóa ẩn danh của mẫu (`[A-Za-z0-9._-]`, đệm NUL) |
+| 4080 | — | dự phòng, 0 (16 byte) |
 
 **Agent ghi (seqlock)**, luôn **tại chỗ** trên cùng inode:
 
@@ -31,7 +37,9 @@ File đúng 4.096 byte, nằm trên tmpfs. Chỉ `strata-agent` được ghi; m�
 
 Không bao giờ thay control file bằng `rename`: worker đang map inode cũ và sẽ không thấy bản mới. Tạo file lần đầu (generation chẵn) rồi chỉ cập nhật tại chỗ.
 
-Hai loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** chỉ ghi offset 0..15 và 24..321 (khối force-shadow giữ nguyên); **force-shadow** chỉ ghi offset 324..2127. Agent giữ hạn chót force-shadow trong `force-shadow.json` của `--bundle-dir` (qua được agent khởi động lại, không kéo dài hạn), và mỗi giây ghi lại khối nếu khác với các hạn còn chạy: khi hạn qua, và khi control file được tạo sau lệnh (chưa có bundle lúc nhận lệnh).
+Ba loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** chỉ ghi offset 0..15 và 24..321 (khối force-shadow giữ nguyên); **force-shadow** chỉ ghi offset 324..2127; **tắt rule** (W12-G1-02) chỉ ghi offset 2128..4055; **lấy mẫu replay** (W12-N-01) chỉ ghi offset 4056..4079. Agent giữ danh sách rule bị tắt trong `disabled-rules.json` của `--bundle-dir` (qua được agent khởi động lại); rule chỉ bật lại khi có lệnh `EnableRules`. Agent giữ hạn chót force-shadow trong `force-shadow.json` của `--bundle-dir` (qua được agent khởi động lại, không kéo dài hạn), và mỗi giây ghi lại khối nếu khác với các hạn còn chạy: khi hạn qua, và khi control file được tạo sau lệnh (chưa có bundle lúc nhận lệnh).
+
+**Khóa của mẫu replay** (W12-N-01) không nằm trong control file (không đủ chỗ): agent ghi `replay.key` trong `strata_bundle_dir` (ghi file tạm rồi `rename`, quyền 0640 như bundle) **trước** khi ghi khối 4056: `"SRK1"`, id khóa (16 byte, đệm NUL), khóa 32 byte. Worker chỉ đọc file này khi khối đổi hoặc engine đổi (timer, không trên request), kiểm id trong file khớp id trong control file, đưa khóa cho libstrata (`strata_engine_set_replay`) rồi xóa khỏi stack; không khớp thì tắt lấy mẫu và ghi cảnh báo. Tỉ lệ 0 thì agent xóa `replay.key`. Agent không lưu cài đặt này: control plane gửi lại khi node kết nối; trước đó, sau khi agent khởi động lại, file giữ nguyên.
 
 **Worker đọc**: đọc generation g1; nếu lẻ thì bỏ qua lượt này; copy các trường; đọc lại generation g2; chỉ dùng khi g1 == g2. Generation chẵn khác lần trước → nạp bundle mới.
 
@@ -120,7 +128,7 @@ Bổ sung cho đoạn "Metrics" của mục "Trang chặn, Block ID & sự kiệ
 | 8 | `u32` | phiên bản layout = 1 |
 | 12 | `u32` | số slot = số worker, 1..1.024 |
 | 16 | `u32` | kích thước slot (byte), bội số của 64, ≥ 8 × số bộ đếm |
-| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 (module từ W11-N-01 ghi 24) |
+| 20 | `u32` | số bộ đếm mỗi slot, ≥ 21 (module từ W11-N-01 ghi 24, từ W12-G2-01 ghi 50 trong slot 448 byte) |
 | 24 | `u64` | thời điểm tạo file (ms); đổi khi file được tạo lại |
 | 32 | `u8[16]` | phiên bản NGINX (`NGINX_VERSION`, đệm NUL), W07-F-01 |
 | 48 | `u8[12]` | phiên bản module (đệm NUL) |
@@ -144,6 +152,8 @@ Slot của worker `i` (`ngx_worker`) nằm ở offset `64 + i × kích thước 
 | 21 | trạng thái circuit breaker của worker (gauge): 0 closed, 1 open, 2 half-open (W11-N-01) |
 | 22 | số lần breaker mở |
 | 23 | số request chạy chế độ giảm cấp |
+| 24..36 | nhóm **canary** (policy có `canary_percent`, client trong nhóm: enforce; cờ verdict `STRATA_VF_CANARY`), W12-G2-01: 24 request, 25 bị chặn, 26 ghi log, 27 upstream trả 5xx (trạng thái của upstream cuối), 28..36 histogram thời gian request (từ lúc đọc request tới khi xong, ms), mỗi bucket đếm riêng, cận trên 5, 10, 25, 50, 100, 250, 500, 1000, +Inf |
+| 37..49 | nhóm **shadow** của policy canary (client ngoài nhóm, `STRATA_VF_CANARY_SHADOW`), cùng thứ tự như 24..36 |
 
 Bộ đếm mới chỉ được thêm vào cuối slot (tăng số bộ đếm, không đổi phiên bản layout); agent bỏ qua bộ đếm nó không biết.
 

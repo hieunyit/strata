@@ -357,26 +357,34 @@ impl Report {
 /// Batches of samples handed to the workers.
 const BATCH: usize = 512;
 
-/// Replays every sample of `files` on `threads` threads: a reader thread
-/// streams batches through a bounded queue, so memory stays flat whatever
-/// the number of samples.
-pub fn run(
-    engine: Arc<Engine>,
+/// Accumulates what workers find; merged at the end.
+trait Acc: Default + Send {
+    fn merge(&mut self, o: Self);
+}
+
+impl Acc for Report {
+    fn merge(&mut self, o: Self) {
+        Report::merge(self, o)
+    }
+}
+
+/// Runs `f` on every sample of `files` on `threads` threads: a reader
+/// thread streams batches through a bounded queue, so memory stays flat
+/// whatever the number of samples.
+fn parallel<A: Acc>(
     files: &[&Path],
-    policy: Option<&str>,
     threads: usize,
-) -> Result<Report> {
+    f: &(dyn Fn(&mut A, &Sample) + Sync),
+) -> Result<A> {
     let threads = threads.max(1);
-    let start = Instant::now();
     let (tx, rx) = sync_channel::<Vec<Sample>>(threads * 4);
     let rx: Arc<Mutex<Receiver<Vec<Sample>>>> = Arc::new(Mutex::new(rx));
-    let report = std::thread::scope(|scope| -> Result<Report> {
+    std::thread::scope(|scope| -> Result<A> {
         let workers: Vec<_> = (0..threads)
             .map(|_| {
                 let rx = rx.clone();
-                let engine = engine.clone();
                 scope.spawn(move || {
-                    let mut rep = Report::default();
+                    let mut acc = A::default();
                     loop {
                         let batch = match rx.lock() {
                             Ok(r) => r.recv(),
@@ -384,18 +392,17 @@ pub fn run(
                         };
                         let Ok(batch) = batch else { break };
                         for s in &batch {
-                            let o = evaluate(&engine, s, policy);
-                            rep.add(s, &o);
+                            f(&mut acc, s);
                         }
                     }
-                    rep
+                    acc
                 })
             })
             .collect();
         let mut read_err = None;
-        for f in files {
+        for file in files {
             let mut batch = Vec::with_capacity(BATCH);
-            let r = for_each(f, |s| {
+            let r = for_each(file, |s| {
                 batch.push(s);
                 if batch.len() == BATCH {
                     tx.send(std::mem::replace(&mut batch, Vec::with_capacity(BATCH)))
@@ -413,7 +420,7 @@ pub fn run(
             }
         }
         drop(tx);
-        let mut total = Report::default();
+        let mut total = A::default();
         for w in workers {
             total.merge(
                 w.join()
@@ -424,13 +431,278 @@ pub fn run(
             Some(e) => Err(e),
             None => Ok(total),
         }
+    })
+}
+
+/// Replays every sample of `files` on `threads` threads.
+pub fn run(
+    engine: Arc<Engine>,
+    files: &[&Path],
+    policy: Option<&str>,
+    threads: usize,
+) -> Result<Report> {
+    let start = Instant::now();
+    let mut report: Report = parallel(files, threads, &|rep: &mut Report, s: &Sample| {
+        let o = evaluate(&engine, s, policy);
+        rep.add(s, &o);
     })?;
-    let mut report = report;
     let elapsed = start.elapsed();
     report.elapsed_ms = elapsed.as_millis() as u64;
     report.per_second = (report.samples as f64 / elapsed.as_secs_f64().max(1e-9)) as u64;
-    report.threads = threads;
+    report.threads = threads.max(1);
     Ok(report)
+}
+
+/// A sample whose verdict differs between the draft and the baseline.
+#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+pub struct Example {
+    pub ts_ms: i64,
+    pub node_id: String,
+    pub method: String,
+    /// as sampled: already anonymized
+    pub raw_uri: String,
+    pub draft: String,
+    pub baseline: String,
+    pub draft_rules: Vec<u32>,
+    pub baseline_rules: Vec<u32>,
+}
+
+/// Examples kept per route and kind of change.
+const EXAMPLES: usize = 5;
+
+/// One route (policy) of a comparison.
+#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+pub struct CompareRoute {
+    pub samples: u64,
+    /// action -> count, with the draft and with the baseline
+    pub draft: BTreeMap<String, u64>,
+    pub baseline: BTreeMap<String, u64>,
+    /// blocked by the draft, not by the baseline: candidate false positives
+    pub newly_blocked: u64,
+    /// blocked by the baseline, not by the draft: candidate false negatives
+    pub newly_allowed: u64,
+    /// the draft's rules on the newly blocked samples, and the baseline's on
+    /// the newly allowed ones
+    pub newly_blocked_rules: BTreeMap<u32, u64>,
+    pub newly_allowed_rules: BTreeMap<u32, u64>,
+    /// path (first two segments) -> newly blocked
+    pub newly_blocked_paths: BTreeMap<String, u64>,
+    /// the action recorded when the sample was taken (the bundle in force
+    /// then; the label of corpus samples: allow benign, block attack) ->
+    /// newly blocked, and -> newly allowed
+    pub newly_blocked_sampled: BTreeMap<String, u64>,
+    pub newly_allowed_sampled: BTreeMap<String, u64>,
+    pub examples_blocked: Vec<Example>,
+    pub examples_allowed: Vec<Example>,
+}
+
+/// A draft bundle against the bundle in force, on the same samples
+/// (W12-R-01).
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct Comparison {
+    pub samples: u64,
+    pub elapsed_ms: u64,
+    pub routes: BTreeMap<String, CompareRoute>,
+}
+
+impl Acc for Comparison {
+    fn merge(&mut self, o: Self) {
+        self.samples += o.samples;
+        for (k, v) in o.routes {
+            let r = self.routes.entry(k).or_default();
+            r.samples += v.samples;
+            r.newly_blocked += v.newly_blocked;
+            r.newly_allowed += v.newly_allowed;
+            for (dst, src) in [(&mut r.draft, v.draft), (&mut r.baseline, v.baseline)] {
+                for (a, n) in src {
+                    *dst.entry(a).or_default() += n;
+                }
+            }
+            for (dst, src) in [
+                (&mut r.newly_blocked_rules, v.newly_blocked_rules),
+                (&mut r.newly_allowed_rules, v.newly_allowed_rules),
+            ] {
+                for (a, n) in src {
+                    *dst.entry(a).or_default() += n;
+                }
+            }
+            for (a, n) in v.newly_blocked_sampled {
+                *r.newly_blocked_sampled.entry(a).or_default() += n;
+            }
+            for (a, n) in v.newly_allowed_sampled {
+                *r.newly_allowed_sampled.entry(a).or_default() += n;
+            }
+            for (a, n) in v.newly_blocked_paths {
+                *r.newly_blocked_paths.entry(a).or_default() += n;
+            }
+            for (dst, src) in [
+                (&mut r.examples_blocked, v.examples_blocked),
+                (&mut r.examples_allowed, v.examples_allowed),
+            ] {
+                for e in src {
+                    if dst.len() < EXAMPLES {
+                        dst.push(e);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn path_prefix(uri: &str) -> String {
+    let p = uri.split('?').next().unwrap_or("");
+    let segs: Vec<&str> = p.split('/').filter(|s| !s.is_empty()).take(2).collect();
+    format!("/{}", segs.join("/"))
+}
+
+/// Replays `files` through a draft bundle and the baseline (the bundle in
+/// force): per route, what the draft would block that the baseline lets
+/// through, and the reverse, with the rules responsible.
+pub fn compare(
+    draft: Arc<Engine>,
+    baseline: Arc<Engine>,
+    files: &[&Path],
+    policy: Option<&str>,
+    threads: usize,
+) -> Result<Comparison> {
+    let start = Instant::now();
+    let mut c: Comparison = parallel(files, threads, &|c: &mut Comparison, s: &Sample| {
+        let d = evaluate(&draft, s, policy);
+        let b = evaluate(&baseline, s, policy);
+        c.samples += 1;
+        let r = c
+            .routes
+            .entry(policy.unwrap_or(&s.policy).to_string())
+            .or_default();
+        r.samples += 1;
+        *r.draft.entry(d.action.to_string()).or_default() += 1;
+        *r.baseline.entry(b.action.to_string()).or_default() += 1;
+        let ex = || Example {
+            ts_ms: s.ts_ms,
+            node_id: s.node_id.clone(),
+            method: s.method.clone(),
+            raw_uri: s.raw_uri.clone(),
+            draft: d.action.to_string(),
+            baseline: b.action.to_string(),
+            draft_rules: d.rules.clone(),
+            baseline_rules: b.rules.clone(),
+        };
+        match (d.action == "block", b.action == "block") {
+            (true, false) => {
+                r.newly_blocked += 1;
+                for id in &d.rules {
+                    *r.newly_blocked_rules.entry(*id).or_default() += 1;
+                }
+                *r.newly_blocked_paths
+                    .entry(path_prefix(&s.uri))
+                    .or_default() += 1;
+                *r.newly_blocked_sampled.entry(s.action.clone()).or_default() += 1;
+                if r.examples_blocked.len() < EXAMPLES {
+                    r.examples_blocked.push(ex());
+                }
+            }
+            (false, true) => {
+                r.newly_allowed += 1;
+                *r.newly_allowed_sampled.entry(s.action.clone()).or_default() += 1;
+                for id in &b.rules {
+                    *r.newly_allowed_rules.entry(*id).or_default() += 1;
+                }
+                if r.examples_allowed.len() < EXAMPLES {
+                    r.examples_allowed.push(ex());
+                }
+            }
+            _ => {}
+        }
+    })?;
+    c.elapsed_ms = start.elapsed().as_millis() as u64;
+    Ok(c)
+}
+
+impl Comparison {
+    /// The comparison as a Markdown report.
+    pub fn markdown(&self, title: &str) -> String {
+        let mut o = format!(
+            "# {title}\n\n{} samples, {} ms.\n\n",
+            self.samples, self.elapsed_ms
+        );
+        o.push_str("| Route | Samples | Blocked (baseline → draft) | Newly blocked (candidate FP) | Newly allowed (candidate FN) |\n| --- | --- | --- | --- | --- |\n");
+        for (k, r) in &self.routes {
+            let blk = |m: &BTreeMap<String, u64>| m.get("block").copied().unwrap_or(0);
+            o.push_str(&format!(
+                "| `{k}` | {} | {} → {} | {} ({:.2}%) | {} |\n",
+                r.samples,
+                blk(&r.baseline),
+                blk(&r.draft),
+                r.newly_blocked,
+                100.0 * r.newly_blocked as f64 / r.samples.max(1) as f64,
+                r.newly_allowed
+            ));
+        }
+        for (k, r) in &self.routes {
+            if r.newly_blocked == 0 && r.newly_allowed == 0 {
+                continue;
+            }
+            o.push_str(&format!("\n## `{k}`\n\n"));
+            let top = |m: &BTreeMap<u32, u64>| {
+                let mut v: Vec<_> = m.iter().collect();
+                v.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+                v.iter()
+                    .take(10)
+                    .map(|(id, n)| format!("{id} ({n})"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let sampled = |m: &BTreeMap<String, u64>| {
+                m.iter()
+                    .map(|(k, n)| format!("{k} {n}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            if r.newly_blocked > 0 {
+                o.push_str(&format!(
+                    "Newly blocked, by action when sampled (the label of corpus samples): {}\n\n",
+                    sampled(&r.newly_blocked_sampled)
+                ));
+                o.push_str(&format!(
+                    "Rules of the newly blocked: {}\n\n",
+                    top(&r.newly_blocked_rules)
+                ));
+                let mut p: Vec<_> = r.newly_blocked_paths.iter().collect();
+                p.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+                o.push_str(&format!(
+                    "Paths: {}\n\n",
+                    p.iter()
+                        .take(10)
+                        .map(|(k, n)| format!("`{k}` ({n})"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            if r.newly_allowed > 0 {
+                o.push_str(&format!(
+                    "Newly allowed, by action when sampled: {}\n\n",
+                    sampled(&r.newly_allowed_sampled)
+                ));
+                o.push_str(&format!(
+                    "Baseline rules of the newly allowed: {}\n\n",
+                    top(&r.newly_allowed_rules)
+                ));
+            }
+            for e in r.examples_blocked.iter().chain(&r.examples_allowed) {
+                let uri: String = e.raw_uri.chars().take(120).collect();
+                o.push_str(&format!(
+                    "- {} `{}`: {} → {} (draft rules {:?}, baseline {:?})\n",
+                    e.method,
+                    uri.replace('`', "'"),
+                    e.baseline,
+                    e.draft,
+                    e.draft_rules,
+                    e.baseline_rules
+                ));
+            }
+        }
+        o
+    }
 }
 
 /// Maps a bundle file for replay.

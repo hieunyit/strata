@@ -205,6 +205,76 @@
         ]
       }
     },
+    "/v1/groups/{group_id}/replaySampling": {
+      "get": {
+        "summary": "REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never\nthe key.",
+        "operationId": "FleetAdminService_GetReplaySampling",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetReplaySamplingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/groups/{group_id}:setReplaySampling": {
+      "post": {
+        "summary": "REST: POST /v1/groups/{group_id}:setReplaySampling. The share of\nrequests the group's nodes sample for replay, anonymized with the\ngroup's key (W12-N-01); a new key when the group has none or\nrotate_key is set. Above 0 only once the control plane runs with\n-replay-sampling-approved (legal review of the sample format). Needs\nreplay:configure (admin).",
+        "operationId": "FleetAdminService_SetReplaySampling",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetReplaySamplingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceSetReplaySamplingBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
     "/v1/nodes": {
       "get": {
         "summary": "REST: GET /v1/nodes",
@@ -802,6 +872,118 @@
         ]
       }
     },
+    "/v1/rules/{rule_id}:emergencyDisable": {
+      "post": {
+        "summary": "REST: POST /v1/rules/{rule_id}:emergencyDisable. Emergency kill switch\n(W12-G2-02): the rule stops matching, in every policy, on every node of\nthe group within seconds, without a deploy. It stays off (also for\nnodes that connect later) until EnableRule. A reason is required;\noperator and above (rules:disable); audited with the reason.",
+        "operationId": "FleetAdminService_EmergencyDisableRule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EmergencyDisableRuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceEmergencyDisableRuleBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/rules/{rule_id}:enable": {
+      "post": {
+        "summary": "REST: POST /v1/rules/{rule_id}:enable. Switches the rule back on in\nthe group. Same permission, reason and audit.",
+        "operationId": "FleetAdminService_EnableRule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EnableRuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FleetAdminServiceEnableRuleBody"
+            }
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
+    "/v1/rules:disabled": {
+      "get": {
+        "summary": "REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one\ngroup or of every group. Needs nodes:read.",
+        "operationId": "FleetAdminService_ListDisabledRules",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListDisabledRulesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "description": "empty: every group",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FleetAdminService"
+        ]
+      }
+    },
     "/v1/version": {
       "get": {
         "summary": "REST: GET /v1/version",
@@ -837,6 +1019,42 @@
           "type": "integer",
           "format": "int64",
           "description": "At most and by default 86400 (24 hours)."
+        }
+      }
+    },
+    "FleetAdminServiceEmergencyDisableRuleBody": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "title": "1..500 characters, required"
+        }
+      }
+    },
+    "FleetAdminServiceEnableRuleBody": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "title": "1..500 characters, required"
+        }
+      }
+    },
+    "FleetAdminServiceSetReplaySamplingBody": {
+      "type": "object",
+      "properties": {
+        "rate_percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "rotate_key": {
+          "type": "boolean"
         }
       }
     },
@@ -1026,6 +1244,56 @@
         }
       }
     },
+    "v1DisabledRule": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "rule_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1EmergencyDisableRuleResponse": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "$ref": "#/definitions/v1DisabledRule"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          },
+          "title": "one per node of the group"
+        }
+      }
+    },
+    "v1EnableRuleResponse": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          }
+        }
+      }
+    },
     "v1ForceShadowRequest": {
       "type": "object",
       "properties": {
@@ -1081,6 +1349,14 @@
       "properties": {
         "version": {
           "$ref": "#/definitions/v1PolicyVersion"
+        }
+      }
+    },
+    "v1GetReplaySamplingResponse": {
+      "type": "object",
+      "properties": {
+        "sampling": {
+          "$ref": "#/definitions/v1ReplaySampling"
         }
       }
     },
@@ -1145,6 +1421,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1NodeCommand"
+          }
+        }
+      }
+    },
+    "v1ListDisabledRulesResponse": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1DisabledRule"
           }
         }
       }
@@ -1267,7 +1555,7 @@
         },
         "kind": {
           "type": "string",
-          "title": "FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS"
+          "title": "FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS, DISABLE_RULES,\nSET_DISABLED_RULES, ENABLE_RULES"
         },
         "policy_id": {
           "type": "string",
@@ -1303,6 +1591,14 @@
         "update_time": {
           "type": "string",
           "format": "date-time"
+        },
+        "rule_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": "DISABLE_RULES, ENABLE_RULES"
         }
       },
       "description": "NodeCommand is a command sent to one node and its result."
@@ -1369,6 +1665,11 @@
         "privacy": {
           "$ref": "#/definitions/v1PrivacySettings",
           "description": "Privacy settings on top of the built-in masks (P-01 §1)."
+        },
+        "canary_percent": {
+          "type": "number",
+          "format": "double",
+          "description": "Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,\ntwo decimals), whose requests this enforce policy blocks; the others\nrun in shadow. 0: every client."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
@@ -1418,6 +1719,29 @@
         "identity": {
           "type": "string",
           "description": "plain (default) or hmac: events carry hmac: and 32 hex digits of\nHMAC-SHA256 with the installation's identity key instead of the\nidentity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps)."
+        }
+      }
+    },
+    "v1ReplaySampling": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "rate_percent": {
+          "type": "number",
+          "format": "double",
+          "title": "0 (off) to 100, two decimals"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "updated_by": {
+          "type": "string"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -1529,6 +1853,21 @@
         "update_time": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "v1SetReplaySamplingResponse": {
+      "type": "object",
+      "properties": {
+        "sampling": {
+          "$ref": "#/definitions/v1ReplaySampling"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NodeCommand"
+          }
         }
       }
     },

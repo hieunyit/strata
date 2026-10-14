@@ -28,12 +28,18 @@ const (
 	PermPoliciesWrite       Permission = "policies:write"
 	PermPoliciesApprove     Permission = "policies:approve"
 	PermPoliciesDeploy      Permission = "policies:deploy"
-	PermExceptionsWrite     Permission = "exceptions:write"
-	PermNodesRead           Permission = "nodes:read"
-	PermNodesWrite          Permission = "nodes:write" // enrollment tokens, revocation
-	PermRoleBindingsRead    Permission = "rolebindings:read"
-	PermRoleBindingsWrite   Permission = "rolebindings:write"
-	PermAuditRead           Permission = "audit:read"
+	// PermRulesDisable: the emergency kill switch (W12-G2-02), operator
+	// and above.
+	PermRulesDisable Permission = "rules:disable"
+	// PermReplayConfigure: replay sampling of real traffic (W12-N-01),
+	// admin only.
+	PermReplayConfigure   Permission = "replay:configure"
+	PermExceptionsWrite   Permission = "exceptions:write"
+	PermNodesRead         Permission = "nodes:read"
+	PermNodesWrite        Permission = "nodes:write" // enrollment tokens, revocation
+	PermRoleBindingsRead  Permission = "rolebindings:read"
+	PermRoleBindingsWrite Permission = "rolebindings:write"
+	PermAuditRead         Permission = "audit:read"
 )
 
 var (
@@ -43,14 +49,15 @@ var (
 	matrix = map[Role][]Permission{
 		RoleViewer: viewerPerms,
 		RoleOperator: append(append([]Permission{}, viewerPerms...),
-			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesDeploy, PermExceptionsWrite),
+			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesDeploy, PermExceptionsWrite, PermRulesDisable),
 		// The approver reviews what an operator drafted; it does not draft
 		// or deploy itself.
 		RoleApprover: append(append([]Permission{}, viewerPerms...),
-			PermEventsReadSensitive, PermPoliciesApprove),
+			PermEventsReadSensitive, PermPoliciesApprove, PermRulesDisable),
 		RoleAdmin: append(append([]Permission{}, viewerPerms...),
 			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesApprove, PermPoliciesDeploy,
-			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite, PermAuditRead),
+			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite, PermAuditRead, PermRulesDisable,
+			PermReplayConfigure),
 	}
 )
 

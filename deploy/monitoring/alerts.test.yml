@@ -141,6 +141,46 @@ tests:
               runbook_url: "docs/runbook/README.md#sysctl"
               summary: "a: net.unix.max_dgram_qlen is 512, below 8192"
 
+  # W12-G1-01: a held for 70 minutes, b lifted after 30
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_fallback_active{instance="a"}'
+        values: "1x80"
+      - series: 'strata_agent_fallback_active{instance="b"}'
+        values: "1x30 0x50"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: StrataNodeFallbackHeld
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: StrataNodeFallbackHeld
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: agent }
+            exp_annotations:
+              summary: "a: held in shadow by the node fallback for over an hour"
+              description: "Only the control plane lifts it: find the cause, then POST /v1/nodes:clearForceShadow with an empty policy_id."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+
+  # W12-G2-01: the canary fallback holds group edge (two replicas report it)
+  - interval: 1m
+    input_series:
+      - series: 'strata_cp_canary_fallback_active{instance="cp-1",group="edge",reason="block_rate"}'
+        values: "_ 1 1"
+      - series: 'strata_cp_canary_fallback_active{instance="cp-2",group="edge",reason="block_rate"}'
+        values: "_ 1 1"
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: StrataCanaryFallback
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: StrataCanaryFallback
+        exp_alerts:
+          - exp_labels: { group: edge, reason: block_rate, severity: critical, component: control-plane }
+            exp_annotations:
+              summary: "group edge: canary policies forced into shadow (block_rate)"
+              description: "The canary did worse than its shadow group; running rollouts are paused. The hold lasts until POST /v1/nodes:clearForceShadow on the group."
+              runbook_url: "docs/runbook/README.md#canary-về-shadow"
+
   # ForceShadow held for 2 minutes
   - interval: 1m
     input_series:
@@ -157,6 +197,23 @@ tests:
               description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
               runbook_url: "docs/runbook/README.md#ép-shadow"
               summary: "a: held in shadow by a ForceShadow command"
+
+  # two rules switched off on a for 2 minutes
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_disabled_rules{instance="a"}'
+        values: "0 2 2 2"
+      - series: 'strata_agent_disabled_rules{instance="b"}'
+        values: "0 0 0 0"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: StrataRulesDisabled
+        exp_alerts:
+          - exp_labels: { instance: a, severity: info, component: agent }
+            exp_annotations:
+              description: "Expected during an incident; switch them back on with POST /v1/rules/{rule_id}:enable once the rule is fixed."
+              runbook_url: "docs/runbook/README.md#tắt-rule-khẩn-cấp"
+              summary: "a: 2 rules switched off by the kill switch"
 
   # spool drops events once on a; b's counter (kept across restarts) is
   # flat inside the window. VictoriaMetrics counts a series' first value as
@@ -358,7 +415,7 @@ tests:
           - exp_labels: { instance: a, reason: block_rate, severity: warning, component: agent }
             exp_annotations:
               summary: "a: the node forced every policy into shadow on its own (block_rate)"
-              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow for --fallback-hold (1 h)."
+              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
               runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
       - eval_time: 15m
         alertname: StrataNodeFallback

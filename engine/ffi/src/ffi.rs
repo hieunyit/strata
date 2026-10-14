@@ -65,6 +65,11 @@ fn to_c(v: &Verdict) -> strata_verdict_t {
     if v.json {
         out.flags |= STRATA_VF_JSON;
     }
+    match v.canary {
+        libstrata::event::CanaryGroup::None => {}
+        libstrata::event::CanaryGroup::Enforce => out.flags |= STRATA_VF_CANARY,
+        libstrata::event::CanaryGroup::Shadow => out.flags |= STRATA_VF_CANARY_SHADOW,
+    }
     if let Some(id) = &v.id {
         write_c_str(&mut out.block_id, id);
     }
@@ -301,6 +306,97 @@ pub unsafe extern "C" fn strata_engine_policy(
                 STRATA_OK
             }
             None => STRATA_E_NOT_FOUND,
+        }
+    })
+}
+
+/// Emergency kill switch (ABI 1.3, W12-R-02): the `n` rule IDs at `ids`
+/// stop matching in every transaction started on this engine from now on,
+/// without reloading the bundle. Replaces the previous list; `n == 0`
+/// switches every rule back on. The list belongs to the engine: apply it
+/// again to the engine of a newly loaded bundle. Returns `STRATA_E_INVALID`
+/// for a NULL engine, NULL `ids` with `n != 0`, or more than 4096 IDs.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle; `ids` must point to `n`
+/// readable `uint32_t` (or be NULL with `n == 0`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_disable_rules(
+    e: *const EngineHandle,
+    ids: *const u32,
+    n: usize,
+) -> strata_rc_t {
+    if e.is_null() || (ids.is_null() && n != 0) {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        // SAFETY: live handle per contract.
+        let engine = unsafe { &*e.cast::<Engine>() };
+        let list: &[u32] = if n == 0 {
+            &[]
+        } else {
+            // SAFETY: ids points to n readable u32 per contract.
+            unsafe { std::slice::from_raw_parts(ids, n) }
+        };
+        match engine.set_disabled_rules(list) {
+            Ok(()) => STRATA_OK,
+            Err(_) => STRATA_E_INVALID,
+        }
+    })
+}
+
+/// Replay sampling of an engine (W12-N-01, ABI 1.5): from now on a share
+/// of `rate_bp` basis points (0..10000) of the transactions keeps its
+/// request and gives an anonymized sample (`strata_tx_sample`), hashed with
+/// the connector group's 32-byte `key` named `key_id` (1..16 of
+/// `[A-Za-z0-9._-]`). Rate 0 switches sampling off (key may be NULL).
+/// Belongs to the engine like the disabled rules: the connector applies it
+/// again to the engine of a new bundle. `STRATA_E_INVALID` for bad
+/// arguments, the setting in force is kept.
+///
+/// # Safety
+/// `e` must be a live engine; `key` must point to `key_len` readable bytes
+/// (or be NULL with rate 0); `key_id` is borrowed for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_set_replay(
+    e: *const EngineHandle,
+    key_id: strata_str_t,
+    key: *const u8,
+    key_len: usize,
+    rate_bp: u32,
+) -> strata_rc_t {
+    if e.is_null() {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        // SAFETY: live handle per contract.
+        let engine = unsafe { &*e.cast::<Engine>() };
+        if rate_bp == 0 {
+            let _ = engine.set_replay(None);
+            return STRATA_OK;
+        }
+        if key.is_null() || key_len != 32 || rate_bp > 10_000 {
+            return STRATA_E_INVALID;
+        }
+        // SAFETY: key points to 32 readable bytes per contract.
+        let k: [u8; 32] = unsafe { slice::from_raw_parts(key, 32) }
+            .try_into()
+            .unwrap_or([0; 32]);
+        // SAFETY: borrowed for the call per contract.
+        let Ok(id) = (unsafe { bytes(key_id) }) else {
+            return STRATA_E_INVALID;
+        };
+        let Ok(id) = std::str::from_utf8(id) else {
+            return STRATA_E_INVALID;
+        };
+        let cfg = libstrata::engine::ReplayConfig {
+            key: k,
+            key_id: id.to_string(),
+            rate_bp: rate_bp as u16,
+        };
+        match engine.set_replay(Some(cfg)) {
+            Ok(()) => STRATA_OK,
+            Err(_) => STRATA_E_INVALID,
         }
     })
 }
@@ -715,6 +811,34 @@ pub unsafe extern "C" fn strata_tx_event(tx: *const TxHandle, dst: *mut u8, cap:
             std::ptr::copy_nonoverlapping(ev_bytes.as_ptr(), dst, len);
         }
         len
+    })
+}
+
+/// The replay sample of a sampled transaction (W12-N-01, ABI 1.5), to send
+/// on the event socket like an event: copied into `dst` when it fits `cap`.
+/// Returns its length (at most 8192), 0 when the transaction is not
+/// sampled. Call it once the request is done, after `strata_tx_event`.
+///
+/// # Safety
+/// `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or
+/// NULL if cap is 0).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_sample(tx: *const TxHandle, dst: *mut u8, cap: usize) -> usize {
+    if tx.is_null() {
+        return 0;
+    }
+    // SAFETY: live handle per contract.
+    let t = unsafe { &*tx.cast::<Tx>() };
+    guard(0, || {
+        let Some(b) = t.encode_sample() else {
+            return 0;
+        };
+        if dst.is_null() || cap < b.len() {
+            return b.len();
+        }
+        // SAFETY: cap >= len and dst is non-NULL and writable per contract.
+        unsafe { std::ptr::copy_nonoverlapping(b.as_ptr(), dst, b.len()) };
+        b.len()
     })
 }
 

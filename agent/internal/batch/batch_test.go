@@ -105,3 +105,30 @@ func TestFlushByBytes(t *testing.T) {
 		t.Fatalf("batch sizes %q", got)
 	}
 }
+
+// W12-N-01: replay samples ride the batches with the events, count
+// towards the size of a batch and get the enrolled node id.
+func TestSamplesRideTheBatches(t *testing.T) {
+	sp := &memSpool{}
+	b := New(sp, Options{MaxEvents: 3, MaxDelay: time.Hour, NodeID: "node-7"})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx) }()
+	b.Add(ctx, &eventv1.Event{BlockId: "EVT-1"})
+	b.AddSample(ctx, &eventv1.ReplaySample{AnonKeyId: "k1", NodeId: []byte("worker"), Policy: []byte("example-api")})
+	b.AddSample(ctx, &eventv1.ReplaySample{AnonKeyId: "k1", Policy: []byte("example-api")})
+	b.AddSample(ctx, &eventv1.ReplaySample{AnonKeyId: "k1", Policy: []byte("example-api")})
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.batches) != 2 || sp.counts[0] != 3 || len(sp.batches[0].Events) != 1 || len(sp.batches[0].Samples) != 2 ||
+		len(sp.batches[1].Samples) != 1 {
+		t.Fatalf("batches %v counts %v", sp.batches, sp.counts)
+	}
+	if string(sp.batches[0].Samples[0].GetNodeId()) != "node-7" || sp.batches[0].Events[0].GetNodeId() != "node-7" {
+		t.Fatalf("node id %v", sp.batches[0])
+	}
+}

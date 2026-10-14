@@ -11,6 +11,7 @@ import (
 
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/bundles"
+	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 )
 
@@ -22,6 +23,30 @@ func (a *Agent) command(_ context.Context, cmd *fleetv1.Command) *fleetv1.Comman
 			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
 		}
 		if err := a.ForceShadow.Apply(act.ForceShadow); err != nil {
+			return &fleetv1.CommandResult{Error: err.Error()}
+		}
+		return &fleetv1.CommandResult{Ok: true}
+	case *fleetv1.Command_DisableRules:
+		if a.KillSwitch == nil {
+			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
+		}
+		if err := a.KillSwitch.Disable(act.DisableRules); err != nil {
+			return &fleetv1.CommandResult{Error: err.Error()}
+		}
+		return &fleetv1.CommandResult{Ok: true}
+	case *fleetv1.Command_EnableRules:
+		if a.KillSwitch == nil {
+			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
+		}
+		if err := a.KillSwitch.Enable(act.EnableRules); err != nil {
+			return &fleetv1.CommandResult{Error: err.Error()}
+		}
+		return &fleetv1.CommandResult{Ok: true}
+	case *fleetv1.Command_ReplaySampling:
+		if a.Replay == nil {
+			return &fleetv1.CommandResult{Error: "this agent installs no bundles (no --bundle-dir)"}
+		}
+		if err := a.Replay.Apply(act.ReplaySampling); err != nil {
 			return &fleetv1.CommandResult{Error: err.Error()}
 		}
 		return &fleetv1.CommandResult{Ok: true}
@@ -46,6 +71,8 @@ type Diagnostics struct {
 	UptimeSeconds int64            `json:"uptime_seconds"`
 	Bundle        *DiagBundle      `json:"bundle,omitempty"`
 	ForceShadow   *DiagForceShadow `json:"force_shadow,omitempty"`
+	DisabledRules []uint32         `json:"disabled_rules,omitempty"`
+	Replay        *DiagReplay      `json:"replay_sampling,omitempty"`
 	Spool         DiagSpool        `json:"spool"`
 	Workers       []DiagWorker     `json:"workers,omitempty"`
 	MetricsError  string           `json:"metrics_error,omitempty"`
@@ -66,6 +93,14 @@ type DiagBundle struct {
 type DiagForceShadow struct {
 	AllUntil *time.Time           `json:"all_until,omitempty"`
 	Policies map[string]time.Time `json:"policies,omitempty"`
+	// Fallback: the node fallback holds every policy (W12-G1-01).
+	Fallback *forceshadow.Hold `json:"fallback,omitempty"`
+}
+
+// DiagReplay: the replay sampling in force (never the key).
+type DiagReplay struct {
+	RateBp uint32 `json:"rate_bp"`
+	KeyID  string `json:"key_id,omitempty"`
 }
 
 // DiagSpool: the event spool.
@@ -108,11 +143,19 @@ func (a *Agent) diagnostics() Diagnostics {
 	}
 	if a.ForceShadow != nil {
 		s := a.ForceShadow.Snapshot()
-		fs := &DiagForceShadow{Policies: s.Policies}
+		fs := &DiagForceShadow{Policies: s.Policies, Fallback: s.Fallback}
 		if !s.All.IsZero() {
 			fs.AllUntil = &s.All
 		}
 		d.ForceShadow = fs
+	}
+	if a.Replay != nil {
+		if s := a.Replay.Current(); s != nil {
+			d.Replay = &DiagReplay{RateBp: s.Rate, KeyID: s.KeyID}
+		}
+	}
+	if a.KillSwitch != nil {
+		d.DisabledRules = a.KillSwitch.Rules()
 	}
 	if a.cfg.MetricsFile != "" {
 		snap, err := shmmetrics.Read(a.cfg.MetricsFile)

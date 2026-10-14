@@ -91,6 +91,25 @@ message NodeCounters {
   uint64 blocked = 2;
   uint64 fail_open = 3; // requests passed because of a fail mode
   uint64 dropped_events = 4; // event socket or spool overflow
+  // W12-G2-01: requests of policies with an enforce canary, inside the
+  // canary (enforced) and outside it (shadow), summed over the workers.
+  // Counters since metrics_created_ms: NGINX starts them again from 0 when
+  // it reloads (a new metrics file). Absent with a module older than W12.
+  CanaryCounters canary = 5;
+  CanaryCounters canary_shadow = 6;
+  uint64 metrics_created_ms = 7;
+}
+
+// Counters of one canary group (docs/design/control-file.md, metrics file
+// 24..49).
+message CanaryCounters {
+  uint64 requests = 1;
+  uint64 blocked = 2;
+  uint64 logged = 3;
+  uint64 upstream_server_errors = 4; // the upstream answered 5xx
+  // request latency, per bucket (not cumulative), upper bounds 5, 10, 25,
+  // 50, 100, 250, 500, 1000 ms, then +Inf
+  repeated uint64 latency = 5;
 }
 
 message BundleStatus {
@@ -134,7 +153,20 @@ message Command {
   oneof action {
     ForceShadow force_shadow = 2; // ép shadow khẩn cấp cho policy/route
     CollectDiagnostics diagnostics = 3;
+    DisableRules disable_rules = 4; // tắt rule khẩn cấp (W12-G1-02)
+    EnableRules enable_rules = 5;
+    SetReplaySampling replay_sampling = 6; // lấy mẫu replay (W12-N-01)
   }
+}
+
+// SetReplaySampling (W12-N-01): the share of requests the node samples for
+// replay and the connector group's anonymization key. Sent when the node
+// connects and when it changes, never stored with the commands. rate_bp 0
+// switches sampling off.
+message SetReplaySampling {
+  uint32 rate_bp = 1; // basis points, 0..10000
+  string key_id = 2; // 1..16 of [A-Za-z0-9._-]
+  bytes key = 3; // 32 bytes, HMAC-SHA256 key of the samples' tokens
 }
 
 message ForceShadow {
@@ -150,6 +182,24 @@ message ForceShadow {
 
 message CollectDiagnostics {}
 
+// DisableRules switches rules off on the node, in every policy, without a
+// bundle (emergency kill switch, nginx-module.md › Tắt rule khẩn cấp). The
+// agent keeps the list across restarts and writes it into the control
+// file; workers apply it within a second. It holds until EnableRules: a
+// disabled rule never comes back on by itself.
+message DisableRules {
+  repeated uint32 rule_ids = 1; // 1..480 IDs once merged with the current list
+  // The node's list becomes rule_ids exactly (the control plane's view, sent
+  // to a node that reconnects) instead of growing by them.
+  bool replace = 2;
+}
+
+// EnableRules switches rules back on.
+message EnableRules {
+  repeated uint32 rule_ids = 1;
+  bool all = 2; // every disabled rule; rule_ids is ignored
+}
+
 message FetchBundleRequest {
   uint64 version = 1;
   uint64 offset = 2;
@@ -163,6 +213,8 @@ message BundleChunk {
 message EventBatch {
   uint64 seq = 1; // tăng dần theo node, dùng chống trùng
   repeated strata.event.v1.Event events = 2;
+  // Replay samples (W12-N-01), already anonymized by the connector.
+  repeated strata.event.v1.ReplaySample samples = 3;
 }
 
 message EventAck {

@@ -21,7 +21,8 @@ func TestSpecValidate(t *testing.T) {
 	good := []Spec{{Mode: "shadow"}, {Mode: "enforce", Oversize: "block", Response: &Response{DataGuard: []string{"cccd", "jwt", "pan"}}},
 		{Mode: "shadow", MaxSnippetSize: 128}, {Mode: "shadow", MaxSnippetSize: 2048}, {Mode: "enforce", MaxSnippetSize: 4096},
 		{Mode: "shadow", Privacy: &Privacy{SensitiveFields: []string{"ma_khach_hang"}, MaskPatterns: []string{"KH[0-9]{8}"}}},
-		{Mode: "shadow", Privacy: &Privacy{Identity: "hmac"}}, {Mode: "shadow", Privacy: &Privacy{Identity: "plain"}}}
+		{Mode: "shadow", Privacy: &Privacy{Identity: "hmac"}}, {Mode: "shadow", Privacy: &Privacy{Identity: "plain"}},
+		{Mode: "enforce", CanaryPercent: 1}, {Mode: "enforce", CanaryPercent: 0.01}, {Mode: "enforce", CanaryPercent: 99.99}, {Mode: "enforce", CanaryPercent: 12.34}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -34,7 +35,10 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "shadow", Privacy: &Privacy{MaskPatterns: []string{"a*"}}},
 		{Mode: "shadow", Privacy: &Privacy{MaskPatterns: []string{"(unclosed"}}},
 		{Mode: "shadow", Privacy: &Privacy{SensitiveFields: []string{"has space"}}},
-		{Mode: "shadow", Privacy: &Privacy{Identity: "sha1"}}}
+		{Mode: "shadow", Privacy: &Privacy{Identity: "sha1"}},
+		// W12-G2-01: canary only on enforce, 0.01..99.99, two decimals
+		{Mode: "shadow", CanaryPercent: 5}, {Mode: "enforce", CanaryPercent: 100}, {Mode: "enforce", CanaryPercent: -1},
+		{Mode: "enforce", CanaryPercent: 0.005}, {Mode: "enforce", CanaryPercent: 1.234}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)
@@ -153,7 +157,7 @@ done
 	page := filepath.Join(dir, "block.html")
 	_ = os.WriteFile(page, []byte("<p>{{block_id}}</p>"), 0o644)
 	c := &Compiler{Binary: script, KeyFile: "/keys/seed", Rules: []string{"a.yaml", "b.yaml"}, BlockPage: page, SupportContact: "ops@example.test"}
-	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block"}}})
+	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5}}})
 	if err != nil || string(out) != "bundle" {
 		t.Fatalf("%q %v", out, err)
 	}
@@ -171,7 +175,7 @@ done
 	if err := json.Unmarshal(pol, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" ||
+	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" || doc.Policies[0]["canary_percent"] != 5.0 ||
 		doc.BlockPage["html"] != "<p>{{block_id}}</p>" || doc.BlockPage["support_contact"] != "ops@example.test" {
 		t.Fatalf("policies file %s", pol)
 	}

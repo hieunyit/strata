@@ -28,8 +28,11 @@ type migration struct {
 	up, down string
 }
 
-func load() ([]migration, error) {
-	entries, err := fs.ReadDir(files, "migrations")
+func load() ([]migration, error) { return loadFS(files) }
+
+// loadFS reads migrations/ of fsys.
+func loadFS(fsys fs.FS) ([]migration, error) {
+	entries, err := fs.ReadDir(fsys, "migrations")
 	if err != nil {
 		return nil, err
 	}
@@ -50,14 +53,18 @@ func load() ([]migration, error) {
 		if !ok || err != nil || v <= 0 {
 			return nil, fmt.Errorf("db: bad migration name %s", n)
 		}
-		body, err := files.ReadFile("migrations/" + n)
+		body, err := fs.ReadFile(fsys, "migrations/"+n)
 		if err != nil {
 			return nil, err
 		}
+		name := strings.TrimSuffix(strings.TrimSuffix(rest, ".up.sql"), ".down.sql")
 		m := byVersion[v]
 		if m == nil {
-			m = &migration{version: v, name: strings.TrimSuffix(strings.TrimSuffix(rest, ".up.sql"), ".down.sql")}
+			m = &migration{version: v, name: name}
 			byVersion[v] = m
+		} else if m.name != name {
+			// two branches took the same number: one would be skipped
+			return nil, fmt.Errorf("db: migration %04d is both %s and %s", v, m.name, name)
 		}
 		if dir == "up" {
 			m.up = string(body)

@@ -32,13 +32,21 @@ type Counters struct {
 	Received  atomic.Uint64
 	Invalid   atomic.Uint64 // did not decode or failed validation
 	Truncated atomic.Uint64 // larger than MaxDatagram
+	Samples   atomic.Uint64 // replay samples (W12-N-01)
 }
+
+// SampleMagic starts a replay sample datagram (libstrata's SAMPLE_MAGIC);
+// an Event never starts with 0xff.
+const SampleMagic = "\xffSR1"
 
 // Listener owns the datagram socket.
 type Listener struct {
 	conn *net.UnixConn
 	path string
 	C    Counters
+	// OnSample, when set before Run, gets the replay samples; without it
+	// they are dropped (counted as invalid).
+	OnSample func(*eventv1.ReplaySample)
 }
 
 // Listen binds a Unix datagram socket at path, replacing a stale socket
@@ -91,6 +99,16 @@ func (l *Listener) Run(ctx context.Context, out func(*eventv1.Event)) error {
 			l.C.Truncated.Add(1)
 			continue
 		}
+		if n >= len(SampleMagic) && string(buf[:len(SampleMagic)]) == SampleMagic {
+			s, ok := DecodeSample(buf[len(SampleMagic):n])
+			if !ok || l.OnSample == nil {
+				l.C.Invalid.Add(1)
+				continue
+			}
+			l.C.Samples.Add(1)
+			l.OnSample(s)
+			continue
+		}
 		ev, ok := Decode(buf[:n])
 		if !ok {
 			l.C.Invalid.Add(1)
@@ -110,6 +128,19 @@ func Decode(b []byte) (*eventv1.Event, bool) {
 		return nil, false
 	}
 	return ev, true
+}
+
+// DecodeSample parses a replay sample (after SampleMagic): it needs its
+// anonymization key id and its policy.
+func DecodeSample(b []byte) (*eventv1.ReplaySample, bool) {
+	s := &eventv1.ReplaySample{}
+	if err := proto.Unmarshal(b, s); err != nil {
+		return nil, false
+	}
+	if id := s.GetAnonKeyId(); id == "" || len(id) > 16 || len(s.GetPolicy()) == 0 || len(s.GetPolicy()) > 55 {
+		return nil, false
+	}
+	return s, true
 }
 
 // Close closes the socket and removes its path.

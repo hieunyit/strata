@@ -47,7 +47,8 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	if pb == nil {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
-	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize())}
+	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
+		CanaryPercent: pb.GetCanaryPercent()}
 	if s.MaxSnippetSize == 128 {
 		s.MaxSnippetSize = 0 // the default, stored as absent
 	}
@@ -70,7 +71,8 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
-	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize)}
+	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
+		CanaryPercent: s.CanaryPercent}
 	if s.Privacy != nil {
 		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
 	}

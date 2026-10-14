@@ -150,6 +150,7 @@ typedef struct {
  * internal redirects (which wipe r->ctx) and is found again from there.
  */
 typedef struct {
+    ngx_http_request_t         *r;              /* lives as long (r->pool) */
     strata_tx_t                *tx;
     ngx_http_strata_bundle_t   *bundle;         /* reference held */
     uint64_t                    bundle_version; /* 0: no bundle */
@@ -194,8 +195,8 @@ extern ngx_module_t  ngx_http_strata_filter_module;
 /* metrics file layout: docs/design/control-file.md, "Metrics file" */
 #define NGX_HTTP_STRATA_VERSION  "0.1.0" /* libstrata's; in the metrics file header */
 #define NGX_HTTP_STRATA_METRICS_HEADER    64
-#define NGX_HTTP_STRATA_METRICS_SLOT      256
-#define NGX_HTTP_STRATA_METRICS_COUNTERS  24
+#define NGX_HTTP_STRATA_METRICS_SLOT      448
+#define NGX_HTTP_STRATA_METRICS_COUNTERS  50
 
 #define NGX_HTTP_STRATA_METRIC_PID          0
 #define NGX_HTTP_STRATA_METRIC_BUNDLE       1
@@ -210,6 +211,10 @@ extern ngx_module_t  ngx_http_strata_filter_module;
 #define NGX_HTTP_STRATA_METRIC_BREAKER      21  /* gauge, BREAKER_* */
 #define NGX_HTTP_STRATA_METRIC_BREAKER_OPENS 22
 #define NGX_HTTP_STRATA_METRIC_DEGRADED     23
+/* W12-G2-01: per canary group (enforced, then shadow): requests, blocked,
+   logged, upstream 5xx, 9 latency buckets */
+#define NGX_HTTP_STRATA_METRIC_CANARY       24
+#define NGX_HTTP_STRATA_METRIC_GROUP        13
 
 /* largest event the agent takes (agent/internal/eventsock) */
 #define NGX_HTTP_STRATA_EVENT_MAX           8192

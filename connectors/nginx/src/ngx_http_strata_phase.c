@@ -272,6 +272,8 @@ ngx_http_strata_create_ctx(ngx_http_request_t *r,
     cln->handler = ngx_http_strata_cleanup;
     cln->data = ctx;
 
+    ctx->r = r;
+
     ctx->policy = slcf->policy;
     ctx->body_limit = slcf->body_limit;
     ctx->fail_closed = (slcf->fail_mode == NGX_HTTP_STRATA_FAIL_CLOSED);
@@ -469,6 +471,13 @@ ngx_http_strata_cleanup(void *data)
                 ngx_http_strata_event_send(len);
             }
             ctx->emitted = 1;
+        }
+
+        /* a replay sample, on the event socket too (W12-N-01) */
+        len = strata_tx_sample(ctx->tx, ngx_http_strata_event_buf,
+                               sizeof(ngx_http_strata_event_buf));
+        if (len > 0 && len <= sizeof(ngx_http_strata_event_buf)) {
+            ngx_http_strata_event_send(len);
         }
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,

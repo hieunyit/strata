@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 2
+#define STRATA_ABI_VERSION_MINOR 5
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -70,6 +70,18 @@
  * The block response should be JSON rather than HTML (policy + `Accept`).
  */
 #define STRATA_VF_JSON (1 << 2)
+
+/**
+ * The request's policy has an enforce canary and the client is inside it
+ * (enforced). ABI 1.4, W12-G2-01: the connector counts the canary group.
+ */
+#define STRATA_VF_CANARY (1 << 3)
+
+/**
+ * The request's policy has an enforce canary and the client is outside it
+ * (shadow): the group the canary is compared with. ABI 1.4.
+ */
+#define STRATA_VF_CANARY_SHADOW (1 << 4)
 
 /**
  * Per-request flags passed in `strata_conn_t.flags`.
@@ -373,6 +385,40 @@ strata_rc_t strata_engine_policy(const strata_engine_t *e,
                                  strata_policy_info_t *out);
 
 /**
+ * Emergency kill switch (ABI 1.3, W12-R-02): the `n` rule IDs at `ids`
+ * stop matching in every transaction started on this engine from now on,
+ * without reloading the bundle. Replaces the previous list; `n == 0`
+ * switches every rule back on. The list belongs to the engine: apply it
+ * again to the engine of a newly loaded bundle. Returns `STRATA_E_INVALID`
+ * for a NULL engine, NULL `ids` with `n != 0`, or more than 4096 IDs.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle; `ids` must point to `n`
+ * readable `uint32_t` (or be NULL with `n == 0`).
+ */
+strata_rc_t strata_engine_disable_rules(const strata_engine_t *e, const uint32_t *ids, size_t n);
+
+/**
+ * Replay sampling of an engine (W12-N-01, ABI 1.5): from now on a share
+ * of `rate_bp` basis points (0..10000) of the transactions keeps its
+ * request and gives an anonymized sample (`strata_tx_sample`), hashed with
+ * the connector group's 32-byte `key` named `key_id` (1..16 of
+ * `[A-Za-z0-9._-]`). Rate 0 switches sampling off (key may be NULL).
+ * Belongs to the engine like the disabled rules: the connector applies it
+ * again to the engine of a new bundle. `STRATA_E_INVALID` for bad
+ * arguments, the setting in force is kept.
+ *
+ * # Safety
+ * `e` must be a live engine; `key` must point to `key_len` readable bytes
+ * (or be NULL with rate 0); `key_id` is borrowed for the call.
+ */
+strata_rc_t strata_engine_set_replay(const strata_engine_t *e,
+                                     strata_str_t key_id,
+                                     const uint8_t *key,
+                                     size_t key_len,
+                                     uint32_t rate_bp);
+
+/**
  * Default block page of the engine's bundle: `html` (template with
  * `{{block_id}}`, `{{time}}`, `{{support_contact}}`) and `contact` point
  * into the bundle mapping and stay valid while the caller holds a reference
@@ -562,6 +608,18 @@ uint64_t strata_tx_time_us(const strata_tx_t *tx);
  * `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or NULL if cap is 0).
  */
 size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
+
+/**
+ * The replay sample of a sampled transaction (W12-N-01, ABI 1.5), to send
+ * on the event socket like an event: copied into `dst` when it fits `cap`.
+ * Returns its length (at most 8192), 0 when the transaction is not
+ * sampled. Call it once the request is done, after `strata_tx_event`.
+ *
+ * # Safety
+ * `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or
+ * NULL if cap is 0).
+ */
+size_t strata_tx_sample(const strata_tx_t *tx, uint8_t *dst, size_t cap);
 
 /**
  * Frees a transaction. NULL is ignored; set your pointer to NULL afterwards.

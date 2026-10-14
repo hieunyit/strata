@@ -27,6 +27,24 @@ export interface paths {
     /** REST: POST /v1/groups/{group_id}/enrollmentTokens */
     post: operations["FleetAdminService_CreateEnrollmentToken"];
   };
+  "/v1/groups/{group_id}/replaySampling": {
+    /**
+     * REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+     * the key.
+     */
+    get: operations["FleetAdminService_GetReplaySampling"];
+  };
+  "/v1/groups/{group_id}:setReplaySampling": {
+    /**
+     * REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+     * requests the group's nodes sample for replay, anonymized with the
+     * group's key (W12-N-01); a new key when the group has none or
+     * rotate_key is set. Above 0 only once the control plane runs with
+     * -replay-sampling-approved (legal review of the sample format). Needs
+     * replay:configure (admin).
+     */
+    post: operations["FleetAdminService_SetReplaySampling"];
+  };
   "/v1/nodes": {
     /** REST: GET /v1/nodes */
     get: operations["FleetAdminService_ListNodes"];
@@ -116,6 +134,30 @@ export interface paths {
      */
     post: operations["RolloutService_ResumeRollout"];
   };
+  "/v1/rules/{rule_id}:emergencyDisable": {
+    /**
+     * REST: POST /v1/rules/{rule_id}:emergencyDisable. Emergency kill switch
+     * (W12-G2-02): the rule stops matching, in every policy, on every node of
+     * the group within seconds, without a deploy. It stays off (also for
+     * nodes that connect later) until EnableRule. A reason is required;
+     * operator and above (rules:disable); audited with the reason.
+     */
+    post: operations["FleetAdminService_EmergencyDisableRule"];
+  };
+  "/v1/rules/{rule_id}:enable": {
+    /**
+     * REST: POST /v1/rules/{rule_id}:enable. Switches the rule back on in
+     * the group. Same permission, reason and audit.
+     */
+    post: operations["FleetAdminService_EnableRule"];
+  };
+  "/v1/rules:disabled": {
+    /**
+     * REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
+     * group or of every group. Needs nodes:read.
+     */
+    get: operations["FleetAdminService_ListDisabledRules"];
+  };
   "/v1/version": {
     /** REST: GET /v1/version */
     get: operations["VersionService_GetVersion"];
@@ -133,6 +175,21 @@ export interface components {
        * @description At most and by default 86400 (24 hours).
        */
       ttl_seconds?: number;
+    };
+    FleetAdminServiceEmergencyDisableRuleBody: {
+      group_id?: string;
+      /** 1..500 characters, required */
+      reason?: string;
+    };
+    FleetAdminServiceEnableRuleBody: {
+      group_id?: string;
+      /** 1..500 characters, required */
+      reason?: string;
+    };
+    FleetAdminServiceSetReplaySamplingBody: {
+      /** Format: double */
+      rate_percent?: number;
+      rotate_key?: boolean;
     };
     PolicyServiceDeployPolicyBody: Record<string, never>;
     /**
@@ -214,6 +271,23 @@ export interface components {
        */
       rollout_id?: string;
     };
+    v1DisabledRule: {
+      group_id?: string;
+      /** Format: int64 */
+      rule_id?: number;
+      reason?: string;
+      created_by?: string;
+      /** Format: date-time */
+      create_time?: string;
+    };
+    v1EmergencyDisableRuleResponse: {
+      rule?: components["schemas"]["v1DisabledRule"];
+      /** one per node of the group */
+      commands?: components["schemas"]["v1NodeCommand"][];
+    };
+    v1EnableRuleResponse: {
+      commands?: components["schemas"]["v1NodeCommand"][];
+    };
     v1ForceShadowRequest: {
       /** @description Exactly one of node_id and group_id. */
       node_id?: string;
@@ -239,6 +313,9 @@ export interface components {
     v1GetPolicyVersionResponse: {
       version?: components["schemas"]["v1PolicyVersion"];
     };
+    v1GetReplaySamplingResponse: {
+      sampling?: components["schemas"]["v1ReplaySampling"];
+    };
     v1GetRolloutResponse: {
       rollout?: components["schemas"]["v1Rollout"];
     };
@@ -262,6 +339,9 @@ export interface components {
     };
     v1ListCommandsResponse: {
       commands?: components["schemas"]["v1NodeCommand"][];
+    };
+    v1ListDisabledRulesResponse: {
+      rules?: components["schemas"]["v1DisabledRule"][];
     };
     v1ListGroupsResponse: {
       groups?: components["schemas"]["v1Group"][];
@@ -302,7 +382,10 @@ export interface components {
     v1NodeCommand: {
       id?: string;
       node_id?: string;
-      /** FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS */
+      /**
+       * FORCE_SHADOW, CLEAR_FORCE_SHADOW, DIAGNOSTICS, DISABLE_RULES,
+       * SET_DISABLED_RULES, ENABLE_RULES
+       */
       kind?: string;
       /** FORCE_SHADOW: empty = every policy */
       policy_id?: string;
@@ -326,6 +409,8 @@ export interface components {
       expire_time?: string;
       /** Format: date-time */
       update_time?: string;
+      /** DISABLE_RULES, ENABLE_RULES */
+      rule_ids?: number[];
     };
     v1PauseRolloutResponse: {
       rollout?: components["schemas"]["v1Rollout"];
@@ -361,6 +446,13 @@ export interface components {
        */
       max_snippet_size?: number;
       privacy?: components["schemas"]["v1PrivacySettings"];
+      /**
+       * Format: double
+       * @description Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,
+       * two decimals), whose requests this enforce policy blocks; the others
+       * run in shadow. 0: every client.
+       */
+      canary_percent?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -389,6 +481,18 @@ export interface components {
        * identity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps).
        */
       identity?: string;
+    };
+    v1ReplaySampling: {
+      group_id?: string;
+      /**
+       * 0 (off) to 100, two decimals
+       * Format: double
+       */
+      rate_percent?: number;
+      key_id?: string;
+      updated_by?: string;
+      /** Format: date-time */
+      update_time?: string;
     };
     v1ResponseLayer: {
       allowed_codes_check?: boolean;
@@ -432,6 +536,10 @@ export interface components {
       error?: string;
       /** Format: date-time */
       update_time?: string;
+    };
+    v1SetReplaySamplingResponse: {
+      sampling?: components["schemas"]["v1ReplaySampling"];
+      commands?: components["schemas"]["v1NodeCommand"][];
     };
     v1UpdatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
@@ -569,6 +677,65 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1CreateEnrollmentTokenResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: GET /v1/groups/{group_id}/replaySampling. Needs nodes:read; never
+   * the key.
+   */
+  FleetAdminService_GetReplaySampling: {
+    parameters: {
+      path: {
+        group_id: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetReplaySamplingResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/groups/{group_id}:setReplaySampling. The share of
+   * requests the group's nodes sample for replay, anonymized with the
+   * group's key (W12-N-01); a new key when the group has none or
+   * rotate_key is set. Above 0 only once the control plane runs with
+   * -replay-sampling-approved (legal review of the sample format). Needs
+   * replay:configure (admin).
+   */
+  FleetAdminService_SetReplaySampling: {
+    parameters: {
+      path: {
+        group_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FleetAdminServiceSetReplaySamplingBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1SetReplaySamplingResponse"];
         };
       };
       /** @description An unexpected error response. */
@@ -997,6 +1164,95 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1ResumeRolloutResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/rules/{rule_id}:emergencyDisable. Emergency kill switch
+   * (W12-G2-02): the rule stops matching, in every policy, on every node of
+   * the group within seconds, without a deploy. It stays off (also for
+   * nodes that connect later) until EnableRule. A reason is required;
+   * operator and above (rules:disable); audited with the reason.
+   */
+  FleetAdminService_EmergencyDisableRule: {
+    parameters: {
+      path: {
+        rule_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FleetAdminServiceEmergencyDisableRuleBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1EmergencyDisableRuleResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/rules/{rule_id}:enable. Switches the rule back on in
+   * the group. Same permission, reason and audit.
+   */
+  FleetAdminService_EnableRule: {
+    parameters: {
+      path: {
+        rule_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FleetAdminServiceEnableRuleBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1EnableRuleResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: GET /v1/rules:disabled?group_id=. The rules switched off, of one
+   * group or of every group. Needs nodes:read.
+   */
+  FleetAdminService_ListDisabledRules: {
+    parameters: {
+      query?: {
+        /** @description empty: every group */
+        group_id?: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ListDisabledRulesResponse"];
         };
       };
       /** @description An unexpected error response. */

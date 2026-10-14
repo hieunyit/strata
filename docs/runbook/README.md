@@ -121,6 +121,30 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 
 Cảnh báo `StrataForceShadowActive` (mức info) nhắc rằng node đang bị giữ ở shadow.
 
+## Tắt rule khẩn cấp
+
+Một Rule ID chặn nhầm hàng loạt: tắt nó trên mọi node của một connector group trong vài
+giây, không deploy lại policy (W12). Các rule khác vẫn chặn, nên đây là lựa chọn đầu tiên
+khi đã biết rule nào sai; chưa biết thì **ép shadow**.
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"group_id":"<group>","reason":"FP trên /search, ticket #123"}' "$CP/v1/rules/942100:emergencyDisable"
+curl -fsS -H "Authorization: Bearer $TOKEN" "$CP/v1/rules:disabled?group_id=<group>"
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"group_id":"<group>","reason":"rule sửa trong gói 0.0.2"}' "$CP/v1/rules/942100:enable"
+```
+
+- Cần vai trò `operator` trở lên; lý do (1..500 ký tự) bắt buộc và nằm trong audit cùng
+  người gọi và group.
+- Node offline lúc tắt nhận danh sách khi kết nối lại. Agent giữ danh sách qua restart
+  (`disabled-rules.json` trong `--bundle-dir`), worker NGINX áp trong 1 giây (log `strata: N rules disabled by the
+  kill switch`); một group tắt tối đa 480 rule.
+- Rule bị tắt không khớp cả ở shadow, nên không có sự kiện của nó cho tới khi bật lại.
+- Cảnh báo `StrataRulesDisabled` (mức info) nhắc rằng còn rule đang tắt. Kiểm một node:
+  `POST /v1/nodes/{id}:collectDiagnostics`, kết quả có `disabled_rules`; metric
+  `strata_agent_disabled_rules`.
+
 ## Node tự về shadow
 
 Cảnh báo `StrataNodeFallback`: agent tự ép **mọi policy** của node về shadow (tầng 1 của
@@ -136,14 +160,68 @@ fallback tự động), lý do ở nhãn `reason`:
   không đổi policy. Lý do: shadow không đổi fail mode (fail-open vẫn cho qua, fail-closed
   vẫn trả 503), nên ép shadow không giúp gì mà còn mở đường tắt WAF.
 
-Node giữ shadow trong `--fallback-hold` (mặc định 1 giờ). Việc cần làm:
+Node giữ shadow **cho tới khi control plane gỡ** (W12-G1-01): không có hạn, restart agent
+vẫn giữ (`force-shadow.json`). Giữ quá 1 giờ thì có cảnh báo `StrataNodeFallbackHeld`.
+Kiểm: metric `strata_agent_fallback_active`, hoặc `collectDiagnostics` (`force_shadow.fallback`
+có lý do và thời điểm). Việc cần làm:
 
 1. Trang Sự kiện, lọc node và 15 phút trước cảnh báo: Rule ID nào tăng? Nhiều IP khác
    nhau trên một rule mới deploy thường là chặn nhầm; ít IP với payload tấn công rõ là
    đợt tấn công thật (khi đó shadow để lọt tấn công: cân nhắc gỡ sớm).
-2. Chặn nhầm: **rollback bundle** hoặc tắt rule, rồi để hạn tự hết. Tấn công thật: gỡ
-   bằng `clearForceShadow` (mục Ép shadow, `policy_id` để trống).
+2. Chặn nhầm: **rollback bundle** hoặc tắt rule (mục Tắt rule khẩn cấp), rồi gỡ. Tấn công
+   thật: gỡ ngay khi đã chắc. Gỡ bằng `clearForceShadow` (mục Ép shadow) với `policy_id` để
+   trống; gỡ một policy hay lệnh `forceShadow` hết hạn không gỡ được fallback.
 3. Tắt hẳn tầng này trên một node: `strata-agent --fallback=false`.
+
+## Canary về shadow
+
+Cảnh báo `StrataCanaryFallback`: control plane so nhóm canary (client trong `canary_percent`,
+policy enforce) với nhóm shadow của cùng policy trên một connector group, cửa sổ 1 phút, mỗi
+nhóm ≥ 200 request (tầng 2 của fallback tự động, W12-G2-01). Lý do ở nhãn `reason`:
+
+- `upstream_5xx`: tỉ lệ 5xx của upstream ở canary hơn shadow ≥ 1 điểm % và ≥ 2 lần;
+- `latency`: p99 canary ≥ 1,5 lần p99 shadow và hơn 50 ms;
+- `block_rate`: tỉ lệ chặn của canary > 3 lần mức "lẽ ra chặn" học được trong 1 giờ trước, và
+  > 1%.
+
+Khi ngắt: mọi policy có `canary_percent` bị ép shadow trên mọi node của group (lệnh
+`forceShadow` 24 giờ, control plane gia hạn mỗi 12 giờ, không tự hết), rollout đang chạy dừng
+(`PAUSED`), audit `groups/<group>:canaryFallback` ghi số liệu của cửa sổ. Việc cần làm:
+
+1. Đọc audit của lần ngắt (số request, tỉ lệ từng nhóm, mức nền) và trang Sự kiện của policy:
+   rule nào tăng ở nhóm canary?
+2. Chặn nhầm: rollback bundle hoặc tắt rule (mục Tắt rule khẩn cấp). 5xx hay độ trễ: kiểm
+   upstream và CPU budget của node.
+3. Gỡ khi đã xử lý xong, **trên group** (gỡ trên một node không dừng việc gia hạn):
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"group_id":"<group>","policy_id":"example-canary"}' "$CP/v1/nodes:clearForceShadow"
+```
+
+4. Tiếp tục rollout nếu cần (`:resume`).
+
+## Lấy mẫu replay
+
+Mẫu request đã ẩn danh cho replay (W12-N-01, `docs/spec/replay-sample.md`). **Chỉ bật sau khi
+pháp chế duyệt định dạng**: tới lúc đó control plane từ chối tỉ lệ > 0; sau đó chạy control
+plane với `-replay-sampling-approved`.
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"rate_percent":1}' "$CP/v1/groups/<group>:setReplaySampling"
+curl -fsS -H "Authorization: Bearer $TOKEN" "$CP/v1/groups/<group>/replaySampling"
+# xoay khóa (một node bị lộ), hoặc tắt hẳn
+curl -fsS -X POST ... -d '{"rate_percent":1,"rotate_key":true}' "$CP/v1/groups/<group>:setReplaySampling"
+curl -fsS -X POST ... -d '{"rate_percent":0}' "$CP/v1/groups/<group>:setReplaySampling"
+```
+
+- Chỉ vai trò `admin`; audit ghi người, tỉ lệ, id khóa (không có khóa).
+- Node áp trong vài giây (log `strata: replay sampling N bp, key "..."`). Cảnh báo `replay key "..."
+  not usable` nghĩa là `replay.key` không khớp id trong control file: kiểm agent (`--bundle-dir`).
+- Tắt (0) thì agent xóa `replay.key` khỏi node.
+- Metric: `strata_agent_replay_samples_total`, `strata_agent_replay_rate_bp`. Mẫu nằm trong
+  object storage `replay/v1/<policy>/...`; hạn lưu là lifecycle của bucket (đề xuất 7 ngày).
 
 ## Tắt module
 

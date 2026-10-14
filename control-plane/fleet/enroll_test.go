@@ -10,7 +10,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"sync"
 	"testing"
@@ -340,7 +342,9 @@ func connect(t *testing.T, cl fleetv1.FleetServiceClient, hello bool) (fleetv1.F
 	if hello {
 		if err := st.Send(&fleetv1.AgentMessage{Msg: &fleetv1.AgentMessage_Hello{Hello: &fleetv1.Hello{
 			Node: &fleetv1.NodeInfo{Hostname: "edge-01b"}, ActiveBundleVersion: 1,
-		}}}); err != nil {
+		}}}); err != nil && !errors.Is(err, io.EOF) {
+			// io.EOF: the server ended the stream first (a refused
+			// certificate); Recv returns its status
 			t.Fatal(err)
 		}
 	}

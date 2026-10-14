@@ -86,7 +86,12 @@ type Config struct {
 	// Objects serves FetchBundle; Rollouts is told of bundle statuses.
 	Objects  BundleObjects
 	Rollouts *Rollouts
-	Now      func() time.Time
+	// Canary, when set, gets every heartbeat's canary counters (W12-G2-01).
+	Canary *CanaryMonitor
+	// Samples, when set, gets the replay samples of the event batches that
+	// were not received before (W12-N-01); without it they are dropped.
+	Samples SampleSink
+	Now     func() time.Time
 }
 
 // Server implements FleetService.
@@ -377,6 +382,7 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 	hello := time.NewTimer(helloTimeout)
 	defer hello.Stop()
 	greeted := false
+	group := "" // the node's connector group, read at Hello
 	for {
 		select {
 		case <-ctx.Done():
@@ -401,6 +407,7 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 			switch msg := m.GetMsg().(type) {
 			case *fleetv1.AgentMessage_Hello:
 				greeted = true
+				group = s.nodeGroup(ctx, id)
 				ni := msg.Hello.GetNode()
 				v := int64(msg.Hello.GetActiveBundleVersion())
 				s.seen(ctx, id, clean(ni.GetHostname(), 253), clean(ni.GetConnector().GetProxyVersion(), 64),
@@ -411,12 +418,27 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 						return err
 					}
 				}
+				// and the rules its group has switched off (W12-G2-02)
+				if m := s.disabledRules(ctx, id); m != nil {
+					if err := st.Send(m); err != nil {
+						return err
+					}
+				}
+				// and its group's replay sampling (W12-N-01)
+				if m := s.replaySampling(ctx, id); m != nil {
+					if err := st.Send(m); err != nil {
+						return err
+					}
+				}
 			case *fleetv1.AgentMessage_Heartbeat:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
 				}
 				v := int64(msg.Heartbeat.GetActiveBundleVersion())
 				s.seen(ctx, id, "", "", "", &v)
+				if s.cfg.Canary != nil {
+					s.cfg.Canary.Observe(id, group, msg.Heartbeat.GetCounters(), s.cfg.Now())
+				}
 			case *fleetv1.AgentMessage_BundleStatus:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
@@ -448,6 +470,12 @@ const (
 func (s *Server) commandResult(ctx context.Context, node string, r *fleetv1.CommandResult) {
 	if s.cfg.Registry == nil || len(r.GetCommandId()) == 0 || len(r.GetCommandId()) > 64 {
 		return
+	}
+	if strings.HasPrefix(r.GetCommandId(), syncCommandPrefix) {
+		if !r.GetOk() {
+			log.Printf("[WARN] fleet: node %s refused the disabled rules: %s", node, clean(r.GetError(), maxCommandError))
+		}
+		return // not a stored command
 	}
 	out := r.GetOutput()
 	if len(out) > maxCommandOutput || !utf8.ValidString(out) {
@@ -483,6 +511,64 @@ func (s *Server) bundleStatus(ctx context.Context, node string, bs *fleetv1.Bund
 	if s.cfg.Rollouts != nil {
 		s.cfg.Rollouts.Kick()
 	}
+}
+
+// replaySampling is the SetReplaySampling of a connecting node, or nil
+// without a store that keeps it.
+func (s *Server) replaySampling(ctx context.Context, node string) *fleetv1.ControlMessage {
+	src, ok := s.cfg.Registry.(ReplaySource)
+	if !ok {
+		return nil
+	}
+	r, err := src.NodeReplaySampling(ctx, node)
+	if err != nil {
+		log.Printf("[WARN] fleet: replay sampling of %s: %v", node, err)
+		return nil
+	}
+	return ReplayMessage(syncCommandPrefix+"replay-"+node, r)
+}
+
+// SampleSink takes replay samples (replay.Collector).
+type SampleSink interface {
+	Add(ctx context.Context, node string, samples []*eventv1.ReplaySample)
+}
+
+// nodeGroup: the connector group of a node, "" when unknown.
+func (s *Server) nodeGroup(ctx context.Context, id string) string {
+	if s.cfg.Registry == nil || s.cfg.Canary == nil {
+		return ""
+	}
+	n, err := s.cfg.Registry.GetNode(ctx, id)
+	if err != nil {
+		log.Printf("[WARN] fleet: node %s: %v", id, err)
+		return ""
+	}
+	return n.GroupID
+}
+
+// DisabledRulesSource is implemented by registries that keep the kill
+// switch (store.Store).
+type DisabledRulesSource interface {
+	NodeDisabledRules(ctx context.Context, node string) ([]int32, error)
+}
+
+// syncCommandPrefix: ids of the commands sent on Hello, which are not
+// stored in node_commands.
+const syncCommandPrefix = "sync-"
+
+// disabledRules is the DisableRules (replace) bringing a connecting node's
+// list in line with its group, or nil without a kill switch store.
+func (s *Server) disabledRules(ctx context.Context, node string) *fleetv1.ControlMessage {
+	src, ok := s.cfg.Registry.(DisabledRulesSource)
+	if !ok {
+		return nil
+	}
+	ids, err := src.NodeDisabledRules(ctx, node)
+	if err != nil {
+		log.Printf("[WARN] fleet: disabled rules of %s: %v", node, err)
+		return nil
+	}
+	return CommandMessage(store.Command{ID: syncCommandPrefix + node, Kind: store.CommandSetRules, RuleIDs: ids})
 }
 
 // desired is the BundleAvailable for a node not running its desired
@@ -616,8 +702,8 @@ func (s *Server) PushEvents(st fleetv1.FleetService_PushEventsServer) error {
 		if err != nil {
 			return err
 		}
-		if len(b.GetEvents()) > MaxBatchEvents {
-			return status.Errorf(codes.InvalidArgument, "batch of %d events, at most %d", len(b.GetEvents()), MaxBatchEvents)
+		if n := len(b.GetEvents()) + len(b.GetSamples()); n > MaxBatchEvents {
+			return status.Errorf(codes.InvalidArgument, "batch of %d events and samples, at most %d", n, MaxBatchEvents)
 		}
 		now := time.Now().UTC()
 		events := make([]ingest.Event, 0, len(b.GetEvents()))
@@ -629,6 +715,10 @@ func (s *Server) PushEvents(st fleetv1.FleetService_PushEventsServer) error {
 			// The ingest queue is full or the store is failing: the agent
 			// slows down and resends from its last ack.
 			return status.Errorf(codes.ResourceExhausted, "ingest: %v", err)
+		}
+		// samples are best effort: taken once, with the batch that is new
+		if samples := b.GetSamples(); len(samples) > 0 && ack.Success && !ack.Duplicate && s.cfg.Samples != nil {
+			s.cfg.Samples.Add(ctx, node, samples)
 		}
 		if err := st.Send(&fleetv1.EventAck{AckedSeq: ack.AckedSeq}); err != nil {
 			return err

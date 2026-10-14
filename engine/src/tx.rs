@@ -77,6 +77,8 @@ pub struct Tx {
     line: Option<Line>,
     node: u16,
     shadow: bool,
+    /// Canary group from `set_policy` (W12-G2-01).
+    canary: crate::event::CanaryGroup,
     json: bool,
     /// the policy blocks request bodies larger than what is inspected
     oversize_block: bool,
@@ -141,9 +143,76 @@ pub struct Tx {
     signatures: crate::bundle::Signatures,
     sig_score: i32,
     sig_matched: bool,
+    /// rules switched off on the engine when the transaction started
+    disabled: Arc<[u32]>,
+    /// what a sampled transaction keeps for replay (W12-N-01)
+    sample: Option<Box<SampleData>>,
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
+}
+
+/// Body bytes a replay sample keeps: a sample travels as one datagram of
+/// the event socket (8 KB) and anonymization makes values longer.
+pub const SAMPLE_MAX_BODY: usize = 4096;
+/// Request line fields and header bytes a sample keeps.
+const SAMPLE_MAX_FIELD: usize = 2048;
+const SAMPLE_MAX_HEADERS: usize = 4096;
+
+/// What a sampled transaction keeps until the sample is encoded.
+struct SampleData {
+    cfg: Arc<crate::engine::ReplayConfig>,
+    ts_ms: i64,
+    method: Vec<u8>,
+    raw_uri: Vec<u8>,
+    uri: Vec<u8>,
+    args: Vec<u8>,
+    proto: Vec<u8>,
+    headers: Vec<(Vec<u8>, Vec<u8>)>,
+    header_bytes: usize,
+    body: Vec<u8>,
+    body_len: usize,
+}
+
+// neither the key nor the request in debug output
+impl std::fmt::Debug for SampleData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SampleData")
+            .field("key_id", &self.cfg.key_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SampleData {
+    fn new(cfg: Arc<crate::engine::ReplayConfig>) -> Self {
+        let ts_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+        SampleData {
+            cfg,
+            ts_ms,
+            method: vec![],
+            raw_uri: vec![],
+            uri: vec![],
+            args: vec![],
+            proto: vec![],
+            headers: vec![],
+            header_bytes: 0,
+            body: vec![],
+            body_len: 0,
+        }
+    }
+
+    /// Headers in arrival order while they fit SAMPLE_MAX_HEADERS.
+    fn add_headers(&mut self, headers: &[(&[u8], &[u8])]) {
+        for (k, v) in headers {
+            if self.header_bytes + k.len() + v.len() > SAMPLE_MAX_HEADERS {
+                return;
+            }
+            self.header_bytes += k.len() + v.len();
+            self.headers.push((k.to_vec(), v.to_vec()));
+        }
+    }
 }
 
 /// Body bytes the request_body rules see at most; the connector's
@@ -181,6 +250,9 @@ impl Tx {
         let missing = engine.is_none();
         let version = engine.as_ref().map_or(0, |e| e.info().version);
         let has_body_rules = engine.as_ref().is_some_and(|e| e.has_body_rules());
+        let disabled = engine
+            .as_ref()
+            .map_or_else(|| Arc::from([]), |e| e.disabled_rules());
         let node_id_bounded = &node_id[..node_id.len().min(64)];
         let mut node_buf = [0u8; 64];
         node_buf[..node_id_bounded.len()].copy_from_slice(node_id_bounded);
@@ -191,6 +263,7 @@ impl Tx {
             line: None,
             node: block_id::node_hash(node_id),
             shadow: flags & TXF_FORCE_SHADOW != 0,
+            canary: crate::event::CanaryGroup::None,
             json: false,
             oversize_block: false,
             response: Response::default(),
@@ -238,6 +311,8 @@ impl Tx {
             signatures: crate::bundle::Signatures::Shadow,
             sig_score: 0,
             sig_matched: false,
+            disabled,
+            sample: None,
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
@@ -245,7 +320,17 @@ impl Tx {
         if missing {
             tx.fail(E_BUNDLE);
         }
+        if let Some(cfg) = tx.engine.as_ref().and_then(|e| e.replay())
+            && block_id::next_rand() % 10_000 < u32::from(cfg.rate_bp)
+        {
+            tx.sample = Some(Box::new(SampleData::new(cfg)));
+        }
         tx
+    }
+
+    /// The transaction is sampled for replay.
+    pub fn sampled(&self) -> bool {
+        self.sample.is_some()
     }
 
     pub fn set_budget(&mut self, cpu_budget_us: u64) {
@@ -368,14 +453,28 @@ impl Tx {
                 &self.identity[..self.identity_len],
                 &self.client_addr[..self.client_addr_len],
             );
-            self.shadow |= !crate::canary::enforced(name, key, p.canary);
+            let enforced = crate::canary::enforced(name, key, p.canary);
+            self.shadow |= !enforced;
+            // the group follows the hash, also under TXF_FORCE_SHADOW: the
+            // control plane compares the two sides (W12-G2-01)
+            self.canary = match (p.canary, enforced) {
+                (0, _) => crate::event::CanaryGroup::None,
+                (_, true) => crate::event::CanaryGroup::Enforce,
+                (_, false) => crate::event::CanaryGroup::Shadow,
+            };
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
             self.response = p.response;
             self.signatures = p.signatures;
             self.snippet_max = p.snippet.bytes();
         } else {
             self.policy_index = None;
+            self.canary = crate::event::CanaryGroup::None;
         }
+    }
+
+    /// Canary group of the transaction (W12-G2-01).
+    pub fn canary(&self) -> crate::event::CanaryGroup {
+        self.canary
     }
 
     /// Client identity for event reporting (at most 128 bytes).
@@ -496,8 +595,12 @@ impl Tx {
 
     /// Records a violation once; decides when it blocks alone or the
     /// total reaches the threshold.
+    fn is_disabled(&self, rule: u32) -> bool {
+        !self.disabled.is_empty() && self.disabled.binary_search(&rule).is_ok()
+    }
+
     fn add(&mut self, v: Violation) {
-        if self.rules[..self.n_rules].contains(&v.rule) {
+        if self.rules[..self.n_rules].contains(&v.rule) || self.is_disabled(v.rule) {
             return;
         }
         if self.n_rules < MAX_RULES {
@@ -556,7 +659,7 @@ impl Tx {
     /// Records a response-layer finding: listed with the rules, but the
     /// decision was taken with the request; an Event ID identifies it.
     fn record(&mut self, rule: u32) {
-        if self.rules[..self.n_rules].contains(&rule) {
+        if self.rules[..self.n_rules].contains(&rule) || self.is_disabled(rule) {
             return;
         }
         if self.n_rules < MAX_RULES {
@@ -624,6 +727,17 @@ impl Tx {
             return rc;
         }
         self.stage = Stage::Line;
+        if let Some(s) = self.sample.as_mut() {
+            for (dst, src) in [
+                (&mut s.method, _method),
+                (&mut s.raw_uri, raw_uri),
+                (&mut s.uri, norm_uri),
+                (&mut s.args, args),
+                (&mut s.proto, _proto),
+            ] {
+                dst.extend_from_slice(&src[..src.len().min(SAMPLE_MAX_FIELD)]);
+            }
+        }
         let m_len = _method.len().min(self.method.len());
         self.method[..m_len].copy_from_slice(&_method[..m_len]);
         self.method_len = m_len;
@@ -728,6 +842,9 @@ impl Tx {
     /// All headers in one call: protocol checks, then the rules of stage
     /// `request_headers` over the request line and these headers.
     pub fn request_headers(&mut self, headers: &[(&[u8], &[u8])]) -> Rc {
+        if let Some(s) = self.sample.as_mut() {
+            s.add_headers(headers);
+        }
         for (k, v) in headers {
             let rc = self.request_header(k, v);
             if rc != OK {
@@ -762,6 +879,7 @@ impl Tx {
                 stage,
                 self.degraded,
                 self.signatures != crate::bundle::Signatures::Off,
+                &self.disabled,
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -827,6 +945,7 @@ impl Tx {
             stage,
             self.degraded,
             self.signatures != crate::bundle::Signatures::Off,
+            &self.disabled,
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );
@@ -850,6 +969,11 @@ impl Tx {
     pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
             return rc;
+        }
+        if let Some(s) = self.sample.as_mut() {
+            let room = SAMPLE_MAX_BODY.saturating_sub(s.body.len());
+            s.body.extend_from_slice(&data[..data.len().min(room)]);
+            s.body_len += data.len();
         }
         if self.matched {
             if last {
@@ -1036,7 +1160,67 @@ impl Tx {
         // found or rewritten in it
         v.need_response = (self.error == OK || self.error == E_BUDGET) && self.wants_body();
         v.id = self.id;
+        v.canary = self.canary;
         v
+    }
+
+    /// The replay sample of a sampled transaction (W12-N-01): anonymized
+    /// with the group's key, as one datagram (SAMPLE_MAGIC, then event.proto
+    /// ReplaySample) of at most 8 KB; the body kept shrinks until it fits.
+    /// None when not sampled, or when even without a body it does not fit.
+    pub fn encode_sample(&self) -> Option<Vec<u8>> {
+        let s = self.sample.as_ref()?;
+        let policy: &[u8] = match (self.engine.as_ref(), self.policy_index) {
+            (Some(e), Some(i)) => e.policy_by_index(i).map_or(&[][..], |p| p.name),
+            _ => &self.unmatched_policy[..self.unmatched_policy_len],
+        };
+        let v = self.verdict();
+        let action: &[u8] = if v.error != OK {
+            b"error"
+        } else {
+            match v.action {
+                ACTION_BLOCK => b"block",
+                ACTION_LOG => b"log",
+                ACTION_ALLOW => b"allow",
+                _ => b"challenge",
+            }
+        };
+        let req = crate::anon::Request {
+            ts_ms: s.ts_ms,
+            node_id: &self.node_id[..self.node_id_len],
+            policy,
+            method: &s.method,
+            raw_uri: &s.raw_uri,
+            uri: &s.uri,
+            args: &s.args,
+            proto: &s.proto,
+            client: &self.client_addr[..self.client_addr_len],
+            headers: s
+                .headers
+                .iter()
+                .map(|(k, v)| (k.as_slice(), v.as_slice()))
+                .collect(),
+            body: &s.body,
+            body_len: Some(s.body_len),
+            action,
+            rules: &self.rules[..self.n_rules],
+        };
+        let mut a = crate::anon::Anonymizer::new(&s.cfg.key, &s.cfg.key_id)?;
+        let mut max = SAMPLE_MAX_BODY;
+        loop {
+            // max_body 0 is the default (64 KB) for the anonymizer: keep 1 byte
+            a.max_body = max.max(1);
+            let r = a.anonymize(&req);
+            let out =
+                crate::event::encode_sample(&r, &s.cfg.key_id, self.canary, self.bundle_version);
+            if out.len() <= crate::event::MAX_DATAGRAM {
+                return Some(out);
+            }
+            if max <= 1 {
+                return None;
+            }
+            max /= 2;
+        }
     }
 
     /// Encodes the event for this transaction into a protobuf datagram (at most 8 KB).
@@ -1170,6 +1354,7 @@ impl Tx {
             inspection,
             // a would-be block of the signature pack in shadow counts too
             would_block: self.matched || self.sig_matched,
+            canary: self.canary,
         };
 
         Some(crate::event::encode(&ev))
@@ -1195,6 +1380,7 @@ fn keep_for_event(headers: &[(&[u8], &[u8])]) -> Vec<(Vec<u8>, Vec<u8>)> {
 mod tests {
     use super::*;
     use crate::engine::tests::test_engine;
+    use crate::event::CanaryGroup;
 
     fn tx() -> Tx {
         Tx::new(Some(Arc::new(test_engine())), b"node-a", 0)
@@ -1524,6 +1710,15 @@ mod tests {
                 crate::canary::key(identity, addr),
                 1000,
             );
+            // W12-G2-01: the group, in the verdict and in the event
+            let want = if enforced {
+                CanaryGroup::Enforce
+            } else {
+                CanaryGroup::Shadow
+            };
+            assert_eq!((t.canary(), v.canary), (want, want));
+            let ev = t.encode_event().unwrap();
+            assert!(ev.ends_with(&[0xb0, 0x01, want as u8]), "{ev:?}"); // tag 22, varint
             if enforced {
                 assert_eq!(v.action, ACTION_BLOCK);
                 assert!(id_str(&v).starts_with("STR-"));
@@ -1556,6 +1751,37 @@ mod tests {
         }
     }
 
+    // W12-G2-01: no canary, an unknown policy, and a forced shadow: the
+    // group follows the policy's canary and the hash only.
+    #[test]
+    fn canary_group_of_other_policies() {
+        for (policy, flags) in [(&b"example-api"[..], 0), (b"no-such-policy", 0)] {
+            let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", flags);
+            t.set_client_addr(b"192.0.2.1");
+            t.set_policy(policy);
+            line(&mut t, b"/STRATA-TEST-BLOCK");
+            assert_eq!(t.verdict().canary, CanaryGroup::None);
+            let ev = t.encode_event().unwrap();
+            assert!(!ev.windows(2).any(|w| w == [0xb0, 0x01]), "no field 22");
+        }
+        let addr = (0..1000)
+            .map(|i| format!("198.51.{}.{}", i / 256, i % 256))
+            .find(|a| {
+                crate::canary::enforced(
+                    b"example-canary",
+                    crate::canary::key(b"", a.as_bytes()),
+                    1000,
+                )
+            })
+            .unwrap();
+        let mut t = Tx::new(Some(Arc::new(test_engine())), b"n", TXF_FORCE_SHADOW);
+        t.set_client_addr(addr.as_bytes());
+        t.set_policy(b"example-canary");
+        line(&mut t, b"/STRATA-TEST-BLOCK");
+        let v = t.verdict();
+        assert_eq!((v.action, v.canary), (ACTION_LOG, CanaryGroup::Enforce));
+    }
+
     // Degraded mode (circuit breaker): the protocol layer still blocks,
     // the rules of the full engine (here the stub rule) do not run.
     #[test]
@@ -1579,6 +1805,50 @@ mod tests {
         let v = t.verdict();
         assert_eq!(v.action, ACTION_BLOCK);
         assert_eq!(rules(&v), [protocol::CL_TE_CONFLICT]);
+    }
+
+    // W12-R-02: a disabled rule no longer matches, built-in detectors
+    // included; a transaction keeps the list of its start; an empty list
+    // switches the rules back on.
+    #[test]
+    fn disabled_rules_do_not_match() {
+        let e = Arc::new(test_engine());
+        // the protocol layer (encoded dot segment) and the stub rule
+        let run = |e: &Arc<Engine>, raw: &[u8]| {
+            let mut t = Tx::new(Some(e.clone()), b"n", 0);
+            t.set_policy(b"example-api");
+            t.request_line(b"GET", raw, b"/b", b"", b"HTTP/1.1");
+            headers(&mut t, &[]);
+            t.verdict()
+        };
+        let dot = &b"/a/%2e%2e/b"[..];
+        let stub = &b"/STRATA-TEST-BLOCK"[..];
+        assert_eq!(rules(&run(&e, dot)), [protocol::ENCODED_DOT_SEGMENT]);
+        assert_eq!(rules(&run(&e, stub)), [STUB_RULE_ID]);
+
+        let before = Tx::new(Some(e.clone()), b"n", 0);
+        e.set_disabled_rules(&[STUB_RULE_ID, protocol::ENCODED_DOT_SEGMENT, 42])
+            .unwrap();
+        for raw in [dot, stub] {
+            let v = run(&e, raw);
+            assert_eq!((v.action, v.n_rules), (ACTION_ALLOW, 0));
+        }
+        assert!(
+            before.disabled.is_empty(),
+            "a running transaction keeps its list"
+        );
+
+        e.set_disabled_rules(&[protocol::ENCODED_DOT_SEGMENT])
+            .unwrap();
+        assert_eq!(run(&e, dot).n_rules, 0);
+        assert_eq!(rules(&run(&e, stub)), [STUB_RULE_ID]);
+
+        e.set_disabled_rules(&[]).unwrap();
+        assert_eq!(run(&e, dot).action, ACTION_BLOCK);
+        assert!(
+            e.set_disabled_rules(&vec![1; crate::engine::MAX_DISABLED_RULES + 1])
+                .is_err()
+        );
     }
 
     // strata_mode shadow on an enforcing policy stays shadow.

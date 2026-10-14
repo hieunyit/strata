@@ -33,13 +33,17 @@ var (
 	dShadow    = desc("force_shadow_active", "1 while a ForceShadow command holds this node (or one of its policies) in shadow.")
 	dBundleAct = desc("bundle_active_version", "Bundle version the agent installed and the workers confirmed.")
 	dQlen      = desc("unix_max_dgram_qlen", "net.unix.max_dgram_qlen read at start (0: unknown); the event socket needs 8192.")
+	dDisabled  = desc("disabled_rules", "Rules switched off on this node by the emergency kill switch.")
+	dSamples   = desc("replay_samples_total", "Replay samples received from the NGINX workers (W12-N-01).")
+	dReplay    = desc("replay_rate_bp", "Share of requests the workers sample for replay, basis points (0: off or not told yet).")
+	dFbActive  = desc("fallback_active", "1 while the node fallback holds every policy in shadow; only a clear from the control plane ends it.")
 	dFallback  = prometheus.NewDesc("strata_agent_fallback_triggers_total", "Times the node fallback forced every policy into shadow, by reason.", []string{"reason"}, nil)
 	dFbAlert   = prometheus.NewDesc("strata_agent_fallback_alerts_total", "Jumps of engine errors or budget overruns that left the policies as they are (--fallback-on-errors off), by reason.", []string{"reason"}, nil)
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dReceived, dInvalid, dTruncated, dSpoolB, dUnacked, dLastSeq,
-		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback, dFbAlert} {
+		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback, dFbAlert, dDisabled, dFbActive, dSamples, dReplay} {
 		ch <- d
 	}
 }
@@ -77,9 +81,21 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	if c.a.ForceShadow != nil {
 		st := c.a.ForceShadow.Snapshot()
 		gauge(dShadow, b2f(!st.All.IsZero() || len(st.Policies) > 0))
+		gauge(dFbActive, b2f(st.Fallback != nil))
 	}
 	if c.a.Bundles != nil {
 		gauge(dBundleAct, float64(c.a.Bundles.Active()))
+	}
+	counter(dSamples, sc.Samples.Load())
+	if c.a.Replay != nil {
+		rate := 0.0
+		if s := c.a.Replay.Current(); s != nil {
+			rate = float64(s.Rate)
+		}
+		gauge(dReplay, rate)
+	}
+	if c.a.KillSwitch != nil {
+		gauge(dDisabled, float64(len(c.a.KillSwitch.Rules())))
 	}
 	if c.a.Fallback != nil {
 		t := c.a.Fallback.Triggers()

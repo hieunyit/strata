@@ -75,7 +75,7 @@ groups:
         labels: { severity: warning, component: agent }
         annotations:
           summary: "{{ $labels.instance }}: the node forced every policy into shadow on its own ({{ $labels.reason }})"
-          description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow for --fallback-hold (1 h)."
+          description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataNodeErrorsJump
         expr: increase(strata_agent_fallback_alerts_total[10m]) > 0
@@ -83,6 +83,14 @@ groups:
         annotations:
           summary: "{{ $labels.instance }}: engine errors or budget overruns jumped ({{ $labels.reason }}); policies left as they are"
           description: "The node fallback saw a jump it does not act on (#65): shadow does not change the fail mode. Requests go through the fail mode: open lets them pass uninspected, closed answers 503."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
+      - alert: StrataNodeFallbackHeld
+        expr: strata_agent_fallback_active == 1
+        for: 1h
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: held in shadow by the node fallback for over an hour"
+          description: "Only the control plane lifts it: find the cause, then POST /v1/nodes:clearForceShadow with an empty policy_id."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataAgentDown
         expr: up{job="strata-agent"} == 0
@@ -121,6 +129,14 @@ groups:
           summary: "{{ $labels.instance }}: held in shadow by a ForceShadow command"
           description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
           runbook_url: docs/runbook/README.md#ép-shadow
+      - alert: StrataRulesDisabled
+        expr: strata_agent_disabled_rules > 0
+        for: 1m
+        labels: { severity: info, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} rules switched off by the kill switch"
+          description: "Expected during an incident; switch them back on with POST /v1/rules/{rule_id}:enable once the rule is fixed."
+          runbook_url: docs/runbook/README.md#tắt-rule-khẩn-cấp
       - alert: StrataDgramQueueTooShort
         expr: strata_agent_unix_max_dgram_qlen > 0 and strata_agent_unix_max_dgram_qlen < 8192
         labels: { severity: warning, component: agent }
@@ -130,6 +146,13 @@ groups:
 
   - name: strata-control-plane
     rules:
+      - alert: StrataCanaryFallback
+        expr: max by (group, reason) (strata_cp_canary_fallback_active) == 1
+        labels: { severity: critical, component: control-plane }
+        annotations:
+          summary: "group {{ $labels.group }}: canary policies forced into shadow ({{ $labels.reason }})"
+          description: "The canary did worse than its shadow group; running rollouts are paused. The hold lasts until POST /v1/nodes:clearForceShadow on the group."
+          runbook_url: docs/runbook/README.md#canary-về-shadow
       - alert: StrataControlPlaneDown
         expr: up{job="strata-control-plane"} == 0
         for: 2m

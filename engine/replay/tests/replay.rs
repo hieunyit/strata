@@ -9,7 +9,7 @@ use std::sync::Arc;
 use libstrata::bundle::public_key;
 use libstrata::engine::Engine;
 use strata_compiler::{Build, compile, from_yaml, load, policies_from, rules_from_ir};
-use strata_replay::{Sample, evaluate, read_file, run, write_file};
+use strata_replay::{Sample, compare, evaluate, read_file, run, write_file};
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -215,6 +215,102 @@ fn threads_give_the_same_report() {
         for (a, n) in &r.actions {
             assert_eq!(f.actions[a], 2 * n, "{k} {a}");
         }
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+// a bundle of the same policies without any CRS rule (protocol layer only)
+fn bare_engine() -> Arc<Engine> {
+    let pol = policies_from(
+        &from_yaml("policies:\n  - { name: example-api, mode: enforce }\n  - { name: example-web, mode: shadow }\n").unwrap(),
+        Path::new("."),
+    )
+    .unwrap();
+    let b = compile(
+        &[],
+        &pol,
+        &Build {
+            version: 2,
+            created_at_ms: 0,
+            rollback: false,
+        },
+        &SEED,
+    )
+    .unwrap();
+    Arc::new(
+        Engine::map(
+            Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+            &public_key(&SEED),
+        )
+        .unwrap(),
+    )
+}
+
+// W12-R-01: a draft bundle against the bundle in force on the same
+// samples, per route: what the draft newly blocks (candidate false
+// positives) and newly lets through (candidate false negatives), with the
+// rules responsible.
+#[test]
+fn compare_a_draft_with_the_baseline() {
+    let (crs, bare) = (engine(), bare_engine());
+    let c = compare(crs.clone(), bare.clone(), &[&fixture()], None, 2).unwrap();
+    assert_eq!(c.samples, 4);
+    let api = &c.routes["example-api"];
+    assert_eq!(
+        (api.samples, api.newly_blocked, api.newly_allowed),
+        (2, 2, 0),
+        "{api:?}"
+    );
+    assert!(
+        api.newly_blocked_rules.contains_key(&913100),
+        "{:?}",
+        api.newly_blocked_rules
+    );
+    assert_eq!(api.examples_blocked.len(), 2);
+    assert_eq!(api.examples_blocked[0].baseline, "allow");
+    // the samples recorded block and log when taken
+    assert_eq!(
+        api.newly_blocked_sampled.values().sum::<u64>(),
+        2,
+        "{:?}",
+        api.newly_blocked_sampled
+    );
+    // the shadow policy never blocks: nothing changes there
+    assert_eq!(c.routes["example-web"].newly_blocked, 0);
+
+    // the other way round: the rules the draft drops
+    let r = compare(bare, crs, &[&fixture()], None, 1).unwrap();
+    let api = &r.routes["example-api"];
+    assert_eq!((api.newly_blocked, api.newly_allowed), (0, 2));
+    assert!(api.newly_allowed_rules.contains_key(&913100));
+    let md = r.markdown("Draft: no CRS rule");
+    assert!(
+        md.contains("| `example-api` | 2 | 2 → 0 | 0 (0.00%) | 2 |"),
+        "{md}"
+    );
+    assert!(md.contains("Baseline rules of the newly allowed: "), "{md}");
+}
+
+#[test]
+fn compare_threads_give_the_same_counts() {
+    let (crs, bare) = (engine(), bare_engine());
+    let (_, base) = read_file(&fixture()).unwrap();
+    let samples: Vec<Sample> = (0..1_000).map(|i| base[i % base.len()].clone()).collect();
+    let dir = std::env::temp_dir().join(format!("strata-replay-cmp-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("many.parquet");
+    write_file(&p, "test-1", &samples, 128).unwrap();
+    let one = compare(crs.clone(), bare.clone(), &[&p], None, 1).unwrap();
+    let four = compare(crs, bare, &[&p], None, 4).unwrap();
+    for (k, r) in &one.routes {
+        let f = &four.routes[k];
+        assert_eq!(
+            (r.samples, r.newly_blocked, r.newly_allowed),
+            (f.samples, f.newly_blocked, f.newly_allowed),
+            "{k}"
+        );
+        assert_eq!(r.newly_blocked_rules, f.newly_blocked_rules, "{k}");
+        assert!(f.examples_blocked.len() <= 5);
     }
     std::fs::remove_dir_all(&dir).unwrap();
 }

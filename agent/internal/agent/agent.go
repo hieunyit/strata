@@ -29,7 +29,9 @@ import (
 	"github.com/strata/strata/agent/internal/fallback"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/identity"
+	"github.com/strata/strata/agent/internal/killswitch"
 	"github.com/strata/strata/agent/internal/pusher"
+	"github.com/strata/strata/agent/internal/replaysample"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 	"github.com/strata/strata/agent/internal/spool"
 )
@@ -80,6 +82,10 @@ type Agent struct {
 	ForceShadow *forceshadow.Manager
 	// Fallback forces the node into shadow on its own; nil when off.
 	Fallback *fallback.Watcher
+	// KillSwitch applies DisableRules and EnableRules; nil without BundleDir.
+	KillSwitch *killswitch.Manager
+	// Replay applies SetReplaySampling; nil without BundleDir.
+	Replay *replaysample.Manager
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -173,6 +179,8 @@ func New(cfg Config) (*Agent, error) {
 	}
 	if bm != nil {
 		a.ForceShadow = forceshadow.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "force-shadow.json"))
+		a.KillSwitch = killswitch.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "disabled-rules.json"))
+		a.Replay = replaysample.New(cfg.ControlFile, cfg.BundleDir)
 		if cfg.Fallback && cfg.MetricsFile != "" {
 			a.Fallback = fallback.NewWatcher(cfg.MetricsFile, a.ForceShadow, cfg.FallbackOptions)
 		}
@@ -187,7 +195,13 @@ func New(cfg Config) (*Agent, error) {
 		Node: &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
-			return &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+			if cfg.MetricsFile != "" {
+				if snap, err := shmmetrics.Read(cfg.MetricsFile); err == nil {
+					fillCounters(nc, snap)
+				}
+			}
+			return nc
 		},
 	}
 	if cfg.MetricsFile != "" {
@@ -228,6 +242,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	batchDone := make(chan error, 1)
 	pushDone := make(chan error, 1)
 	go func() {
+		a.Socket.OnSample = func(s *eventv1.ReplaySample) { a.batch.AddSample(batchCtx, s) }
 		sockDone <- a.Socket.Run(sockCtx, func(ev *eventv1.Event) {
 			if a.Fallback != nil {
 				a.Fallback.Observe(ev) // blocks by source (#65)
@@ -244,6 +259,18 @@ func (a *Agent) Run(ctx context.Context) error {
 		go func() { a.ForceShadow.Run(pushCtx); close(fsDone) }()
 	} else {
 		close(fsDone)
+	}
+	ksDone := make(chan struct{})
+	if a.KillSwitch != nil {
+		go func() { a.KillSwitch.Run(pushCtx); close(ksDone) }()
+	} else {
+		close(ksDone)
+	}
+	rsDone := make(chan struct{})
+	if a.Replay != nil {
+		go func() { a.Replay.Run(pushCtx); close(rsDone) }()
+	} else {
+		close(rsDone)
 	}
 	fbDone := make(chan struct{})
 	if a.Fallback != nil {
@@ -283,6 +310,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	errs = append(errs, <-controlDone)
 	<-fsDone
 	<-fbDone
+	<-ksDone
+	<-rsDone
 	return errors.Join(errs...)
 }
 
@@ -321,4 +350,27 @@ func clientTLS(cfg Config, id *identity.Identity) (credentials.TransportCredenti
 		ServerName:   cfg.ServerName,
 		MinVersion:   tls.VersionTLS13,
 	}), nil
+}
+
+// fillCounters adds the workers' counters to a heartbeat: requests,
+// blocks, fail open, and the canary groups the control plane compares
+// (W12-G2-01).
+func fillCounters(nc *fleetv1.NodeCounters, snap shmmetrics.Snapshot) {
+	for _, w := range snap.Workers {
+		for _, n := range w.Requests {
+			nc.Requests += n
+		}
+		nc.Blocked += w.Requests[3]
+		nc.FailOpen += w.FailOpen
+	}
+	nc.MetricsCreatedMs = snap.CreatedMs
+	g, ok := snap.Canary()
+	if !ok {
+		return
+	}
+	pb := func(c shmmetrics.CanaryGroup) *fleetv1.CanaryCounters {
+		return &fleetv1.CanaryCounters{Requests: c.Requests, Blocked: c.Blocked, Logged: c.Logged,
+			UpstreamServerErrors: c.Upstream5xx, Latency: c.Latency}
+	}
+	nc.Canary, nc.CanaryShadow = pb(g[shmmetrics.GroupCanary]), pb(g[shmmetrics.GroupShadow])
 }

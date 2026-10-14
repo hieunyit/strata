@@ -187,3 +187,70 @@ func TestClear(t *testing.T) {
 		t.Fatal("bad policy accepted")
 	}
 }
+
+// W12-G1-01: the node fallback's hold has no deadline and survives a
+// restart; a command's deadline passing, a per-policy clear or another
+// hold do not end it; only a clear for every policy does.
+func TestFallbackHoldOnlyEndsOnClearAll(t *testing.T) {
+	dir, m, c := setup(t)
+	if _, err := bundles.WriteControl(filepath.Join(dir, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.HoldAll("block_rate"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.HoldAll("budget"); err != nil {
+		t.Fatal(err)
+	}
+	if ctl := control(t, dir); !ctl.ForceAll {
+		t.Fatalf("not forced: %+v", ctl)
+	}
+	if h := m.Snapshot().Fallback; h == nil || h.Reason != "block_rate" || !h.Since.Equal(c.now()) {
+		t.Fatalf("hold %+v", h)
+	}
+	// a command for every policy expires; one policy is cleared
+	for _, f := range []*fleetv1.ForceShadow{fs("", 60), fs("example-api", 60), {PolicyId: "example-api", Clear: true}} {
+		if err := m.Apply(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.add(48 * time.Hour)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { m.Run(ctx); close(done) }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+	if ctl := control(t, dir); !ctl.ForceAll || len(ctl.ForcePolicies) != 0 {
+		t.Fatalf("after 48 h: %+v", ctl)
+	}
+	// restart
+	m2 := New(filepath.Join(dir, "control"), filepath.Join(dir, "force-shadow.json"))
+	m2.now = c.now
+	if s := m2.Snapshot(); s.Fallback == nil || s.Fallback.Reason != "block_rate" || !s.Forced() {
+		t.Fatalf("after restart: %+v", s)
+	}
+	if err := m2.Apply(&fleetv1.ForceShadow{Clear: true}); err != nil {
+		t.Fatal(err)
+	}
+	if ctl := control(t, dir); ctl.ForceAll {
+		t.Fatalf("after clear: %+v", ctl)
+	}
+	if s := New(filepath.Join(dir, "control"), filepath.Join(dir, "force-shadow.json")).Snapshot(); s.Forced() {
+		t.Fatalf("clear not saved: %+v", s)
+	}
+	// no control file yet: the hold is kept and written later
+	dir2, m3, _ := setup(t)
+	if err := m3.HoldAll("engine_errors"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bundles.WriteControl(filepath.Join(dir2, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	m3.mu.Lock()
+	err := m3.reconcileLocked(m3.now())
+	m3.mu.Unlock()
+	if err != nil || !control(t, dir2).ForceAll {
+		t.Fatalf("written later: %v", err)
+	}
+}

@@ -63,7 +63,20 @@ func (c *Commands) Tick(ctx context.Context) error {
 		return err
 	}
 	for _, cmd := range cmds {
-		if !c.Presence.Notify(cmd.NodeID, CommandMessage(cmd)) {
+		m := CommandMessage(cmd)
+		if cmd.Kind == store.CommandReplaySync {
+			// the key is read now, never stored with the command
+			src, ok := c.Store.(ReplaySource)
+			if !ok {
+				continue
+			}
+			r, err := src.NodeReplaySampling(ctx, cmd.NodeID)
+			if err != nil {
+				return err
+			}
+			m = ReplayMessage(cmd.ID, r)
+		}
+		if !c.Presence.Notify(cmd.NodeID, m) {
 			continue // stream full or gone: next tick
 		}
 		if err := c.Store.MarkCommandSent(ctx, cmd.ID, now); err != nil {
@@ -85,6 +98,41 @@ func CommandMessage(cmd store.Command) *fleetv1.ControlMessage {
 		pc.Action = &fleetv1.Command_ForceShadow{ForceShadow: &fleetv1.ForceShadow{PolicyId: cmd.PolicyID, Clear: true}}
 	case store.CommandDiagnostics:
 		pc.Action = &fleetv1.Command_Diagnostics{Diagnostics: &fleetv1.CollectDiagnostics{}}
+	case store.CommandDisableRules, store.CommandSetRules:
+		pc.Action = &fleetv1.Command_DisableRules{DisableRules: &fleetv1.DisableRules{
+			RuleIds: ruleIDs(cmd.RuleIDs), Replace: cmd.Kind == store.CommandSetRules,
+		}}
+	case store.CommandEnableRules:
+		pc.Action = &fleetv1.Command_EnableRules{EnableRules: &fleetv1.EnableRules{
+			RuleIds: ruleIDs(cmd.RuleIDs), All: len(cmd.RuleIDs) == 0,
+		}}
 	}
 	return &fleetv1.ControlMessage{Msg: &fleetv1.ControlMessage_Command{Command: pc}}
+}
+
+// ReplaySource is implemented by stores that keep the replay sampling of
+// the groups (store.Store).
+type ReplaySource interface {
+	NodeReplaySampling(ctx context.Context, node string) (store.ReplaySampling, error)
+}
+
+// ReplayMessage is the SetReplaySampling of a group's setting (W12-N-01);
+// a zero row switches sampling off.
+func ReplayMessage(id string, r store.ReplaySampling) *fleetv1.ControlMessage {
+	rs := &fleetv1.SetReplaySampling{}
+	if r.RateBp > 0 {
+		rs.RateBp, rs.KeyId, rs.Key = uint32(r.RateBp), r.KeyID, r.Key
+	}
+	return &fleetv1.ControlMessage{Msg: &fleetv1.ControlMessage_Command{Command: &fleetv1.Command{
+		Id: id, Action: &fleetv1.Command_ReplaySampling{ReplaySampling: rs}}}}
+}
+
+func ruleIDs(ids []int32) []uint32 {
+	out := make([]uint32, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			out = append(out, uint32(id))
+		}
+	}
+	return out
 }
