@@ -1,6 +1,6 @@
 # Trạng thái thật của tính năng
 
-Cập nhật: 14/10/2026 (cuối tuần 10). Nhiệm vụ RV-Q-01 (`docs/plan/review-response.md`).
+Cập nhật: 14/10/2026 (tuần 12 mở sớm, `docs/reports/w12-report.md`); trước đó cuối tuần 10. Nhiệm vụ RV-Q-01 (`docs/plan/review-response.md`).
 
 Ký hiệu:
 
@@ -54,7 +54,8 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Rollout theo đợt, abort, node mới nhận bundle của fleet | **Có** | `tests/e2e/rollout_test.go` (`TestRolloutToRealAgents`, `TestNewNodeGetsTheFleetBundle`) |
 | Circuit breaker cấp worker | **Có** | `connectors/nginx/t/090-breaker.t`, `docs/reports/w11-report.md`. Chuyển trạng thái chưa phát sự kiện qua event socket (chỉ `error.log`, metrics) |
 | Canary theo % request | **Một phần** | Hash nhóm và tỉ lệ trong bundle (`engine/src/canary.rs`, `canary_percent`); chưa có trong API policy và UI, chưa bật trên route nào |
-| Fallback tại node | **Có** | `agent/internal/fallback` (`TestNodeFallsBackWithinSixSeconds`: 4,5 s). Tính cho cả node, ép shadow mọi policy |
+| Fallback tại node | **Có** | `agent/internal/fallback` (`TestNodeFallsBackWithinSixSeconds`: 4,5 s; `TestThresholdEdges`). Tính cho cả node, ép shadow mọi policy; giữ cho tới khi control plane gỡ (W12-G1-01, `TestFallbackHoldOnlyEndsOnClearAll`) |
+| Tắt rule khẩn cấp (kill switch) | **Có** | W12-R-02/G1-02/N-02/G2-02: `POST /v1/rules/{id}:emergencyDisable` theo connector group → mọi node; 1.000 agent nhận trong 31 ms (`TestKillSwitchReaches1000Agents`), worker áp trong 1 s (`t/100-kill-switch.t`). Chưa có nút trên UI |
 | Fallback toàn cụm | **Thiết kế** | W12-G2-01 |
 | Control plane: policy, deploy, ký (Vault Transit), RBAC, audit | **Có** | `make test-go`; `docs/reports/w07-g2-01.md`; tải Fleet 1.000 agent (`docs/reports/w08-g1-01.md`) |
 | Đăng nhập cục bộ (không cần IdP) | **Có** | PR #50: `control-plane/localauth` (argon2id, khóa tài khoản, giới hạn theo IP, audit), `TestThrottlingPerClientBehindAProxy` |
@@ -63,7 +64,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Gói deb/rpm, image, cài 1 lệnh | **Có** | `deploy/packaging/test/test-install.sh` (Ubuntu 24.04, Debian 12, Rocky 9), `test-image.sh` (`docs/reports/w10-n-01.md`). Mới có x86_64 và NGINX OSS; chưa ký gói, chưa SBOM |
 | Runbook đã diễn tập | **Có** | `tests/e2e/runbook-drill.sh` trên lab và staging (`docs/reports/w10-n-01.md`) |
 | Replay | **Một phần** | Định dạng mẫu 1 (`docs/spec/replay-sample.md`, chưa được pháp chế duyệt), ẩn danh + MinIO (`control-plane/replay`), lõi `strata-replay` (1 triệu request / 132 s, 4 luồng). Chưa có lấy mẫu tại connector (W12-N-01), runner và báo cáo đầy đủ (W12-R-01), service (W13-G2-01) |
-| Policy editor | **Một phần** | Form + YAML, lưu bản nháp (`ui/src/__tests__/PolicyEditor.test.tsx`, `ui/tests/policy-editor.spec.ts`). Chưa có diff (W12-F-01), luồng duyệt (W13) |
+| Policy editor | **Một phần** | Form + YAML, lưu bản nháp (`ui/src/__tests__/PolicyEditor.test.tsx`, `ui/tests/policy-editor.spec.ts`); diff hai phiên bản theo khối (W12-F-01, `PolicyDiff.test.tsx`, `ui/tests/policy-diff.spec.ts`). Chưa có luồng duyệt (W13) |
 | Luồng duyệt policy | **Thiết kế** | W13 |
 | GitOps, OpenAPI công khai, bản đồ GeoIP | **Thiết kế** | W19–W21 |
 | Connector khác NGINX (Apache, HAProxy, Envoy, Kong) | **Thiết kế** | Chỉ có NGINX; connector khác sau v1 |
