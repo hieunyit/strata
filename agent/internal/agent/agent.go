@@ -31,6 +31,7 @@ import (
 	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/killswitch"
 	"github.com/strata/strata/agent/internal/pusher"
+	"github.com/strata/strata/agent/internal/replaysample"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 	"github.com/strata/strata/agent/internal/spool"
 )
@@ -83,6 +84,8 @@ type Agent struct {
 	Fallback *fallback.Watcher
 	// KillSwitch applies DisableRules and EnableRules; nil without BundleDir.
 	KillSwitch *killswitch.Manager
+	// Replay applies SetReplaySampling; nil without BundleDir.
+	Replay *replaysample.Manager
 	// Registry holds the agent's metrics and, with MetricsFile, the
 	// workers' counters.
 	Registry *prometheus.Registry
@@ -177,6 +180,7 @@ func New(cfg Config) (*Agent, error) {
 	if bm != nil {
 		a.ForceShadow = forceshadow.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "force-shadow.json"))
 		a.KillSwitch = killswitch.New(cfg.ControlFile, filepath.Join(cfg.BundleDir, "disabled-rules.json"))
+		a.Replay = replaysample.New(cfg.ControlFile, cfg.BundleDir)
 		if cfg.Fallback && cfg.MetricsFile != "" {
 			a.Fallback = fallback.NewWatcher(cfg.MetricsFile, a.ForceShadow, cfg.FallbackOptions)
 		}
@@ -238,6 +242,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	batchDone := make(chan error, 1)
 	pushDone := make(chan error, 1)
 	go func() {
+		a.Socket.OnSample = func(s *eventv1.ReplaySample) { a.batch.AddSample(batchCtx, s) }
 		sockDone <- a.Socket.Run(sockCtx, func(ev *eventv1.Event) {
 			if a.Fallback != nil {
 				a.Fallback.Observe(ev) // blocks by source (#65)
@@ -260,6 +265,12 @@ func (a *Agent) Run(ctx context.Context) error {
 		go func() { a.KillSwitch.Run(pushCtx); close(ksDone) }()
 	} else {
 		close(ksDone)
+	}
+	rsDone := make(chan struct{})
+	if a.Replay != nil {
+		go func() { a.Replay.Run(pushCtx); close(rsDone) }()
+	} else {
+		close(rsDone)
 	}
 	fbDone := make(chan struct{})
 	if a.Fallback != nil {
@@ -300,6 +311,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	<-fsDone
 	<-fbDone
 	<-ksDone
+	<-rsDone
 	return errors.Join(errs...)
 }
 

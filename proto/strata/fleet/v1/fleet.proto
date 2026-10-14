@@ -155,7 +155,18 @@ message Command {
     CollectDiagnostics diagnostics = 3;
     DisableRules disable_rules = 4; // tắt rule khẩn cấp (W12-G1-02)
     EnableRules enable_rules = 5;
+    SetReplaySampling replay_sampling = 6; // lấy mẫu replay (W12-N-01)
   }
+}
+
+// SetReplaySampling (W12-N-01): the share of requests the node samples for
+// replay and the connector group's anonymization key. Sent when the node
+// connects and when it changes, never stored with the commands. rate_bp 0
+// switches sampling off.
+message SetReplaySampling {
+  uint32 rate_bp = 1; // basis points, 0..10000
+  string key_id = 2; // 1..16 of [A-Za-z0-9._-]
+  bytes key = 3; // 32 bytes, HMAC-SHA256 key of the samples' tokens
 }
 
 message ForceShadow {
@@ -202,6 +213,8 @@ message BundleChunk {
 message EventBatch {
   uint64 seq = 1; // tăng dần theo node, dùng chống trùng
   repeated strata.event.v1.Event events = 2;
+  // Replay samples (W12-N-01), already anonymized by the connector.
+  repeated strata.event.v1.ReplaySample samples = 3;
 }
 
 message EventAck {
