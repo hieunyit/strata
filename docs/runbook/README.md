@@ -127,9 +127,14 @@ Cảnh báo `StrataNodeFallback`: agent tự ép **mọi policy** của node v�
 fallback tự động), lý do ở nhãn `reason`:
 
 - `block_rate`: node chặn hơn 3 lần mức "lẽ ra chặn" học được (trung bình động mỗi 5
-  giây, khởi động 1 phút);
-- `engine_errors`: request đi fail mode (lỗi engine) tăng hơn 3 lần (tối thiểu 1,5%);
-- `budget`: request vượt CPU budget tăng hơn 3 lần (tối thiểu 1,5%).
+  giây, khởi động 1 phút). Từ #65 có thêm hai điều kiện:
+  - mỗi IP client (IPv6: mỗi /64) chỉ được tính tối đa 3 lần chặn trong mỗi 5 giây, nên
+    một nguồn gửi dồn payload không đẩy được node về shadow;
+  - số lần chặn phải khó xảy ra do ngẫu nhiên (kiểm định Poisson một phía, p < 10⁻⁶).
+- `engine_errors`, `budget`: chỉ khi agent chạy với `--fallback-on-errors`. Mặc định,
+  lỗi engine hoặc vượt budget tăng đột biến chỉ sinh cảnh báo `StrataNodeErrorsJump`,
+  không đổi policy. Lý do: shadow không đổi fail mode (fail-open vẫn cho qua, fail-closed
+  vẫn trả 503), nên ép shadow không giúp gì mà còn mở đường tắt WAF.
 
 Node giữ shadow trong `--fallback-hold` (mặc định 1 giờ). Việc cần làm:
 

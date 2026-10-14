@@ -34,11 +34,12 @@ var (
 	dBundleAct = desc("bundle_active_version", "Bundle version the agent installed and the workers confirmed.")
 	dQlen      = desc("unix_max_dgram_qlen", "net.unix.max_dgram_qlen read at start (0: unknown); the event socket needs 8192.")
 	dFallback  = prometheus.NewDesc("strata_agent_fallback_triggers_total", "Times the node fallback forced every policy into shadow, by reason.", []string{"reason"}, nil)
+	dFbAlert   = prometheus.NewDesc("strata_agent_fallback_alerts_total", "Jumps of engine errors or budget overruns that left the policies as they are (--fallback-on-errors off), by reason.", []string{"reason"}, nil)
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dReceived, dInvalid, dTruncated, dSpoolB, dUnacked, dLastSeq,
-		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback} {
+		dAckedSeq, dDropB, dDropE, dSent, dReconn, dThrottle, dWindow, dCtrlUp, dCertEnd, dShadow, dBundleAct, dQlen, dFallback, dFbAlert} {
 		ch <- d
 	}
 }
@@ -84,6 +85,10 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 		t := c.a.Fallback.Triggers()
 		for _, r := range []string{fallback.ReasonBlockRate, fallback.ReasonErrors, fallback.ReasonBudget} {
 			ch <- prometheus.MustNewConstMetric(dFallback, prometheus.CounterValue, float64(t[r]), r)
+		}
+		al := c.a.Fallback.Alerts()
+		for _, r := range []string{fallback.ReasonErrors, fallback.ReasonBudget} {
+			ch <- prometheus.MustNewConstMetric(dFbAlert, prometheus.CounterValue, float64(al[r]), r)
 		}
 	}
 }
