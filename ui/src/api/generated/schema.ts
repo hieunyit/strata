@@ -225,6 +225,11 @@ export interface components {
       shadow: number;
       /**
        * Format: int64
+       * @description Of other, the events in fail mode (CPU budget, oversize body, engine error): the request was not inspected.
+       */
+      error: number;
+      /**
+       * Format: int64
        * @description pass and error
        */
       other: number;
@@ -238,6 +243,11 @@ export interface components {
       shadow: number;
       /** Format: int64 */
       other: number;
+      /**
+       * Format: int64
+       * @description Of other, the events in fail mode (not inspected).
+       */
+      error: number;
       /**
        * Format: int64
        * @description Distinct client IPs (approximate for large sets).
@@ -271,6 +281,11 @@ export interface components {
       block: number;
       /** Format: int64 */
       shadow: number;
+      /**
+       * Format: int64
+       * @description Events in fail mode on the route (not inspected).
+       */
+      error: number;
     };
     OverviewClientCount: {
       client_ip: string;

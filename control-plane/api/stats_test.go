@@ -26,6 +26,7 @@ func overviewServer(t *testing.T) (*Server, time.Time) {
 		ev("STR-0000-0000-0000-0002", 90*time.Minute, "pilot-verify", "198.51.100.1", "/v1/verify", "block", 942100),
 		ev("EVT-0000-0000-0000-0003", 90*time.Minute, "pilot-upload", "198.51.100.2", "/v1/upload", "shadow", 942100, 932100),
 		ev("EVT-0000-0000-0000-0004", 5*time.Hour, "pilot-upload", "198.51.100.3", "/v2/upload", "pass"),
+		ev("EVT-0000-0000-0000-0006", 2*time.Hour, "pilot-upload", "198.51.100.3", "/v3/upload", "error"),
 		ev("STR-0000-0000-0000-0005", 30*time.Hour, "pilot-verify", "198.51.100.4", "/v1/verify", "block", 930100),
 	}
 	if err := store.SaveEvents(t.Context(), events); err != nil {
@@ -61,7 +62,7 @@ func TestOverview_CountsTopsAndSeries(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
-	want := ingest.OverviewTotals{Events: 4, Block: 2, Shadow: 1, Other: 1, Clients: 3, Nodes: 1, Policies: 2}
+	want := ingest.OverviewTotals{Events: 5, Block: 2, Shadow: 1, Other: 2, Error: 1, Clients: 3, Nodes: 1, Policies: 2}
 	if o.Totals != want {
 		t.Errorf("totals = %+v, want %+v (the event 30 h ago is outside)", o.Totals, want)
 	}
@@ -72,12 +73,26 @@ func TestOverview_CountsTopsAndSeries(t *testing.T) {
 	for _, b := range o.Series {
 		sum += b.Block + b.Shadow + b.Other
 	}
-	if sum != 4 {
-		t.Errorf("series sums to %d, want 4", sum)
+	if sum != 5 {
+		t.Errorf("series sums to %d, want 5", sum)
 	}
 	last := o.Series[len(o.Series)-1]
 	if !last.Start.Equal(base.Add(-time.Hour)) || last.Block != 1 {
 		t.Errorf("last bucket = %+v, want the block 30 min ago", last)
+	}
+	var errs uint64
+	for _, b := range o.Series {
+		errs += b.Error
+	}
+	if errs != 1 {
+		t.Errorf("series has %d fail-mode events, want 1", errs)
+	}
+	var routeErr bool
+	for _, r := range o.TopRoutes {
+		routeErr = routeErr || (r.PathPrefix == "/v3/upload" && r.Error == 1)
+	}
+	if !routeErr {
+		t.Errorf("top routes %+v: the fail-mode event is not on /v3/upload", o.TopRoutes)
 	}
 	// 942100 counts once for the event that matched it twice.
 	if len(o.TopRules) == 0 || o.TopRules[0].RuleID != 942100 || o.TopRules[0].Events != 3 ||
@@ -101,7 +116,7 @@ func TestOverview_ViewerGetsNoClients(t *testing.T) {
 	if o.TopClients != nil {
 		t.Errorf("viewer got top clients %+v", o.TopClients)
 	}
-	if o.Totals.Events != 4 {
+	if o.Totals.Events != 5 {
 		t.Errorf("viewer totals = %+v", o.Totals)
 	}
 }
@@ -111,7 +126,7 @@ func TestOverview_PolicyFilterAndSteps(t *testing.T) {
 	q := window(base, 24*time.Hour)
 	q.Set("policy_id", "pilot-upload")
 	_, o := getOverview(t, s, "operator", q)
-	if o.Totals.Events != 2 || o.Totals.Block != 0 || o.Totals.Shadow != 1 {
+	if o.Totals.Events != 3 || o.Totals.Block != 0 || o.Totals.Shadow != 1 || o.Totals.Error != 1 {
 		t.Errorf("pilot-upload totals = %+v", o.Totals)
 	}
 	for _, c := range []struct {
@@ -123,8 +138,8 @@ func TestOverview_PolicyFilterAndSteps(t *testing.T) {
 		if rec.Code != http.StatusOK || o.StepSecond != c.step || len(o.Series) != c.buckets {
 			t.Errorf("%v: status %d, step %d, %d buckets; want step %d, %d buckets", c.d, rec.Code, o.StepSecond, len(o.Series), c.step, c.buckets)
 		}
-		if o.Totals.Events != 5 {
-			t.Errorf("%v: %d events, want 5", c.d, o.Totals.Events)
+		if o.Totals.Events != 6 {
+			t.Errorf("%v: %d events, want 6", c.d, o.Totals.Events)
 		}
 	}
 }

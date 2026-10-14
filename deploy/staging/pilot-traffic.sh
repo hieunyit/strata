@@ -12,7 +12,7 @@
 #                             traversal, Log4Shell), from its own address:
 #                             fp-report excludes it (attack-sources.txt).
 #
-# Usage: deploy/staging/pilot-traffic.sh [--env staging|prod-sim] up|down|status
+# Usage: deploy/staging/pilot-traffic.sh [--env staging|prod-sim] up|down|status|sources
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 env=staging
@@ -71,7 +71,24 @@ while :; do
     sleep 120
 done'
 
+# sources: the attacker's current address in attack-sources.txt. Docker may
+# give it another one when the container is recreated, and a stale list
+# would count the simulated attacks as false positives: run it (status and
+# up do) before fp-report.
+sources() {
+    local ip
+    ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" "$project-pilot-attacker" 2>/dev/null) \
+        || die "no attacker container"
+    [ -n "$ip" ] || die "the attacker has no address on $net"
+    mkdir -p "$state/pilot"
+    printf '# the simulated attacker of %s (pilot-traffic.sh), excluded from fp-report\n%s\n' "$env" "$ip" \
+        > "$state/pilot/attack-sources.txt"
+    echo "$ip"
+}
+
 case "$cmd" in
+sources)
+    say "attacker $(sources) (written to $state/pilot/attack-sources.txt)" ;;
 up)
     for c in benign attacker; do
         docker rm -f "$project-pilot-$c" >/dev/null 2>&1 || true
@@ -80,15 +97,12 @@ up)
             --network "$net" --cpuset-cpus="${STAGING_CPUS:-14-15}" --label "strata.pilot=traffic-$c" \
             --entrypoint bash "$image" -c "$script" >/dev/null
     done
-    ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" "$project-pilot-attacker")
-    mkdir -p "$state/pilot"
-    printf '# the simulated attacker of %s (pilot-traffic.sh), excluded from fp-report\n%s\n' "$env" "$ip" \
-        > "$state/pilot/attack-sources.txt"
-    say "benign and attacker traffic running; attacker $ip (written to $state/pilot/attack-sources.txt)" ;;
+    say "benign and attacker traffic running; attacker $(sources) (written to $state/pilot/attack-sources.txt)" ;;
 down)
     docker rm -f "$project-pilot-benign" "$project-pilot-attacker" >/dev/null 2>&1 || true
     say "traffic stopped" ;;
 status)
-    docker ps -a --filter "name=$project-pilot-" --format '{{.Names}} {{.Status}}' ;;
-*) die "usage: pilot-traffic.sh [--env staging|prod-sim] up|down|status" ;;
+    docker ps -a --filter "name=$project-pilot-" --format '{{.Names}} {{.Status}}'
+    say "attacker $(sources)" ;;
+*) die "usage: pilot-traffic.sh [--env staging|prod-sim] up|down|status|sources" ;;
 esac
