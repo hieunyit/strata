@@ -30,7 +30,7 @@ rules:
             - remove_nulls
         - operator:
             type: rx
-            value: (?i)[\x27"\x60()=;#]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b
+            value: (?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b)
           targets:
             - var: matched_vars
     score: 100

@@ -364,3 +364,26 @@ func TestTune(t *testing.T) {
 		t.Error("tune changed another rule")
 	}
 }
+
+// W11-S-01: 942100's extra condition looks for the SQL signal before the
+// first SQL comment, where an injection puts it.
+func TestSQLSignalBeforeComment(t *testing.T) {
+	re := regexp.MustCompile(sqlSignal)
+	for _, v := range []string{
+		"admin'--", "admin' -- x", "1 OR 1=1 --", "'; DROP TABLE t; #", "1' or '1'='1",
+		"1 union select 1,2", "x-'y", "-1)--", "admin\"#", "1;sleep(5)",
+	} {
+		if !re.MatchString(v) {
+			t.Errorf("%q: injection not flagged", v)
+		}
+	}
+	for _, v := range []string{
+		"50% off -- today only. drop me a line", "50% off -- today only. #hashtag",
+		"50% off -- today only. where is my order?", "50% off -- today only. it's 5 o'clock",
+		"50% off -- today only. SELECT the best plan", "great deal # call (now)", "10-20 items -- sale; ok",
+	} {
+		if re.MatchString(v) {
+			t.Errorf("%q: prose flagged", v)
+		}
+	}
+}

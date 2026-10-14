@@ -476,8 +476,14 @@ func Import(groups []Group, opts Options) (*Result, error) {
 }
 
 // sqlSignal: something SQL-like besides what libinjection fingerprints,
-// for 942100 (see tune).
-const sqlSignal = `(?i)[\x27"\x60()=;#]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b`
+// for 942100 (see tune), **before** the first SQL comment ("--" or "#"):
+// an injection puts its payload ahead of the comment that cuts the rest of
+// the query ("admin'--", "1 OR 1=1 --", "'; DROP TABLE t; #"), while prose
+// that libinjection reads as a comment ("50% off -- today only. drop me a
+// line") has its words after it (W11-S-01: the 12 benign false positives
+// left in the v0 corpus). Linear: no lookaround; the prefix is any text
+// without "--" or "#", and a single "-" may come right before the signal.
+const sqlSignal = `(?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b)`
 
 // tune applies Strata's tuning of CRS PL1 (W09-S-01, rules/reviews): two
 // rules that, as CRS writes them, block common prose on their own (8.35%
@@ -489,8 +495,8 @@ const sqlSignal = `(?i)[\x27"\x60()=;#]|\b(?:select|union|insert|update|delete|d
 //     "C:\Program Files\x" "c:/program files/x").
 //   - 942100 (libinjection) flags "50% off -- today only" (fingerprint
 //     1c, as the C library does). Strata adds a condition on the value
-//     libinjection flagged: it must also hold a quote, a parenthesis,
-//     "=", ";", "#" or an SQL keyword.
+//     libinjection flagged: it must also hold, before its first SQL
+//     comment, a quote, a parenthesis, "=", ";" or an SQL keyword.
 func tune(id int, ir map[string]any, notes *[]string) {
 	m, _ := ir["match"].(map[string]any)
 	all, _ := m["all"].([]any)
@@ -512,7 +518,7 @@ func tune(id int, ir map[string]any, notes *[]string) {
 			"operator": map[string]any{"type": "rx", "value": sqlSignal},
 			"targets":  []any{map[string]any{"var": "matched_vars"}},
 		})
-		*notes = append(*notes, "Strata tuning: the value libinjection flags must also hold a quote, a parenthesis, =, ;, # or an SQL keyword (prose such as \"50% off -- today only\" is flagged by libinjection alone)")
+		*notes = append(*notes, "Strata tuning: the value libinjection flags must also hold, before its first SQL comment (-- or #), a quote, a parenthesis, =, ; or an SQL keyword (prose such as \"50% off -- today only. drop me a line\" is flagged by libinjection alone)")
 	}
 }
 
