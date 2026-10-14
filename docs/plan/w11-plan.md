@@ -11,14 +11,14 @@ một hoặc vài commit. Phiên này không có staging, lab hay Docker: chỉ 
 
 ## 1. Làm trong phiên này
 
-| Thứ tự | Mã | Ghi chú |
-| --- | --- | --- |
-| 1 | W11-R-01 | Hash canary + tỉ lệ canary trong bundle (quyết định 4); lõi replay `engine/replay` (quyết định 3) |
-| 2 | W11-N-01 | Circuit breaker cấp worker, chế độ giảm cấp qua ABI thêm mới (quyết định 1) |
-| 3 | W11-G1-01 | Fallback tại node theo cả node (quyết định 2) |
-| 4 | W11-G2-01 | Định dạng traffic mẫu cho replay; điều kiện "pháp chế duyệt" là việc của người |
-| 5 | RV-S-01 | Tách gói core và signature |
-| 6 | W11-F-01 | Policy editor phần 1 |
+| Thứ tự | Mã | Ghi chú | Trạng thái (14/10) |
+| --- | --- | --- | --- |
+| 1 | W11-R-01 | Hash canary + tỉ lệ canary trong bundle (quyết định 4); lõi replay `engine/replay` (quyết định 3) | ✅ |
+| 2 | W11-N-01 | Circuit breaker cấp worker, chế độ giảm cấp qua ABI thêm mới (quyết định 1) | ✅ |
+| 3 | W11-G1-01 | Fallback tại node theo cả node (quyết định 2) | ✅ |
+| 4 | W11-G2-01 | Định dạng traffic mẫu cho replay; điều kiện "pháp chế duyệt" là việc của người | ✅ code; chờ pháp chế duyệt |
+| 5 | RV-S-01 | Tách gói core và signature | ✅ |
+| 6 | W11-F-01 | Policy editor phần 1 | ✅ |
 
 ## 2. Không làm
 
@@ -36,3 +36,7 @@ một hoặc vài commit. Phiên này không có staging, lab hay Docker: chỉ 
 | 4 | Canary cần tỉ lệ enforce trong policy mà chưa nhiệm vụ nào ghi | W11-R-01 làm cả hàm hash lẫn tỉ lệ canary trong bảng policy của bundle (byte dự phòng, chỉ thêm); engine chọn enforce/shadow cho từng request; compiler nhận tỉ lệ. API policy và UI để sau |
 
 Các chỗ code khác thiết kế được ghi lại trong `docs/design/` cùng commit với code.
+
+Báo cáo: `docs/reports/w11-report.md`.
+
+Quyết định PO 14/10/2026 (W11-G2-01): mẫu replay chỉ thay **field nhạy cảm** bằng hash có khóa; cấu trúc và giá trị thường được giữ để replay chạy được rule nội dung (`docs/spec/replay-sample.md`).
