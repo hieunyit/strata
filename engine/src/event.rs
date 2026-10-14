@@ -747,6 +747,7 @@ mod tests {
             headers: &hs,
             inspection: Inspection::Full,
             would_block: false,
+            canary: CanaryGroup::None,
         };
         let out = encode(&ev);
         assert!(out.len() <= MAX_DATAGRAM);
