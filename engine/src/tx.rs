@@ -1718,7 +1718,7 @@ mod tests {
             };
             assert_eq!((t.canary(), v.canary), (want, want));
             let ev = t.encode_event().unwrap();
-            assert!(ev.ends_with(&[0x88, 0x01, want as u8]), "{ev:?}"); // tag 17, varint
+            assert!(ev.ends_with(&[0xb0, 0x01, want as u8]), "{ev:?}"); // tag 22, varint
             if enforced {
                 assert_eq!(v.action, ACTION_BLOCK);
                 assert!(id_str(&v).starts_with("STR-"));
@@ -1762,7 +1762,7 @@ mod tests {
             line(&mut t, b"/STRATA-TEST-BLOCK");
             assert_eq!(t.verdict().canary, CanaryGroup::None);
             let ev = t.encode_event().unwrap();
-            assert!(!ev.windows(2).any(|w| w == [0x88, 0x01]), "no field 17");
+            assert!(!ev.windows(2).any(|w| w == [0xb0, 0x01]), "no field 22");
         }
         let addr = (0..1000)
             .map(|i| format!("198.51.{}.{}", i / 256, i % 256))
