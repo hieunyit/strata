@@ -9,9 +9,9 @@
 @tailwind utilities;
 
 /*
- * Strata palette. The three verdict colors are the rock layers of the
- * overview chart: brick for blocked, ochre for shadow (would have been
- * blocked), slate for the rest. Teal is the only interface accent.
+ * Strata palette. The verdict colors are the rock layers of the overview
+ * chart: brick for blocked, ochre for shadow (would have been blocked),
+ * shale violet for fail mode (not inspected), slate for the rest. Teal is the only interface accent.
  * Values are RGB triplets so Tailwind can apply opacity.
  */
 :root {
@@ -30,6 +30,7 @@
   --block: 184 58 46;
   --shadow: 199 134 26;
   --other: 122 139 153;
+  --unchecked: 107 91 149;
   --ok: 46 125 84;
   color-scheme: light;
 }
@@ -50,6 +51,7 @@
   --block: 222 99 84;
   --shadow: 224 166 64;
   --other: 133 150 166;
+  --unchecked: 160 144 206;
   --ok: 88 178 127;
   color-scheme: dark;
 }

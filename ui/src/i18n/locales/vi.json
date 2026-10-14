@@ -39,7 +39,8 @@
     "shadow": "Shadow",
     "pass": "Cho qua",
     "error": "Lỗi",
-    "other": "Cho qua hoặc lỗi"
+    "other": "Cho qua hoặc lỗi",
+    "unchecked": "Không kiểm được"
   },
   "range": {
     "label": "Khoảng thời gian",
@@ -71,7 +72,9 @@
       "nodes": "Node online",
       "offline_other": "{{count}} node offline",
       "allOnline": "mọi node đã đăng ký",
-      "noFleet": "không đọc được fleet"
+      "noFleet": "không đọc được fleet",
+      "unchecked": "Không kiểm được",
+      "uncheckedNote": "fail mode, {{pct}}%"
     },
     "series": {
       "hourly": "Sự kiện theo giờ",

@@ -118,15 +118,16 @@ function mockOverview() {
       start: new Date(now - (23 - i) * 3_600_000).toISOString(),
       block: 4 + (i % 5) + wave,
       shadow: 2 + (i % 3) + Math.round(wave / 4),
-      other: 1 + (i % 2),
+      other: 1 + (i % 2) + (i > 19 ? 30 : 0),
+      error: i > 19 ? 30 : 0,
     };
   });
-  const sum = (k: 'block' | 'shadow' | 'other') => series.reduce((a, b) => a + b[k], 0);
+  const sum = (k: 'block' | 'shadow' | 'other' | 'error') => series.reduce((a, b) => a + b[k], 0);
   return {
     from: new Date(now - 23 * 3_600_000).toISOString(),
     to: new Date(now + 3_600_000).toISOString(),
     step_seconds: 3600,
-    totals: { events: sum('block') + sum('shadow') + sum('other'), block: sum('block'), shadow: sum('shadow'), other: sum('other'), clients: 214, nodes: 2, policies: 2 },
+    totals: { events: sum('block') + sum('shadow') + sum('other'), block: sum('block'), shadow: sum('shadow'), other: sum('other'), error: sum('error'), clients: 214, nodes: 2, policies: 2 },
     series,
     top_rules: [
       { rule_id: 942100, events: 212, block: 180, shadow: 32 },
@@ -135,9 +136,9 @@ function mockOverview() {
       { rule_id: 913100, events: 41, block: 0, shadow: 41 },
     ],
     top_routes: [
-      { policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 260, block: 230, shadow: 20 },
-      { policy_id: 'pilot-upload', host: 'api.example.test', path_prefix: '/v1/upload', events: 120, block: 0, shadow: 110 },
-      { policy_id: 'example-api', host: 'api.example.test', path_prefix: '/search', events: 48, block: 40, shadow: 4 },
+      { policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 260, block: 230, shadow: 20, error: 0 },
+      { policy_id: 'pilot-upload', host: 'api.example.test', path_prefix: '/v1/upload', events: 240, block: 0, shadow: 110, error: 120 },
+      { policy_id: 'example-api', host: 'api.example.test', path_prefix: '/search', events: 48, block: 40, shadow: 4, error: 0 },
     ],
     top_clients: [
       { client_ip: '203.0.113.19', events: 151, block: 140 },
