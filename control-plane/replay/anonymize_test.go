@@ -168,6 +168,19 @@ func TestVectors(t *testing.T) {
 		if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		// the same records as a sample file, read by engine/replay's tests
+		recs := make([]Record, len(got))
+		for i := range got {
+			recs[i] = got[i].Output
+		}
+		var pq bytes.Buffer
+		if err := WriteParquet(&pq, a.KeyID, recs); err != nil {
+			t.Fatal(err)
+		}
+		fx := filepath.Join("..", "..", "engine", "replay", "tests", "fixtures", "samples-v1.parquet")
+		if err := os.WriteFile(fx, pq.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
