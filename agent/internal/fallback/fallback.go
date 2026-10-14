@@ -16,8 +16,10 @@
 //
 // A burst of real attacks also raises the would-block share. In shadow
 // nothing is blocked, so nothing trips; with enforce it could trip and put
-// the node in shadow for Hold: a way to switch the WAF off from outside
-// (#65). So:
+// the node in shadow until the control plane lifts it (W12-G1-01: a
+// ForceShadow clear for every policy, POST /v1/nodes:clearForceShadow; no
+// deadline, and an agent restart keeps it): a way to switch the WAF off from
+// outside (#65). So:
 //   - the blocks of an interval count at most SourceCap per client address
 //     (IPv6 per /64), from the agent's own events: one source sending a
 //     flood of blocked payloads counts as SourceCap blocks; a rule that
@@ -49,7 +51,6 @@ import (
 	"time"
 
 	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
-	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 )
@@ -68,10 +69,6 @@ type Options struct {
 	// Warmup: intervals learnt before the detector may trip (12, one
 	// minute at 5 s).
 	Warmup int
-	// Hold: how long the node stays forced into shadow (1 h). Lifting it
-	// early is a ForceShadow command with clear (W12-G1-01: only the control
-	// plane lifts it).
-	Hold time.Duration
 	// Alpha of the moving averages (0.1).
 	Alpha float64
 	// PValue: a count trips only when its one-sided Poisson tail under the
@@ -103,9 +100,6 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Warmup <= 0 {
 		o.Warmup = 12
-	}
-	if o.Hold <= 0 {
-		o.Hold = time.Hour
 	}
 	if o.Alpha <= 0 || o.Alpha > 1 {
 		o.Alpha = 0.1
@@ -326,7 +320,7 @@ func (d *Detector) Reference() (would, errs, budget float64, samples int) {
 
 // Forcer is what the detector drives: forceshadow.Manager.
 type Forcer interface {
-	Apply(*fleetv1.ForceShadow) error
+	HoldAll(reason string) error
 	Snapshot() forceshadow.State
 }
 
@@ -388,10 +382,12 @@ func (w *Watcher) tick() {
 			"reason", reason, "ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
 		return
 	}
-	if !w.force.Snapshot().All.IsZero() {
-		return // already forced: an earlier trip or a ForceShadow command
+	if w.force.Snapshot().Fallback != nil {
+		return // held by an earlier trip
 	}
-	err = w.force.Apply(&fleetv1.ForceShadow{DurationSeconds: uint32(w.o.Hold / time.Second)})
+	// also under a ForceShadow command for every policy (nothing is blocked
+	// then, so this is rare): the hold outlives the command's deadline
+	err = w.force.HoldAll(reason)
 	if err != nil {
 		slog.Error("fallback: force shadow", "reason", reason, "err", err)
 		return
@@ -400,7 +396,7 @@ func (w *Watcher) tick() {
 	w.triggers[reason]++
 	w.mu.Unlock()
 	slog.Warn("fallback: every policy of this node forced into shadow", "reason", reason,
-		"hold", w.o.Hold.String(), "ref_would_block", fmt.Sprintf("%.4f", would),
+		"until", "lifted by the control plane", "ref_would_block", fmt.Sprintf("%.4f", would),
 		"ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
 }
 

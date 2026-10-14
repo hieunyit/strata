@@ -11,6 +11,7 @@ import (
 
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/bundles"
+	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/shmmetrics"
 )
 
@@ -83,6 +84,8 @@ type DiagBundle struct {
 type DiagForceShadow struct {
 	AllUntil *time.Time           `json:"all_until,omitempty"`
 	Policies map[string]time.Time `json:"policies,omitempty"`
+	// Fallback: the node fallback holds every policy (W12-G1-01).
+	Fallback *forceshadow.Hold `json:"fallback,omitempty"`
 }
 
 // DiagSpool: the event spool.
@@ -125,7 +128,7 @@ func (a *Agent) diagnostics() Diagnostics {
 	}
 	if a.ForceShadow != nil {
 		s := a.ForceShadow.Snapshot()
-		fs := &DiagForceShadow{Policies: s.Policies}
+		fs := &DiagForceShadow{Policies: s.Policies, Fallback: s.Fallback}
 		if !s.All.IsZero() {
 			fs.AllUntil = &s.All
 		}

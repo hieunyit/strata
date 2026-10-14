@@ -160,13 +160,17 @@ fallback tự động), lý do ở nhãn `reason`:
   không đổi policy. Lý do: shadow không đổi fail mode (fail-open vẫn cho qua, fail-closed
   vẫn trả 503), nên ép shadow không giúp gì mà còn mở đường tắt WAF.
 
-Node giữ shadow trong `--fallback-hold` (mặc định 1 giờ). Việc cần làm:
+Node giữ shadow **cho tới khi control plane gỡ** (W12-G1-01): không có hạn, restart agent
+vẫn giữ (`force-shadow.json`). Giữ quá 1 giờ thì có cảnh báo `StrataNodeFallbackHeld`.
+Kiểm: metric `strata_agent_fallback_active`, hoặc `collectDiagnostics` (`force_shadow.fallback`
+có lý do và thời điểm). Việc cần làm:
 
 1. Trang Sự kiện, lọc node và 15 phút trước cảnh báo: Rule ID nào tăng? Nhiều IP khác
    nhau trên một rule mới deploy thường là chặn nhầm; ít IP với payload tấn công rõ là
    đợt tấn công thật (khi đó shadow để lọt tấn công: cân nhắc gỡ sớm).
-2. Chặn nhầm: **rollback bundle** hoặc tắt rule (mục Tắt rule khẩn cấp), rồi để hạn tự hết. Tấn công thật: gỡ
-   bằng `clearForceShadow` (mục Ép shadow, `policy_id` để trống).
+2. Chặn nhầm: **rollback bundle** hoặc tắt rule (mục Tắt rule khẩn cấp), rồi gỡ. Tấn công
+   thật: gỡ ngay khi đã chắc. Gỡ bằng `clearForceShadow` (mục Ép shadow) với `policy_id` để
+   trống; gỡ một policy hay lệnh `forceShadow` hết hạn không gỡ được fallback.
 3. Tắt hẳn tầng này trên một node: `strata-agent --fallback=false`.
 
 ## Tắt module

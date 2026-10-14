@@ -6,6 +6,10 @@
 // within a second. Every second it writes the control file again if it
 // differs: when a deadline passes, and when a bundle install created the
 // file after the command came.
+//
+// The node fallback (package fallback) holds every policy in shadow with no
+// deadline: only a ForceShadow command with clear for every policy, from
+// the control plane, ends it (W12-G1-01).
 package forceshadow
 
 import (
@@ -28,11 +32,22 @@ import (
 // MaxDuration of one command.
 const MaxDuration = 24 * time.Hour
 
-// State is what the state file holds: deadlines.
+// State is what the state file holds: deadlines, and the node fallback's
+// hold.
 type State struct {
 	All      time.Time            `json:"all,omitzero"`
 	Policies map[string]time.Time `json:"policies,omitempty"`
+	Fallback *Hold                `json:"fallback,omitempty"`
 }
+
+// Hold: the node fallback forced every policy into shadow.
+type Hold struct {
+	Reason string    `json:"reason"`
+	Since  time.Time `json:"since"`
+}
+
+// Forced reports whether every policy is in shadow.
+func (s State) Forced() bool { return !s.All.IsZero() || s.Fallback != nil }
 
 // Manager owns the force-shadow block of one control file.
 type Manager struct {
@@ -112,7 +127,28 @@ func (m *Manager) Apply(fs *fleetv1.ForceShadow) error {
 	return err
 }
 
-// clear ends the force shadow of policy now, or every one with "".
+// HoldAll forces every policy into shadow until a clear for every policy;
+// a second hold keeps the first reason.
+func (m *Manager) HoldAll(reason string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.st.Fallback != nil {
+		return nil
+	}
+	m.st.Fallback = &Hold{Reason: reason, Since: m.now().UTC()}
+	if err := m.saveLocked(); err != nil {
+		m.st.Fallback = nil
+		return err
+	}
+	err := m.reconcileLocked(m.now())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// clear ends the force shadow of policy now, or every one with "" (the
+// fallback hold too).
 func (m *Manager) clear(policy string) error {
 	if policy != "" && !bundles.ValidPolicyName(policy) {
 		return fmt.Errorf("bad policy id %q", policy)
@@ -120,6 +156,9 @@ func (m *Manager) clear(policy string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if policy == "" {
+		if h := m.st.Fallback; h != nil {
+			slog.Warn("force shadow: node fallback lifted by the control plane", "reason", h.Reason, "since", h.Since.Format(time.RFC3339))
+		}
 		m.st = State{Policies: map[string]time.Time{}}
 	} else {
 		delete(m.st.Policies, policy)
@@ -141,6 +180,9 @@ func (m *Manager) Snapshot() State {
 	defer m.mu.Unlock()
 	m.pruneLocked(m.now())
 	out := State{All: m.st.All, Policies: map[string]time.Time{}}
+	if h := m.st.Fallback; h != nil {
+		out.Fallback = &Hold{Reason: h.Reason, Since: h.Since}
+	}
 	for p, t := range m.st.Policies {
 		out.Policies[p] = t
 	}
@@ -189,7 +231,7 @@ func (m *Manager) reconcileLocked(now time.Time) error {
 		}
 		slog.Info("force shadow: a deadline passed")
 	}
-	all := !m.st.All.IsZero()
+	all := m.st.Forced()
 	names := make([]string, 0, len(m.st.Policies))
 	for p := range m.st.Policies {
 		names = append(names, p)

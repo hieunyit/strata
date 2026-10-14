@@ -141,6 +141,26 @@ tests:
               runbook_url: "docs/runbook/README.md#sysctl"
               summary: "a: net.unix.max_dgram_qlen is 512, below 8192"
 
+  # W12-G1-01: a held for 70 minutes, b lifted after 30
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_fallback_active{instance="a"}'
+        values: "1x80"
+      - series: 'strata_agent_fallback_active{instance="b"}'
+        values: "1x30 0x50"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: StrataNodeFallbackHeld
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: StrataNodeFallbackHeld
+        exp_alerts:
+          - exp_labels: { instance: a, severity: warning, component: agent }
+            exp_annotations:
+              summary: "a: held in shadow by the node fallback for over an hour"
+              description: "Only the control plane lifts it: find the cause, then POST /v1/nodes:clearForceShadow with an empty policy_id."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+
   # ForceShadow held for 2 minutes
   - interval: 1m
     input_series:
@@ -375,7 +395,7 @@ tests:
           - exp_labels: { instance: a, reason: block_rate, severity: warning, component: agent }
             exp_annotations:
               summary: "a: the node forced every policy into shadow on its own (block_rate)"
-              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow for --fallback-hold (1 h)."
+              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
               runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
       - eval_time: 15m
         alertname: StrataNodeFallback

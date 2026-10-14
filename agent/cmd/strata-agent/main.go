@@ -77,7 +77,6 @@ func newRunCmd() *cobra.Command {
 	f.BoolVar(&cfg.Fallback, "fallback", true, "force every policy into shadow when the node blocks 3x its shadow level, counting at most 3 blocks per client address every 5 s (needs --bundle-dir and --metrics-file)")
 	f.BoolVar(&cfg.FallbackOptions.Errors, "fallback-on-errors", false, "also force shadow when engine errors or budget overruns jump (shadow does not change the fail mode; by default these jumps are only reported)")
 	f.Float64Var(&cfg.FallbackOptions.Factor, "fallback-factor", 3, "how many times the learnt level trips the node fallback")
-	f.DurationVar(&cfg.FallbackOptions.Hold, "fallback-hold", time.Hour, "how long the node fallback holds every policy in shadow")
 	return cmd
 }
 
