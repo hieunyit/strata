@@ -32,4 +32,13 @@ if [ -n "${STAGING_TEST_TAG:-}" ]; then
         echo "FAIL $STAGING_TEST_TAG refused: $out"; fail=1
     fi
 fi
+# $d is the port prefix of the environment (2xxxx, 3xxxx), set once by the
+# --env case; reusing it (a loop over --signatures did) breaks the port
+# rewrite after the build
+n=$(grep -cE '(^|[ ;(])d=|for d in' "$deploy")
+if [ "$n" = 2 ]; then
+    echo "ok   \$d only set by --env"
+else
+    echo "FAIL \$d set $n times in deploy.sh (want 2: staging, prod-sim)"; fail=1
+fi
 exit $fail
