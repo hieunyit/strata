@@ -70,6 +70,13 @@ groups:
           runbook_url: docs/runbook/README.md#circuit-breaker-mở
   - name: strata-agent
     rules:
+      - alert: StrataNodeFallback
+        expr: increase(strata_agent_fallback_triggers_total[10m]) > 0
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: the node forced every policy into shadow on its own ({{ $labels.reason }})"
+          description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow for --fallback-hold (1 h)."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataAgentDown
         expr: up{job="strata-agent"} == 0
         for: 2m

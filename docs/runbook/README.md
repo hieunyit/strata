@@ -121,6 +121,25 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 
 Cảnh báo `StrataForceShadowActive` (mức info) nhắc rằng node đang bị giữ ở shadow.
 
+## Node tự về shadow
+
+Cảnh báo `StrataNodeFallback`: agent tự ép **mọi policy** của node về shadow (tầng 1 của
+fallback tự động), lý do ở nhãn `reason`:
+
+- `block_rate`: node chặn hơn 3 lần mức "lẽ ra chặn" học được (trung bình động mỗi 5
+  giây, khởi động 1 phút);
+- `engine_errors`: request đi fail mode (lỗi engine) tăng hơn 3 lần (tối thiểu 1,5%);
+- `budget`: request vượt CPU budget tăng hơn 3 lần (tối thiểu 1,5%).
+
+Node giữ shadow trong `--fallback-hold` (mặc định 1 giờ). Việc cần làm:
+
+1. Trang Sự kiện, lọc node và 15 phút trước cảnh báo: Rule ID nào tăng? Nhiều IP khác
+   nhau trên một rule mới deploy thường là chặn nhầm; ít IP với payload tấn công rõ là
+   đợt tấn công thật (khi đó shadow để lọt tấn công: cân nhắc gỡ sớm).
+2. Chặn nhầm: **rollback bundle** hoặc tắt rule, rồi để hạn tự hết. Tấn công thật: gỡ
+   bằng `clearForceShadow` (mục Ép shadow, `policy_id` để trống).
+3. Tắt hẳn tầng này trên một node: `strata-agent --fallback=false`.
+
 ## Tắt module
 
 Dùng khi nghi module gây lỗi cho request (không phải chặn nhầm: chặn nhầm thì **ép

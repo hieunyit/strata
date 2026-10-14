@@ -343,3 +343,23 @@ tests:
       - eval_time: 0m
         alertname: StrataBreakerOpen
         exp_alerts: []
+
+  # W11-G1-01: a trip on a fires for 10 minutes; b never tripped
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_fallback_triggers_total{instance="a",reason="block_rate"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+      - series: 'strata_agent_fallback_triggers_total{instance="b",reason="block_rate"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: StrataNodeFallback
+        exp_alerts:
+          - exp_labels: { instance: a, reason: block_rate, severity: warning, component: agent }
+            exp_annotations:
+              summary: "a: the node forced every policy into shadow on its own (block_rate)"
+              description: "Node tier of the automatic fallback: blocks 3x the shadow level, or engine errors or budget overruns jumped. The node stays in shadow for --fallback-hold (1 h)."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+      - eval_time: 15m
+        alertname: StrataNodeFallback
+        exp_alerts: []

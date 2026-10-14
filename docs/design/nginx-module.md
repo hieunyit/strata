@@ -830,6 +830,8 @@ Không chuyển thẳng từ shadow sang enforce: enforce tăng dần 1% → 5% 
 
 5xx upstream tăng có thể không do WAF, nên fallback dựa trên **chênh lệch giữa hai nhóm** chứ không dựa trên con số tuyệt đối. Quay lại enforce sau fallback chỉ được làm bằng thao tác có duyệt trên UI.
 
+*Hiện trạng (W11-G1-01, tầng 1):* `agent/internal/fallback`. Metrics file không có bộ đếm theo policy, nên agent tính cho **cả node** và ép shadow mọi policy (bit 0 của control file, qua cùng `force-shadow.json` với lệnh `ForceShadow`; quyết định PO 13/10/2026). Mỗi 5 giây, hiệu bộ đếm của mọi worker: tỉ lệ chặn so với mức "lẽ ra chặn" (block + log: khi shadow mọi request lẽ ra bị chặn đều là log) học bằng trung bình động; lỗi engine (fail mode) và vượt budget so với mức của chính chúng. Vượt `--fallback-factor` (3) lần mức nền (mức nền dưới 0,5% tính là 0,5%), trên khoảng có ít nhất 100 request, sau 12 khoảng khởi động: ép shadow trong `--fallback-hold` (1 giờ), cảnh báo `StrataNodeFallback`. Chỉ ngắt khi node có chặn thật (block > 0): node đang shadow không bị ảnh hưởng. Rủi ro đã biết: một đợt tấn công thật cũng làm tỉ lệ chặn tăng và đưa node về shadow; tầng 2 (W12-G2-01) so canary với shadow nên không bị ảnh hưởng. W12-G1-01: chỉ control plane được gỡ cờ.
+
 ## Bảo mật của module
 
 Phần C được giữ nhỏ nhất có thể (tối đa 3.000 dòng code thực, không tính dòng trống và comment, `make check-c-lines`; nâng từ 2.000 sau W06-N-01, lên 2.500 rồi 3.000 ngày 12/10/2026) vì đó là phần duy nhất không memory-safe; mọi việc parse input không tin cậy nằm trong Rust.
