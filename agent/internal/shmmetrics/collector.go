@@ -28,7 +28,16 @@ var (
 	dBreaker  = prometheus.NewDesc("strata_breaker_state", "Circuit breaker of each worker: 0 closed, 1 open, 2 half-open.", []string{"worker"}, nil)
 	dOpens    = prometheus.NewDesc("strata_breaker_opens_total", "Times a worker circuit breaker opened.", nil, nil)
 	dDegraded = prometheus.NewDesc("strata_degraded_requests_total", "Requests run in degraded mode (circuit breaker open or half-open).", nil, nil)
+	// W12-G2-01: requests of policies with an enforce canary, by group
+	// (canary: inside, enforced; shadow: outside)
+	dCanaryReq     = prometheus.NewDesc("strata_canary_requests_total", "Requests of policies with an enforce canary, by canary group.", []string{"group"}, nil)
+	dCanaryBlocked = prometheus.NewDesc("strata_canary_blocked_total", "Of those, blocked, by canary group.", []string{"group"}, nil)
+	dCanaryLogged  = prometheus.NewDesc("strata_canary_logged_total", "Of those, logged (in shadow: would have been blocked), by canary group.", []string{"group"}, nil)
+	dCanary5xx     = prometheus.NewDesc("strata_canary_upstream_5xx_total", "Of those, answered 5xx by the upstream, by canary group.", []string{"group"}, nil)
+	dCanaryLatency = prometheus.NewDesc("strata_canary_request_seconds", "Request latency of those, by canary group.", []string{"group"}, nil)
 )
+
+var canaryGroups = [2]string{"canary", "shadow"}
 
 // Collector exports one metrics file.
 type Collector struct {
@@ -40,7 +49,8 @@ func NewCollector(path string) *Collector { return &Collector{path: path} }
 
 // Describe implements prometheus.Collector.
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
-	for _, d := range []*prometheus.Desc{dUp, dWorkers, dRequests, dEngine, dBody, dFail, dDropped, dBudget, dBundle, dBreaker, dOpens, dDegraded} {
+	for _, d := range []*prometheus.Desc{dUp, dWorkers, dRequests, dEngine, dBody, dFail, dDropped, dBudget, dBundle, dBreaker, dOpens, dDegraded,
+		dCanaryReq, dCanaryBlocked, dCanaryLogged, dCanary5xx, dCanaryLatency} {
 		ch <- d
 	}
 }
@@ -101,6 +111,23 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(dFail, prometheus.CounterValue, float64(closed), "closed")
 	ch <- prometheus.MustNewConstMetric(dDropped, prometheus.CounterValue, float64(dropped))
 	ch <- prometheus.MustNewConstMetric(dBudget, prometheus.CounterValue, float64(budget))
+	if g, ok := s.Canary(); ok {
+		for i, name := range canaryGroups {
+			ch <- prometheus.MustNewConstMetric(dCanaryReq, prometheus.CounterValue, float64(g[i].Requests), name)
+			ch <- prometheus.MustNewConstMetric(dCanaryBlocked, prometheus.CounterValue, float64(g[i].Blocked), name)
+			ch <- prometheus.MustNewConstMetric(dCanaryLogged, prometheus.CounterValue, float64(g[i].Logged), name)
+			ch <- prometheus.MustNewConstMetric(dCanary5xx, prometheus.CounterValue, float64(g[i].Upstream5xx), name)
+			cum := make(map[float64]uint64, len(LatencyBounds))
+			var n uint64
+			for b, bound := range LatencyBounds {
+				n += g[i].Latency[b]
+				cum[bound] = n
+			}
+			n += g[i].Latency[len(LatencyBounds)]
+			// the module keeps no latency sum
+			ch <- prometheus.MustNewConstHistogram(dCanaryLatency, n, 0, cum, name)
+		}
+	}
 }
 
 // Serve exposes reg on addr at /metrics until ctx is done.

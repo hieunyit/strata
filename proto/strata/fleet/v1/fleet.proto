@@ -91,6 +91,25 @@ message NodeCounters {
   uint64 blocked = 2;
   uint64 fail_open = 3; // requests passed because of a fail mode
   uint64 dropped_events = 4; // event socket or spool overflow
+  // W12-G2-01: requests of policies with an enforce canary, inside the
+  // canary (enforced) and outside it (shadow), summed over the workers.
+  // Counters since metrics_created_ms: NGINX starts them again from 0 when
+  // it reloads (a new metrics file). Absent with a module older than W12.
+  CanaryCounters canary = 5;
+  CanaryCounters canary_shadow = 6;
+  uint64 metrics_created_ms = 7;
+}
+
+// Counters of one canary group (docs/design/control-file.md, metrics file
+// 24..49).
+message CanaryCounters {
+  uint64 requests = 1;
+  uint64 blocked = 2;
+  uint64 logged = 3;
+  uint64 upstream_server_errors = 4; // the upstream answered 5xx
+  // request latency, per bucket (not cumulative), upper bounds 5, 10, 25,
+  // 50, 100, 250, 500, 1000 ms, then +Inf
+  repeated uint64 latency = 5;
 }
 
 message BundleStatus {
