@@ -1670,6 +1670,11 @@
           "type": "number",
           "format": "double",
           "description": "Enforce canary (W12-G2-01): share of clients, in percent (0.01 to 99.99,\ntwo decimals), whose requests this enforce policy blocks; the others\nrun in shadow. 0: every client."
+        },
+        "max_args": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Arguments inspected, query then body fields (#28): 1 to 1020, rounded up\nto a multiple of 4; 0 = 1024. A request with more goes by `oversize`\n(rule 100021). Modules from before the setting refuse bundles that set\nit: upgrade them first."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
