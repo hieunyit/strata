@@ -3,7 +3,11 @@
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
 //!              [--budget-us N] [--only small|nul|attack|json|64k|json64k|1m] [--event] [--diagnose]
-//!              [--cold N [--warm]]
+//!              [--cold N [--warm]] [--rule-cost-every N] [--rule-cost-ab]
+//!
+//! `--rule-cost-ab` (W13-R-02) runs the iterations in turn with rule-cost
+//! sampling off, at 1% and at 100%, in one process (the machine drifts
+//! more between runs than the cost measured), and prints the mean of each.
 //!
 //! For each request kind (small GET, 64 KB and 1 MB urlencoded POST, JSON
 //! POST, an attack GET) prints one JSON line: mean, p50, p99 and max in µs,
@@ -204,6 +208,11 @@ fn main() {
         .map(|s| s.parse().expect("--iterations"))
         .unwrap_or(2000);
     let only = get("--only");
+    // W13-R-02: one transaction in N timed rule by rule (0: none; the
+    // engine's default is 100)
+    if let Some(n) = get("--rule-cost-every") {
+        libstrata::rulecost::set_sample_every(n.parse().expect("--rule-cost-every"));
+    }
     // also encode the event of each transaction, as the connector does
     let event = args.iter().any(|a| a == "--event");
     // as NGINX runs it: strata_cpu_budget (10 ms by default); 0 = none
@@ -308,6 +317,37 @@ fn main() {
         }
     }
 
+    if args.iter().any(|a| a == "--rule-cost-ab") {
+        for r in requests() {
+            if only.as_deref().is_some_and(|o| o != r.name) {
+                continue;
+            }
+            for _ in 0..50 {
+                run_one(&e, policy.as_bytes(), budget_us, event, &r);
+            }
+            let modes = [0u64, 100, 1];
+            let mut sum = [0f64; 3];
+            let mut count = [0usize; 3];
+            for i in 0..iters * 3 {
+                let m = i % 3;
+                libstrata::rulecost::set_sample_every(modes[m]);
+                let s = Instant::now();
+                run_one(&e, policy.as_bytes(), budget_us, event, &r);
+                sum[m] += s.elapsed().as_secs_f64() * 1e6;
+                count[m] += 1;
+            }
+            let mean = |m: usize| sum[m] / count[m].max(1) as f64;
+            println!(
+                "{{\"request\":\"{}\",\"n\":{},\"off_us\":{:.1},\"one_percent_us\":{:.1},\"all_us\":{:.1}}}",
+                r.name,
+                iters,
+                mean(0),
+                mean(1),
+                mean(2)
+            );
+        }
+        return;
+    }
     for r in requests() {
         if only.as_deref().is_some_and(|o| o != r.name) {
             continue;
