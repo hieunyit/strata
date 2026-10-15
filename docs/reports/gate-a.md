@@ -66,6 +66,6 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 | --- | --- | --- |
 | Verdict soak 24 giờ | 14/10: FAIL, đã sửa | Claude Code (`w09-q-02.md` §3) |
 | Soak 24 giờ với bản sửa | khoảng 24 giờ sau khi merge | Claude Code; báo cáo này cập nhật A3 |
-| Bảng FP đủ 2 ngày | sau 15/10 khoảng 21:50 | Claude Code (`w10-s-01.md`) |
+| Bảng FP đủ 2 ngày | **đạt** 15/10 21:52: 0 nghi FP từ lưu lượng benign | Claude Code (`w10-s-01.md`) |
 | 7 ngày của gói 0.0.1 | 20/10 11:18 | người PO giao đóng W09-S-01 |
 | RV-R-01 số đo trước/sau | PR #54 merge 14/10: A1/A2 vẫn chưa đạt (mục 2) | phiên engine |
