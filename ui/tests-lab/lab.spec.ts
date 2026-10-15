@@ -112,8 +112,10 @@ test('a deploy shows node by node on the Fleet page', async ({ page, request }) 
   await signIn(page, 'lab-viewer');
   await page.getByTestId('nav-fleet').click();
   await expect(page.locator('[data-testid="node-row"][data-status="online"]')).toHaveCount(2, { timeout: 15_000 });
-  await expect(page.locator('[data-testid="node-nginx"]').first()).toHaveText(/^1\.3\d\.\d+$/, { timeout: 15_000 });
-  const before = Number((await page.locator('[data-testid="node-bundle"]').first().textContent())?.replace('v', ''));
+  // revoked nodes (packaging tests, W10-N-01) stay listed: read the online ones
+  const online = page.locator('[data-testid="node-row"][data-status="online"]');
+  await expect(online.locator('[data-testid="node-nginx"]').first()).toHaveText(/^1\.3\d\.\d+$/, { timeout: 15_000 });
+  const before = Number((await online.locator('[data-testid="node-bundle"]').first().textContent())?.replace('v', ''));
   await page.screenshot({ path: path.join(shots, '0-before.png'), fullPage: true });
 
   // example-web to enforce and deploy, through the API as an operator
@@ -147,8 +149,7 @@ test('a deploy shows node by node on the Fleet page', async ({ page, request }) 
       fs.appendFileSync(path.join(shots, 'steps.txt'), `${n} ${new Date().toISOString()} ${states}\n`);
       await page.screenshot({ path: path.join(shots, `${n}-step.png`), fullPage: true });
     }
-    const rows = page.locator('[data-testid="node-row"]');
-    const all = await rows.evaluateAll((es, v) => es.every((e) =>
+    const all = await online.evaluateAll((es, v) => es.every((e) =>
       e.querySelector('[data-testid="node-bundle"]')?.textContent === `v${v}` &&
       e.querySelector('[data-testid="node-bundle-state"]')?.getAttribute('data-state') === 'ACTIVE'), version);
     if (all || Date.now() > deadline) {
