@@ -367,6 +367,9 @@ pub struct Request<'a> {
     pub headers: &'a [(&'a [u8], &'a [u8])],
     /// The request body as inspected (empty at stage request_headers).
     pub body: &'a [u8],
+    /// Arguments (query, then body fields) inspected: the policy's
+    /// `max_args`; 0 or more than MAX_ARGS is MAX_ARGS (#28)
+    pub max_args: usize,
 }
 
 /// The body processor for a Content-Type, named as ModSecurity's
@@ -441,10 +444,12 @@ fn form_decode(s: &[u8]) -> Cow<'_, [u8]> {
 
 type Pair<'a> = (Cow<'a, [u8]>, Cow<'a, [u8]>);
 
-fn parse_query_with_budget<'a>(
+/// The fields of `q`, at most `limit`, and whether some were left out.
+fn parse_query_limit<'a>(
     q: &'a [u8],
+    limit: usize,
     mut budget: Option<&mut crate::budget::TxBudget>,
-) -> Result<Vec<Pair<'a>>, crate::budget::BudgetExceeded> {
+) -> Result<(Vec<Pair<'a>>, bool), crate::budget::BudgetExceeded> {
     let mut out = Vec::new();
     let mut start = 0;
     let mut next_check = 8192;
@@ -455,9 +460,6 @@ fn parse_query_with_budget<'a>(
             }
             next_check = start + 8192;
         }
-        if out.len() >= MAX_ARGS {
-            break;
-        }
         let end = match memchr::memchr(b'&', &q[start..]) {
             Some(pos) => start + pos,
             None => q.len(),
@@ -466,6 +468,9 @@ fn parse_query_with_budget<'a>(
         start = end + 1;
         if p.is_empty() {
             continue;
+        }
+        if out.len() >= limit {
+            return Ok((out, true));
         }
         let pair = match memchr::memchr(b'=', p) {
             Some(eq) => (
@@ -479,12 +484,12 @@ fn parse_query_with_budget<'a>(
         };
         out.push(pair);
     }
-    Ok(out)
+    Ok((out, false))
 }
 
 #[cfg(test)]
 fn parse_query(q: &[u8]) -> Vec<Pair<'_>> {
-    parse_query_with_budget(q, None).unwrap()
+    parse_query_limit(q, MAX_ARGS, None).unwrap().0
 }
 
 fn pair<'p>((n, v): &'p Pair<'_>) -> (&'p [u8], &'p [u8]) {
@@ -1710,28 +1715,36 @@ pub fn evaluate_with_budget(
     } else {
         Cow::Owned([req.uri, b"?", req.args].concat())
     };
-    let mut args = parse_query_with_budget(req.args, budget.as_deref_mut())?;
+    let max_args = match req.max_args {
+        0 => MAX_ARGS,
+        n => n.min(MAX_ARGS),
+    };
+    let (mut args, mut args_left_out) =
+        parse_query_limit(req.args, max_args, budget.as_deref_mut())?;
     let n_get = args.len();
     let mut files = vec![];
     let mut part_headers = vec![];
     let mut xml_body = None;
-    let room = MAX_ARGS.saturating_sub(n_get);
+    let room = max_args.saturating_sub(n_get);
     let ct = content_type(req.headers);
     let processor = body_processor(ct);
     if !req.body.is_empty() {
         match processor {
             b"URLENCODED" => {
-                args.extend(
-                    parse_query_with_budget(req.body, budget.as_deref_mut())?
-                        .into_iter()
-                        .take(room),
-                );
+                let (body_args, left_out) =
+                    parse_query_limit(req.body, room, budget.as_deref_mut())?;
+                args_left_out |= left_out;
+                args.extend(body_args);
             }
-            b"JSON" => args.extend(
-                json::args_with_budget(req.body, room, budget.as_deref_mut())?
-                    .into_iter()
-                    .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))),
-            ),
+            b"JSON" => {
+                // one more than room: whether some were left out
+                let mut j = json::args_with_budget(req.body, room + 1, budget.as_deref_mut())?;
+                if j.len() > room {
+                    j.truncate(room);
+                    args_left_out = true;
+                }
+                args.extend(j.into_iter().map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))));
+            }
             b"XML" => xml_body = Some(xml::parse_with_budget(req.body, budget.as_deref_mut())?),
             b"MULTIPART" => {
                 for p in multipart::parts_with_budget(
@@ -1742,15 +1755,28 @@ pub fn evaluate_with_budget(
                     part_headers.extend(p.headers.iter().map(|h| (p.name, *h)));
                     match p.filename {
                         Some(f) => files.push((p.name, f)),
-                        None if args.len() < MAX_ARGS => {
+                        None if args.len() < max_args => {
                             args.push((Cow::Borrowed(p.name), Cow::Borrowed(p.content)))
                         }
-                        None => {}
+                        None => args_left_out = true,
                     }
                 }
             }
             _ => {}
         }
+    }
+    if args_left_out {
+        // not every argument is inspected: rule 100021, which the
+        // transaction makes block or recorded per the policy's oversize
+        report(Violation {
+            rule: crate::detectors::protocol::ARGS_OVER_LIMIT,
+            score: 0,
+            block_alone: false,
+            signature: false,
+            layer: "protocol",
+            field: "ARGS".to_string(),
+            snippet: Vec::new(),
+        });
     }
     let cookies = parse_cookies(req.headers);
     // values that look base64-encoded are inspected decoded too (b64.rs)
