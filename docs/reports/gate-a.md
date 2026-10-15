@@ -20,7 +20,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 
 | # | Tiêu chí | Trạng thái | Bằng chứng |
 | --- | --- | --- | --- |
-| A1 | Overhead p99 < 1 ms (request < 64 KB) | **Chưa đạt** | Phase 0–1, Linux: GET +900 đến +1.160 µs (dao động quanh ngưỡng), POST form 64 KB +2,8 đến +3,2 ms (`w09-q-01.md` §7, #28). Gói đầy đủ: GET p99 +5,5 đến +6,6 ms; trên route thí điểm, JSON 300 byte 1,6–2,7 ms, upload 2–32 KB khoảng 20 ms (`w10-g2-01.md` §4). Sau PR #54 (14/10): thời gian engine giảm 10–18%; POST 64 KB với gói đầy đủ vẫn 100% fail-open (#28, `issue-27-28-prototype.md`). Từ PR #79 (15/10, PO duyệt), `strata_cpu_budget` mặc định là **10 ms**: ít request đi fail-open hơn, nhưng một request có thể chịu thêm tới 10 ms trước khi đi fail mode, xa mục tiêu p99 < 1 ms |
+| A1 | Overhead p99 < 1 ms (request < 64 KB) | **Chưa đạt** | Phase 0–1, Linux: GET +900 đến +1.160 µs (dao động quanh ngưỡng), POST form 64 KB +2,8 đến +3,2 ms (`w09-q-01.md` §7, #28). Gói đầy đủ: GET p99 +5,5 đến +6,6 ms; trên route thí điểm, JSON 300 byte 1,6–2,7 ms, upload 2–32 KB khoảng 20 ms (`w10-g2-01.md` §4). Sau PR #54 (14/10): thời gian engine giảm 10–18%; POST 64 KB với gói đầy đủ vẫn 100% fail-open (#28, `issue-27-28-prototype.md`). Từ PR #79 (15/10, PO duyệt), `strata_cpu_budget` mặc định là **10 ms**: ít request đi fail-open hơn, nhưng một request có thể chịu thêm tới 10 ms trước khi đi fail mode, xa mục tiêu p99 < 1 ms. PR #85 (#28 bước 1, 15/10), engine 1 nhân, gói đầy đủ, p50: GET nhỏ 756 → 636 µs, JSON nhỏ 1.246 → 654 µs, JSON 64 KB 70,3 → 43,0 ms, form 64 KB (1.024 tham số) 112,7 → 53,8 ms (`issue-28-scan-once.md`). Body 64 KB vẫn vượt budget 10 ms; bước 2 chờ PO quyết (§4, mục 5) |
 | A2 | Throughput giảm ≤ 10% | **Chưa đạt** | Phase 0–1, Linux: −43,3% / −39,6% (1.30.5 / 1.31.6), HTTP/2 −36 đến −38% (#27). Gói đầy đủ: −87%. Sau PR #54 (14/10): phase 0–1 −42% → −37%, gói đầy đủ HTTP/2 +12% so với trước; vẫn xa mục tiêu −10% |
 | A3 | Hot reload không rớt request | **Chưa đạt (soak lại)** | Hot reload không rớt request: `t/004-reload.t`, hot reload dưới tải (W08-N-01), soak 0 crash. Nhưng soak 24 giờ (`24h-rc3`, 1.004 lần đổi) **FAIL**: RSS worker 8 → 147 MB, tăng khoảng 18 MB mỗi lần nạp gói đầy đủ, vì mỗi luồng của thread pool NGINX giữ một arena glibc riêng. Đã sửa: libstrata nạp bundle trên một luồng riêng; soak 1 giờ có bản sửa PASS (RSS phẳng qua 10 lần nạp gói đầy đủ). Soak 24 giờ mới chạy sau khi merge (`w09-q-02.md` §3) |
 | A4 | Fuzz không crash | **Đạt theo quyết định PO** | Plan ghi "72 giờ fuzz". PO quyết ngày 13/10/2026: 30 phút đến 1 giờ là đủ. Đã chạy: FFI dưới ASan khoảng 9 giờ 50 phút, khoảng 122 triệu lần chạy, 0 crash (W08-R-01). Lần đó dừng vì máy khởi động lại, không phải vì crash |
@@ -57,6 +57,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 4. **Người tiếp tục RV-G2-01 / RV-N-01**: nhánh `rv-g2-01-event-context` (5 commit chưa
    push) của phiên engine đã dừng giữa chừng; #57 (`would_block`) chờ nhánh này.
    *Đã xong 14/10: PR #68 (phiên engine), #70 (#57).*
+5. **#28 bước 2** (`issue-28-scan-once.md` §5): A. DB Hyperscan theo lớp giá trị (prototype sau cờ, đổi định dạng bundle nếu giữ); B. giới hạn số tham số được kiểm theo policy (phần vượt theo `oversize`); C. thread pool cho body lớn. Phiên engine đề xuất làm A dạng prototype, kèm B.
 
 ## 5. Mốc còn chờ
 
