@@ -26,7 +26,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W11-G2-01 | Định dạng traffic mẫu cho replay | Claude Code (phiên cloud) | — | 🔄 Code xong (PR #61); chờ pháp chế duyệt |
 | RV-S-01 | Tách gói core / signature | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
 | W11-F-01 | Policy editor phần 1 | Claude Code (phiên cloud) | — | ✅ Done (PR #61) |
-| W11-S-01 | Xử lý FP sau tuần shadow, phát hành pack v0.1 | Claude Code | W10-G2-01, W10-S-01, RV-S-01 | ✅ PR #67, #69 và PR báo cáo (`docs/reports/w11-s-01.md`): 942100 → 0 FP benign; pack v0.1 trên prod-sim. Chưa có traffic thật; staging nhận v0.1 sau 20/10 |
+| W11-S-01 | Xử lý FP sau tuần shadow, phát hành pack v0.1 | Claude Code | W10-G2-01, W10-S-01, RV-S-01 | ✅ PR #67, #69 và PR báo cáo (`docs/reports/w11-s-01.md`): 942100 → 0 FP benign; pack v0.1.1 (sau #79) trên prod-sim `v0.11.0-rc.2`. Chưa có traffic thật; staging nhận v0.1 sau 20/10 |
 | RV-G2-01 | Ngữ cảnh điều tra trong sự kiện (+ `would_block`, #57) | Claude Code (phiên engine) | RV-R-01 | ✅ PR #68 (engine, proto, UI); `ingestAction` theo `would_block` (#57): PR #70 |
 | Vận hành | Bật canary 1% trên route thí điểm | Người | W11-S-01, **Gate A**, #65 | ⛔ Gate A chưa đạt (`docs/reports/gate-a.md`) |
 
