@@ -106,6 +106,10 @@ pub struct Tx {
     event_headers: Vec<(Vec<u8>, Vec<u8>)>,
     /// the connector reported body bytes it did not pass (RV-N-01)
     body_skipped: bool,
+    /// the policy's max_args (0 = the engine's limit), and whether some
+    /// arguments were left out (rule 100021, #28)
+    max_args: usize,
+    args_left_out: bool,
     /// Body bytes for the request_body rules, at most MAX_BODY_KEEP.
     body: Vec<u8>,
     /// test-hooks only: what the connector passed, for integration tests
@@ -279,6 +283,8 @@ impl Tx {
             snippet_max: crate::event::MAX_SNIPPET_LEN,
             event_headers: Vec::new(),
             body_skipped: false,
+            max_args: 0,
+            args_left_out: false,
             body: Vec::new(),
             #[cfg(feature = "test-hooks")]
             echo: None,
@@ -466,6 +472,7 @@ impl Tx {
             self.response = p.response;
             self.signatures = p.signatures;
             self.snippet_max = p.snippet.bytes();
+            self.max_args = p.max_args;
         } else {
             self.policy_index = None;
             self.canary = crate::event::CanaryGroup::None;
@@ -599,9 +606,14 @@ impl Tx {
         !self.disabled.is_empty() && self.disabled.binary_search(&rule).is_ok()
     }
 
-    fn add(&mut self, v: Violation) {
+    fn add(&mut self, mut v: Violation) {
         if self.rules[..self.n_rules].contains(&v.rule) || self.is_disabled(v.rule) {
             return;
+        }
+        if v.rule == protocol::ARGS_OVER_LIMIT {
+            // like a body over the limit (100020): the policy's oversize
+            v.block_alone = self.oversize_block;
+            self.args_left_out = true;
         }
         if self.n_rules < MAX_RULES {
             self.rules[self.n_rules] = v.rule;
@@ -865,6 +877,7 @@ impl Tx {
                 client_addr: line.part(5),
                 headers,
                 body: b"",
+                max_args: self.max_args,
             };
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
@@ -931,6 +944,7 @@ impl Tx {
             client_addr: line.part(5),
             headers: &headers,
             body,
+            max_args: self.max_args,
         };
         let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
         let mut found = vec![];
@@ -1332,7 +1346,7 @@ impl Tx {
             .unwrap_or_else(|| identity_str.to_string());
         let ctx_headers: Vec<(&[u8], &[u8])> =
             ctx.headers.iter().map(|(k, v)| (&k[..], &v[..])).collect();
-        let inspection = if self.error == E_BUDGET {
+        let inspection = if self.error == E_BUDGET || self.args_left_out {
             crate::event::Inspection::Partial
         } else if self.body_skipped || self.error == E_INCOMPLETE {
             crate::event::Inspection::BodySkipped

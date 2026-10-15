@@ -234,19 +234,23 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
         .collect()
 }
 
+/// A policy as the compiler reads it: (name, mode, oversize, response
+/// flags, canary share in basis points, signature pack, snippet size,
+/// max_args (0 = the engine's 1024)).
+pub type PolicyFields = (
+    String,
+    Mode,
+    Oversize,
+    Response,
+    u16,
+    Signatures,
+    SnippetSize,
+    usize,
+);
+
 #[derive(Debug)]
 pub struct Policies {
-    /// (name, mode, oversize, response flags, canary share in basis points,
-    /// signature pack, snippet size)
-    pub policies: Vec<(
-        String,
-        Mode,
-        Oversize,
-        Response,
-        u16,
-        Signatures,
-        SnippetSize,
-    )>,
+    pub policies: Vec<PolicyFields>,
     pub block_page: Option<BlockPage>,
     /// privacy settings, by index in `policies` (P-01 §1)
     pub privacy: Vec<libstrata::privacy::PrivacySpec>,
@@ -343,6 +347,21 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             Some(4096) => SnippetSize::Kb4,
             _ => SnippetSize::Small,
         };
+        // #28: arguments inspected; more go by `oversize` (rule 100021)
+        let max_args = match &p["max_args"] {
+            serde_json::Value::Null => 0,
+            v => match v.as_u64() {
+                Some(n) if (1..=libstrata::bundle::MAX_ARGS_POLICY as u64).contains(&n) => {
+                    n as usize
+                }
+                _ => {
+                    return Err(format!(
+                        "policy {name:?}: max_args must be 1..{}, got {v}",
+                        libstrata::bundle::MAX_ARGS_POLICY
+                    ));
+                }
+            },
+        };
         let pv = &p["privacy"];
         let strings = |k: &str| -> Vec<String> {
             pv[k]
@@ -377,6 +396,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             canary,
             signatures,
             snippet,
+            max_args,
         ));
     }
     let block_page = match doc.get("block_page") {
@@ -836,11 +856,12 @@ fn compile_unsigned_with(
         .policies
         .iter()
         .enumerate()
-        .map(|(i, (n, m, o, r, c, g, sn))| PolicySpec {
+        .map(|(i, (n, m, o, r, c, g, sn, a))| PolicySpec {
             response: *r,
             canary: *c,
             signatures: *g,
             snippet: *sn,
+            max_args: *a,
             privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
             ..PolicySpec::new(n, *m, *o)
         })
