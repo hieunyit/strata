@@ -3,12 +3,14 @@ syntax = "proto3";
 package strata.admin.v1;
 
 import "google/protobuf/timestamp.proto";
+import "strata/admin/v1/operation.proto";
 
 // PolicyService edits policies and deploys them as signed bundles
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
-// one is refused with ABORTED (HTTP 409). Approval (four eyes) and replay
-// come with later tasks.
+// one is refused with ABORTED (HTTP 409). Each new version is replayed
+// against the traffic samples on its own (W13-G2-01); approval (four eyes)
+// comes with W13-G2-02.
 service PolicyService {
   // REST: GET /v1/policies
   rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
@@ -26,6 +28,14 @@ service PolicyService {
   // current version of every policy, signs it and stores it in object
   // storage.
   rpc DeployPolicy(DeployPolicyRequest) returns (DeployPolicyResponse);
+  // REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
+  // version (0: the newest) against the bundle in force, on the policy's
+  // traffic samples of the last 7 days and the corpus; follow it with
+  // GET /v1/operations/{operation_id}.
+  rpc ReplayPolicy(ReplayPolicyRequest) returns (ReplayPolicyResponse);
+  // REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
+  // newest replay of the version, done or not; NOT_FOUND when there is none.
+  rpc GetPolicyVersionReplay(GetPolicyVersionReplayRequest) returns (GetPolicyVersionReplayResponse);
 }
 
 // PolicySpec is what the bundle carries for the policy
@@ -134,6 +144,9 @@ message CreatePolicyRequest {
 
 message CreatePolicyResponse {
   Policy policy = 1;
+  // The replay of the new version queued on its own; empty when replay is
+  // not configured on this control plane.
+  string replay_operation = 2;
 }
 
 message UpdatePolicyRequest {
@@ -142,6 +155,8 @@ message UpdatePolicyRequest {
 
 message UpdatePolicyResponse {
   Policy policy = 1;
+  // As in CreatePolicyResponse.
+  string replay_operation = 2;
 }
 
 message ListPolicyVersionsRequest {
@@ -170,4 +185,22 @@ message DeployPolicyResponse {
   // The rollout of the bundle to the nodes (GET /v1/rollouts/{id}); 0 when
   // this control plane does not distribute bundles.
   int64 rollout_id = 2;
+}
+
+message ReplayPolicyRequest {
+  string policy_id = 1;
+  uint32 version = 2; // 0: the newest
+}
+
+message GetPolicyVersionReplayRequest {
+  string policy_id = 1;
+  uint32 version = 2;
+}
+
+message ReplayPolicyResponse {
+  Operation operation = 1;
+}
+
+message GetPolicyVersionReplayResponse {
+  Operation operation = 1;
 }

@@ -9,6 +9,9 @@
       "name": "FleetAdminService"
     },
     {
+      "name": "OperationService"
+    },
+    {
       "name": "PolicyService"
     },
     {
@@ -434,6 +437,37 @@
         ]
       }
     },
+    "/v1/operations/{operation_id}": {
+      "get": {
+        "summary": "REST: GET /v1/operations/{operation_id}",
+        "operationId": "OperationService_GetOperation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetOperationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "OperationService"
+        ]
+      }
+    },
     "/v1/policies": {
       "get": {
         "summary": "REST: GET /v1/policies",
@@ -658,6 +692,44 @@
         ]
       }
     },
+    "/v1/policies/{policy_id}/versions/{version}/replay": {
+      "get": {
+        "summary": "REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The\nnewest replay of the version, done or not; NOT_FOUND when there is none.",
+        "operationId": "PolicyService_GetPolicyVersionReplay",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPolicyVersionReplayResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
     "/v1/policies/{policy_id}:deploy": {
       "post": {
         "summary": "REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the\ncurrent version of every policy, signs it and stores it in object\nstorage.",
@@ -689,6 +761,45 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/PolicyServiceDeployPolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}:replay": {
+      "post": {
+        "summary": "REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a\nversion (0: the newest) against the bundle in force, on the policy's\ntraffic samples of the last 7 days and the corpus; follow it with\nGET /v1/operations/{operation_id}.",
+        "operationId": "PolicyService_ReplayPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReplayPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PolicyServiceReplayPolicyBody"
             }
           }
         ],
@@ -1061,6 +1172,16 @@
     "PolicyServiceDeployPolicyBody": {
       "type": "object"
     },
+    "PolicyServiceReplayPolicyBody": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int64",
+          "title": "0: the newest"
+        }
+      }
+    },
     "PolicySpecMode": {
       "type": "string",
       "enum": [
@@ -1228,6 +1349,10 @@
       "properties": {
         "policy": {
           "$ref": "#/definitions/v1Policy"
+        },
+        "replay_operation": {
+          "type": "string",
+          "description": "The replay of the new version queued on its own; empty when replay is\nnot configured on this control plane."
         }
       }
     },
@@ -1336,11 +1461,27 @@
         }
       }
     },
+    "v1GetOperationResponse": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/definitions/v1Operation"
+        }
+      }
+    },
     "v1GetPolicyResponse": {
       "type": "object",
       "properties": {
         "policy": {
           "$ref": "#/definitions/v1Policy"
+        }
+      }
+    },
+    "v1GetPolicyVersionReplayResponse": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/definitions/v1Operation"
         }
       }
     },
@@ -1603,6 +1744,54 @@
       },
       "description": "NodeCommand is a command sent to one node and its result."
     },
+    "v1Operation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "op- and 24 hex digits"
+        },
+        "kind": {
+          "type": "string",
+          "title": "REPLAY"
+        },
+        "state": {
+          "type": "string",
+          "title": "PENDING, RUNNING, DONE (replay set) or FAILED (error set)"
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        },
+        "policy_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "replay": {
+          "$ref": "#/definitions/v1ReplayReport"
+        }
+      }
+    },
     "v1PauseRolloutResponse": {
       "type": "object",
       "properties": {
@@ -1726,6 +1915,178 @@
           "description": "plain (default) or hmac: events carry hmac: and 32 hex digits of\nHMAC-SHA256 with the installation's identity key instead of the\nidentity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps)."
         }
       }
+    },
+    "v1ReplayComparison": {
+      "type": "object",
+      "properties": {
+        "samples": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "newly_blocked": {
+          "type": "string",
+          "format": "uint64",
+          "title": "blocked by the draft, not by the bundle in force: candidate false\npositives; and the reverse: candidate false negatives"
+        },
+        "newly_allowed": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "draft_actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          },
+          "title": "action -\u003e samples, with the draft and with the bundle in force"
+        },
+        "baseline_actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          }
+        },
+        "newly_blocked_rules": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          },
+          "title": "rule ID -\u003e samples"
+        },
+        "newly_allowed_rules": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          }
+        },
+        "newly_blocked_paths": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          },
+          "title": "route path (first two segments) -\u003e newly blocked samples"
+        },
+        "newly_blocked_sampled": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          },
+          "title": "the action recorded when the sample was taken (corpus: allow for\nbenign, block for attacks) -\u003e samples"
+        },
+        "newly_allowed_sampled": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "uint64"
+          }
+        },
+        "examples_blocked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ReplayExample"
+          },
+          "title": "anonymized samples whose verdict changed (at most 5 each); only for\ncallers who may read input snippets (events:read_sensitive)"
+        },
+        "examples_allowed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ReplayExample"
+          }
+        }
+      }
+    },
+    "v1ReplayExample": {
+      "type": "object",
+      "properties": {
+        "ts_ms": {
+          "type": "string",
+          "format": "int64"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "raw_uri": {
+          "type": "string",
+          "title": "as sampled: already anonymized"
+        },
+        "draft": {
+          "type": "string"
+        },
+        "baseline": {
+          "type": "string"
+        },
+        "draft_rules": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "baseline_rules": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    },
+    "v1ReplayPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/definitions/v1Operation"
+        }
+      }
+    },
+    "v1ReplayReport": {
+      "type": "object",
+      "properties": {
+        "samples": {
+          "type": "string",
+          "format": "uint64",
+          "title": "traffic and corpus"
+        },
+        "elapsed_ms": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "baseline_bundle": {
+          "type": "string",
+          "format": "uint64",
+          "description": "0: no bundle was in force; the baseline was built from the policies."
+        },
+        "sample_files": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sample_bytes": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "truncated": {
+          "type": "boolean",
+          "title": "there were more traffic samples than one replay takes"
+        },
+        "traffic": {
+          "$ref": "#/definitions/v1ReplayComparison",
+          "title": "absent without traffic samples, and without a corpus"
+        },
+        "corpus": {
+          "$ref": "#/definitions/v1ReplayComparison"
+        }
+      },
+      "description": "What the draft changes against the bundle in force (engine/replay\ncompare, W12-R-01): on the policy's traffic samples of the last 7 days,\nand on the benign and attack corpus, apart."
     },
     "v1ReplaySampling": {
       "type": "object",
@@ -1881,6 +2242,10 @@
       "properties": {
         "policy": {
           "$ref": "#/definitions/v1Policy"
+        },
+        "replay_operation": {
+          "type": "string",
+          "description": "As in CreatePolicyResponse."
         }
       }
     }

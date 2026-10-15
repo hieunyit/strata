@@ -91,3 +91,21 @@ func (s *S3) Open(ctx context.Context, key string, offset int64) (io.ReadCloser,
 	}
 	return obj, nil
 }
+
+// ObjectInfo is one entry of List.
+type ObjectInfo struct {
+	Key  string
+	Size int64
+}
+
+// List returns the objects whose key starts with prefix, in key order.
+func (s *S3) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	for o := range s.client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
+		if o.Err != nil {
+			return nil, fmt.Errorf("policy: list %s: %w", prefix, o.Err)
+		}
+		out = append(out, ObjectInfo{Key: o.Key, Size: o.Size})
+	}
+	return out, nil
+}

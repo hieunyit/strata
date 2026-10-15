@@ -81,6 +81,10 @@ export interface paths {
      */
     post: operations["FleetAdminService_ForceShadow"];
   };
+  "/v1/operations/{operation_id}": {
+    /** REST: GET /v1/operations/{operation_id} */
+    get: operations["OperationService_GetOperation"];
+  };
   "/v1/policies": {
     /** REST: GET /v1/policies */
     get: operations["PolicyService_ListPolicies"];
@@ -103,6 +107,13 @@ export interface paths {
     /** REST: GET /v1/policies/{policy_id}/versions/{version} */
     get: operations["PolicyService_GetPolicyVersion"];
   };
+  "/v1/policies/{policy_id}/versions/{version}/replay": {
+    /**
+     * REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
+     * newest replay of the version, done or not; NOT_FOUND when there is none.
+     */
+    get: operations["PolicyService_GetPolicyVersionReplay"];
+  };
   "/v1/policies/{policy_id}:deploy": {
     /**
      * REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
@@ -110,6 +121,15 @@ export interface paths {
      * storage.
      */
     post: operations["PolicyService_DeployPolicy"];
+  };
+  "/v1/policies/{policy_id}:replay": {
+    /**
+     * REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
+     * version (0: the newest) against the bundle in force, on the policy's
+     * traffic samples of the last 7 days and the corpus; follow it with
+     * GET /v1/operations/{operation_id}.
+     */
+    post: operations["PolicyService_ReplayPolicy"];
   };
   "/v1/rollouts": {
     /** REST: GET /v1/rollouts */
@@ -192,6 +212,13 @@ export interface components {
       rotate_key?: boolean;
     };
     PolicyServiceDeployPolicyBody: Record<string, never>;
+    PolicyServiceReplayPolicyBody: {
+      /**
+       * 0: the newest
+       * Format: int64
+       */
+      version?: number;
+    };
     /**
      * @default MODE_UNSPECIFIED
      * @enum {string}
@@ -261,6 +288,11 @@ export interface components {
     };
     v1CreatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
+      /**
+       * @description The replay of the new version queued on its own; empty when replay is
+       * not configured on this control plane.
+       */
+      replay_operation?: string;
     };
     v1DeployPolicyResponse: {
       bundle?: components["schemas"]["v1Bundle"];
@@ -307,8 +339,14 @@ export interface components {
     v1GetCommandResponse: {
       command?: components["schemas"]["v1NodeCommand"];
     };
+    v1GetOperationResponse: {
+      operation?: components["schemas"]["v1Operation"];
+    };
     v1GetPolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
+    };
+    v1GetPolicyVersionReplayResponse: {
+      operation?: components["schemas"]["v1Operation"];
     };
     v1GetPolicyVersionResponse: {
       version?: components["schemas"]["v1PolicyVersion"];
@@ -412,6 +450,27 @@ export interface components {
       /** DISABLE_RULES, ENABLE_RULES */
       rule_ids?: number[];
     };
+    v1Operation: {
+      /** op- and 24 hex digits */
+      id?: string;
+      /** REPLAY */
+      kind?: string;
+      /** PENDING, RUNNING, DONE (replay set) or FAILED (error set) */
+      state?: string;
+      done?: boolean;
+      error?: string;
+      policy_id?: string;
+      /** Format: int64 */
+      version?: number;
+      created_by?: string;
+      /** Format: date-time */
+      create_time?: string;
+      /** Format: date-time */
+      start_time?: string;
+      /** Format: date-time */
+      end_time?: string;
+      replay?: components["schemas"]["v1ReplayReport"];
+    };
     v1PauseRolloutResponse: {
       rollout?: components["schemas"]["v1Rollout"];
     };
@@ -453,6 +512,14 @@ export interface components {
        * run in shadow. 0: every client.
        */
       canary_percent?: number;
+      /**
+       * Format: int64
+       * @description Arguments inspected, query then body fields (#28): 1 to 1020, rounded up
+       * to a multiple of 4; 0 = 1024. A request with more goes by `oversize`
+       * (rule 100021). Modules from before the setting refuse bundles that set
+       * it: upgrade them first.
+       */
+      max_args?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -481,6 +548,94 @@ export interface components {
        * identity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps).
        */
       identity?: string;
+    };
+    v1ReplayComparison: {
+      /** Format: uint64 */
+      samples?: string;
+      /**
+       * blocked by the draft, not by the bundle in force: candidate false
+       * positives; and the reverse: candidate false negatives
+       * Format: uint64
+       */
+      newly_blocked?: string;
+      /** Format: uint64 */
+      newly_allowed?: string;
+      /** action -> samples, with the draft and with the bundle in force */
+      draft_actions?: {
+        [key: string]: string;
+      };
+      baseline_actions?: {
+        [key: string]: string;
+      };
+      /** rule ID -> samples */
+      newly_blocked_rules?: {
+        [key: string]: string;
+      };
+      newly_allowed_rules?: {
+        [key: string]: string;
+      };
+      /** route path (first two segments) -> newly blocked samples */
+      newly_blocked_paths?: {
+        [key: string]: string;
+      };
+      /**
+       * the action recorded when the sample was taken (corpus: allow for
+       * benign, block for attacks) -> samples
+       */
+      newly_blocked_sampled?: {
+        [key: string]: string;
+      };
+      newly_allowed_sampled?: {
+        [key: string]: string;
+      };
+      /**
+       * anonymized samples whose verdict changed (at most 5 each); only for
+       * callers who may read input snippets (events:read_sensitive)
+       */
+      examples_blocked?: components["schemas"]["v1ReplayExample"][];
+      examples_allowed?: components["schemas"]["v1ReplayExample"][];
+    };
+    v1ReplayExample: {
+      /** Format: int64 */
+      ts_ms?: string;
+      node_id?: string;
+      method?: string;
+      /** as sampled: already anonymized */
+      raw_uri?: string;
+      draft?: string;
+      baseline?: string;
+      draft_rules?: number[];
+      baseline_rules?: number[];
+    };
+    v1ReplayPolicyResponse: {
+      operation?: components["schemas"]["v1Operation"];
+    };
+    /**
+     * @description What the draft changes against the bundle in force (engine/replay
+     * compare, W12-R-01): on the policy's traffic samples of the last 7 days,
+     * and on the benign and attack corpus, apart.
+     */
+    v1ReplayReport: {
+      /**
+       * traffic and corpus
+       * Format: uint64
+       */
+      samples?: string;
+      /** Format: uint64 */
+      elapsed_ms?: string;
+      /**
+       * Format: uint64
+       * @description 0: no bundle was in force; the baseline was built from the policies.
+       */
+      baseline_bundle?: string;
+      /** Format: int64 */
+      sample_files?: number;
+      /** Format: uint64 */
+      sample_bytes?: string;
+      /** there were more traffic samples than one replay takes */
+      truncated?: boolean;
+      traffic?: components["schemas"]["v1ReplayComparison"];
+      corpus?: components["schemas"]["v1ReplayComparison"];
     };
     v1ReplaySampling: {
       group_id?: string;
@@ -543,6 +698,8 @@ export interface components {
     };
     v1UpdatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
+      /** @description As in CreatePolicyResponse. */
+      replay_operation?: string;
     };
   };
   responses: never;
@@ -872,6 +1029,28 @@ export interface operations {
       };
     };
   };
+  /** REST: GET /v1/operations/{operation_id} */
+  OperationService_GetOperation: {
+    parameters: {
+      path: {
+        operation_id: string;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetOperationResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
   /** REST: GET /v1/policies */
   PolicyService_ListPolicies: {
     responses: {
@@ -1021,6 +1200,32 @@ export interface operations {
     };
   };
   /**
+   * REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
+   * newest replay of the version, done or not; NOT_FOUND when there is none.
+   */
+  PolicyService_GetPolicyVersionReplay: {
+    parameters: {
+      path: {
+        policy_id: string;
+        version: number;
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1GetPolicyVersionReplayResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
    * REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
    * current version of every policy, signs it and stores it in object
    * storage.
@@ -1041,6 +1246,38 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1DeployPolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
+   * version (0: the newest) against the bundle in force, on the policy's
+   * traffic samples of the last 7 days and the corpus; follow it with
+   * GET /v1/operations/{operation_id}.
+   */
+  PolicyService_ReplayPolicy: {
+    parameters: {
+      path: {
+        policy_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyServiceReplayPolicyBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ReplayPolicyResponse"];
         };
       };
       /** @description An unexpected error response. */

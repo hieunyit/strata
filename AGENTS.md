@@ -23,7 +23,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W13-S-01 | Rule bù khoảng trống (#34, khoảng trống GoTestWAF), pack v0.2 | Claude Code (phiên W10) | W11-S-01 | ✅ PR #91, #92, #101; pack v0.2.2 duyệt, prod-sim `v0.11.0-rc.4`; GoTestWAF TP 79,8% / TN 100% (`docs/reports/w13-s-01.md`) |
 | RV-S-02 | Quy trình nuôi rule, báo cáo hằng tuần | Claude Code (phiên W10) | W10-S-01 | ✅ `strata-rules lifecycle`, `owner`/`review_by`, chạy thứ Hai trong `nightly.sh`; `docs/rules/lifecycle.md` |
 | W13-G1-01 | Nâng cấp agent không mất sự kiện (socket activation) | Claude Code (phiên W10) | W10-N-01 | ✅ `test-upgrade.sh` PASS trên deb và rpm: 0 sự kiện mất, bundle không đổi; sửa lỗi gói cũ dừng và tắt agent khi nâng cấp (`docs/reports/w13-g1-01.md`) |
-| W13-G2-01 | Replay service (`:replay`, long-running operation) | Claude Code (strata-59) | W12-R-01 | ⏳ |
+| W13-G2-01 | Replay service (`:replay`, long-running operation) | Claude Code (strata-59) | W12-R-01 | ✅ bản nháp → replay tự chạy → kết quả qua API (`TestPolicyDraftReplay`; chuỗi thật `TestRealReplay`: corpus 4.300 mẫu, 1.700 bị chặn mới khi shadow → enforce); `docs/reports/w13-g2-01.md` |
 | W13-G2-02 | Luồng duyệt 4 mắt | Claude Code (strata-59) | — | ⏳ |
 | W13-F-01 | Hàng chờ duyệt | Claude Code (strata-59) | W13-G2-01, W13-G2-02 | ⏳ |
 | W13-R-02 | Đo chi phí từng rule | Claude Code (phiên engine) | — | ⏳ |

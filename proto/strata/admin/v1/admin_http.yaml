@@ -61,6 +61,13 @@ http:
     - selector: strata.admin.v1.PolicyService.DeployPolicy
       post: /v1/policies/{policy_id}:deploy
       body: "*"
+    - selector: strata.admin.v1.PolicyService.ReplayPolicy
+      post: /v1/policies/{policy_id}:replay
+      body: "*"
+    - selector: strata.admin.v1.PolicyService.GetPolicyVersionReplay
+      get: /v1/policies/{policy_id}/versions/{version}/replay
+    - selector: strata.admin.v1.OperationService.GetOperation
+      get: /v1/operations/{operation_id}
     - selector: strata.admin.v1.RolloutService.ListBundles
       get: /v1/bundles
     - selector: strata.admin.v1.RolloutService.ListRollouts

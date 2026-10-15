@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package strata.admin.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// OperationService follows the long-running operations of the admin API
+// (nginx-module.md › Quy ước API): for now the replay of a policy version
+// (W13-G2-01).
+service OperationService {
+  // REST: GET /v1/operations/{operation_id}
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+}
+
+message Operation {
+  // op- and 24 hex digits
+  string id = 1;
+  // REPLAY
+  string kind = 2;
+  // PENDING, RUNNING, DONE (replay set) or FAILED (error set)
+  string state = 3;
+  bool done = 4;
+  string error = 5;
+  string policy_id = 6;
+  uint32 version = 7;
+  string created_by = 8;
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp start_time = 10;
+  google.protobuf.Timestamp end_time = 11;
+  ReplayReport replay = 12;
+}
+
+// What the draft changes against the bundle in force (engine/replay
+// compare, W12-R-01): on the policy's traffic samples of the last 7 days,
+// and on the benign and attack corpus, apart.
+message ReplayReport {
+  // traffic and corpus
+  uint64 samples = 1;
+  uint64 elapsed_ms = 2;
+  // 0: no bundle was in force; the baseline was built from the policies.
+  uint64 baseline_bundle = 3;
+  uint32 sample_files = 4;
+  uint64 sample_bytes = 5;
+  // there were more traffic samples than one replay takes
+  bool truncated = 6;
+  // absent without traffic samples, and without a corpus
+  ReplayComparison traffic = 7;
+  ReplayComparison corpus = 8;
+}
+
+message ReplayComparison {
+  uint64 samples = 1;
+  // blocked by the draft, not by the bundle in force: candidate false
+  // positives; and the reverse: candidate false negatives
+  uint64 newly_blocked = 2;
+  uint64 newly_allowed = 3;
+  // action -> samples, with the draft and with the bundle in force
+  map<string, uint64> draft_actions = 4;
+  map<string, uint64> baseline_actions = 5;
+  // rule ID -> samples
+  map<uint32, uint64> newly_blocked_rules = 6;
+  map<uint32, uint64> newly_allowed_rules = 7;
+  // route path (first two segments) -> newly blocked samples
+  map<string, uint64> newly_blocked_paths = 8;
+  // the action recorded when the sample was taken (corpus: allow for
+  // benign, block for attacks) -> samples
+  map<string, uint64> newly_blocked_sampled = 9;
+  map<string, uint64> newly_allowed_sampled = 10;
+  // anonymized samples whose verdict changed (at most 5 each); only for
+  // callers who may read input snippets (events:read_sensitive)
+  repeated ReplayExample examples_blocked = 11;
+  repeated ReplayExample examples_allowed = 12;
+}
+
+message ReplayExample {
+  int64 ts_ms = 1;
+  string node_id = 2;
+  string method = 3;
+  // as sampled: already anonymized
+  string raw_uri = 4;
+  string draft = 5;
+  string baseline = 6;
+  repeated uint32 draft_rules = 7;
+  repeated uint32 baseline_rules = 8;
+}
+
+message GetOperationRequest {
+  string operation_id = 1;
+}
+
+message GetOperationResponse {
+  Operation operation = 1;
+}

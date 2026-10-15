@@ -84,6 +84,10 @@ func main() {
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
 	replayApproved := flag.Bool("replay-sampling-approved", false,
 		"Allow sampling real traffic for replay (W12-N-01); only once the sample format (docs/spec/replay-sample.md) passed legal review")
+	replayBin := flag.String("replay", "", "strata-replay binary: each new policy version is replayed against the bundle in force on the policy's traffic samples and -replay-corpus (W13-G2-01); empty: no replay. Needs deploys (signer, -bundle-pubkey, -s3-*)")
+	replayCorpus := flag.String("replay-corpus", "", "Sample file of the benign and attack corpus (strata-replay gen) replayed with every draft")
+	replayThreads := flag.Int("replay-threads", 2, "Threads of one replay")
+	replayTimeout := flag.Duration("replay-timeout", 10*time.Minute, "Longest replay")
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
@@ -297,6 +301,23 @@ func main() {
 			d := newDeployer(pg, pool, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
+			if *replayBin != "" {
+				runner := &replay.Runner{Store: pg, Deployable: pg.ListPolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
+					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
+					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
+				if err := runner.Init(); err != nil {
+					log.Fatalf("[FATAL] replay: %v", err)
+				}
+				deps.Operations, deps.ReplayKick = pg, runner.Kick
+				go func() {
+					if err := runner.Run(ctx); err != nil {
+						log.Printf("[ERROR] replay: %v", err)
+					}
+				}()
+				log.Printf("[INFO] Replay of drafts: %s, corpus %q", *replayBin, *replayCorpus)
+			}
+		} else if *replayBin != "" {
+			log.Fatal("[FATAL] -replay needs deploys (-bundle-signing-key or -bundle-signer=vault, -bundle-pubkey, -s3-endpoint)")
 		}
 	}
 	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
@@ -501,6 +522,25 @@ func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer
 			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key},
 		Objects: objects,
 		PubKey:  pub,
+	}
+}
+
+// bundleInForce returns the newest bundle, the one a replay compares a
+// draft with (W13-G2-01), once it verifies with pub.
+func bundleInForce(pg *store.Store, objects *policy.S3, pub []byte) func(context.Context) ([]byte, uint64, error) {
+	return func(ctx context.Context) ([]byte, uint64, error) {
+		b, err := pg.LatestBundle(ctx)
+		if err != nil {
+			return nil, 0, err
+		}
+		data, err := objects.Get(ctx, b.ObjectKey)
+		if err != nil {
+			return nil, 0, fmt.Errorf("bundle %d: %w", b.Version, err)
+		}
+		if _, err := bundlefmt.Verify(data, pub); err != nil {
+			return nil, 0, fmt.Errorf("bundle %d: %w", b.Version, err)
+		}
+		return data, b.Version, nil
 	}
 }
 

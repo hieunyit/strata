@@ -200,6 +200,9 @@ services:
       - -vault-token-file=/vault-signer/token
       - -vault-transit-key-version=${LAB_VAULT_KEY_VERSION:-0}
       - -rules=/opt/strata/rules.yaml
+      # W13-G2-01: every new policy version is replayed on its own
+      - -replay=/usr/local/bin/strata-replay
+      - -replay-corpus=/opt/strata/replay-corpus.parquet
       - -block-page=/opt/strata/block.html
       - -s3-endpoint=minio:9000
       - -s3-secure=false
