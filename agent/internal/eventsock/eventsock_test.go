@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -170,5 +172,84 @@ func TestCounters(t *testing.T) {
 		if got := [2]uint64{l.C.Policies.Load(), l.C.Invalid.Load()}; got != want {
 			t.Fatalf("handled %v: policies, invalid = %v, want %v", handled, got, want)
 		}
+	}
+}
+
+// W13-G1-01: started by systemd (strata-agent.socket), the agent reads the
+// socket systemd passes, and leaves its file when it stops; datagrams sent
+// while no agent ran are read by the next one.
+func TestInheritsTheSystemdSocket(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sock")
+	sock, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: path, Net: "unixgram"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sock.Close() // systemd's copy
+	f, err := sock.File()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	// inheritFrom closes the descriptor it takes, as the agent would
+	dup := func() int {
+		fd, err := syscall.Dup(int(f.Fd()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fd
+	}
+	// the worker sends while no agent runs: the kernel queues it
+	w, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: path, Net: "unixgram"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	ev, _ := proto.Marshal(&eventv1.Event{BlockId: "STR-8F3K-Q2VD-7XNM-A1PC"})
+	if _, err := w.Write(ev); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("LISTEN_PID", strconv.Itoa(os.Getpid()))
+	t.Setenv("LISTEN_FDS", "1")
+	l, err := inheritFrom(path, dup())
+	if err != nil || l == nil || !l.inherited {
+		t.Fatalf("inherit: %v %+v", err, l)
+	}
+	if os.Getenv("LISTEN_FDS") != "" {
+		t.Error("LISTEN_FDS left for children")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	got := make(chan string, 1)
+	go func() { _ = l.Run(ctx, func(e *eventv1.Event) { got <- e.GetBlockId() }) }()
+	select {
+	case id := <-got:
+		if id != "STR-8F3K-Q2VD-7XNM-A1PC" {
+			t.Fatalf("got %s", id)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the queued event was not read")
+	}
+	cancel()
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path); err != nil {
+		t.Fatalf("the socket file of systemd was removed: %v", err)
+	}
+	// the worker's connected socket still reaches the (next agent's) socket
+	if _, err := w.Write(ev); err != nil {
+		t.Fatalf("send after the agent stopped: %v", err)
+	}
+
+	// another process's variables, or none: bind as before
+	t.Setenv("LISTEN_PID", "1")
+	if l, err := inheritFrom(path, dup()); l != nil || err != nil {
+		t.Fatalf("LISTEN_PID of another process: %v %v", l, err)
+	}
+	// a passed socket bound elsewhere is an error, not a silent bind
+	t.Setenv("LISTEN_PID", strconv.Itoa(os.Getpid()))
+	t.Setenv("LISTEN_FDS", "1")
+	if _, err := inheritFrom(path+".other", dup()); err == nil {
+		t.Fatal("a socket bound to another path was taken")
 	}
 }

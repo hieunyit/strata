@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 
@@ -48,7 +49,10 @@ const CountersMagic = "\xffSC1"
 type Listener struct {
 	conn *net.UnixConn
 	path string
-	C    Counters
+	// inherited: the socket came from systemd (strata-agent.socket); its
+	// file belongs to systemd and stays when the agent stops (W13-G1-01)
+	inherited bool
+	C         Counters
 	// OnSample, when set before Run, gets the replay samples; without it
 	// they are dropped (counted as invalid).
 	OnSample func(*eventv1.ReplaySample)
@@ -59,8 +63,15 @@ type Listener struct {
 
 // Listen binds a Unix datagram socket at path, replacing a stale socket
 // left by a previous agent, and makes it writable by the group (the
-// NGINX workers' group).
+// NGINX workers' group). Started by systemd with strata-agent.socket, it
+// takes the socket systemd passes instead (W13-G1-01): systemd keeps it
+// open while the agent restarts, so the kernel queues the events of that
+// window instead of the workers dropping them, and the workers' connected
+// sockets (#29) stay valid.
 func Listen(path string) (*Listener, error) {
+	if l, err := inherit(path); l != nil || err != nil {
+		return l, err
+	}
 	if fi, err := os.Lstat(path); err == nil {
 		if fi.Mode()&os.ModeSocket == 0 {
 			return nil, fmt.Errorf("eventsock: %s exists and is not a socket", path)
@@ -167,8 +178,52 @@ func (l *Listener) Close() error {
 	if errors.Is(err, net.ErrClosed) {
 		err = nil
 	}
+	if l.inherited {
+		return err // systemd's socket: it stays for the next agent
+	}
 	if rmErr := os.Remove(l.path); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) && err == nil {
 		err = fmt.Errorf("eventsock: remove socket: %w", rmErr)
 	}
 	return err
+}
+
+// inherit returns the datagram socket systemd passed for path (socket
+// activation: LISTEN_PID is this process, LISTEN_FDS from fd 3), or nil
+// when there is none. The variables are cleared so that no child takes
+// the socket too.
+func inherit(path string) (*Listener, error) { return inheritFrom(path, 3) }
+
+// inheritFrom: inherit with the first passed descriptor at first (3 for
+// systemd; tests pass a descriptor of their own).
+func inheritFrom(path string, first int) (*Listener, error) {
+	if os.Getenv("LISTEN_PID") != strconv.Itoa(os.Getpid()) {
+		return nil, nil
+	}
+	n, err := strconv.Atoi(os.Getenv("LISTEN_FDS"))
+	os.Unsetenv("LISTEN_PID")
+	os.Unsetenv("LISTEN_FDS")
+	os.Unsetenv("LISTEN_FDNAMES")
+	if err != nil || n < 1 {
+		return nil, nil
+	}
+	for fd := first; fd < first+n; fd++ {
+		f := os.NewFile(uintptr(fd), "listen-fd")
+		pc, err := net.FilePacketConn(f)
+		f.Close() // FilePacketConn dups the descriptor
+		if err != nil {
+			continue
+		}
+		uc, ok := pc.(*net.UnixConn)
+		if !ok {
+			pc.Close()
+			continue
+		}
+		if a, ok := uc.LocalAddr().(*net.UnixAddr); !ok || a.Name != path {
+			uc.Close()
+			continue
+		}
+		_ = uc.SetReadBuffer(4 << 20)
+		return &Listener{conn: uc, path: path, inherited: true}, nil
+	}
+	return nil, fmt.Errorf("eventsock: systemd passed %d sockets, none bound to %s", n, path)
 }
