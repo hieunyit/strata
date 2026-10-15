@@ -57,7 +57,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 4. **Người tiếp tục RV-G2-01 / RV-N-01**: nhánh `rv-g2-01-event-context` (5 commit chưa
    push) của phiên engine đã dừng giữa chừng; #57 (`would_block`) chờ nhánh này.
    *Đã xong 14/10: PR #68 (phiên engine), #70 (#57).*
-5. **#28 bước 2** (`issue-28-scan-once.md` §5): A. DB Hyperscan theo lớp giá trị (prototype sau cờ, đổi định dạng bundle nếu giữ); B. giới hạn số tham số được kiểm theo policy (phần vượt theo `oversize`); C. thread pool cho body lớn. Phiên engine đề xuất làm A dạng prototype, kèm B.
+5. **#28 bước 2** (`issue-28-scan-once.md` §5): *đã xử lý ngày 15/10, không còn chờ PO.* B (giới hạn `max_args` theo policy; phần vượt đi theo `oversize` qua rule 100021, trước đây bị bỏ qua lặng lẽ) đã làm ở PR #87. A (DB Hyperscan theo lớp giá trị) đã đo và không đề xuất, vì bundle vượt giới hạn ký của Vault (`issue-28-args-db-prototype.md`). #28 vẫn mở: body 64 KB vượt budget 10 ms.
 
 ## 5. Mốc còn chờ
 
