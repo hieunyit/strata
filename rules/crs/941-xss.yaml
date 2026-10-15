@@ -897,6 +897,14 @@ rules:
           transforms:
             - html_entity_decode
             - js_decode
+        - operator:
+            type: rx
+            value: (?i)\b(?:eval|set(?:timeout|interval)|new[\s\x0b]+function|a(?:lert|tob)|btoa|(?:promp|impor)t|con(?:firm|sole\.(?:log|dir))|fetch)(?:[\(\{]|[\s\x0b]+\{|[\s\x0b]+\([\s\x0b]*(?:[^\sa-z_$]|[a-z_$][0-9a-z_$]*[\s\x0b]*[.\(\[]))
+          targets:
+            - var: matched_vars
+          transforms:
+            - html_entity_decode
+            - js_decode
     score: 100
     action_mode: score
     severity: critical
