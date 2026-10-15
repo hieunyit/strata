@@ -370,6 +370,9 @@ pub struct Request<'a> {
     /// Arguments (query, then body fields) inspected: the policy's
     /// `max_args`; 0 or more than MAX_ARGS is MAX_ARGS (#28)
     pub max_args: usize,
+    /// W13-R-02: for a sampled transaction, where the time of each rule
+    /// visited (by index) and of the prefilter's scans (None) goes
+    pub costs: Option<&'a crate::rulecost::Samples>,
 }
 
 /// The body processor for a Content-Type, named as ModSecurity's
@@ -2064,6 +2067,23 @@ pub fn evaluate(
     );
 }
 
+/// Records a rule's evaluation time when dropped (W13-R-02), so that
+/// every way out of the rule's turn (continue, return) counts.
+struct RuleTimer<'a> {
+    t0: std::time::Instant,
+    index: u32,
+    costs: Option<&'a crate::rulecost::Samples>,
+}
+
+impl Drop for RuleTimer<'_> {
+    fn drop(&mut self) {
+        if let Some(c) = self.costs {
+            c.borrow_mut()
+                .push((Some(self.index), self.t0.elapsed().as_nanos() as u64));
+        }
+    }
+}
+
 /// Evaluates every rule of `stage` against the request with CPU budget tracking.
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_with_budget(
@@ -2206,7 +2226,13 @@ pub fn evaluate_with_budget(
     // with the prefilter, only the rules that may match are visited
     let order: Vec<u32> = match prefilter {
         Some(pf) if !degraded => {
+            let t0 = req.costs.map(|_| std::time::Instant::now());
             let c = candidates(&mut ctx, &d, pf, stage);
+            if let (Some(t0), Some(costs)) = (t0, req.costs) {
+                costs
+                    .borrow_mut()
+                    .push((None, t0.elapsed().as_nanos() as u64));
+            }
             if ctx.budget_exceeded {
                 return Err(crate::budget::BudgetExceeded);
             }
@@ -2250,6 +2276,13 @@ pub fn evaluate_with_budget(
         if ctx.budget_exceeded {
             return Err(crate::budget::BudgetExceeded);
         }
+        // W13-R-02: the rule's time, from here to the end of its turn
+        let t0 = req.costs.map(|_| std::time::Instant::now());
+        let _timed = t0.map(|t0| RuleTimer {
+            t0,
+            index: i as u32,
+            costs: req.costs,
+        });
         if !gated
             && let Some(pf) = prefilter
             && !may_match(&mut ctx, &d, pf, i, &r)

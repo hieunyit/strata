@@ -43,6 +43,8 @@ pub struct Engine {
     replay: std::sync::RwLock<Option<std::sync::Arc<ReplayConfig>>>,
     /// Requests and inspection gaps per policy (RV-N-01).
     counters: crate::counters::PolicyCounters,
+    /// sampled time by rule (W13-R-02)
+    rule_costs: crate::rulecost::RuleCosts,
 }
 
 /// Most rule IDs `set_disabled_rules` takes at once.
@@ -165,6 +167,7 @@ impl Engine {
         let prefilter = crate::eval::Prefilter::build(&tables, &regexes);
         let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let n_policies = info.n_policies as usize;
+        let n_rules_for_costs = tables.n_rules();
         let engine = Engine {
             id,
             bytes: bundle,
@@ -180,6 +183,7 @@ impl Engine {
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
+            rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
@@ -191,6 +195,11 @@ impl Engine {
     /// Requests and inspection gaps per policy (RV-N-01).
     pub fn counters(&self) -> &crate::counters::PolicyCounters {
         &self.counters
+    }
+
+    /// Sampled time by rule (W13-R-02).
+    pub fn rule_costs(&self) -> &crate::rulecost::RuleCosts {
+        &self.rule_costs
     }
 
     /// Privacy settings of the policy at `index`, if it has some.

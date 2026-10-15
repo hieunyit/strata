@@ -110,6 +110,10 @@ pub struct Tx {
     /// arguments were left out (rule 100021, #28)
     max_args: usize,
     args_left_out: bool,
+    /// W13-R-02: this transaction is sampled for the cost of each rule;
+    /// the times of its evaluations, by rule index (None: the scans)
+    cost_sampled: bool,
+    costs: crate::rulecost::Samples,
     /// Body bytes for the request_body rules, at most MAX_BODY_KEEP.
     body: Vec<u8>,
     /// test-hooks only: what the connector passed, for integration tests
@@ -285,6 +289,8 @@ impl Tx {
             body_skipped: false,
             max_args: 0,
             args_left_out: false,
+            cost_sampled: !missing && crate::rulecost::should_sample(),
+            costs: std::cell::RefCell::new(Vec::new()),
             body: Vec::new(),
             #[cfg(feature = "test-hooks")]
             echo: None,
@@ -878,6 +884,7 @@ impl Tx {
                 headers,
                 body: b"",
                 max_args: self.max_args,
+                costs: self.cost_sampled.then_some(&self.costs),
             };
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
@@ -945,6 +952,7 @@ impl Tx {
             headers: &headers,
             body,
             max_args: self.max_args,
+            costs: self.cost_sampled.then_some(&self.costs),
         };
         let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
         let mut found = vec![];
@@ -1290,15 +1298,35 @@ impl Tx {
             })
             .collect();
         let node = std::str::from_utf8(&self.node_id[..self.node_id_len]).unwrap_or("");
-        let (out, n) = crate::event::encode_counters(
+        // W13-R-02: the rule costs sampled since the last counters
+        let (taken, requests, engine_ns) = e.rule_costs().take();
+        let tables = e.tables();
+        let costs = crate::event::RuleCostTake {
+            costs: taken
+                .iter()
+                .map(|&(index, n, total, max)| {
+                    let id = index
+                        .and_then(|i| tables.rule(i as usize))
+                        .map_or(crate::rulecost::RULE_SCAN, |r| r.id);
+                    (id, n, total, max)
+                })
+                .collect(),
+            requests,
+            engine_ns,
+        };
+        let ((out, n), r) = crate::event::encode_counters_with(
             now_ms,
             node,
             self.bundle_version,
             &entries,
+            &costs,
             crate::event::MAX_DATAGRAM,
         );
         for &(slot, v) in &counts[n..] {
             e.counters().give_back(slot, v);
+        }
+        for &(index, n, total, max) in &taken[r..] {
+            e.rule_costs().give_back(index, n, total, max);
         }
         (n > 0).then_some(out)
     }
@@ -1437,7 +1465,45 @@ impl Tx {
             canary: self.canary,
         };
 
-        Some(crate::event::encode(&ev))
+        let mut out = crate::event::encode(&ev);
+        if self.cost_sampled {
+            crate::event::append_rule_costs(
+                &self.request_costs(),
+                crate::event::MAX_DATAGRAM,
+                &mut out,
+            );
+        }
+        Some(out)
+    }
+
+    /// This sampled transaction's rules by time (W13-R-02), most expensive
+    /// first, at most EVENT_RULES: (Rule ID, evaluations, total ns, max ns),
+    /// Rule ID 0 for the prefilter's scans.
+    pub fn request_costs(&self) -> Vec<crate::rulecost::Cost> {
+        let Some(e) = self.engine.as_ref() else {
+            return vec![];
+        };
+        let tables = e.tables();
+        let mut by: Vec<(Option<u32>, crate::rulecost::Cost)> = vec![];
+        for &(index, ns) in self.costs.borrow().iter() {
+            match by.iter_mut().find(|(i, _)| *i == index) {
+                Some((_, c)) => {
+                    c.1 += 1;
+                    c.2 += ns;
+                    c.3 = c.3.max(ns);
+                }
+                None => {
+                    let id = index
+                        .and_then(|i| tables.rule(i as usize))
+                        .map_or(crate::rulecost::RULE_SCAN, |r| r.id);
+                    by.push((index, (id, 1, ns, ns)));
+                }
+            }
+        }
+        let mut out: Vec<crate::rulecost::Cost> = by.into_iter().map(|(_, c)| c).collect();
+        out.sort_by_key(|c| std::cmp::Reverse(c.2));
+        out.truncate(crate::rulecost::EVENT_RULES);
+        out
     }
 }
 
@@ -1462,6 +1528,13 @@ impl Drop for Tx {
         if let Some(e) = self.engine.as_ref() {
             e.counters()
                 .count(self.policy_index, self.gap(), self.degraded);
+            if self.cost_sampled {
+                let rc = e.rule_costs();
+                for &(index, ns) in self.costs.borrow().iter() {
+                    rc.add(index, ns);
+                }
+                rc.add_request(self.elapsed_ns);
+            }
         }
     }
 }
