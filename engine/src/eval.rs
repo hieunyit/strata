@@ -397,6 +397,21 @@ pub(crate) fn content_type<'a>(headers: &[(&'a [u8], &'a [u8])]) -> &'a [u8] {
         .map_or(&b""[..], |(_, v)| v)
 }
 
+/// Whether the request body is encoded so the engine cannot read it (#97):
+/// a `Content-Encoding` header with any token other than `identity`. The
+/// header may list several (`gzip, br`); any non-identity token counts.
+fn content_encoding_opaque(headers: &[(&[u8], &[u8])]) -> bool {
+    headers
+        .iter()
+        .filter(|(k, _)| k.eq_ignore_ascii_case(b"content-encoding"))
+        .flat_map(|(_, v)| v.split(|&c| c == b','))
+        .map(|t| {
+            let t = t.strip_prefix(b" ").unwrap_or(t);
+            t.strip_suffix(b" ").unwrap_or(t)
+        })
+        .any(|t| !t.is_empty() && !t.eq_ignore_ascii_case(b"identity"))
+}
+
 /// `application/x-www-form-urlencoded` decoding: %XX and '+'.
 fn form_decode_with_budget<'a>(
     s: &'a [u8],
@@ -2104,6 +2119,8 @@ pub fn evaluate_with_budget(
     let mut xml_body = None;
     // the body parser stopped before the end (#97): rule 100022
     let mut body_unparsed = false;
+    // the body is encoded, so the engine cannot read it (#97): rule 100023
+    let body_encoded = !req.body.is_empty() && content_encoding_opaque(req.headers);
     let room = max_args.saturating_sub(n_get);
     let ct = content_type(req.headers);
     let processor = body_processor(ct);
@@ -2179,6 +2196,19 @@ pub fn evaluate_with_budget(
             signature: false,
             layer: "protocol",
             field: "REQUEST_BODY".to_string(),
+            snippet: Vec::new(),
+        });
+    }
+    if body_encoded {
+        // an encoded body the engine cannot read: rule 100023, which the
+        // transaction makes block or recorded per the policy's oversize
+        report(Violation {
+            rule: crate::detectors::protocol::BODY_ENCODED,
+            score: 0,
+            block_alone: false,
+            signature: false,
+            layer: "protocol",
+            field: "REQUEST_HEADERS:Content-Encoding".to_string(),
             snippet: Vec::new(),
         });
     }
@@ -2350,6 +2380,21 @@ mod tests {
         for v in SUPPORTED_VARS {
             assert!(crate::rules::VARS.contains(v), "{v} is not an IR variable");
         }
+    }
+
+    #[test]
+    fn content_encoding_opaque_detects_non_identity() {
+        let h = |v: &'static [u8]| content_encoding_opaque(&[(&b"Content-Encoding"[..], v)]);
+        assert!(h(b"gzip"));
+        assert!(h(b"br"));
+        assert!(h(b"gzip, br"));
+        assert!(h(b"identity, gzip")); // any non-identity token counts
+        assert!(!h(b"identity"));
+        assert!(!h(b""));
+        assert!(!content_encoding_opaque(&[(
+            &b"Content-Type"[..],
+            b"application/json"
+        )]));
     }
 
     #[test]
