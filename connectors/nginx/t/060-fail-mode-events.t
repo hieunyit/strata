@@ -441,16 +441,20 @@ subtest "redirect after inspection: one inspection, one count, one event" => sub
 # second (through strata_tx_sample, no connector code of their own): the
 # requests of each policy, and the engine errors of the panics above
 subtest "requests per policy on the event socket" => sub {
-    select undef, undef, undef, 1.1;
+    my ($api0, $web0) = (policy_total("example-api", 0), policy_total("example-web", 0));
     req("GET", "/t/") for 1 .. 5;
     req("GET", "/shadow/");
-    events(0.3);
-    select undef, undef, undef, 1.1;
-    req("GET", "/t/");    # its sample call sends the counts
-    events(1);
+    # each worker sends its counts on a request of its own, a second after
+    # its last send: keep asking until both have
+    my $deadline = time + 6;
+    while (time < $deadline
+        && (policy_total("example-api", 0) - $api0 < 5 || policy_total("example-web", 0) - $web0 < 1)) {
+        req("GET", "/t/");
+        events(0.3);
+    }
     ok(@policy_counts > 0, "counts datagrams: " . scalar @policy_counts);
-    cmp_ok(policy_total("example-api", 0), '>=', 5, "example-api requests");
-    cmp_ok(policy_total("example-web", 0), '>=', 1, "example-web requests");
+    cmp_ok(policy_total("example-api", 0) - $api0, '>=', 5, "example-api requests");
+    cmp_ok(policy_total("example-web", 0) - $web0, '>=', 1, "example-web requests");
     cmp_ok(policy_total("example-api", 3), '>=', 1, "engine errors of the panics counted");
 };
 
