@@ -2,7 +2,7 @@
 //! of W09-Q-01, with a real bundle, as the NGINX connector calls it.
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
-//!              [--budget-us N] [--only small|nul|attack|json|64k|1m] [--event] [--diagnose]
+//!              [--budget-us N] [--only small|nul|attack|json|64k|json64k|1m] [--event] [--diagnose]
 //!              [--cold N [--warm]]
 //!
 //! For each request kind (small GET, 64 KB and 1 MB urlencoded POST, JSON
@@ -37,6 +37,29 @@ fn form(n: usize) -> Vec<u8> {
         i += 1;
     }
     b.truncate(n);
+    b
+}
+
+/// A JSON document of about `n` bytes: records of a few fields with text
+/// of some hundred bytes each, as an API that takes a list of items sends.
+fn json_doc(n: usize) -> Vec<u8> {
+    let mut b = b"{\"items\":[".to_vec();
+    let mut i = 0;
+    while b.len() < n {
+        if i > 0 {
+            b.push(b',');
+        }
+        b.extend_from_slice(
+            format!(
+                "{{\"id\":{i},\"name\":\"Item number {i}\",\"description\":\"{}\",\"price\":{}.99}}",
+                "An ordinary product description with some words in it. ".repeat(6),
+                i % 500
+            )
+            .as_bytes(),
+        );
+        i += 1;
+    }
+    b.extend_from_slice(b"]}");
     b
 }
 
@@ -101,6 +124,14 @@ fn requests() -> Vec<Req> {
             "/t",
             form(65536),
             Some("application/x-www-form-urlencoded"),
+        ),
+        // #28: a 64 KB body as an API sends it: records of four fields
+        base(
+            "json64k",
+            b"POST",
+            "/t/v1/items",
+            json_doc(65536),
+            Some("application/json"),
         ),
         base(
             "1m",
