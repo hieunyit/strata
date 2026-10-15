@@ -39,7 +39,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 | Cô lập lỗi | `catch_unwind` biến panic Rust thành lỗi engine. Nó **không** bắt abort, OOM, stack overflow hay lỗi bộ nhớ trong `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: W11-N-01 |
 | Connector | Chỉ NGINX OSS 1.30.5 / 1.31.6, x86_64. Gói deb/rpm đã thử trên Ubuntu 24.04, Debian 12, Rocky 9 (`w10-n-01.md`) |
 | Fuzz | Như A4; không có fuzz 72 giờ mỗi PR |
-| Tỉ lệ phát hiện (GoTestWAF) | Không dùng con số 8,9% đo trên prod-sim: 687/805 request ở lượt đó là E_BUDGET (fail-open), vì prod-sim dùng chung 2 CPU với 33 container. Đo lại trên CPU riêng, gói đầy đủ, enforce kèm signatures (`docs/decisions/base64-args.md` §6): budget 2 ms cho TP 27,6% / TN 92,9% (612/823 request vượt budget). Sau PR #79 (budget mặc định 10 ms, giải mã base64 cho ARGS/cookie, chỉnh 4 rule CRS gây FP trên câu văn): **TP 63,8% / TN 100%**, 19 request vượt budget. Còn lọt: base64 trong path/header, LDAP, mail, XML/XXE, header tùy biến |
+| Tỉ lệ phát hiện (GoTestWAF) | Không dùng con số 8,9% đo trên prod-sim: 687/805 request ở lượt đó là E_BUDGET (fail-open), vì prod-sim dùng chung 2 CPU với 33 container. Đo lại trên CPU riêng, gói đầy đủ, enforce kèm signatures (`docs/decisions/base64-args.md` §6): budget 2 ms cho TP 27,6% / TN 92,9% (612/823 request vượt budget). Sau PR #79 (budget mặc định 10 ms, giải mã base64 cho ARGS/cookie, chỉnh 4 rule CRS gây FP trên câu văn): **TP 63,8% / TN 100%**, 19 request vượt budget. Sau pack v0.2.2 (W13-S-01, 10 rule bù khoảng trống): **TP 79,8% / TN 100%**, điểm 84,3%, 15 request vượt budget. Còn lọt: base64 trong path/header, LDAP, mail, XML/XXE, header tùy biến |
 
 ## 4. Quyết định cần từ PO
 
