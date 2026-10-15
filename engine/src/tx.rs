@@ -610,7 +610,15 @@ impl Tx {
         if self.rules[..self.n_rules].contains(&v.rule) || self.is_disabled(v.rule) {
             return;
         }
-        if v.rule == protocol::ARGS_OVER_LIMIT {
+        if v.rule == protocol::BODY_UNPARSED
+            && (self.body_skipped
+                || self.rules[..self.n_rules].contains(&protocol::BODY_OVER_LIMIT))
+        {
+            // a body cut at the connector's limit never parses to its
+            // end: 100020 already says so
+            return;
+        }
+        if v.rule == protocol::ARGS_OVER_LIMIT || v.rule == protocol::BODY_UNPARSED {
             // like a body over the limit (100020): the policy's oversize
             v.block_alone = self.oversize_block;
             self.args_left_out = true;

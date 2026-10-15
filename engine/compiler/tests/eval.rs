@@ -500,7 +500,9 @@ rules:
             &[("Content-Type", "application/json")],
             &[&chunk, r#"{"role":"admin"}"#],
         );
-        assert_eq!(rules(&v), [800204]);
+        // the body is not JSON (a megabyte of "x" first): 100022 says it
+        // did not parse (#97), the raw-body rule still matches
+        assert_eq!(rules(&v), [100022, 800204]);
     }
 }
 
@@ -871,10 +873,9 @@ Content-Type: image/png\r\n\r\n\x7fPNG\r\n--b1--\r\n";
     #[test]
     fn only_for_multipart() {
         assert_eq!(post("text/plain", BODY), Vec::<u32>::new());
-        assert_eq!(
-            post("multipart/form-data; boundary=other", BODY),
-            Vec::<u32>::new()
-        );
+        // a boundary the body does not use: nothing parses, 100022 (#97);
+        // a WAF and a backend that disagree on the parts is a known bypass
+        assert_eq!(post("multipart/form-data; boundary=other", BODY), [100022]);
     }
 }
 

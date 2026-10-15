@@ -2102,6 +2102,8 @@ pub fn evaluate_with_budget(
     let mut files = vec![];
     let mut part_headers = vec![];
     let mut xml_body = None;
+    // the body parser stopped before the end (#97): rule 100022
+    let mut body_unparsed = false;
     let room = max_args.saturating_sub(n_get);
     let ct = content_type(req.headers);
     let processor = body_processor(ct);
@@ -2115,20 +2117,32 @@ pub fn evaluate_with_budget(
             }
             b"JSON" => {
                 // one more than room: whether some were left out
-                let mut j = json::args_with_budget(req.body, room + 1, budget.as_deref_mut())?;
+                let (mut j, whole) =
+                    json::args_checked_with_budget(req.body, room + 1, budget.as_deref_mut())?;
+                body_unparsed = !whole;
                 if j.len() > room {
                     j.truncate(room);
                     args_left_out = true;
                 }
                 args.extend(j.into_iter().map(|(k, v)| (Cow::Owned(k), Cow::Owned(v))));
             }
-            b"XML" => xml_body = Some(xml::parse_with_budget(req.body, budget.as_deref_mut())?),
+            b"XML" => {
+                let (x, whole) = xml::parse_checked_with_budget(req.body, budget.as_deref_mut())?;
+                body_unparsed = !whole;
+                xml_body = Some(x);
+            }
             b"MULTIPART" => {
-                for p in multipart::parts_with_budget(
+                let (parts, read) = multipart::parts_checked_with_budget(
                     req.body,
                     multipart::boundary(ct).unwrap_or(b""),
                     budget.as_deref_mut(),
-                )? {
+                )?;
+                match read {
+                    multipart::Read::Whole => {}
+                    multipart::Read::Damaged => body_unparsed = true,
+                    multipart::Read::TooManyParts => args_left_out = true,
+                }
+                for p in parts {
                     part_headers.extend(p.headers.iter().map(|h| (p.name, *h)));
                     match p.filename {
                         Some(f) => files.push((p.name, f)),
@@ -2152,6 +2166,19 @@ pub fn evaluate_with_budget(
             signature: false,
             layer: "protocol",
             field: "ARGS".to_string(),
+            snippet: Vec::new(),
+        });
+    }
+    if body_unparsed {
+        // what follows the damage is not inspected: rule 100022, which the
+        // transaction makes block or recorded per the policy's oversize
+        report(Violation {
+            rule: crate::detectors::protocol::BODY_UNPARSED,
+            score: 0,
+            block_alone: false,
+            signature: false,
+            layer: "protocol",
+            field: "REQUEST_BODY".to_string(),
             snippet: Vec::new(),
         });
     }

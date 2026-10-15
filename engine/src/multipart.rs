@@ -100,8 +100,29 @@ pub fn boundary(content_type: &[u8]) -> Option<&[u8]> {
 pub fn parts_with_budget<'a>(
     body: &'a [u8],
     boundary: &[u8],
-    mut budget: Option<&mut crate::budget::TxBudget>,
+    budget: Option<&mut crate::budget::TxBudget>,
 ) -> Result<Vec<Part<'a>>, crate::budget::BudgetExceeded> {
+    Ok(parts_checked_with_budget(body, boundary, budget)?.0)
+}
+
+/// How much of a multipart body `parts_checked_with_budget` read (#97).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Read {
+    /// up to the close delimiter
+    Whole,
+    /// no delimiter, a delimiter line or a part that does not end, or a
+    /// part skipped (no empty line after its headers, or no name)
+    Damaged,
+    /// more than MAX_PARTS parts: the rest left out (rule 100021)
+    TooManyParts,
+}
+
+/// As `parts_with_budget`, and how much of the body was read.
+pub fn parts_checked_with_budget<'a>(
+    body: &'a [u8],
+    boundary: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<(Vec<Part<'a>>, Read), crate::budget::BudgetExceeded> {
     let delim = [b"--".as_slice(), boundary].concat();
     // after the first, a delimiter starts a line
     let line_delim = [b"\n".as_slice(), &delim].concat();
@@ -113,18 +134,23 @@ pub fn parts_with_budget<'a>(
         // after a preamble
         match find_8k(&next_delim, body, line_delim.len(), budget.as_deref_mut())? {
             Some(i) => i + 1,
-            None => return Ok(out),
+            None => return Ok((out, Read::Damaged)),
         }
     };
     let mut at = first + delim.len();
-    while out.len() < MAX_PARTS {
+    let mut damaged = false;
+    loop {
         let rest = &body[at..];
         if rest.starts_with(b"--") {
-            break; // close delimiter
+            // close delimiter
+            return Ok((out, if damaged { Read::Damaged } else { Read::Whole }));
+        }
+        if out.len() >= MAX_PARTS {
+            return Ok((out, Read::TooManyParts));
         }
         // the rest of the delimiter line (transport padding), then CRLF
         let Some(eol) = position_8k(rest, |c| c == b'\n', budget.as_deref_mut())? else {
-            break;
+            return Ok((out, Read::Damaged));
         };
         let part_start = at + eol + 1;
         // content ends at the CRLF (or LF) of the next delimiter's line
@@ -135,21 +161,22 @@ pub fn parts_with_budget<'a>(
             budget.as_deref_mut(),
         )?
         .map(|i| part_start + i) else {
-            break;
+            return Ok((out, Read::Damaged));
         };
         let mut end = next;
         if end > part_start && body[end - 1] == b'\r' {
             end -= 1;
         }
-        if let Some(p) = part(&body[part_start..end]) {
-            out.push(p);
+        match part(&body[part_start..end]) {
+            Some(p) => out.push(p),
+            // skipped, the next part is read; its content is not inspected
+            None => damaged = true,
         }
         at = next + line_delim.len();
         if let Some(bgt) = budget.as_mut() {
             bgt.check()?;
         }
     }
-    Ok(out)
 }
 
 /// The parts of `body`, at most [`MAX_PARTS`].
@@ -381,5 +408,33 @@ x\n--XyZ--\r\nepilogue";
         let one = b"--b\r\nContent-Disposition: form-data; name=a\r\n\r\nv\r\n";
         let body = [one.repeat(MAX_PARTS + 5), b"--b--".to_vec()].concat();
         assert_eq!(parts(&body, b"b").len(), MAX_PARTS);
+    }
+
+    /// #97: how much of the body was read.
+    #[test]
+    fn reports_how_much_was_read() {
+        let read = |b: &[u8]| parts_checked_with_budget(b, b"xyz", None).unwrap().1;
+        assert_eq!(
+            read(b"--xyz\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nok\r\n--xyz--\r\n"),
+            Read::Whole
+        );
+        assert_eq!(read(b"preamble\r\n--xyz\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nok\r\n--xyz--"), Read::Whole);
+        for bad in [
+            &b"no delimiter at all"[..],
+            b"--xyz\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nno end",
+            b"--xyz\r\nContent-Disposition: form-data; name=\"a\"\r\nno empty line\r\n--xyz--\r\n",
+            b"--xyz",
+        ] {
+            assert_eq!(read(bad), Read::Damaged, "{}", String::from_utf8_lossy(bad));
+        }
+        let mut many = Vec::new();
+        for i in 0..MAX_PARTS + 1 {
+            many.extend_from_slice(
+                format!("--xyz\r\nContent-Disposition: form-data; name=\"p{i}\"\r\n\r\nok\r\n")
+                    .as_bytes(),
+            );
+        }
+        many.extend_from_slice(b"--xyz--\r\n");
+        assert_eq!(read(&many), Read::TooManyParts);
     }
 }
