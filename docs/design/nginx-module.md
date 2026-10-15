@@ -324,7 +324,7 @@ Directive chỉ quy định cách module gắn vào NGINX; nội dung bảo mậ
 | `strata_identity <complex value>` | http, server, location | — | Định danh client cho rate limit / behavior, ví dụ `$http_x_client_id` |
 | `strata_block_page <path>` | http, server, location | template từ bundle | Ghi đè cục bộ template trang chặn mặc định của control plane |
 | `strata_event_socket <unix:path>` | http | `unix:/run/strata/events.sock` | Socket gửi sự kiện (protobuf) cho `strata-agent` |
-| `strata_cpu_budget <time>` | http, server, location | `2ms` | Thời gian CPU tối đa cho một request; vượt thì xử lý theo fail mode |
+| `strata_cpu_budget <time>` | http, server, location | `10ms` | Thời gian CPU tối đa cho một request; vượt thì xử lý theo fail mode. Mặc định 2 ms tới 15/10/2026, nâng lên 10 ms theo quyết định PO (`docs/decisions/base64-args.md` §2) |
 | `strata_breaker on\|off` | http | `on` | Circuit breaker cấp worker (mục Circuit breaker cấp worker) |
 | `strata_breaker_threshold <tỉ lệ>% <cửa sổ> <tối thiểu> [open=<time>]` | http | `2% 10s 200 open=30s` | Ngưỡng mở breaker; `open=` là thời gian mở đầu tiên (tối đa 5 phút) |
 | `strata_breaker_action degrade\|reject` | http, server, location | `degrade` | Khi breaker mở: chạy giảm cấp, hoặc trả 503 kèm Event ID |
