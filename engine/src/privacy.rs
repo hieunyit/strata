@@ -129,6 +129,8 @@ impl Privacy {
     /// the last part of a JSON path) is one of the policy's names.
     pub fn sensitive(&self, field: &str) -> bool {
         let key = field.split_once(':').map_or(field, |(_, k)| k).trim();
+        // a value inspected decoded (b64.rs) keeps the name it came with
+        let key = key.strip_suffix(crate::b64::SUFFIX_STR).unwrap_or(key);
         let last = key.rsplit_once('.').map_or(key, |(_, l)| l);
         self.fields
             .iter()
