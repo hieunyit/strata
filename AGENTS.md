@@ -16,6 +16,19 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W13-S-01 | Rule bù khoảng trống (#34, khoảng trống GoTestWAF), pack v0.2 | Claude Code (phiên W10) | W11-S-01 | ⏳ |
+| RV-S-02 | Quy trình nuôi rule, báo cáo hằng tuần | Claude Code (phiên W10) | W10-S-01 | ⏳ |
+| W13-G1-01 | Nâng cấp agent không mất sự kiện (socket activation) | Claude Code (phiên W10) | W10-N-01 | ⏳ |
+| W13-G2-01 | Replay service (`:replay`, long-running operation) | Claude Code (strata-68) | W12-R-01 | ⏳ |
+| W13-G2-02 | Luồng duyệt 4 mắt | Claude Code (strata-68) | — | ⏳ |
+| W13-F-01 | Hàng chờ duyệt | Claude Code (strata-68) | W13-G2-01, W13-G2-02 | ⏳ |
+| W13-R-02 | Đo chi phí từng rule | Claude Code (phiên engine) | — | ⏳ |
+| W13-N-01, vận hành 5%/25% | Sửa lỗi từ canary, lên 5% và 25% | Người | Gate A, canary 1% | ⛔ Gate A chưa đạt |
+
 **Nhiệm vụ tuần 11** (khối B1 · Circuit breaker và canary 1%; mở sớm 13/10, PO duyệt; kế hoạch `docs/plan/w11-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
