@@ -10,6 +10,11 @@ import { PageHeader, ErrorBanner, formatTime, relativeTime } from '../components
 type Status = 'online' | 'offline' | 'revoked';
 
 const statusOf = (n: FleetNode): Status => (n.revoked ? 'revoked' : n.online ? 'online' : 'offline');
+// online nodes first, revoked ones last (W11 review: revoked test nodes
+// filled the top of the table); the API's order within each status
+const rank: Record<Status, number> = { online: 0, offline: 1, revoked: 2 };
+export const byStatus = (nodes: FleetNode[]): FleetNode[] =>
+  nodes.map((n, i) => ({ n, i })).sort((a, b) => rank[statusOf(a.n)] - rank[statusOf(b.n)] || a.i - b.i).map(({ n }) => n);
 
 const dot: Record<Status, string> = {
   online: 'bg-ok',
@@ -114,7 +119,7 @@ export const FleetPage: React.FC = () => {
   const online = nodes.filter((n) => statusOf(n) === 'online').length;
   const names = new Map(nodes.map((n) => [n.id ?? '', n.hostname || n.id || '']));
   const byGroup = new Map<string, FleetNode[]>();
-  for (const n of nodes) {
+  for (const n of byStatus(nodes)) {
     const g = n.group_id ?? '';
     byGroup.set(g, [...(byGroup.get(g) ?? []), n]);
   }
