@@ -611,6 +611,26 @@ pub struct Prefilter {
     /// per stage code: the rules evaluated on every request (not gated),
     /// and the scan groups of the gates of its other rules
     stages: Vec<(Vec<u32>, Vec<u32>)>,
+    /// #28: the transformation chains of the groups as a trie, node 0 the
+    /// empty chain; a node's parent comes before it
+    nodes: Vec<(u16, u8)>,
+    /// chain -> its node
+    chain_node: HashMap<Vec<u8>, u16>,
+    /// per group: its target set, and the nodes it reads (its chain, and
+    /// every shorter prefix with multi_match)
+    group_tset: Vec<u32>,
+    group_reads: Vec<Vec<u16>>,
+    /// per target set: a condition with those targets, and the nodes its
+    /// groups read
+    tset_rep: Vec<u32>,
+    tset_reads: Vec<Vec<u16>>,
+    /// distinct targets (var, key, excludes) as a target table index, and
+    /// per target set the ones it reads: values are listed once per target
+    targets: Vec<u32>,
+    tset_targets: Vec<Vec<u32>>,
+    /// false when the trie does not fit node ids (u16): candidates then
+    /// scans group by group, as before #28
+    trie: bool,
 }
 
 const NO_GROUP: u32 = u32::MAX;
@@ -725,7 +745,77 @@ impl Prefilter {
             groups.sort_unstable();
             groups.dedup();
         }
+        pf.build_trie(tables);
+        pf.trie =
+            pf.nodes.len() < u16::MAX as usize && pf.group_tset.iter().all(|&t| t != u32::MAX);
         pf
+    }
+
+    /// The chain trie and the target sets of the groups (#28).
+    fn build_trie(&mut self, tables: &Tables<'_>) {
+        self.nodes = vec![(u16::MAX, 0)];
+        self.chain_node = HashMap::from([(vec![], 0)]);
+        type TargetKey = (u8, Option<Vec<u8>>, Vec<Vec<u8>>);
+        let mut tsets: HashMap<Vec<TargetKey>, u32> = HashMap::new();
+        let mut targets: HashMap<TargetKey, u32> = HashMap::new();
+        for &ci in &self.group_rep {
+            let Some(c) = tables.cond(ci) else {
+                self.group_tset.push(u32::MAX);
+                self.group_reads.push(vec![]);
+                continue;
+            };
+            let mut node = 0u16;
+            let mut path = vec![0u16];
+            if self.nodes.len() + c.transforms.len() >= u16::MAX as usize {
+                self.group_tset.push(u32::MAX);
+                self.group_reads.push(vec![]);
+                continue;
+            }
+            for k in 1..=c.transforms.len() {
+                let chain = c.transforms[..k].to_vec();
+                node = match self.chain_node.get(&chain) {
+                    Some(&n) => n,
+                    None => {
+                        let n = self.nodes.len() as u16;
+                        self.nodes.push((node, c.transforms[k - 1]));
+                        self.chain_node.insert(chain, n);
+                        n
+                    }
+                };
+                path.push(node);
+            }
+            let reads = if c.multi_match { path } else { vec![node] };
+            let mut key: Vec<TargetKey> = vec![];
+            let mut ids = vec![];
+            for ti in c.target_first..c.target_first + c.target_count {
+                let Some(t) = tables.target(ti) else { continue };
+                let excludes = (t.exclude_first..t.exclude_first + t.exclude_count)
+                    .filter_map(|i| tables.list(i))
+                    .map(<[u8]>::to_vec)
+                    .collect();
+                let k: TargetKey = (t.var, t.key.map(<[u8]>::to_vec), excludes);
+                let next = self.targets.len() as u32;
+                let id = *targets.entry(k.clone()).or_insert(next);
+                if id == next {
+                    self.targets.push(ti);
+                }
+                ids.push(id);
+                key.push(k);
+            }
+            let next = self.tset_rep.len() as u32;
+            let ts = *tsets.entry(key).or_insert(next);
+            if ts == next {
+                self.tset_rep.push(ci);
+                self.tset_reads.push(vec![]);
+                self.tset_targets.push(ids);
+            }
+            let tr = &mut self.tset_reads[ts as usize];
+            tr.extend_from_slice(&reads);
+            tr.sort_unstable();
+            tr.dedup();
+            self.group_tset.push(ts);
+            self.group_reads.push(reads);
+        }
     }
 
     /// Why conditions are not gates, by operator, for the benchmark report.
@@ -826,14 +916,294 @@ fn group_hits<'c>(ctx: &'c mut Ctx<'_, '_, '_>, d: &Data<'_>, pf: &Prefilter, g:
     ctx.groups[gi].as_deref().unwrap_or(&[])
 }
 
+/// #28: the prefilter's scans of this request, value by value. Each value
+/// that a scan group reads is transformed once per node of the chain trie
+/// its groups need (a node from its parent's bytes, not the whole chain
+/// again), and scanned once per distinct bytes: a transformation that
+/// leaves the bytes as they are gives the parent's result without a scan.
+/// The results are kept in flat arrays, so the groups, and the rules
+/// evaluated afterwards (`matched`), read them without hashing or copies.
+#[derive(Default)]
+struct Pass<'t> {
+    pf: Option<&'t Prefilter>,
+    /// value (address, length) -> its index
+    index: HashMap<(usize, usize), u32, FastBuildHasher>,
+    /// per value x node: index into `ranges`, or NOT_SCANNED
+    slot: Vec<u32>,
+    /// conditions matched, as ranges of `hits`
+    ranges: Vec<(u32, u32)>,
+    hits: Vec<u32>,
+}
+
+const NOT_SCANNED: u32 = u32::MAX;
+
+impl Pass<'_> {
+    /// The conditions the prefilter found on `v` with `chain`, when it
+    /// scanned that pair.
+    fn get(&self, v: &[u8], chain: &[u8]) -> Option<&[u32]> {
+        let pf = self.pf?;
+        let &node = pf.chain_node.get(chain)?;
+        let &vi = self.index.get(&(v.as_ptr() as usize, v.len()))?;
+        let r = *self
+            .slot
+            .get(vi as usize * pf.nodes.len() + node as usize)?;
+        if r == NOT_SCANNED {
+            return None;
+        }
+        let (a, b) = self.ranges[r as usize];
+        Some(&self.hits[a as usize..b as usize])
+    }
+}
+
+/// The bytes of a trie node for one value: the value itself, the bytes of
+/// another node (unchanged by the transformation), owned bytes, or none (a
+/// transformation not implemented: nothing below it matches).
+#[derive(Clone, Copy)]
+enum NodeBytes {
+    Value,
+    Buf(u32),
+    Missing,
+}
+
+/// Scans the values of the target sets of `groups` (see `Pass`) and fills
+/// `ctx.groups` for them.
+fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, groups: &[u32]) {
+    let n_nodes = pf.nodes.len();
+    ctx.pass.pf = Some(pf);
+    // the values of each target set, by index
+    let mut tsets: Vec<u32> = groups.iter().map(|&g| pf.group_tset[g as usize]).collect();
+    tsets.sort_unstable();
+    tsets.dedup();
+    let mut vals: Vec<&[u8]> = vec![];
+    // the values of each target the sets read, as value indexes
+    let mut target_vals: Vec<Option<Vec<u32>>> = vec![None; pf.targets.len()];
+    let mut tset_vals: Vec<(u32, Vec<u32>)> = Vec::with_capacity(tsets.len());
+    let mut need: Vec<bool> = vec![];
+    for &ts in &tsets {
+        let mut idxs = vec![];
+        for &tid in &pf.tset_targets[ts as usize] {
+            if target_vals[tid as usize].is_none() {
+                let mut list = vec![];
+                if let Some(t) = ctx.tables.target(pf.targets[tid as usize]) {
+                    let tables = ctx.tables;
+                    let excluded = |name: &[u8]| {
+                        (t.exclude_first..t.exclude_first + t.exclude_count)
+                            .filter_map(|i| tables.list(i))
+                            .any(|e| e.eq_ignore_ascii_case(name))
+                    };
+                    for v in &values(d, &t, &excluded) {
+                        let next = vals.len() as u32;
+                        let vi = *ctx
+                            .pass
+                            .index
+                            .entry((v.val.as_ptr() as usize, v.val.len()))
+                            .or_insert(next);
+                        if vi == next {
+                            vals.push(v.val);
+                            need.resize(need.len() + n_nodes, false);
+                        }
+                        list.push(vi);
+                    }
+                }
+                target_vals[tid as usize] = Some(list);
+            }
+            let list = target_vals[tid as usize].as_deref().unwrap_or(&[]);
+            for &vi in list {
+                let base = vi as usize * n_nodes;
+                for &n in &pf.tset_reads[ts as usize] {
+                    need[base + n as usize] = true;
+                }
+            }
+            idxs.extend_from_slice(list);
+        }
+        tset_vals.push((ts, idxs));
+    }
+    ctx.pass.slot = vec![NOT_SCANNED; vals.len() * n_nodes];
+
+    // value by value, node by node (a parent before its children)
+    let mut bytes = vec![NodeBytes::Missing; n_nodes];
+    let mut bufs: Vec<Vec<u8>> = vec![];
+    let mut wanted = vec![false; n_nodes];
+    let mut reads = vec![false; n_nodes];
+    // per node: the node whose result it shares (same bytes)
+    let mut same = vec![0u16; n_nodes];
+    // (bytes, transformation) -> the node that applied it: a node whose
+    // parent has the bytes of another node takes that node's child's bytes
+    // instead of transforming again ("url_decode, lowercase" on a value
+    // without '%' is "lowercase")
+    let mut memo: Vec<(u16, u8, u16)> = Vec::with_capacity(n_nodes);
+    'vals: for (vi, &v) in vals.iter().enumerate() {
+        if let Some(bgt) = ctx.budget.as_mut()
+            && bgt.check_cheap().is_err()
+        {
+            ctx.budget_exceeded = true;
+            break 'vals;
+        }
+        let base = vi * n_nodes;
+        // the nodes to scan, and their ancestors to transform
+        wanted.copy_from_slice(&need[base..base + n_nodes]);
+        reads.copy_from_slice(&need[base..base + n_nodes]);
+        for n in (1..n_nodes).rev() {
+            if wanted[n] {
+                wanted[pf.nodes[n].0 as usize] = true;
+            }
+        }
+        bufs.clear();
+        memo.clear();
+        for n in 0..n_nodes {
+            if !wanted[n] {
+                continue;
+            }
+            let (parent, code) = pf.nodes[n];
+            let b = if n == 0 {
+                same[0] = 0;
+                NodeBytes::Value
+            } else if let Some(&(_, _, m)) = memo
+                .iter()
+                .find(|&&(sp, c, _)| sp == same[parent as usize] && c == code)
+            {
+                same[n] = same[m as usize];
+                bytes[m as usize]
+            } else {
+                memo.push((same[parent as usize], code, n as u16));
+                let p = parent as usize;
+                let src: &[u8] = match bytes[p] {
+                    NodeBytes::Value => v,
+                    NodeBytes::Buf(i) => &bufs[i as usize],
+                    NodeBytes::Missing => {
+                        bytes[n] = NodeBytes::Missing;
+                        same[n] = n as u16;
+                        continue;
+                    }
+                };
+                match transform::apply_with_budget(code, src, ctx.budget.as_deref_mut()) {
+                    Err(crate::budget::BudgetExceeded) => {
+                        ctx.budget_exceeded = true;
+                        break 'vals;
+                    }
+                    Ok(None) => {
+                        same[n] = n as u16;
+                        NodeBytes::Missing
+                    }
+                    Ok(Some(out)) => {
+                        if *out == *src {
+                            same[n] = same[p];
+                            bytes[p]
+                        } else {
+                            let o = out.into_owned();
+                            same[n] = n as u16;
+                            bufs.push(o);
+                            NodeBytes::Buf(bufs.len() as u32 - 1)
+                        }
+                    }
+                }
+            };
+            bytes[n] = b;
+            if !reads[n] {
+                continue;
+            }
+            // same bytes as a node already scanned: its result
+            let s = same[n] as usize;
+            if s != n && ctx.pass.slot[base + s] != NOT_SCANNED {
+                ctx.pass.slot[base + n] = ctx.pass.slot[base + s];
+                continue;
+            }
+            let found = match b {
+                NodeBytes::Missing => vec![],
+                NodeBytes::Value => scan_bytes(ctx, v),
+                NodeBytes::Buf(i) => {
+                    let o = std::mem::take(&mut bufs[i as usize]);
+                    let h = scan_bytes(ctx, &o);
+                    bufs[i as usize] = o;
+                    h
+                }
+            };
+            if ctx.budget_exceeded {
+                break 'vals;
+            }
+            let a = ctx.pass.hits.len() as u32;
+            ctx.pass.hits.extend_from_slice(&found);
+            ctx.pass.ranges.push((a, ctx.pass.hits.len() as u32));
+            let r = ctx.pass.ranges.len() as u32 - 1;
+            ctx.pass.slot[base + n] = r;
+            if s != n {
+                ctx.pass.slot[base + s] = r;
+            }
+        }
+    }
+    if ctx.budget_exceeded {
+        return;
+    }
+
+    // the gates of each group: what its values gave on its nodes
+    for &g in groups {
+        let gi = g as usize;
+        let ts = pf.group_tset[gi];
+        let Some((_, idxs)) = tset_vals.iter().find(|(t, _)| *t == ts) else {
+            continue;
+        };
+        let mut hits = vec![];
+        // many values give the same conditions (a pattern on a word every
+        // field name holds): append a list once, not once per value
+        let mut last: &[u32] = &[];
+        for &vi in idxs {
+            let base = vi as usize * n_nodes;
+            for &n in &pf.group_reads[gi] {
+                let r = ctx.pass.slot[base + n as usize];
+                if r != NOT_SCANNED {
+                    let (a, b) = ctx.pass.ranges[r as usize];
+                    let h = &ctx.pass.hits[a as usize..b as usize];
+                    if !h.is_empty() && h != last {
+                        hits.extend_from_slice(h);
+                        last = h;
+                    }
+                }
+            }
+        }
+        if hits.len() > 1 {
+            hits.sort_unstable();
+            hits.dedup();
+        }
+        ctx.groups[gi] = Some(hits);
+    }
+}
+
+/// Conditions matched by `b`, shared between equal bytes of the request.
+fn scan_bytes(ctx: &mut Ctx<'_, '_, '_>, b: &[u8]) -> Vec<u32> {
+    if let Some(h) = ctx.scans_by_bytes.get(b) {
+        return h.clone();
+    }
+    let h = scan(
+        &ctx.hs,
+        &mut ctx.budget,
+        &mut ctx.budget_exceeded,
+        &Some(Cow::Borrowed(b)),
+    );
+    if !ctx.budget_exceeded {
+        ctx.scans_by_bytes.insert(b.into(), h.clone());
+    }
+    h
+}
+
 /// The rules of `stage` that may match this request, in rule order: those
 /// not gated, and those whose gate (one of them for `any`) holds. Every
 /// other rule of the stage cannot match (see `Prefilter`).
-fn candidates(ctx: &mut Ctx<'_, '_, '_>, d: &Data<'_>, pf: &Prefilter, stage: u8) -> Vec<u32> {
+fn candidates<'t>(
+    ctx: &mut Ctx<'t, '_, '_>,
+    d: &Data<'_>,
+    pf: &'t Prefilter,
+    stage: u8,
+) -> Vec<u32> {
     let Some((ungated, groups)) = pf.stages.get(stage as usize) else {
         return vec![];
     };
     let mut out = ungated.clone();
+    if pf.trie {
+        scan_values(ctx, d, pf, groups);
+        if ctx.budget_exceeded {
+            return out;
+        }
+    }
     for &g in groups {
         for &ci in group_hits(ctx, d, pf, g) {
             if pf.cond_group.get(ci as usize) != Some(&g) {
@@ -888,6 +1258,8 @@ struct Ctx<'t, 'b, 'a> {
     scans_by_bytes: HashMap<Box<[u8]>, Vec<u32>, FastBuildHasher>,
     /// per scan group of the prefilter: the gates that hold, once computed
     groups: Vec<Option<Vec<u32>>>,
+    /// #28: what the prefilter scanned, value by value
+    pass: Pass<'t>,
     budget: Option<&'a mut crate::budget::TxBudget>,
     budget_exceeded: bool,
 }
@@ -1476,6 +1848,11 @@ fn condition(
 /// same bytes share one scan, whose result only depends on the bytes
 /// (W09-R-01).
 fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32] {
+    // what the prefilter scanned (#28); the borrow checker wants the
+    // lookup twice rather than a returned borrow across the fallback
+    if ctx.pass.get(v, chain).is_some() {
+        return ctx.pass.get(v, chain).unwrap_or(&[]);
+    }
     let key = make_scan_key(v, chain);
     if !ctx.scans.contains_key(&key) {
         let tv = match transform::apply_chain_with_budget(chain, v, ctx.budget.as_deref_mut()) {
@@ -1796,6 +2173,7 @@ pub fn evaluate_with_budget(
         scans: HashMap::with_hasher(FastBuildHasher::default()),
         scans_by_bytes: HashMap::with_hasher(FastBuildHasher::default()),
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
+        pass: Pass::default(),
         budget,
         budget_exceeded: false,
     };
