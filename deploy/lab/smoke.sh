@@ -73,9 +73,9 @@ out=$(api operator POST /v1/policies "{\"id\":\"$pid\",\"name\":\"$pid\",\"spec\
 etag1=$(head -n -1 <<<"$out" | field etag)
 out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"mode\":\"MODE_ENFORCE\"}}")
 [ "$(tail -1 <<<"$out")" = 200 ] && grep -q '"version":2' <<<"$out" && ok "edit with the current etag: version 2" || bad "edit with the current etag: $out"
+op=$(head -n -1 <<<"$out" | field replay_operation)
 out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"mode\":\"MODE_SHADOW\"}}")
 [ "$(tail -1 <<<"$out")" = 409 ] && ok "edit with a stale etag: 409" || bad "edit with a stale etag: $out"
-op=$(head -n -1 <<<"$out" | field replay_operation)
 replayed() { api viewer GET "/v1/operations/$op" | grep -q '"done":true'; }
 if [ -n "$op" ] && retry 120 replayed && api viewer GET "/v1/operations/$op" | grep -q '"state":"DONE"'; then
     ok "version 2 replayed on its own against the bundle in force ($op, W13-G2-01)"

@@ -107,7 +107,7 @@ func TestFourEyes(t *testing.T) {
 	post("admin", "/v1/policies/example-api:submit", `{}`, http.StatusBadRequest) // not a draft any more
 	post("admin", "/v1/policies/example-api:approve", `{"version":1}`, http.StatusForbidden)
 	post("operator", "/v1/policies/example-api:approve", `{"version":1}`, http.StatusForbidden) // no policies:approve
-	post("approver", "/v1/policies/example-api:approve", `{}`, http.StatusBadRequest)         // which version?
+	post("approver", "/v1/policies/example-api:approve", `{}`, http.StatusBadRequest)           // which version?
 	post("approver", "/v1/policies/example-api:approve", `{"version":9}`, http.StatusNotFound)
 	post("admin", "/v1/policies/example-api:deploy", `{}`, http.StatusBadRequest)
 

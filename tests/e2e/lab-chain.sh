@@ -58,7 +58,7 @@ set_mode() {
     api -X PATCH "$cp/v1/policies/example-web" \
         -d "{\"etag\":\"$etag\",\"spec\":{\"mode\":\"$1\",\"oversize\":\"OVERSIZE_PASS\"}}" >/dev/null
     # four eyes (W13-G2-02): lab-operator submits, lab-approver approves
-    version=$(api -X POST "$cp/v1/policies/example-web:submit" -d '{}' | grep -o '"version":[0-9]*' | head -1 | cut -d: -f2)
+    version=$(api -X POST "$cp/v1/policies/example-web:submit" -d '{}' | grep -o '"version":[0-9][0-9]*' | head -1 | cut -d: -f2)
     curl -fsS -o /dev/null -H "Authorization: Bearer $approver" -H 'Content-Type: application/json' \
         -X POST "$cp/v1/policies/example-web:approve" -d "{\"version\":$version}" || fail "approve version $version"
     out=$(api -X POST "$cp/v1/policies/example-web:deploy" -d '{}')
