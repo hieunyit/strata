@@ -17,5 +17,22 @@ install -d -o strata -g strata -m 0750 /run/strata
 # agent warns at start (StrataDgramQueueTooShort)
 sysctl -q -p /usr/lib/sysctl.d/90-strata.conf 2>/dev/null || \
     echo "strata-agent: could not set net.unix.max_dgram_qlen now; it applies at the next boot" >&2
-if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+    # deb upgrade (configure, with the old version in $2) of an enrolled
+    # node: the new agent replaces the old one (W13-G1-01). rpm does it in
+    # %posttrans (agent-posttrans.sh): its %post runs before the old
+    # package's %preun, which, before W13-G1-01, stopped the agent.
+    if [ "$1" = configure ] && [ -n "${2:-}" ] && [ -s /var/lib/strata/identity/node-id ]; then
+        # the socket stays with systemd, so events queue during the restart;
+        # the first upgrade from a package without the socket unit moves the
+        # socket to systemd once (a second's gap)
+        systemctl enable -q strata-agent.socket strata-agent.service || true
+        if ! systemctl is-active -q strata-agent.socket; then
+            systemctl stop strata-agent.service || true
+            systemctl start strata-agent.socket || true
+        fi
+        systemctl restart strata-agent.service || true
+    fi
+fi
 exit 0

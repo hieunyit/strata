@@ -1,0 +1,19 @@
+# W13-G1-01: systemd owns the event socket, so it stays open while the
+# agent restarts (package upgrade): the kernel queues the workers' events
+# (up to net.unix.max_dgram_qlen, 90-strata.conf) and the next agent reads
+# them; the workers' connected sockets stay valid (same inode).
+[Unit]
+Description=Strata agent event socket (events from the proxy module)
+Documentation=https://github.com/hieunyit/strata/blob/main/docs/runbook/README.md
+
+[Socket]
+ListenDatagram=/run/strata/events.sock
+SocketUser=strata
+SocketGroup=strata
+SocketMode=0660
+DirectoryMode=0750
+ReceiveBuffer=4M
+Service=strata-agent.service
+
+[Install]
+WantedBy=sockets.target

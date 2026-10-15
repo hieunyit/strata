@@ -166,7 +166,10 @@ fi
 
 nginx -t -q || die "nginx -t failed: see above"
 if [ -d /run/systemd/system ]; then
-    if [ -n "$server" ]; then systemctl enable -q --now strata-agent; systemctl restart strata-agent; fi
+    if [ -n "$server" ]; then
+        systemctl enable -q --now strata-agent.socket strata-agent
+        systemctl restart strata-agent
+    fi
     systemctl enable -q nginx
     if systemctl is-active -q nginx; then systemctl reload nginx; else systemctl start nginx; fi
 else
