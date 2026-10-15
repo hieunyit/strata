@@ -259,6 +259,8 @@ test-rules: rules-tools
 	cd tools/strata-rules && go run . report --repo ../..
 	# the protocol pack (W05-S-01) matches no benign request
 	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/protocol --max-fp 0 > /dev/null
+	# Strata's gap rules (W13-S-01) match no benign request either
+	cd tools/strata-rules && go run . report --repo ../.. --rules ../../rules/gaps --max-fp 0 > /dev/null
 	# the imported signature packs (W07-S-01) match no benign request either
 	cd tools/strata-rules && for p in sigma et-open bots virtual-patches; do go run . report --repo ../.. --rules ../../rules/$$p --max-fp 0 > /dev/null || exit 1; done
 	$(MAKE) test-signatures

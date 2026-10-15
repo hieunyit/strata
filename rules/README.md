@@ -9,6 +9,8 @@ Rule của Strata và rule nhập từ nguồn ngoài (docs/plan/plan.md › Lu�
   CRS, Sigma, ET, crawler-user-agents thêm `upstream_id`, `upstream_version`,
   `author`. Tên file bắt đầu bằng Rule ID: `800001-admin-path-....yaml`.
 - `samples/`: rule mẫu của các nguồn khác CRS (Strata, Sigma, crawler-user-agents, tổ chức).
+- `gaps/`: rule Strata bù khoảng trống (W13-S-01, dải 300001–399999), viết từ các payload còn
+  lọt của GoTestWAF và `strata-mutate` (#34). Dấu hiệu chặt, điểm 100, 0 request benign.
 - `protocol/`: pack protocol của Strata (W05-S-01), 40 rule dải 100101–100140,
   layer `protocol`: method, phiên bản HTTP, dạng request target, giới hạn độ
   dài và số lượng (transformation `length` + toán tử số), encoding lạ, Host,
@@ -58,6 +60,7 @@ nằm trong `tools/strata-import-signatures/exclude.txt` (có lý do).
 | 400100 | mẫu Sigma | DRL-1.1 | `samples/` |
 | 400200–449999 | SigmaHQ `rules/web` | DRL-1.1 | chỉ log webserver; log proxy chỉ khi rule chỉ xét User-Agent; log lỗi của server bỏ |
 | 450000–499999 | ET Open, **chỉ SID 2000000–2099999** | BSD-3-Clause | phần BSD của ET Open; importer từ chối SID khác (có test). Chỉ rule HTTP `to_server` của `web_server`, `web_specific_apps`, `exploit`, `scan` |
+| 300001–399999 | Strata, rule bù khoảng trống (`gaps/`) | Apache-2.0 | W13-S-01: dạng tấn công CRS PL1 và các nguồn nhập chưa phủ (LDAP, mail, XXE, NoSQL, SSTI, SSI, tên miền callback, XSS gọi gián tiếp, SQL kiểu MSSQL/JSON, encode hai lần #34). Mỗi rule một file, có mẫu, gói core; `make test-rules` đòi 0 request benign |
 | 500100 | mẫu crawler-user-agents | MIT | `samples/` |
 | 500200–509999 | crawler-user-agents | MIT | mỗi pattern một rule trên User-Agent, **điểm 0**, label `bot`: nhận diện, không chặn |
 | 700000–799999 | virtual patch (`virtual-patches/`) | Apache-2.0 | Strata viết, một rule một file, có mẫu; xem dưới |
