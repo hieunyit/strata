@@ -1,8 +1,10 @@
 [Unit]
 Description=Strata agent (bundles, events, metrics for the proxy module)
 Documentation=https://github.com/hieunyit/strata/blob/main/docs/runbook/README.md
-After=network-online.target
+After=network-online.target strata-agent.socket
 Wants=network-online.target
+# the event socket (W13-G1-01); the agent takes it from systemd
+Requires=strata-agent.socket
 # enrolled first: strata-agent enroll (deploy/packaging/install.sh does it)
 ConditionPathExists=/var/lib/strata/identity/node-id
 
