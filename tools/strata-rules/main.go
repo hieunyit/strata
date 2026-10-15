@@ -31,6 +31,7 @@ import (
 	"github.com/strata/strata/tools/strata-rules/internal/corpus"
 	"github.com/strata/strata/tools/strata-rules/internal/fpreport"
 	"github.com/strata/strata/tools/strata-rules/internal/ftw"
+	"github.com/strata/strata/tools/strata-rules/internal/lifecycle"
 	"github.com/strata/strata/tools/strata-rules/internal/lint"
 	"github.com/strata/strata/tools/strata-rules/internal/release"
 	"github.com/strata/strata/tools/strata-rules/internal/report"
@@ -59,13 +60,15 @@ func main() {
 		verifyCmd()
 	case "fp-report":
 		fpReportCmd()
+	case "lifecycle":
+		lifecycleCmd()
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|verify|corpus|fp-report ... (see the package comment)")
+	fmt.Fprintln(os.Stderr, "usage: strata-rules lint|test|report|ftw|release|verify|corpus|fp-report|lifecycle ... (see the package comment)")
 	os.Exit(2)
 }
 
@@ -445,4 +448,56 @@ func fpReportCmd() {
 		die(err)
 	}
 	fpreport.Markdown(os.Stdout, rows, opts)
+}
+
+// lifecycleCmd: the weekly rule review of RV-S-02 (internal/lifecycle).
+//
+//	strata-rules lifecycle --repo ../.. [--clickhouse URL] [--policy p,...]
+//	    [--exclude-ips file] [--window 168h] [--no-store]
+func lifecycleCmd() {
+	fs := flag.NewFlagSet("lifecycle", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository root")
+	defaultCH := os.Getenv("STRATA_CLICKHOUSE_URL")
+	if defaultCH == "" {
+		defaultCH = "http://127.0.0.1:18123"
+	}
+	clickhouse := fs.String("clickhouse", defaultCH, "ClickHouse HTTP URL (env STRATA_CLICKHOUSE_URL)")
+	database := fs.String("database", "default", "ClickHouse database")
+	defaultUser := os.Getenv("STRATA_CLICKHOUSE_USER")
+	if defaultUser == "" {
+		defaultUser = "default"
+	}
+	user := fs.String("user", defaultUser, "ClickHouse user (env STRATA_CLICKHOUSE_USER)")
+	password := fs.String("password", os.Getenv("STRATA_CLICKHOUSE_PASSWORD"), "ClickHouse password")
+	window := fs.Duration("window", 7*24*time.Hour, "false-positive window")
+	noStore := fs.Bool("no-store", false, "report on the repository only (no ClickHouse)")
+	var policies policyList
+	fs.Var(&policies, "policy", "policy ID to filter (repeatable or comma-separated)")
+	excludeIPs := fs.String("exclude-ips", "", "file of attack source IPs or CIDRs to exclude")
+	_ = fs.Parse(os.Args[2:])
+
+	rules, err := lifecycle.LoadRules(filepath.Join(*repo, "rules"))
+	if err != nil {
+		die(err)
+	}
+	opt := lifecycle.Options{Window: *window}
+	var st lifecycle.Stats
+	if !*noStore {
+		var cidrs []string
+		if *excludeIPs != "" {
+			if cidrs, err = fpreport.LoadCIDRs(*excludeIPs); err != nil {
+				die(err)
+			}
+		}
+		st, err = lifecycle.Query(context.Background(), fpreport.Options{
+			ClickHouseURL: *clickhouse, Database: *database, User: *user, Password: *password,
+			Policies: policies, ExcludeCIDRs: cidrs, Timeout: 120 * time.Second,
+		}, opt)
+		if err != nil {
+			die(err)
+		}
+	}
+	r := lifecycle.Classify(rules, st, time.Now().UTC(), opt)
+	r.Upstreams = lifecycle.Pins(*repo)
+	lifecycle.Markdown(os.Stdout, r)
 }

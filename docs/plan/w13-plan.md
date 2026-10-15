@@ -13,9 +13,9 @@ phần C đang ở 2.999 / 3.000 dòng, và PO quyết ngày 15/10 rằng logic 
 | 1 | W13-S-01 | Claude Code (phiên W10) | Rule bù khoảng trống (mục 2), phát hành **pack v0.2** |
 | 2 | RV-S-02 | Claude Code (phiên W10) | Quy trình nuôi rule, báo cáo hằng tuần tự sinh (mục 3) |
 | 3 | W13-G1-01 | Claude Code (phiên W10) | Nâng cấp agent không mất sự kiện (mục 4) |
-| 4 | W13-G2-01 | Claude Code (strata-68) | Replay service: `:replay` dạng long-running operation, kết quả theo bản nháp. Cần trước W12-R-01 (đã xong) |
-| 5 | W13-G2-02 | Claude Code (strata-68) | Duyệt 4 mắt: `:submit`, `:approve`; người tạo không tự duyệt; chưa duyệt thì không deploy |
-| 6 | W13-F-01 | Claude Code (strata-68) | Hàng chờ duyệt kèm kết quả replay và diff |
+| 4 | W13-G2-01 | Claude Code (strata-59) | Replay service: `:replay` dạng long-running operation, kết quả theo bản nháp. Cần trước W12-R-01 (đã xong) |
+| 5 | W13-G2-02 | Claude Code (strata-59) | Duyệt 4 mắt: `:submit`, `:approve`; người tạo không tự duyệt; chưa duyệt thì không deploy |
+| 6 | W13-F-01 | Claude Code (strata-59) | Hàng chờ duyệt kèm kết quả replay và diff |
 | 7 | W13-R-02 | Phiên engine (strata-22) | Chi phí từng rule: lấy mẫu 1%, đưa vào metrics và sự kiện; chi phí đo dưới 2% thời gian engine |
 
 ## 2. W13-S-01 · Rule bù khoảng trống

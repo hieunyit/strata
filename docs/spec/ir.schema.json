@@ -191,7 +191,9 @@
         "risk": { "enum": ["low", "medium", "high"] },
         "systems": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "tags": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "revision": { "type": "string", "format": "date" }
+        "revision": { "type": "string", "format": "date" },
+        "owner": { "description": "Team that answers for the rule (RV-S-02): a team name, not a person.", "type": "string", "minLength": 1 },
+        "review_by": { "description": "Date by which the rule is reviewed again (RV-S-02); the weekly lifecycle report lists rules past it.", "type": "string", "format": "date" }
       },
       "allOf": [
         {

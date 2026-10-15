@@ -22,6 +22,8 @@ rule:
   metadata:
     source: strata
     license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-15"
     attack_type: command-injection
     accuracy: medium
     tags: [w13-s-01, issue-34, double-encoding]

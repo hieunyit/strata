@@ -19,6 +19,8 @@ rule:
   metadata:
     source: strata
     license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-15"
     attack_type: sql-injection
     accuracy: high
     tags: [w13-s-01, gotestwaf]
