@@ -1206,6 +1206,15 @@ impl Tx {
             rules: &self.rules[..self.n_rules],
         };
         let mut a = crate::anon::Anonymizer::new(&s.cfg.key, &s.cfg.key_id)?;
+        // the policy's own sensitive fields and patterns too (P-01 §1, #75)
+        if let Some(p) = self
+            .engine
+            .as_ref()
+            .zip(self.policy_index)
+            .and_then(|(e, i)| e.privacy(i))
+        {
+            a.set_privacy(p.fields(), p.patterns());
+        }
         let mut max = SAMPLE_MAX_BODY;
         loop {
             // max_body 0 is the default (64 KB) for the anonymizer: keep 1 byte

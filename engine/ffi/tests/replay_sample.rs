@@ -4,6 +4,7 @@
 //! payloads do. The rate is a share of transactions; 0 switches it off.
 
 use libstrata::bundle::{Mode, Oversize, PolicySpec, Spec, build, public_key};
+use libstrata::privacy::PrivacySpec;
 use strata::abi::*;
 use strata::ffi::*;
 
@@ -18,19 +19,35 @@ fn s(b: &[u8]) -> strata_str_t {
 }
 
 fn engine() -> *mut EngineHandle {
-    let policies = [PolicySpec::new(
-        "example-api",
-        Mode::Enforce,
-        Oversize::Pass,
-    )];
+    engine_with(&[])
+}
+
+/// The engine with privacy settings for example-api (P-01 §1), if any.
+fn engine_with(fields_patterns: &[(&[&str], &[&str])]) -> *mut EngineHandle {
+    let privacy: Vec<PrivacySpec> = fields_patterns
+        .iter()
+        .map(|(f, p)| PrivacySpec {
+            policy_index: 0,
+            sensitive_fields: f.iter().map(|s| s.to_string()).collect(),
+            mask_patterns: p.iter().map(|s| s.to_string()).collect(),
+            identity_hmac: false,
+        })
+        .collect();
+    let section = libstrata::privacy::encode(&privacy, None).unwrap();
+    let policies = [PolicySpec {
+        privacy: !privacy.is_empty(),
+        ..PolicySpec::new("example-api", Mode::Enforce, Oversize::Pass)
+    }];
+    let sections = [(libstrata::bundle::kind::PRIVACY, &section[..])];
     let spec = Spec {
         version: 3,
         created_at_ms: 0,
         flags: 0,
         policies: &policies,
-        sections: &[],
+        sections: if privacy.is_empty() { &[] } else { &sections },
     };
-    let bundle = build(&spec, &SEED).unwrap();
+    // libstrata does not copy the bundle: it must outlive the engine
+    let bundle: &[u8] = Box::leak(build(&spec, &SEED).unwrap().into_boxed_slice());
     let mut err = strata_err_t {
         code: 0,
         msg: [0; 256],
@@ -286,4 +303,34 @@ fn the_sample_fits_one_datagram() {
         assert!(f[&12].len() < 8192 && !String::from_utf8_lossy(&f[&12]).contains("0912345678"));
     }
     unsafe { strata_engine_release(e) };
+}
+
+/// #75: the policy's `privacy.sensitive_fields` and `mask_patterns` apply to
+/// samples as to events: a value the built-in lists do not know becomes a
+/// token. The same request without the settings keeps it.
+#[test]
+fn the_policy_privacy_settings_apply_to_samples() {
+    let uri = b"/v1/orders?ma_khach_hang=C0012345&ref=KH12345678&q=1%27%20OR%201%3D1";
+    let sample = |e: *mut EngineHandle| {
+        assert_eq!(
+            unsafe { strata_engine_set_replay(e, s(b"grp-edge-1"), KEY.as_ptr(), 32, 10_000) },
+            STRATA_OK
+        );
+        let d = request(e, uri).expect("sampled");
+        unsafe { strata_engine_release(e) };
+        String::from_utf8_lossy(&d).into_owned()
+    };
+    let plain = sample(engine());
+    assert!(
+        plain.contains("C0012345") && plain.contains("KH12345678"),
+        "{plain}"
+    );
+    let private = sample(engine_with(&[(&["MA_KHACH_HANG"], &["KH[0-9]{8}"])]));
+    for secret in ["C0012345", "KH12345678"] {
+        assert!(!private.contains(secret), "{secret} in {private}");
+    }
+    // names and attack payloads stay
+    assert!(private.contains("ma_khach_hang=~h%3A"), "{private}");
+    assert!(private.contains("ref=~h%3A"), "{private}");
+    assert!(private.contains("1%27%20OR%201%3D1"), "{private}");
 }

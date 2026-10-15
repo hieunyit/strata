@@ -67,6 +67,11 @@ pub struct Anonymizer {
     key: Vec<u8>,
     pub key_id: String,
     pub max_body: usize,
+    /// The policy's `privacy.sensitive_fields` (#75), lowercase: parameters,
+    /// JSON keys, form fields and headers with these names become tokens.
+    fields: Vec<Vec<u8>>,
+    /// The policy's `privacy.mask_patterns` (#75): matches become tokens.
+    patterns: Vec<Regex>,
 }
 
 impl Anonymizer {
@@ -76,7 +81,30 @@ impl Anonymizer {
             key: key.to_vec(),
             key_id: key_id.to_string(),
             max_body: DEFAULT_MAX_BODY,
+            fields: vec![],
+            patterns: vec![],
         })
+    }
+
+    /// Adds a policy's privacy settings (P-01 §1, #75) to the built-in
+    /// lists: field names (matched whole, ASCII case-insensitive) and
+    /// patterns (as the engine compiles them).
+    pub fn set_privacy(&mut self, fields: &[String], patterns: &[Regex]) {
+        self.fields = fields.iter().map(|f| go_lower(f.as_bytes())).collect();
+        self.patterns = patterns.to_vec();
+    }
+
+    /// Whether a parameter, JSON key or form field named `name` holds a
+    /// sensitive value: the built-in name parts, or the policy's fields.
+    fn sensitive(&self, name: &[u8]) -> bool {
+        sensitive_name(name) || self.policy_field(name)
+    }
+
+    fn policy_field(&self, name: &[u8]) -> bool {
+        !self.fields.is_empty() && {
+            let n = go_lower(name);
+            self.fields.contains(&n)
+        }
     }
 
     /// Token of a sensitive value: `~h:<16 hex>:<class><length>`.
@@ -97,7 +125,7 @@ impl Anonymizer {
     pub fn mask_value(&self, s: &[u8]) -> Vec<u8> {
         let re = regexes();
         let mut spans: Vec<(usize, usize)> = vec![];
-        for r in [&re.jwt, &re.email] {
+        for r in [&re.jwt, &re.email].into_iter().chain(&self.patterns) {
             spans.extend(r.find_iter(s).map(|m| (m.start(), m.end())));
         }
         for m in re.digits.find_iter(s) {
@@ -193,6 +221,9 @@ impl Anonymizer {
 
     fn header_value(&self, name: &[u8], value: &[u8]) -> Vec<u8> {
         let n = go_lower(name);
+        if self.policy_field(name) && !SENSITIVE_HEADERS.contains(&n.as_slice()) {
+            return self.token(value);
+        }
         if !SENSITIVE_HEADERS.contains(&n.as_slice()) {
             return self.mask_value(value);
         }
@@ -262,7 +293,7 @@ impl Anonymizer {
                     out.push(b'=');
                     out.extend_from_slice(&self.encoded(
                         &p[j + 1..],
-                        sensitive_name(&name),
+                        self.sensitive(&name),
                         Mode::Query,
                     ));
                 }
@@ -424,7 +455,7 @@ impl Anonymizer {
         }
         p.i += 1;
         p.ws();
-        *sensitive = *sens || sensitive_name(&k);
+        *sensitive = *sens || self.sensitive(&k);
         Some(true)
     }
 
@@ -463,7 +494,7 @@ impl Anonymizer {
             } else {
                 &[]
             };
-            if file || sensitive_name(form_name) {
+            if file || self.sensitive(form_name) {
                 out.extend_from_slice(&self.token(part.content));
             } else {
                 out.extend_from_slice(&self.mask_value(part.content));
@@ -1553,6 +1584,69 @@ mod tests {
         ] {
             assert!(t(v).ends_with(c), "{v}");
         }
+    }
+
+    /// #75: the policy's fields and patterns, in every place a name or a
+    /// value goes; the same input without them keeps the values.
+    #[test]
+    fn policy_privacy_fields_and_patterns() {
+        let mut a = a();
+        let t = |a: &Anonymizer, s: &str| String::from_utf8(a.token(s.as_bytes())).unwrap();
+        let req = Request {
+            raw_uri: b"/v1/orders?Ma_Khach_Hang=C0012345&ref=KH12345678",
+            args: b"Ma_Khach_Hang=C0012345&ref=KH12345678",
+            headers: vec![
+                (&b"X-Branch-Code"[..], &b"HN-042"[..]),
+                (b"Content-Type", b"application/json"),
+            ],
+            body: br#"{"order":{"ma_khach_hang":"C0012345","note":"KH12345678 ok"}}"#,
+            client: b"192.0.2.1",
+            ..Default::default()
+        };
+        let plain = a.anonymize(&req);
+        assert!(
+            String::from_utf8_lossy(&plain.raw_uri).contains("C0012345")
+                && String::from_utf8_lossy(&plain.body).contains("KH12345678")
+                && String::from_utf8_lossy(&plain.headers).contains("HN-042")
+        );
+        let re = crate::privacy::compile_pattern("KH[0-9]{8}").unwrap();
+        a.set_privacy(&["ma_khach_hang".into(), "x-branch-code".into()], &[re]);
+        let r = a.anonymize(&req);
+        let (c, k) = (t(&a, "C0012345"), t(&a, "KH12345678"));
+        // tokens are query-escaped in the query
+        let (qc, qk) = (c.replace(':', "%3A"), k.replace(':', "%3A"));
+        assert_eq!(
+            String::from_utf8(r.raw_uri).unwrap(),
+            format!("/v1/orders?Ma_Khach_Hang={qc}&ref={qk}")
+        );
+        assert_eq!(
+            String::from_utf8(r.args).unwrap(),
+            format!("Ma_Khach_Hang={qc}&ref={qk}")
+        );
+        assert_eq!(
+            String::from_utf8(r.body).unwrap(),
+            format!(r#"{{"order":{{"ma_khach_hang":"{c}","note":"{k} ok"}}}}"#)
+        );
+        assert!(
+            String::from_utf8_lossy(&r.headers).contains(&t(&a, "HN-042")),
+            "{}",
+            String::from_utf8_lossy(&r.headers)
+        );
+        // a form field and a multipart field with the name
+        assert_eq!(
+            a.body(
+                b"application/x-www-form-urlencoded",
+                b"ma_khach_hang=C0012345&x=1"
+            ),
+            format!("ma_khach_hang={qc}&x=1").into_bytes()
+        );
+        let mp = b"--b\r\nContent-Disposition: form-data; name=\"MA_KHACH_HANG\"\r\n\r\nC0012345\r\n--b--\r\n";
+        let out = a.body(b"multipart/form-data; boundary=b", mp);
+        assert!(
+            !String::from_utf8_lossy(&out).contains("C0012345"),
+            "{}",
+            String::from_utf8_lossy(&out)
+        );
     }
 
     #[test]
