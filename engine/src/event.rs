@@ -274,6 +274,8 @@ pub fn is_sensitive_target(field: &str) -> bool {
         Some((_, k)) => k.trim(),
         None => field.trim(),
     };
+    // a value inspected decoded (b64.rs) is as sensitive as its field
+    let key = key.strip_suffix(crate::b64::SUFFIX_STR).unwrap_or(key);
     if is_sensitive_word(key) {
         return true;
     }

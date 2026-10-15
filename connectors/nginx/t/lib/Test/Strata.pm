@@ -85,7 +85,7 @@ add_block_preprocessor(sub {
     }
 
     # ASan + UBSan run libstrata several times slower, and the machine may
-    # be busy (a fuzz run): a request near the default budget (2 ms) then
+    # be busy (a fuzz run): a request near the default budget (10 ms) then
     # falls into the fail mode by chance, not by code. Raise the default
     # only; a block that sets strata_cpu_budget itself keeps it.
     if ($ENV{ASAN_OPTIONS} && !$ENV{TEST_NGINX_USE_VALGRIND}

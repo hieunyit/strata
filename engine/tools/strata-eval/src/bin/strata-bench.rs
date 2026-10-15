@@ -175,7 +175,7 @@ fn main() {
     let only = get("--only");
     // also encode the event of each transaction, as the connector does
     let event = args.iter().any(|a| a == "--event");
-    // as NGINX runs it: strata_cpu_budget (2 ms by default); 0 = none
+    // as NGINX runs it: strata_cpu_budget (10 ms by default); 0 = none
     let budget_us: u64 = get("--budget-us")
         .map(|s| s.parse().expect("--budget-us"))
         .unwrap_or(0);

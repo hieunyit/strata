@@ -487,6 +487,10 @@ fn parse_query(q: &[u8]) -> Vec<Pair<'_>> {
     parse_query_with_budget(q, None).unwrap()
 }
 
+fn pair<'p>((n, v): &'p Pair<'_>) -> (&'p [u8], &'p [u8]) {
+    (n, v)
+}
+
 fn trim(v: &[u8]) -> &[u8] {
     let start = v
         .iter()
@@ -532,6 +536,12 @@ struct Data<'a> {
     part_headers: Vec<(&'a [u8], &'a [u8])>,
     /// an XML body
     xml: Option<xml::Xml>,
+    /// decoded copies of the args that look base64-encoded (b64.rs), the
+    /// query's first: args_get reads b64_args[..b64_get]
+    b64_args: Vec<(Vec<u8>, Vec<u8>)>,
+    b64_get: usize,
+    /// decoded copies of the cookies that look base64-encoded
+    b64_cookies: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
 type ScanKey = (usize, usize, u128, u8);
@@ -976,7 +986,11 @@ fn values<'d>(
     excluded: &dyn Fn(&[u8]) -> bool,
 ) -> TargetVals<'d> {
     let r = d.req;
-    let keyed = |name: &[u8]| t.key.is_none_or(|k| k.eq_ignore_ascii_case(name)) && !excluded(name);
+    // a decoded value is keyed and excluded under the name it came with
+    let keyed = |name: &[u8]| {
+        let name = crate::b64::base_name(name);
+        t.key.is_none_or(|k| k.eq_ignore_ascii_case(name)) && !excluded(name)
+    };
     let v = t.var;
     if v == const { var("method") } {
         TargetVals::One(TargetVal {
@@ -1026,21 +1040,20 @@ fn values<'d>(
         || v == const { var("args_get") }
         || v == const { var("args_post") }
     {
-        let fields = if v == const { var("args_get") } {
-            &d.args[..d.n_get]
+        let (fields, decoded) = if v == const { var("args_get") } {
+            (&d.args[..d.n_get], &d.b64_args[..d.b64_get])
         } else if v == const { var("args_post") } {
-            &d.args[d.n_get..]
+            (&d.args[d.n_get..], &d.b64_args[d.b64_get..])
         } else {
-            &d.args[..]
+            (&d.args[..], &d.b64_args[..])
         };
         TargetVals::Many(
             fields
                 .iter()
+                .map(|(n, val)| (&**n, &**val))
+                .chain(decoded.iter().map(|(n, val)| (&n[..], &val[..])))
                 .filter(|(n, _)| keyed(n))
-                .map(|(n, val)| TargetVal {
-                    name: Some(&**n),
-                    val,
-                })
+                .map(|(n, val)| TargetVal { name: Some(n), val })
                 .collect(),
         )
     } else if v == const { var("request_body") } {
@@ -1083,11 +1096,10 @@ fn values<'d>(
         TargetVals::Many(
             d.cookies
                 .iter()
+                .map(|(n, val)| (&**n, &**val))
+                .chain(d.b64_cookies.iter().map(|(n, val)| (&n[..], &val[..])))
                 .filter(|(n, _)| keyed(n))
-                .map(|(n, val)| TargetVal {
-                    name: Some(&**n),
-                    val,
-                })
+                .map(|(n, val)| TargetVal { name: Some(n), val })
                 .collect(),
         )
     } else if v == const { var("request_cookies_names") } {
@@ -1423,9 +1435,14 @@ fn condition(
                             }
                             None => Vec::new(),
                         };
-                        let key_name = match t.key {
-                            Some(k) => Some(k.to_vec()),
-                            None => v.name.map(|n| n.to_vec()),
+                        // a decoded value keeps its suffix under a keyed
+                        // target too: ARGS:q|base64, not ARGS:q
+                        let key_name = match (t.key, v.name) {
+                            (Some(k), Some(n)) if n.ends_with(crate::b64::SUFFIX) => {
+                                Some(crate::b64::name(k))
+                            }
+                            (Some(k), _) => Some(k.to_vec()),
+                            (None, n) => n.map(|n| n.to_vec()),
                         };
                         match_candidate = Some(Candidate::Value {
                             var: t.var,
@@ -1735,6 +1752,19 @@ pub fn evaluate_with_budget(
             _ => {}
         }
     }
+    let cookies = parse_cookies(req.headers);
+    // values that look base64-encoded are inspected decoded too (b64.rs)
+    if let Some(bgt) = budget.as_mut() {
+        bgt.check()?;
+    }
+    let mut left = crate::b64::Left::default();
+    let mut b64_args = crate::b64::decode_all(args[..n_get].iter().map(pair), &mut left);
+    let b64_get = b64_args.len();
+    b64_args.extend(crate::b64::decode_all(
+        args[n_get..].iter().map(pair),
+        &mut left,
+    ));
+    let b64_cookies = crate::b64::decode_all(cookies.iter().map(pair), &mut left);
     let d = Data {
         req,
         full_uri,
@@ -1742,10 +1772,13 @@ pub fn evaluate_with_budget(
         request_line: [req.method, b" ", req.raw_uri, b" ", req.proto].concat(),
         args,
         n_get,
-        cookies: parse_cookies(req.headers),
+        cookies,
         files,
         part_headers,
         xml: xml_body,
+        b64_args,
+        b64_get,
+        b64_cookies,
     };
     let hs = tables.hyperscan().zip(db).map(|(map, db)| {
         // validated with the engine (Engine::map), like the stream image

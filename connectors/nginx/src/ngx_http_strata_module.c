@@ -482,7 +482,7 @@ ngx_http_strata_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               prev->response_body_limit, (size_t) 512 * 1024);
     ngx_conf_merge_ptr_value(conf->identity, prev->identity, NULL);
     ngx_conf_merge_ptr_value(conf->block_page, prev->block_page, NULL);
-    ngx_conf_merge_msec_value(conf->cpu_budget, prev->cpu_budget, 2);
+    ngx_conf_merge_msec_value(conf->cpu_budget, prev->cpu_budget, 10);
     ngx_conf_merge_uint_value(conf->breaker_action, prev->breaker_action,
                               NGX_HTTP_STRATA_BREAKER_DEGRADE);
 

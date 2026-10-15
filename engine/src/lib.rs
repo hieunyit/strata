@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod anon;
+pub mod b64;
 pub mod block_id;
 pub mod budget;
 pub mod bundle;

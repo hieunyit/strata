@@ -410,6 +410,18 @@ rules:
             - js_decode
             - css_decode
             - remove_nulls
+        - operator:
+            type: rx
+            value: (?i)[(\x60=]|[a-z][\t\n\r]+[a-z:]|&(?:tab|newline|colon);|&#
+          targets:
+            - var: matched_vars
+          transforms:
+            - utf8_to_unicode
+            - url_decode_uni
+            - html_entity_decode
+            - js_decode
+            - css_decode
+            - remove_nulls
     score: 100
     action_mode: score
     severity: critical
