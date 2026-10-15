@@ -52,3 +52,39 @@ func TestPolicyNamesAreBounded(t *testing.T) {
 		t.Fatalf("%d policies kept", n)
 	}
 }
+
+// W13-R-02: rule costs are summed by label; Rule ID 0 is "prefilter", the
+// first MaxRuleLabels rules keep a label of their own, later ones go to
+// "other", and the counters never move from one label to another.
+func TestRuleCosts(t *testing.T) {
+	tot := New(time.Unix(0, 0))
+	first := &eventv1.PolicyCounters{SampledRequests: 2, SampledEngineNs: 900}
+	first.RuleCosts = append(first.RuleCosts, &eventv1.RuleCost{RuleId: 0, Samples: 2, TotalNs: 500, MaxNs: 300})
+	for i := 0; i < MaxRuleLabels+5; i++ {
+		first.RuleCosts = append(first.RuleCosts, &eventv1.RuleCost{RuleId: uint32(930000 + i), Samples: 1, TotalNs: 10, MaxNs: 10})
+	}
+	tot.Add(first)
+	tot.Add(&eventv1.PolicyCounters{SampledRequests: 1, SampledEngineNs: 100,
+		RuleCosts: []*eventv1.RuleCost{{RuleId: 930000, Samples: 1, TotalNs: 40, MaxNs: 40}, {RuleId: 999999, Samples: 1, TotalNs: 7, MaxNs: 7}}})
+	costs, reqs, ns := tot.RuleCosts()
+	if reqs != 3 || ns != 1000 {
+		t.Fatalf("sampled %d requests, %d ns", reqs, ns)
+	}
+	if got := costs["prefilter"]; got != (RuleCostSum{Samples: 2, TotalNs: 500, MaxNs: 300}) {
+		t.Errorf("prefilter %+v", got)
+	}
+	if got := costs["930000"]; got != (RuleCostSum{Samples: 2, TotalNs: 50, MaxNs: 40}) {
+		t.Errorf("930000 %+v", got)
+	}
+	// 50 labelled rules, plus prefilter and other
+	if len(costs) != MaxRuleLabels+2 {
+		t.Errorf("%d labels", len(costs))
+	}
+	// 5 rules of the first datagram and 999999 are past the labels
+	if got := costs["other"]; got != (RuleCostSum{Samples: 6, TotalNs: 57, MaxNs: 10}) {
+		t.Errorf("other %+v", got)
+	}
+	if _, ok := costs["999999"]; ok {
+		t.Error("a rule past the labels got one")
+	}
+}
