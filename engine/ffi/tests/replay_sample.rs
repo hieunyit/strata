@@ -46,7 +46,8 @@ fn engine_with(fields_patterns: &[(&[&str], &[&str])]) -> *mut EngineHandle {
         policies: &policies,
         sections: if privacy.is_empty() { &[] } else { &sections },
     };
-    let bundle = build(&spec, &SEED).unwrap();
+    // libstrata does not copy the bundle: it must outlive the engine
+    let bundle: &[u8] = Box::leak(build(&spec, &SEED).unwrap().into_boxed_slice());
     let mut err = strata_err_t {
         code: 0,
         msg: [0; 256],
