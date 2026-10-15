@@ -47,6 +47,9 @@ var Permissions = auth.MethodPermissions{
 	adminv1.PolicyService_ListPolicyVersions_FullMethodName:        auth.PermPoliciesRead,
 	adminv1.PolicyService_GetPolicyVersion_FullMethodName:          auth.PermPoliciesRead,
 	adminv1.PolicyService_DeployPolicy_FullMethodName:              auth.PermPoliciesDeploy,
+	adminv1.PolicyService_ReplayPolicy_FullMethodName:              auth.PermPoliciesWrite,
+	adminv1.PolicyService_GetPolicyVersionReplay_FullMethodName:    auth.PermPoliciesRead,
+	adminv1.OperationService_GetOperation_FullMethodName:           auth.PermPoliciesRead,
 	adminv1.RolloutService_ListBundles_FullMethodName:              auth.PermNodesRead,
 	adminv1.RolloutService_ListRollouts_FullMethodName:             auth.PermNodesRead,
 	adminv1.RolloutService_GetRollout_FullMethodName:               auth.PermNodesRead,
@@ -76,7 +79,11 @@ type Deps struct {
 	// rate above 0 once the sample format passed legal review.
 	Replay         ReplayStore
 	ReplayApproved bool
-	Now            func() time.Time
+	// Operations enables the replay of policy versions (W13-G2-01) and
+	// GET /v1/operations; ReplayKick wakes the replay runner.
+	Operations OperationStore
+	ReplayKick func()
+	Now        func() time.Time
 }
 
 // BuildInfo is reported by VersionService.
@@ -111,7 +118,11 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 			replay: deps.Replay, replayApproved: deps.ReplayApproved, now: deps.Now})
 	}
 	if deps.Policies != nil {
-		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer})
+		adminv1.RegisterPolicyServiceServer(gs, &policyAdmin{store: deps.Policies, deploy: deps.Deployer,
+			ops: deps.Operations, replayKick: deps.ReplayKick})
+	}
+	if deps.Operations != nil {
+		adminv1.RegisterOperationServiceServer(gs, &operationAdmin{store: deps.Operations})
 	}
 	if deps.Rollouts != nil {
 		adminv1.RegisterRolloutServiceServer(gs, &rolloutAdmin{store: deps.Rollouts, kick: deps.Kicker})
@@ -140,6 +151,7 @@ func New(ctx context.Context, a auth.Authenticator, info BuildInfo, deps Deps, o
 		adminv1.RegisterFleetAdminServiceHandler,
 		adminv1.RegisterPolicyServiceHandler,
 		adminv1.RegisterRolloutServiceHandler,
+		adminv1.RegisterOperationServiceHandler,
 	} {
 		if err := register(ctx, mux, conn); err != nil {
 			_ = conn.Close()

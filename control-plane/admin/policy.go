@@ -33,6 +33,10 @@ type policyAdmin struct {
 	adminv1.UnimplementedPolicyServiceServer
 	store  PolicyStore
 	deploy Deployer // nil: deploys are not configured
+	// ops queues the replay of each new version (W13-G2-01); nil: replay
+	// is not configured. replayKick wakes the runner.
+	ops        OperationStore
+	replayKick func()
 }
 
 var (
@@ -140,7 +144,7 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	case err != nil:
 		return nil, internal("create policy", err)
 	}
-	return &adminv1.CreatePolicyResponse{Policy: policyPB(created)}, nil
+	return &adminv1.CreatePolicyResponse{Policy: policyPB(created), ReplayOperation: p.replayNew(ctx, created.ID, created.CurrentVersion)}, nil
 }
 
 func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolicyRequest) (*adminv1.UpdatePolicyResponse, error) {
@@ -169,7 +173,7 @@ func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolic
 	case err != nil:
 		return nil, notFound(err, "policy")
 	}
-	return &adminv1.UpdatePolicyResponse{Policy: policyPB(updated)}, nil
+	return &adminv1.UpdatePolicyResponse{Policy: policyPB(updated), ReplayOperation: p.replayNew(ctx, updated.ID, updated.CurrentVersion)}, nil
 }
 
 func (p *policyAdmin) ListPolicyVersions(ctx context.Context, req *adminv1.ListPolicyVersionsRequest) (*adminv1.ListPolicyVersionsResponse, error) {

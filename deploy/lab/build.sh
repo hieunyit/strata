@@ -13,7 +13,7 @@ export CARGO_TARGET_DIR=$PWD/$out/target
 # features and libstrata.a would pull the full (non-PIC) Hyperscan compiler
 # that strata-compile needs instead of the runtime.
 cargo build --release -p libstrata-ffi
-cargo build --release -p mkbundle -p strata-compiler
+cargo build --release -p mkbundle -p strata-compiler -p strata-replay
 for v in "${versions[@]}"; do
     STRATA_LIB=$CARGO_TARGET_DIR/release/libstrata.a connectors/nginx/scripts/build.sh "$v" "$out"
 done
@@ -25,7 +25,12 @@ for v in "${versions[@]}"; do
     cp "$out/nginx-$v/objs/nginx" "$out/nginx-$v/objs/ngx_http_strata_module.so" \
         "$out/nginx-$v/conf/mime.types" "$dist/nginx/$v/"
 done
-cp "$CARGO_TARGET_DIR/release/mkbundle" "$CARGO_TARGET_DIR/release/strata-compile" "$dist/bin/"
+cp "$CARGO_TARGET_DIR/release/mkbundle" "$CARGO_TARGET_DIR/release/strata-compile" "$CARGO_TARGET_DIR/release/strata-replay" "$dist/bin/"
+# the whole benign and attack corpus once, replayed with every draft
+# (W13-G2-01): gen takes the corpus in order, so count = its size
+n=$("$CARGO_TARGET_DIR/release/strata-replay" gen --out "$out/corpus-count.parquet" --count 1 --corpus corpus 2>&1 |
+    sed -n 's/.* from \([0-9]*\) corpus requests.*/\1/p')
+"$CARGO_TARGET_DIR/release/strata-replay" gen --out "$dist/replay-corpus.parquet" --count "$n" --corpus corpus
 (cd agent && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/" ./cmd/strata-agent ./cmd/strata-emit)
 (cd control-plane && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/strata-control-plane" ./cmd/server)
 cp engine/compiler/examples/rules.yaml deploy/lab/policies.yaml deploy/lab/block.html deploy/lab/init.sh deploy/lab/fleet-init.sh deploy/lab/install-bundle.sh "$dist/"

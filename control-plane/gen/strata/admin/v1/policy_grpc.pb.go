@@ -19,13 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PolicyService_ListPolicies_FullMethodName       = "/strata.admin.v1.PolicyService/ListPolicies"
-	PolicyService_GetPolicy_FullMethodName          = "/strata.admin.v1.PolicyService/GetPolicy"
-	PolicyService_CreatePolicy_FullMethodName       = "/strata.admin.v1.PolicyService/CreatePolicy"
-	PolicyService_UpdatePolicy_FullMethodName       = "/strata.admin.v1.PolicyService/UpdatePolicy"
-	PolicyService_ListPolicyVersions_FullMethodName = "/strata.admin.v1.PolicyService/ListPolicyVersions"
-	PolicyService_GetPolicyVersion_FullMethodName   = "/strata.admin.v1.PolicyService/GetPolicyVersion"
-	PolicyService_DeployPolicy_FullMethodName       = "/strata.admin.v1.PolicyService/DeployPolicy"
+	PolicyService_ListPolicies_FullMethodName           = "/strata.admin.v1.PolicyService/ListPolicies"
+	PolicyService_GetPolicy_FullMethodName              = "/strata.admin.v1.PolicyService/GetPolicy"
+	PolicyService_CreatePolicy_FullMethodName           = "/strata.admin.v1.PolicyService/CreatePolicy"
+	PolicyService_UpdatePolicy_FullMethodName           = "/strata.admin.v1.PolicyService/UpdatePolicy"
+	PolicyService_ListPolicyVersions_FullMethodName     = "/strata.admin.v1.PolicyService/ListPolicyVersions"
+	PolicyService_GetPolicyVersion_FullMethodName       = "/strata.admin.v1.PolicyService/GetPolicyVersion"
+	PolicyService_DeployPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/DeployPolicy"
+	PolicyService_ReplayPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/ReplayPolicy"
+	PolicyService_GetPolicyVersionReplay_FullMethodName = "/strata.admin.v1.PolicyService/GetPolicyVersionReplay"
 )
 
 // PolicyServiceClient is the client API for PolicyService service.
@@ -35,8 +37,9 @@ const (
 // PolicyService edits policies and deploys them as signed bundles
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
-// one is refused with ABORTED (HTTP 409). Approval (four eyes) and replay
-// come with later tasks.
+// one is refused with ABORTED (HTTP 409). Each new version is replayed
+// against the traffic samples on its own (W13-G2-01); approval (four eyes)
+// comes with W13-G2-02.
 type PolicyServiceClient interface {
 	// REST: GET /v1/policies
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
@@ -54,6 +57,14 @@ type PolicyServiceClient interface {
 	// current version of every policy, signs it and stores it in object
 	// storage.
 	DeployPolicy(ctx context.Context, in *DeployPolicyRequest, opts ...grpc.CallOption) (*DeployPolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
+	// version (0: the newest) against the bundle in force, on the policy's
+	// traffic samples of the last 7 days and the corpus; follow it with
+	// GET /v1/operations/{operation_id}.
+	ReplayPolicy(ctx context.Context, in *ReplayPolicyRequest, opts ...grpc.CallOption) (*ReplayPolicyResponse, error)
+	// REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
+	// newest replay of the version, done or not; NOT_FOUND when there is none.
+	GetPolicyVersionReplay(ctx context.Context, in *GetPolicyVersionReplayRequest, opts ...grpc.CallOption) (*GetPolicyVersionReplayResponse, error)
 }
 
 type policyServiceClient struct {
@@ -134,6 +145,26 @@ func (c *policyServiceClient) DeployPolicy(ctx context.Context, in *DeployPolicy
 	return out, nil
 }
 
+func (c *policyServiceClient) ReplayPolicy(ctx context.Context, in *ReplayPolicyRequest, opts ...grpc.CallOption) (*ReplayPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReplayPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_ReplayPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) GetPolicyVersionReplay(ctx context.Context, in *GetPolicyVersionReplayRequest, opts ...grpc.CallOption) (*GetPolicyVersionReplayResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPolicyVersionReplayResponse)
+	err := c.cc.Invoke(ctx, PolicyService_GetPolicyVersionReplay_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PolicyServiceServer is the server API for PolicyService service.
 // All implementations must embed UnimplementedPolicyServiceServer
 // for forward compatibility.
@@ -141,8 +172,9 @@ func (c *policyServiceClient) DeployPolicy(ctx context.Context, in *DeployPolicy
 // PolicyService edits policies and deploys them as signed bundles
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
-// one is refused with ABORTED (HTTP 409). Approval (four eyes) and replay
-// come with later tasks.
+// one is refused with ABORTED (HTTP 409). Each new version is replayed
+// against the traffic samples on its own (W13-G2-01); approval (four eyes)
+// comes with W13-G2-02.
 type PolicyServiceServer interface {
 	// REST: GET /v1/policies
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
@@ -160,6 +192,14 @@ type PolicyServiceServer interface {
 	// current version of every policy, signs it and stores it in object
 	// storage.
 	DeployPolicy(context.Context, *DeployPolicyRequest) (*DeployPolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
+	// version (0: the newest) against the bundle in force, on the policy's
+	// traffic samples of the last 7 days and the corpus; follow it with
+	// GET /v1/operations/{operation_id}.
+	ReplayPolicy(context.Context, *ReplayPolicyRequest) (*ReplayPolicyResponse, error)
+	// REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
+	// newest replay of the version, done or not; NOT_FOUND when there is none.
+	GetPolicyVersionReplay(context.Context, *GetPolicyVersionReplayRequest) (*GetPolicyVersionReplayResponse, error)
 	mustEmbedUnimplementedPolicyServiceServer()
 }
 
@@ -190,6 +230,12 @@ func (UnimplementedPolicyServiceServer) GetPolicyVersion(context.Context, *GetPo
 }
 func (UnimplementedPolicyServiceServer) DeployPolicy(context.Context, *DeployPolicyRequest) (*DeployPolicyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployPolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) ReplayPolicy(context.Context, *ReplayPolicyRequest) (*ReplayPolicyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReplayPolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) GetPolicyVersionReplay(context.Context, *GetPolicyVersionReplayRequest) (*GetPolicyVersionReplayResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPolicyVersionReplay not implemented")
 }
 func (UnimplementedPolicyServiceServer) mustEmbedUnimplementedPolicyServiceServer() {}
 func (UnimplementedPolicyServiceServer) testEmbeddedByValue()                       {}
@@ -338,6 +384,42 @@ func _PolicyService_DeployPolicy_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PolicyService_ReplayPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplayPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).ReplayPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_ReplayPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).ReplayPolicy(ctx, req.(*ReplayPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_GetPolicyVersionReplay_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPolicyVersionReplayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).GetPolicyVersionReplay(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_GetPolicyVersionReplay_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).GetPolicyVersionReplay(ctx, req.(*GetPolicyVersionReplayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PolicyService_ServiceDesc is the grpc.ServiceDesc for PolicyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -372,6 +454,14 @@ var PolicyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeployPolicy",
 			Handler:    _PolicyService_DeployPolicy_Handler,
+		},
+		{
+			MethodName: "ReplayPolicy",
+			Handler:    _PolicyService_ReplayPolicy_Handler,
+		},
+		{
+			MethodName: "GetPolicyVersionReplay",
+			Handler:    _PolicyService_GetPolicyVersionReplay_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
