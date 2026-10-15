@@ -297,5 +297,6 @@ Of the 392 rules, 233 are CRS plumbing (paranoia level checks, initialization: n
 | 930120 | Strata tuning: "program files" listed as "program files/", so that prose naming the directory does not match |
 | 932250 | Strata tuning: the value must also be the command alone or hold shell or path syntax (prose such as "ls 300 lexus" starts with a command name) |
 | 941210 | Strata tuning: the value must also hold (, ` or = after the rule's transforms (prose such as "JavaScript: Basics of JavaScript" names the word) |
+| 941390 | Strata tuning: the function must also be called as code (prose such as "Set an alert (daily)" puts a word in brackets after it) |
 | 942100 | Strata tuning: the value libinjection flags must also hold, before its first SQL comment (-- or #), a quote, a parenthesis, =, ;, or an SQL keyword with another keyword or a number (prose such as "50% off -- today only. drop me a line" or "john+or@var.es" is flagged by libinjection alone) |
 | 942190 | Strata tuning: between union and select only spaces, (, ALL or DISTINCT, or one run without spaces (prose such as "union was a great select" has words between them) |

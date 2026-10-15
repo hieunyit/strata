@@ -501,6 +501,13 @@ const shellSignal = `^[\s\x0b]*[^\s\x0b]+[\s\x0b]*$|[-/\x5c~|;&$\x60<>*?'"(){}\[
 // obfuscated word (a tab or newline between two of its letters, an entity).
 const jsSignal = `(?i)[(\x60=]|[a-z][\t\n\r]+[a-z:]|&(?:tab|newline|colon);|&#`
 
+// jsCallSignal, for 941390 (see tune): the function name is called as
+// code: right against "(" or "{"; before "{" after spaces ("import { a, b }
+// from", CRS test 941390-11); or before "(" after spaces with an argument
+// that starts with something other than a letter or with a name followed by
+// ".", "(" or "[" ("alert (document.cookie)").
+const jsCallSignal = `(?i)\b(?:eval|set(?:timeout|interval)|new[\s\x0b]+function|a(?:lert|tob)|btoa|(?:promp|impor)t|con(?:firm|sole\.(?:log|dir))|fetch)(?:[\(\{]|[\s\x0b]+\{|[\s\x0b]+\([\s\x0b]*(?:[^\sa-z_$]|[a-z_$][0-9a-z_$]*[\s\x0b]*[.\(\[]))`
+
 // 942190's "union, any words, select" and what Strata allows instead.
 const (
 	unionAnyWords = `union(?:[\s\x0b]select[\s\x0b]@|[\s\x0b\(0-9A-Z_a-z]*?select)`
@@ -531,6 +538,15 @@ const (
 //     to call or assign anything, or the word is obfuscated (a tab or a
 //     newline inside it, an entity left: "ja&tab;vascript:"), which prose
 //     never is (jsSignal).
+//   - 941390 (JavaScript method) matches prose that puts a word in
+//     brackets after alert, confirm, prompt or fetch: "Set an alert
+//     (daily)", "please confirm (yes or no)" (prod-sim, 15/10/2026).
+//     Strata adds a condition, after the rule's transforms: the name is
+//     right against its bracket, or the bracket opens on something other
+//     than a word, or on a name followed by ".", "(" or "[" (jsCallSignal).
+//     CRS's own test 941390-10, a known false positive of prose ("willing
+//     to import (and perhaps wait"), no longer matches: the one go-ftw test
+//     this tuning gives up.
 //   - 942190 (MSSQL, "union ... select") allows any words between union
 //     and select: "union was a great select". Strata allows one run without
 //     spaces right after union (what is left of a comment once
@@ -564,17 +580,21 @@ func tune(id int, ir map[string]any, notes *[]string) {
 			"targets":  []any{map[string]any{"var": "matched_vars"}},
 		})
 		*notes = append(*notes, "Strata tuning: the value must also be the command alone or hold shell or path syntax (prose such as \"ls 300 lexus\" starts with a command name)")
-	case 941210:
+	case 941210, 941390:
+		signal, why := jsSignal, "Strata tuning: the value must also hold (, ` or = after the rule's transforms (prose such as \"JavaScript: Basics of JavaScript\" names the word)"
+		if id == 941390 {
+			signal, why = jsCallSignal, "Strata tuning: the function must also be called as code (prose such as \"Set an alert (daily)\" puts a word in brackets after it)"
+		}
 		first, _ := all[0].(map[string]any)
 		c := map[string]any{
-			"operator": map[string]any{"type": "rx", "value": jsSignal},
+			"operator": map[string]any{"type": "rx", "value": signal},
 			"targets":  []any{map[string]any{"var": "matched_vars"}},
 		}
 		if tr, ok := first["transforms"]; ok {
 			c["transforms"] = tr
 		}
 		m["all"] = append(all, c)
-		*notes = append(*notes, "Strata tuning: the value must also hold (, ` or = after the rule's transforms (prose such as \"JavaScript: Basics of JavaScript\" names the word)")
+		*notes = append(*notes, why)
 	case 942190:
 		for _, c := range all {
 			cm, _ := c.(map[string]any)
