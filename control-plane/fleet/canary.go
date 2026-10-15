@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
+	"github.com/strata/strata/agent/pkg/stats"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -28,9 +30,19 @@ import (
 //   - blocks: the two groups split clients at random, so a policy that
 //     blocks by mistake moves both the same way. The canary's block rate is
 //     compared with the "would block" level of the canary policies learnt
-//     over the last hour instead (blocked + logged, both groups; a moving
-//     average over the windows that did not trip): over 3 times that level
-//     and over 1%.
+//     over the last hour instead (blocks + would-be blocks logged, both
+//     groups; a moving average over the windows that did not trip): over 3
+//     times that level and over 1%, and improbable under it (one-sided
+//     Poisson test, p < 1e-6).
+//
+//     #74: the blocks and would-be blocks are counted from the events the
+//     nodes send (ObserveEvent: client address, canary side), at most 3 per
+//     client address (IPv6 per /64) and window over the whole group: a few
+//     clients sending a flood of blocked payloads through every node cannot
+//     force the group's canary policies into shadow; a policy blocking real
+//     users blocks many addresses. The requests stay the heartbeat
+//     counters. A real attack from many addresses (a botnet) can still
+//     trip it; events lost on the way only lower the counts.
 //
 // Each group needs 200 requests in the window. On a trip every canary
 // policy (current version with canary_percent) is forced into shadow on
@@ -65,6 +77,9 @@ type CanaryOptions struct {
 	Warmup      int           // evaluations learnt before blocks may trip, 12
 	BlockFactor float64       // 3
 	BlockFloor  float64       // 1%
+	PValue      float64       // Poisson tail a block count must be under, 1e-6 (#74)
+	SourceCap   uint64        // blocks of one client address counted per window, 3 (#74)
+	MaxSources  int           // addresses tracked per group and interval, 4096; each further one counts once
 	Renew       time.Duration // 12 h
 	Hold        time.Duration // ForceShadow duration, 24 h (the most a command takes)
 }
@@ -91,6 +106,15 @@ func (o CanaryOptions) withDefaults() CanaryOptions {
 	}
 	if o.BlockFloor <= 0 {
 		o.BlockFloor = 0.01
+	}
+	if o.PValue <= 0 || o.PValue >= 1 {
+		o.PValue = 1e-6
+	}
+	if o.SourceCap == 0 {
+		o.SourceCap = 3
+	}
+	if o.MaxSources <= 0 {
+		o.MaxSources = 4096
 	}
 	return o
 }
@@ -172,8 +196,17 @@ type canaryDelta struct {
 	c, s groupCounts
 }
 
+// sourceBucket: one interval's blocks and would-be blocks by client
+// address (#74): [canary blocks, canary would, shadow would].
+type sourceBucket struct {
+	at   time.Time
+	n    map[string]*[3]uint64
+	over [3]uint64 // addresses past MaxSources, one each
+}
+
 type groupState struct {
 	deltas  []canaryDelta
+	buckets []*sourceBucket
 	ref     float64 // learnt would-block share
 	learnt  int
 	tripped bool
@@ -235,6 +268,79 @@ func (m *CanaryMonitor) Observe(node, group string, nc *fleetv1.NodeCounters, at
 	st.deltas = append(st.deltas, d)
 }
 
+// ObserveEvent counts an event a node sent (#74): a block (Block ID STR-,
+// action BLOCK) or a would-be block logged in shadow (EVT-, LOG, rules,
+// would_block) of a policy with an enforce canary, by client address and
+// canary side. Events older than the window (a spool sent late) and nodes
+// without a heartbeat yet are left out.
+func (m *CanaryMonitor) ObserveEvent(node string, ev *eventv1.Event, at time.Time) {
+	block := ev.GetAction() == eventv1.Action_ACTION_BLOCK && strings.HasPrefix(ev.GetBlockId(), "STR-")
+	would := ev.GetAction() == eventv1.Action_ACTION_LOG && strings.HasPrefix(ev.GetBlockId(), "EVT-") &&
+		len(ev.GetRuleIds()) > 0 && ev.GetWouldBlock()
+	var i int // [canary blocks, canary would, shadow would]
+	switch g := ev.GetCanary(); {
+	case g == eventv1.CanaryGroup_CANARY_GROUP_ENFORCE && block:
+		i = 0
+	case g == eventv1.CanaryGroup_CANARY_GROUP_ENFORCE && would:
+		i = 1
+	case g == eventv1.CanaryGroup_CANARY_GROUP_SHADOW && would:
+		i = 2
+	default:
+		return
+	}
+	if t := ev.GetTimeUnixMs(); t > 0 && at.Sub(time.UnixMilli(int64(t))) > m.o.Window {
+		return
+	}
+	k := stats.SourceKey(ev.GetClientIp())
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ns, ok := m.nodes[node]
+	if !ok {
+		return
+	}
+	st := m.group(ns.group)
+	var b *sourceBucket
+	if n := len(st.buckets); n > 0 && at.Sub(st.buckets[n-1].at) < m.o.Interval {
+		b = st.buckets[n-1]
+	} else {
+		b = &sourceBucket{at: at, n: map[string]*[3]uint64{}}
+		st.buckets = append(st.buckets, b)
+	}
+	c, ok := b.n[k]
+	if !ok {
+		if len(b.n) >= m.o.MaxSources {
+			b.over[i]++
+			return
+		}
+		c = new([3]uint64)
+		b.n[k] = c
+	}
+	c[i]++
+}
+
+// bySource sums the buckets of the window, each address counted at most
+// SourceCap times: canary blocks, would-be blocks of both sides (blocks
+// included).
+func (m *CanaryMonitor) bySource(st *groupState) (blocked, would uint64) {
+	sum := map[string][3]uint64{}
+	for _, b := range st.buckets {
+		for k, c := range b.n {
+			s := sum[k]
+			for i := range s {
+				s[i] += c[i]
+			}
+			sum[k] = s
+		}
+		blocked += b.over[0]
+		would += b.over[0] + b.over[1] + b.over[2]
+	}
+	for _, c := range sum {
+		blocked += min(c[0], m.o.SourceCap)
+		would += min(c[0]+c[1]+c[2], m.o.SourceCap)
+	}
+	return blocked, would
+}
+
 // Forget drops a node (revoked, or disconnected for good).
 func (m *CanaryMonitor) Forget(node string) {
 	m.mu.Lock()
@@ -271,31 +377,36 @@ func (m *CanaryMonitor) Run(ctx context.Context) {
 
 // verdict of one group's window.
 type canaryVerdict struct {
-	reason string
-	detail map[string]any
-	would  float64 // would-block share of the window, to learn
-	enough bool
+	srcBlocked, srcWould uint64 // by source (#74)
+	reason               string
+	detail               map[string]any
+	would                float64 // would-block share of the window, to learn
+	enough               bool
 }
 
-func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts) canaryVerdict {
-	v := canaryVerdict{}
+func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts, srcBlocked, srcWould uint64) canaryVerdict {
+	v := canaryVerdict{srcBlocked: srcBlocked, srcWould: srcWould}
 	if c.req < m.o.MinRequests || s.req < m.o.MinRequests {
 		return v
 	}
 	v.enough = true
 	rate := func(a, n uint64) float64 { return float64(a) / float64(n) }
-	v.would = rate(c.blocked+c.logged+s.blocked+s.logged, c.req+s.req)
+	v.would = rate(srcWould, c.req+s.req)
 	c5, s5 := rate(c.x5, c.req), rate(s.x5, s.req)
 	cp, sp := c.p99(), s.p99()
-	cb := rate(c.blocked, c.req)
+	// expected blocks: the learnt level, at least BlockFloor / BlockFactor
+	// so that a trip is also over BlockFloor
+	lambda := max(st.ref, m.o.BlockFloor/m.o.BlockFactor) * float64(c.req)
+	pv := stats.PoissonTail(srcBlocked, lambda)
 	v.detail = map[string]any{"canary_requests": c.req, "shadow_requests": s.req, "canary_5xx": c5, "shadow_5xx": s5,
-		"canary_p99_s": cp, "shadow_p99_s": sp, "canary_block": cb, "would_block_ref": st.ref, "learnt": st.learnt}
+		"canary_p99_s": cp, "shadow_p99_s": sp, "canary_block": rate(c.blocked, c.req),
+		"canary_block_by_source": rate(srcBlocked, c.req), "block_p_value": pv, "would_block_ref": st.ref, "learnt": st.learnt}
 	switch {
 	case c5-s5 >= 0.01 && c5 >= 2*s5:
 		v.reason = Trip5xx
 	case cp >= 1.5*sp && cp-sp >= 0.050:
 		v.reason = TripLatency
-	case st.learnt >= m.o.Warmup && cb > m.o.BlockFactor*st.ref && cb > m.o.BlockFloor:
+	case st.learnt >= m.o.Warmup && float64(srcBlocked) > m.o.BlockFactor*lambda && pv < m.o.PValue:
 		v.reason = TripBlockRate
 	}
 	return v
@@ -324,6 +435,7 @@ func (m *CanaryMonitor) Tick(ctx context.Context) error {
 		if st.tripped && !isHeld {
 			// cleared: what the window saw belongs to the trip
 			st.deltas = nil
+			st.buckets = nil
 		}
 		st.tripped = isHeld
 		cut := 0
@@ -331,6 +443,11 @@ func (m *CanaryMonitor) Tick(ctx context.Context) error {
 			cut++
 		}
 		st.deltas = st.deltas[cut:]
+		cut = 0
+		for cut < len(st.buckets) && now.Sub(st.buckets[cut].at) > m.o.Window {
+			cut++
+		}
+		st.buckets = st.buckets[cut:]
 		if st.tripped {
 			continue
 		}
@@ -339,7 +456,8 @@ func (m *CanaryMonitor) Tick(ctx context.Context) error {
 			c.add(d.c)
 			s.add(d.s)
 		}
-		v := m.judge(st, c, s)
+		sb, sw := m.bySource(st)
+		v := m.judge(st, c, s, sb, sw)
 		switch {
 		case v.reason != "":
 			trips = append(trips, trip{g, v})

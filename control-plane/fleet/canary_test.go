@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/control-plane/store"
 )
@@ -93,6 +94,10 @@ type traffic struct {
 	block, log, x float64 // shares: canary blocks, shadow logs, 5xx
 	x5shadow      float64
 	slow          bool // canary requests take 300 ms instead of 3 ms
+	// attackers: the blocks and would-be blocks come from this many client
+	// addresses, the same through every node (#74); 0: each from a client
+	// of its own
+	attackers int
 }
 
 // sim drives n nodes of one group sending heartbeats every 15 s (spread
@@ -107,6 +112,7 @@ type sim struct {
 	accs   map[string]*[2]acc
 	next   map[string]time.Time
 	rng    *rand.Rand
+	ips    int // client addresses handed out
 }
 
 func newSim(t *testing.T, n int, o CanaryOptions) *sim {
@@ -129,7 +135,9 @@ func newSim(t *testing.T, n int, o CanaryOptions) *sim {
 // acc keeps the fractions of one group's counters between seconds.
 type acc struct{ blocked, logged, x5 float64 }
 
-func addGroup(c *fleetv1.CanaryCounters, a *acc, n uint64, blocked, logged, x5 float64, slow bool) {
+// addGroup adds one second of traffic; returns the new blocks and logs.
+func addGroup(c *fleetv1.CanaryCounters, a *acc, n uint64, blocked, logged, x5 float64, slow bool) (uint64, uint64) {
+	b0, l0 := c.Blocked, c.Logged
 	c.Requests += n
 	a.blocked += blocked * float64(n)
 	a.logged += logged * float64(n)
@@ -139,6 +147,27 @@ func addGroup(c *fleetv1.CanaryCounters, a *acc, n uint64, blocked, logged, x5 f
 		c.Latency[6] += n // 300 ms: the 500 ms bucket
 	} else {
 		c.Latency[0] += n
+	}
+	return c.Blocked - b0, c.Logged - l0
+}
+
+// events: the node's new blocks (canary side) and would-be blocks logged
+// (shadow side) as events, to the monitor.
+func (s *sim) events(node string, blocks, logs uint64, attackers int) {
+	ip := func() string {
+		if attackers > 0 {
+			return fmt.Sprintf("203.0.113.%d", s.rng.Intn(attackers))
+		}
+		s.ips++
+		return fmt.Sprintf("10.%d.%d.%d", s.ips>>16&255, s.ips>>8&255, s.ips&255)
+	}
+	for i := uint64(0); i < blocks; i++ {
+		s.m.ObserveEvent(node, &eventv1.Event{BlockId: "STR-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_BLOCK,
+			ClientIp: ip(), RuleIds: []uint32{942100}, Canary: eventv1.CanaryGroup_CANARY_GROUP_ENFORCE}, s.now)
+	}
+	for i := uint64(0); i < logs; i++ {
+		s.m.ObserveEvent(node, &eventv1.Event{BlockId: "EVT-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_LOG,
+			ClientIp: ip(), RuleIds: []uint32{942100}, WouldBlock: true, Canary: eventv1.CanaryGroup_CANARY_GROUP_SHADOW}, s.now)
 	}
 }
 
@@ -158,8 +187,9 @@ func (s *sim) run(d time.Duration, tr traffic) time.Time {
 				a = &[2]acc{f(), f()}
 				s.accs[id] = a
 			}
-			addGroup(c.Canary, &a[0], tr.req, tr.block, 0, tr.x, tr.slow)
-			addGroup(c.CanaryShadow, &a[1], tr.req, 0, tr.log, tr.x5shadow, false)
+			nb, _ := addGroup(c.Canary, &a[0], tr.req, tr.block, 0, tr.x, tr.slow)
+			_, nl := addGroup(c.CanaryShadow, &a[1], tr.req, 0, tr.log, tr.x5shadow, false)
+			s.events(id, nb, nl, tr.attackers)
 			if !s.now.Before(s.next[id]) {
 				s.m.Observe(id, "edge", c, s.now)
 				s.next[id] = s.next[id].Add(15 * time.Second)
@@ -346,6 +376,7 @@ func TestHeartbeatsTripAndForceShadowReachesTheNodes(t *testing.T) {
 	e.addr = serveServer(t, e.p, e.srv)
 
 	var streams []fleetv1.FleetService_ConnectClient
+	var clients []fleetv1.FleetServiceClient
 	for i := 0; i < 3; i++ {
 		tok := fmt.Sprintf("tok-%d", i)
 		e.reg.addToken(tok, time.Hour)
@@ -354,9 +385,28 @@ func TestHeartbeatsTripAndForceShadowReachesTheNodes(t *testing.T) {
 			t.Fatal(err)
 		}
 		cs.nodes["lab"] = append(cs.nodes["lab"], r.GetNodeId())
-		st, cancel := connect(t, dial(t, e.p, e.addr, &pair), true)
+		cl := dial(t, e.p, e.addr, &pair)
+		st, cancel := connect(t, cl, true)
 		t.Cleanup(cancel)
 		streams = append(streams, st)
+		clients = append(clients, cl)
+	}
+	// each node sends n blocks of the canary side, from addrs addresses
+	seq := uint64(0)
+	blocks := func(n, addrs int) {
+		seq++
+		for _, cl := range clients {
+			var evs []*eventv1.Event
+			for i := 0; i < n; i++ {
+				ev := event("STR-8F3K-Q2VD-7XNM-A1PC")
+				ev.ClientIp = fmt.Sprintf("198.51.100.%d", i%addrs)
+				ev.Canary = eventv1.CanaryGroup_CANARY_GROUP_ENFORCE
+				evs = append(evs, ev)
+			}
+			if _, err := push(t, cl, &fleetv1.EventBatch{Seq: seq, Events: evs}); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	heartbeat := func(n uint64, blocked, logged uint64) {
 		for _, st := range streams {
@@ -382,8 +432,17 @@ func TestHeartbeatsTripAndForceShadowReachesTheNodes(t *testing.T) {
 	if err := mon.Tick(t.Context()); err != nil || len(cs.trips) != 0 {
 		t.Fatalf("normal: %v %+v", err, cs.trips)
 	}
+	// #74: 60% of the canary blocked, every block from one address (a
+	// flood through every node): counted 3 times in all, no trip
+	heartbeat(200, 60, 60)
+	blocks(60, 1)
+	time.Sleep(100 * time.Millisecond)
+	if err := mon.Tick(t.Context()); err != nil || len(cs.trips) != 0 {
+		t.Fatalf("flood from one address: %v %+v", err, cs.trips)
+	}
 	start := time.Now()
-	heartbeat(200, 60, 60) // 60% of the canary blocked
+	heartbeat(300, 120, 120) // 60% of the canary blocked, from 60 addresses
+	blocks(60, 60)
 	time.Sleep(100 * time.Millisecond)
 	if err := mon.Tick(t.Context()); err != nil || len(cs.trips) != 1 || cs.trips[0].GroupID != "lab" {
 		t.Fatalf("bad bundle: %v %+v", err, cs.trips)
@@ -402,4 +461,36 @@ func TestHeartbeatsTripAndForceShadowReachesTheNodes(t *testing.T) {
 		}
 	}
 	t.Logf("every node had its ForceShadow %v after the bad heartbeat", time.Since(start).Round(time.Millisecond))
+}
+
+// #74: a few clients sending a flood of blocked payloads through every
+// node of the group count 3 blocks each per window: no trip, and the
+// learnt level does not rise. The same share of blocks from many clients
+// (a policy blocking real users) still trips.
+func TestFloodFromFewSourcesDoesNotTrip(t *testing.T) {
+	s := newSim(t, 20, CanaryOptions{})
+	normal := traffic{req: 10, block: 0.005, log: 0.005}
+	s.run(20*time.Minute, normal)
+	ref := s.m.groups["edge"].ref
+	for _, n := range []int{1, 5, 20} {
+		// 40% of the canary's requests blocked, from n addresses
+		if at := s.run(10*time.Minute, traffic{req: 10, block: 0.4, log: 0.005, attackers: n}); !at.IsZero() {
+			t.Fatalf("a flood from %d addresses tripped at %v", n, at)
+		}
+	}
+	if got := s.m.groups["edge"].ref; got > 2*ref {
+		t.Fatalf("learnt level rose from %v to %v", ref, got)
+	}
+	if at := s.run(2*time.Minute, traffic{req: 10, block: 0.4, log: 0.4}); at.IsZero() {
+		t.Fatal("blocks from many clients did not trip after the flood")
+	}
+}
+
+// #74: at low traffic the Poisson test keeps chance from tripping (a
+// fixed ratio on a few expected blocks would).
+func TestLowTrafficDoesNotTripByChance(t *testing.T) {
+	s := newSim(t, 2, CanaryOptions{})
+	if at := s.run(24*time.Hour, traffic{req: 2, block: 0.01, log: 0.01}); !at.IsZero() {
+		t.Fatalf("tripped by chance at %v", at)
+	}
 }

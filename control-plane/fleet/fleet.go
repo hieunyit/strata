@@ -716,6 +716,13 @@ func (s *Server) PushEvents(st fleetv1.FleetService_PushEventsServer) error {
 			// slows down and resends from its last ack.
 			return status.Errorf(codes.ResourceExhausted, "ingest: %v", err)
 		}
+		// blocks by source for the cluster canary tier (#74): once, with the
+		// batch that is new
+		if ack.Success && !ack.Duplicate && s.cfg.Canary != nil {
+			for _, ev := range b.GetEvents() {
+				s.cfg.Canary.ObserveEvent(node, ev, s.cfg.Now())
+			}
+		}
 		// samples are best effort: taken once, with the batch that is new
 		if samples := b.GetSamples(); len(samples) > 0 && ack.Success && !ack.Duplicate && s.cfg.Samples != nil {
 			s.cfg.Samples.Add(ctx, node, samples)
