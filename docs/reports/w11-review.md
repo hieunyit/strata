@@ -33,7 +33,7 @@ bản sửa soak (#77). Chạy trên nhân 6–10, không chạy benchmark.
 
 | # | Mức | Phát hiện | Xử lý |
 | --- | --- | --- | --- |
-| 1 | **Cao** | `make check-c-lines`: **2.999 / 3.000** dòng thực sau tuần 12 sớm (#76). Thay đổi C tiếp theo sẽ đỏ | **PO quyết ngày 15/10: không nâng giới hạn; mọi logic mới đặt trong libstrata.** Đã báo các phiên đang làm |
+| 1 | **Cao** | `make check-c-lines`: **2.999 / 3.000** dòng thực sau tuần 12 sớm (#76). Thay đổi C tiếp theo sẽ đỏ | **PO quyết ngày 15/10: không nâng giới hạn; mọi logic mới đặt trong libstrata.** Đã báo các phiên đang làm. **Cập nhật cùng ngày: PO nâng giới hạn lên 4.000** (`Makefile` `C_LINES_MAX`, CLAUDE.md); logic mới vẫn ưu tiên libstrata |
 | 2 | TB | Test Playwright lab "a deploy shows node by node on the Fleet page" hỏng: lab có 30 node bị thu hồi (từ các lần thử gói W10-N-01) đứng đầu bảng Fleet, mà test đọc dòng đầu | Sửa test: chỉ đọc node online. UI xếp node bị thu hồi trước node online; nên đưa node online lên đầu (việc của luồng UI) |
 | 3 | **Cao** (Gate A) | Soak 24 giờ FAIL: RSS worker +18 MB mỗi lần nạp gói đầy đủ, do arena glibc theo luồng thread pool | Đã sửa và đo (PR #77); soak 24 giờ mới chạy trên CPU 11–13 tới khoảng 15/10 23:45 UTC |
 | 4 | TB | Ba lỗi trong `deploy.sh` / `pilot.sh`: ghi đè `$d`; node thí điểm chạy module cũ chặn rollout; `pilot.sh` thoát im lặng | Đã sửa trong tuần (PR #69, #71) |
