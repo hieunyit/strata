@@ -46,6 +46,10 @@ message Event {
   bool would_block = 21;
   // Side of the policy's enforce canary the client fell on (W12-G2-01).
   CanaryGroup canary = 22;
+  // W13-R-02: in the event of a sampled transaction (1% by default), its
+  // most expensive rules, at most 8, most expensive first; rule_id 0 is the
+  // prefilter's scans, shared by every rule. Empty when not sampled.
+  repeated RuleCost rule_costs = 23;
 }
 
 message Header {
@@ -129,6 +133,22 @@ message PolicyCounters {
   string node_id = 2;
   uint64 bundle_version = 3;
   repeated PolicyCount policies = 4;
+  // W13-R-02: engine time by rule over the transactions sampled since the
+  // last counters (1% by default), most expensive first; rule_id 0 is the
+  // prefilter's scans. At most 64 rules a datagram: the others go next time.
+  repeated RuleCost rule_costs = 5;
+  uint64 sampled_requests = 6;
+  // engine time of the sampled transactions, all of it (the share of each
+  // rule is its total_ns over this)
+  uint64 sampled_engine_ns = 7;
+}
+
+// Samples of one rule's evaluation time (W13-R-02).
+message RuleCost {
+  uint32 rule_id = 1;  // 0: the prefilter's scans
+  uint64 samples = 2;  // times the rule was evaluated in sampled transactions
+  uint64 total_ns = 3;
+  uint64 max_ns = 4;
 }
 
 message PolicyCount {
