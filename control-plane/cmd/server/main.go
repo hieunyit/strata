@@ -154,6 +154,9 @@ func main() {
 		if err := chStore.EnsureTTL(ctx, *ttlDays); err != nil {
 			log.Fatalf("[FATAL] %v", err)
 		}
+		if err := chStore.EnsurePolicyRequests(ctx, *ttlDays); err != nil {
+			log.Fatalf("[FATAL] ClickHouse: %v", err)
+		}
 		store = chStore
 	}
 
@@ -382,6 +385,11 @@ func main() {
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
 		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
+		// requests per policy from the heartbeats (RV-N-01)
+		if sink, ok := store.(fleet.PolicyRequestsSink); ok {
+			fcfg.PolicyRequests = fleet.NewPolicyRequestsRecorder(sink)
+			go fcfg.PolicyRequests.Run(ctx)
+		}
 		if objects != nil {
 			fcfg.Objects = objects
 			// replay samples from the nodes, as sample files (W12-N-01)

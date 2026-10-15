@@ -512,6 +512,8 @@ type MockEventStore struct {
 	saveErr      error
 	saveCount    int
 	onSaveEvents func(events []Event)
+	// RV-N-01
+	policyRequests []PolicyRequests
 }
 
 // NewMockEventStore initializes an in-memory mock store.

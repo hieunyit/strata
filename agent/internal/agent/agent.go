@@ -30,6 +30,7 @@ import (
 	"github.com/strata/strata/agent/internal/forceshadow"
 	"github.com/strata/strata/agent/internal/identity"
 	"github.com/strata/strata/agent/internal/killswitch"
+	"github.com/strata/strata/agent/internal/policycount"
 	"github.com/strata/strata/agent/internal/pusher"
 	"github.com/strata/strata/agent/internal/replaysample"
 	"github.com/strata/strata/agent/internal/shmmetrics"
@@ -82,6 +83,8 @@ type Agent struct {
 	ForceShadow *forceshadow.Manager
 	// Fallback forces the node into shadow on its own; nil when off.
 	Fallback *fallback.Watcher
+	// policies sums the workers' per-policy request counts (RV-N-01).
+	policies *policycount.Totals
 	// KillSwitch applies DisableRules and EnableRules; nil without BundleDir.
 	KillSwitch *killswitch.Manager
 	// Replay applies SetReplaySampling; nil without BundleDir.
@@ -152,6 +155,7 @@ func New(cfg Config) (*Agent, error) {
 		started:  time.Now(),
 		identity: id,
 	}
+	a.policies = policycount.New(a.started)
 	a.dgramQlen = checkDgramQlen(procDgramQlen)
 	var bm *bundles.Manager
 	ctrl := &control.Controller{}
@@ -195,7 +199,8 @@ func New(cfg Config) (*Agent, error) {
 		Node: &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
-			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents}
+			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents,
+				Policies: a.policies.Snapshot(), AgentStartedMs: a.policies.StartedMs()}
 			if cfg.MetricsFile != "" {
 				if snap, err := shmmetrics.Read(cfg.MetricsFile); err == nil {
 					fillCounters(nc, snap)
@@ -221,6 +226,7 @@ func New(cfg Config) (*Agent, error) {
 	a.Control = ctrl
 	a.Bundles = bm
 	a.Registry.MustRegister(collector{a})
+	a.Registry.MustRegister(a.policies)
 	if cfg.MetricsFile != "" {
 		a.Registry.MustRegister(shmmetrics.NewCollector(cfg.MetricsFile))
 	}
@@ -243,6 +249,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	pushDone := make(chan error, 1)
 	go func() {
 		a.Socket.OnSample = func(s *eventv1.ReplaySample) { a.batch.AddSample(batchCtx, s) }
+		a.Socket.OnCounters = a.policies.Add // RV-N-01
 		sockDone <- a.Socket.Run(sockCtx, func(ev *eventv1.Event) {
 			if a.Fallback != nil {
 				a.Fallback.Observe(ev) // blocks by source (#65)

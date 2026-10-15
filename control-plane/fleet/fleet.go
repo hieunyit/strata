@@ -88,6 +88,9 @@ type Config struct {
 	Rollouts *Rollouts
 	// Canary, when set, gets every heartbeat's canary counters (W12-G2-01).
 	Canary *CanaryMonitor
+	// PolicyRequests, when set, gets every heartbeat's per-policy request
+	// counts (RV-N-01).
+	PolicyRequests *PolicyRequestsRecorder
 	// Samples, when set, gets the replay samples of the event batches that
 	// were not received before (W12-N-01); without it they are dropped.
 	Samples SampleSink
@@ -438,6 +441,9 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 				s.seen(ctx, id, "", "", "", &v)
 				if s.cfg.Canary != nil {
 					s.cfg.Canary.Observe(id, group, msg.Heartbeat.GetCounters(), s.cfg.Now())
+				}
+				if s.cfg.PolicyRequests != nil {
+					s.cfg.PolicyRequests.Observe(id, msg.Heartbeat.GetCounters(), s.cfg.Now())
 				}
 			case *fleetv1.AgentMessage_BundleStatus:
 				if !greeted {

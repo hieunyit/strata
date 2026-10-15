@@ -12,6 +12,7 @@ pub mod block_id;
 pub mod budget;
 pub mod bundle;
 pub mod canary;
+pub mod counters;
 pub mod detectors;
 pub mod engine;
 pub mod eval;

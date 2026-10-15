@@ -133,6 +133,9 @@ type Overview struct {
 	TopRoutes  []RouteCount   `json:"top_routes"`
 	// TopClients is nil when the filter did not ask for it.
 	TopClients []ClientCount `json:"top_clients,omitempty"`
+	// Inspection: per policy, the requests of the window and the share not
+	// fully inspected (RV-N-01), from the nodes' counters.
+	Inspection []PolicyInspection `json:"inspection"`
 }
 
 // StatsStore is implemented by the event stores that aggregate.
@@ -304,6 +307,7 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 		})
 		o.TopClients = o.TopClients[:min(TopN, len(o.TopClients))]
 	}
+	o.Inspection = m.policyInspection(f)
 	return o, nil
 }
 
@@ -409,6 +413,9 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 	}
 	if o.TopRoutes == nil {
 		o.TopRoutes = []RouteCount{}
+	}
+	if o.Inspection, err = s.policyInspection(ctx, f); err != nil {
+		return nil, fmt.Errorf("overview inspection: %w", err)
 	}
 	return o, nil
 }

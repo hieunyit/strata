@@ -107,7 +107,16 @@
     "allNodesOnline_other": "All {{count}} enrolled nodes are online.",
     "lastSeen": "seen {{when}}",
     "updated": "Updated at {{when}}",
-    "autoRefresh": "refreshes every 30 seconds"
+    "autoRefresh": "refreshes every 30 seconds",
+    "inspection": {
+      "title": "Requests not fully inspected",
+      "note": "by policy, all requests",
+      "policy": "Policy",
+      "requests": "Requests",
+      "notInspected": "Not inspected",
+      "breakdown": "CPU budget {{partial}} · body not inspected {{body}} · engine error {{error}} · degraded {{degraded}}",
+      "empty": "No request counts yet: nodes send them from module and agent RV-N-01 on."
+    }
   },
   "events": {
     "title": "Events",

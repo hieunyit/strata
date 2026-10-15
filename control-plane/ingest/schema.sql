@@ -67,3 +67,22 @@ ENGINE = ReplacingMergeTree(updated_at)
 PRIMARY KEY node_id
 ORDER BY node_id;
 
+
+-- RV-N-01: requests per node, policy and heartbeat interval, from the
+-- workers' counters (engine/src/counters.rs): the denominator of the share
+-- of requests not fully inspected. The control plane also creates it at
+-- start (ClickHouseStore.EnsurePolicyRequests).
+CREATE TABLE IF NOT EXISTS policy_requests (
+    timestamp        DateTime64(3, 'UTC') CODEC(DoubleDelta, ZSTD(1)),
+    node_id          LowCardinality(String),
+    policy_id        LowCardinality(String),
+    requests         UInt64 CODEC(T64, ZSTD(1)),
+    partial          UInt64 CODEC(T64, ZSTD(1)),
+    body_skipped     UInt64 CODEC(T64, ZSTD(1)),
+    error            UInt64 CODEC(T64, ZSTD(1)),
+    degraded         UInt64 CODEC(T64, ZSTD(1))
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (policy_id, timestamp)
+TTL timestamp + INTERVAL 90 DAY;

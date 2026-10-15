@@ -309,6 +309,43 @@ export interface components {
       /** Format: int64 */
       block: number;
     };
+    /** @description One policy's requests over the window, from the nodes' counters (RV-N-01), and of them the ones not fully inspected: the fail mode decided (CPU budget, body not inspected, engine error). */
+    OverviewPolicyInspection: {
+      /** @description Empty for requests whose strata_policy the node's bundle does not have. */
+      policy_id: string;
+      /** Format: int64 */
+      requests: number;
+      /**
+       * Format: int64
+       * @description partial + body_skipped + error.
+       */
+      not_inspected: number;
+      /**
+       * Format: int64
+       * @description The CPU budget ran out.
+       */
+      partial: number;
+      /**
+       * Format: int64
+       * @description The body, or part of it, was not inspected.
+       */
+      body_skipped: number;
+      /**
+       * Format: int64
+       * @description Another engine error.
+       */
+      error: number;
+      /**
+       * Format: int64
+       * @description Requests the worker's circuit breaker ran degraded (also counted in requests).
+       */
+      degraded: number;
+      /**
+       * Format: double
+       * @description not_inspected / requests (0 without requests).
+       */
+      share: number;
+    };
     OverviewResponse: {
       /** Format: date-time */
       from: string;
@@ -321,6 +358,8 @@ export interface components {
       series: components["schemas"]["OverviewBucket"][];
       top_rules: components["schemas"]["OverviewRuleCount"][];
       top_routes: components["schemas"]["OverviewRouteCount"][];
+      /** @description Per policy, the most requests first (at most 10); empty before the nodes send counters (module and agent from RV-N-01). */
+      inspection: components["schemas"]["OverviewPolicyInspection"][];
       /** @description Absent for callers without events:read_sensitive. */
       top_clients?: components["schemas"]["OverviewClientCount"][];
       /** @description Rule catalog entries of the top rules, keyed by Rule ID. */

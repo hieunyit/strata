@@ -822,6 +822,10 @@ pub unsafe extern "C" fn strata_tx_event(tx: *const TxHandle, dst: *mut u8, cap:
 /// on the event socket like an event: copied into `dst` when it fits `cap`.
 /// Returns its length (at most 8192), 0 when the transaction is not
 /// sampled. Call it once the request is done, after `strata_tx_event`.
+/// When the transaction is not sampled and `cap` is at least 8192, about
+/// once a second it gives the engine's per-policy request counts instead
+/// (RV-N-01, a datagram starting `\xffSC1`), sent the same way; a call
+/// with a smaller buffer never does, so a length query takes nothing.
 ///
 /// # Safety
 /// `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or
@@ -834,8 +838,18 @@ pub unsafe extern "C" fn strata_tx_sample(tx: *const TxHandle, dst: *mut u8, cap
     // SAFETY: live handle per contract.
     let t = unsafe { &*tx.cast::<Tx>() };
     guard(0, || {
-        let Some(b) = t.encode_sample() else {
-            return 0;
+        // no replay sample: about once a second, the engine's per-policy
+        // counts instead (RV-N-01), only into a buffer that holds a whole
+        // datagram, so that a length query never takes them
+        let b = match t.encode_sample() {
+            Some(b) => b,
+            None if !dst.is_null() && cap >= libstrata::event::MAX_DATAGRAM => {
+                match t.encode_counters() {
+                    Some(b) => b,
+                    None => return 0,
+                }
+            }
+            None => return 0,
         };
         if dst.is_null() || cap < b.len() {
             return b.len();

@@ -41,6 +41,8 @@ pub struct Engine {
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
     /// Replay sampling (W12-N-01), off by default.
     replay: std::sync::RwLock<Option<std::sync::Arc<ReplayConfig>>>,
+    /// Requests and inspection gaps per policy (RV-N-01).
+    counters: crate::counters::PolicyCounters,
 }
 
 /// Most rule IDs `set_disabled_rules` takes at once.
@@ -162,6 +164,7 @@ impl Engine {
             crate::operators::CompiledOperators::build(&tables).map_err(|e| (E_BUNDLE, e))?;
         let prefilter = crate::eval::Prefilter::build(&tables, &regexes);
         let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let n_policies = info.n_policies as usize;
         let engine = Engine {
             id,
             bytes: bundle,
@@ -176,12 +179,18 @@ impl Engine {
             privacy,
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
+            counters: crate::counters::PolicyCounters::new(n_policies),
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
         // with the full package (#49)
         engine.precompile_hot_regexes();
         Ok(engine)
+    }
+
+    /// Requests and inspection gaps per policy (RV-N-01).
+    pub fn counters(&self) -> &crate::counters::PolicyCounters {
+        &self.counters
     }
 
     /// Privacy settings of the policy at `index`, if it has some.

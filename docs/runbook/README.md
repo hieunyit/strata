@@ -41,6 +41,16 @@ mode hoặc vượt CPU budget.
    sự kiện vượt budget trên trang Sự kiện.
 3. `closed` trả 503 cho người dùng: nếu kéo dài, **ép shadow** cho policy đó trong lúc
    điều tra.
+4. Policy nào? Trang **Tổng quan**, bảng "Request không được kiểm đủ" (RV-N-01): số request
+   và tỉ lệ không kiểm đủ theo policy; di chuột lên tỉ lệ để thấy lý do (hết CPU budget, bỏ
+   qua body, lỗi engine). Cùng số trên Prometheus: `strata_policy_requests_total`,
+   `strata_policy_not_inspected_total{reason}` của từng agent.
+
+Nâng cấp node có RV-N-01: **agent trước, module sau**. Module mới gửi thêm datagram bộ đếm
+(`\xffSC1`) khoảng mỗi giây mỗi worker; agent cũ đếm chúng vào
+`strata_agent_events_invalid_total` (không mất sự kiện, nhưng số invalid tăng). Gói
+deb/rpm cài riêng từng phần nên cần theo thứ tự này; `deploy.sh` của staging/prod-sim nâng
+cả hai cùng lúc.
 
 ## Circuit breaker mở
 

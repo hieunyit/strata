@@ -33,11 +33,16 @@ type Counters struct {
 	Invalid   atomic.Uint64 // did not decode or failed validation
 	Truncated atomic.Uint64 // larger than MaxDatagram
 	Samples   atomic.Uint64 // replay samples (W12-N-01)
+	Policies  atomic.Uint64 // per-policy counters datagrams (RV-N-01)
 }
 
 // SampleMagic starts a replay sample datagram (libstrata's SAMPLE_MAGIC);
 // an Event never starts with 0xff.
 const SampleMagic = "\xffSR1"
+
+// CountersMagic starts a per-policy counters datagram (libstrata's
+// COUNTERS_MAGIC, RV-N-01). Agents before it count these as invalid.
+const CountersMagic = "\xffSC1"
 
 // Listener owns the datagram socket.
 type Listener struct {
@@ -47,6 +52,9 @@ type Listener struct {
 	// OnSample, when set before Run, gets the replay samples; without it
 	// they are dropped (counted as invalid).
 	OnSample func(*eventv1.ReplaySample)
+	// OnCounters, when set before Run, gets the per-policy counters
+	// datagrams; without it they are dropped (counted as invalid).
+	OnCounters func(*eventv1.PolicyCounters)
 }
 
 // Listen binds a Unix datagram socket at path, replacing a stale socket
@@ -107,6 +115,16 @@ func (l *Listener) Run(ctx context.Context, out func(*eventv1.Event)) error {
 			}
 			l.C.Samples.Add(1)
 			l.OnSample(s)
+			continue
+		}
+		if n >= len(CountersMagic) && string(buf[:len(CountersMagic)]) == CountersMagic {
+			c := &eventv1.PolicyCounters{}
+			if proto.Unmarshal(buf[len(CountersMagic):n], c) != nil || l.OnCounters == nil {
+				l.C.Invalid.Add(1)
+				continue
+			}
+			l.C.Policies.Add(1)
+			l.OnCounters(c)
 			continue
 		}
 		ev, ok := Decode(buf[:n])

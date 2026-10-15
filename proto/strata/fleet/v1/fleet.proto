@@ -98,6 +98,12 @@ message NodeCounters {
   CanaryCounters canary = 5;
   CanaryCounters canary_shadow = 6;
   uint64 metrics_created_ms = 7;
+  // RV-N-01: requests per policy from the workers' counters datagrams,
+  // summed since the agent started (agent_started_ms): the control plane
+  // takes the difference between heartbeats. Absent with a module older
+  // than RV-N-01.
+  repeated strata.event.v1.PolicyCount policies = 8;
+  uint64 agent_started_ms = 9;
 }
 
 // Counters of one canary group (docs/design/control-file.md, metrics file

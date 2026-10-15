@@ -84,5 +84,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
   `docs/reports/w09-q-01.md` §7). Gói đầy đủ: JSON nhỏ 1,6–2,7 ms, upload vài chục KB
   khoảng 20 ms trên staging. Đang làm: RV-R-01 (#27, #28).
 - **Request không được kiểm**: khi vượt budget thì request đi theo fail mode (mặc định là
-  cho qua). Tỉ lệ đó hiện chỉ thấy qua sự kiện `error` và metric
-  `strata_budget_exceeded_total`; cờ `inspection` theo route: RV-N-01.
+  cho qua). RV-N-01: sự kiện có cờ `inspection`; tỉ lệ request không được kiểm đủ **theo
+  policy** trên trang Tổng quan, mẫu số từ bộ đếm của libstrata (bảng ClickHouse
+  `policy_requests`, `nginx-module.md` › Sự kiện); theo route chỉ có số tuyệt đối. Có số
+  từ bản module và agent có RV-N-01 (staging sau 20/10).

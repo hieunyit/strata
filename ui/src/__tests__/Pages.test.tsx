@@ -39,6 +39,10 @@ describe('overview page (W10-F-01)', () => {
     top_routes: [{ policy_id: 'pilot-verify', host: 'api.example.test', path_prefix: '/v1/verify', events: 30, block: 28, shadow: 0, error: 2 }],
     top_clients: [{ client_ip: '198.51.100.1', events: 12, block: 12 }],
     rules: { '942100': { name: 'SQL Injection Attack Detected via libinjection' } },
+    inspection: [
+      { policy_id: 'pilot-upload', requests: 2000, not_inspected: 50, partial: 30, body_skipped: 15, error: 5, degraded: 0, share: 0.025 },
+      { policy_id: 'pilot-verify', requests: 1000, not_inspected: 0, partial: 0, body_skipped: 0, error: 0, degraded: 0, share: 0 },
+    ],
   };
   const fleet = () => {
     vi.spyOn(apiClient, 'listNodes').mockResolvedValue([
@@ -67,6 +71,13 @@ describe('overview page (W10-F-01)', () => {
     expect(screen.getByTestId('top-route')).toHaveTextContent('api.example.test/v1/verify');
     expect(screen.getAllByTestId('top-client')).toHaveLength(1);
     expect(screen.getByTestId('offline-nodes')).toHaveTextContent('edge-02');
+    // RV-N-01: requests per policy and the share not fully inspected
+    const [upload, verify] = screen.getAllByTestId('inspection-row');
+    expect(upload).toHaveAttribute('data-policy', 'pilot-upload');
+    expect(upload).toHaveTextContent('2,000');
+    expect(upload.querySelector('[data-testid="inspection-share"]')).toHaveTextContent('50 (2.5%)');
+    expect(upload.querySelector('[data-testid="inspection-share"]')).toHaveAttribute('title', expect.stringContaining('CPU budget 30'));
+    expect(verify).toHaveTextContent('0 (0%)');
     // 24 hours by default
     const p = get.mock.calls[0][0];
     expect(new Date(p.to).getTime() - new Date(p.from).getTime()).toBe(24 * 3_600_000);
@@ -101,7 +112,7 @@ describe('overview page (W10-F-01)', () => {
   });
 
   it('shows an empty window and API errors', async () => {
-    vi.spyOn(apiClient, 'getOverview').mockResolvedValueOnce({ ...overview, totals: { ...overview.totals, events: 0 }, top_rules: [], top_routes: [], top_clients: [] });
+    vi.spyOn(apiClient, 'getOverview').mockResolvedValueOnce({ ...overview, totals: { ...overview.totals, events: 0 }, top_rules: [], top_routes: [], top_clients: [], inspection: [] });
     fleet();
     render(<StaticAuthProvider roles={['operator']}><OverviewPage route={{ page: 'overview', query: { range: '30d' } }} /></StaticAuthProvider>);
     expect(await screen.findByTestId('overview-empty')).toHaveTextContent('No events in this window.');

@@ -119,3 +119,26 @@ message ReplaySample {
   CanaryGroup canary = 17;
   uint64 bundle_version = 18;
 }
+
+// Requests per policy of one NGINX worker since its last such datagram
+// (RV-N-01, engine/src/counters.rs): the denominator of the share of
+// requests not fully inspected. On the event socket it follows the 4 bytes
+// "\xffSC1"; about one per second per worker while it serves requests.
+message PolicyCounters {
+  uint64 time_unix_ms = 1;
+  string node_id = 2;
+  uint64 bundle_version = 3;
+  repeated PolicyCount policies = 4;
+}
+
+message PolicyCount {
+  // strata_policy of the location; empty: a name the bundle does not have
+  string policy = 1;
+  uint64 requests = 2;
+  // of requests: not fully inspected, by why (fail mode decided)
+  uint64 partial = 3;      // the CPU budget ran out
+  uint64 body_skipped = 4; // the body, or part of it, was not inspected
+  uint64 error = 5;        // another engine error
+  // of requests: run degraded by the worker's circuit breaker (W11-N-01)
+  uint64 degraded = 6;
+}

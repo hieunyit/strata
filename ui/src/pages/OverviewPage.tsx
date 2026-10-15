@@ -19,7 +19,7 @@ interface Data {
 
 async function load(range: RangeKey, policy: string): Promise<Data> {
   const o = await apiClient.getOverview({ ...windowOf(range), policy_id: policy || undefined });
-  const overview: Overview = { ...o, series: o.series ?? [], top_rules: o.top_rules ?? [], top_routes: o.top_routes ?? [] };
+  const overview: Overview = { ...o, series: o.series ?? [], top_rules: o.top_rules ?? [], top_routes: o.top_routes ?? [], inspection: o.inspection ?? [] };
   // The fleet part is best effort: the statistics still show without it.
   const [nodes, rollouts] = await Promise.all([
     apiClient.listNodes().catch(() => undefined),
@@ -274,6 +274,42 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             </table>
           ) : (
             <Empty>{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
+          )}
+        </section>
+
+        <section className="panel" data-testid="inspection">
+          <SectionTitle aside={t('overview.inspection.note')}>{t('overview.inspection.title')}</SectionTitle>
+          {o && o.inspection.length > 0 ? (
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="th">{t('overview.inspection.policy')}</th>
+                  <th className="th text-right">{t('overview.inspection.requests')}</th>
+                  <th className="th text-right">{t('overview.inspection.notInspected')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {o.inspection.map((p) => (
+                  <tr key={p.policy_id} data-testid="inspection-row" data-policy={p.policy_id} className="border-b border-line last:border-0 hover:bg-sunken/60">
+                    <td className="td">
+                      <a href={eventsHref({ policy_id: p.policy_id })} className="text-accent hover:underline">
+                        {p.policy_id || t('overview.noPolicy')}
+                      </a>
+                    </td>
+                    <td className="td text-right tabular-nums">{formatCount(p.requests, locale)}</td>
+                    <td
+                      className={`td text-right tabular-nums ${p.not_inspected > 0 ? 'text-unchecked' : ''}`}
+                      title={t('overview.inspection.breakdown', { partial: p.partial, body: p.body_skipped, error: p.error, degraded: p.degraded })}
+                      data-testid="inspection-share"
+                    >
+                      {formatCount(p.not_inspected, locale)} ({pct(p.not_inspected, p.requests)}%)
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <Empty testId="inspection-empty">{loading ? t('common.loading') : t('overview.inspection.empty')}</Empty>
           )}
         </section>
 

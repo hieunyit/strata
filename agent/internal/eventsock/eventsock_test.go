@@ -129,3 +129,46 @@ func TestSamples(t *testing.T) {
 		t.Error("garbage accepted")
 	}
 }
+
+// RV-N-01: per-policy counters datagrams go to OnCounters; without it they
+// count as invalid, as on an agent from before them.
+func TestCounters(t *testing.T) {
+	for _, handled := range []bool{true, false} {
+		path := filepath.Join(t.TempDir(), "events.sock")
+		l, err := Listen(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make(chan *eventv1.PolicyCounters, 1)
+		if handled {
+			l.OnCounters = func(c *eventv1.PolicyCounters) { got <- c }
+		}
+		events := make(chan *eventv1.Event, 1)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- l.Run(ctx, func(ev *eventv1.Event) { events <- ev }) }()
+		b, _ := proto.Marshal(&eventv1.PolicyCounters{NodeId: "edge-01",
+			Policies: []*eventv1.PolicyCount{{Policy: "example-api", Requests: 7, Partial: 1}}})
+		send(t, path, append([]byte(CountersMagic), b...))
+		send(t, path, encode(t, &eventv1.Event{BlockId: "EVT-0000-0000-0000-0003"}))
+		<-events // the datagram before it was read
+		if handled {
+			c := <-got
+			if p := c.GetPolicies(); len(p) != 1 || p[0].GetRequests() != 7 || p[0].GetPartial() != 1 {
+				t.Fatalf("%v", c)
+			}
+		}
+		cancel()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		l.Close()
+		want := [2]uint64{1, 0}
+		if !handled {
+			want = [2]uint64{0, 1}
+		}
+		if got := [2]uint64{l.C.Policies.Load(), l.C.Invalid.Load()}; got != want {
+			t.Fatalf("handled %v: policies, invalid = %v, want %v", handled, got, want)
+		}
+	}
+}
