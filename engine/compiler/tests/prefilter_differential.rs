@@ -9,13 +9,17 @@
 //! the path for traversal) and the benign corpus run through both: action,
 //! score and matched rules must be identical.
 //!
+//! #28: payloads also go in JSON bodies, in cookies and among many other
+//! form fields, where the prefilter's per-value pass shares work.
+//!
 //! #27: a third bundle has the block-mode copy of the database
 //! (HYPERSCAN_BLOCK), which scans values up to 2048 bytes; it must give
 //! the same verdicts too. Payloads are also sent padded to just under,
 //! at and just over that length, so both databases are used.
 //!
 //! Slow in debug builds (two full Hyperscan compiles); run with
-//! `make test-prefilter` (cargo test --release ... -- --ignored).
+//! `cargo test --release -p strata-compiler --test prefilter_differential
+//! -- --ignored`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -171,6 +175,49 @@ fn requests() -> Vec<Req> {
                 headers: h,
                 body: format!("comment={q}"),
             });
+            // #28: the prefilter scans each value once for every group that
+            // reads it; the same payload in JSON, in a cookie, and among
+            // many other fields (some with equal values) must give the
+            // verdicts of before
+            if n % 3 == 0 {
+                let mut h = host();
+                h.push(("Content-Type".into(), "application/json".into()));
+                let j = serde_json::to_string(payload).unwrap();
+                out.push(Req {
+                    id: format!("{id}/json"),
+                    method: "POST".into(),
+                    uri: "/v1/items".into(),
+                    headers: h,
+                    body: format!(
+                        r#"{{"items":[{{"id":1,"name":"a"}},{{"note":{j},"tags":["x",{j}]}}]}}"#
+                    ),
+                });
+                let mut h = host();
+                h.push(("Cookie".into(), format!("theme=dark; pref={q}")));
+                out.push(Req {
+                    id: format!("{id}/cookie"),
+                    method: "GET".into(),
+                    uri: "/".into(),
+                    headers: h,
+                    body: String::new(),
+                });
+                let mut h = host();
+                h.push((
+                    "Content-Type".into(),
+                    "application/x-www-form-urlencoded".into(),
+                ));
+                let mut body: Vec<String> = (0..60)
+                    .map(|i| format!("field{i}=same+text+value&n{i}={i}"))
+                    .collect();
+                body.insert(37, format!("comment={q}"));
+                out.push(Req {
+                    id: format!("{id}/many"),
+                    method: "POST".into(),
+                    uri: format!("/comments?page=2&q={q}"),
+                    headers: h,
+                    body: body.join("&"),
+                });
+            }
             if p["attack_type"] == "path-traversal" {
                 let path = payload.trim_start_matches('/');
                 if !path.contains([' ', '\t', '#', '?']) {
