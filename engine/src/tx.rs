@@ -1250,7 +1250,9 @@ impl Tx {
     /// same classes as the event's `inspection`, plus other engine errors.
     fn gap(&self) -> crate::counters::Gap {
         use crate::counters::Gap;
-        if self.error == E_BUDGET {
+        // arguments past the policy's max_args (#28) are not inspected
+        // either: PARTIAL, as the event's inspection field says
+        if self.error == E_BUDGET || self.args_left_out {
             Gap::Partial
         } else if self.body_skipped || self.error == E_INCOMPLETE {
             Gap::BodySkipped
@@ -2111,6 +2113,15 @@ mod tests {
 
     /// A body the connector did not pass is reported as such (here a
     /// policy that blocks oversize bodies, so the request has an event).
+    #[test]
+    fn arguments_left_out_count_as_partial() {
+        // #28: the Overview's share (RV-N-01) agrees with the event flag
+        let mut t = tx();
+        assert_eq!(t.gap(), crate::counters::Gap::None);
+        t.args_left_out = true;
+        assert_eq!(t.gap(), crate::counters::Gap::Partial);
+    }
+
     #[test]
     fn skipped_body_is_reported() {
         let mut t = tx();
