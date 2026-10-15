@@ -1,0 +1,41 @@
+# Strata gap rule, W13-S-01: XSS payloads that call alert/confirm/prompt
+# indirectly, past CRS PL1 (GoTestWAF xss-scripting, rest, soap,
+# community-xss, 15/10/2026).
+rule:
+  id: 300008
+  name: JavaScript dialog called indirectly
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args } ]
+      transforms: [ html_entity_decode, js_decode, lowercase ]
+      operator:
+        type: rx
+        value: '\b(?:alert|confirm|prompt)\s*(?:\?\.\s*)?\(\s*(?:\d|document\b|window\b|null\b|this\b|[''"`])|\(\s*(?:alert|confirm|prompt|eval)\s*\)\s*\(|\b(?:alert|confirm|prompt|eval)\s*\.\s*(?:call|apply|bind)\s*\(|\b(?:alert|confirm|prompt)\s*`[^`]{0,40}`|\bonerror\s*=\s*eval\b'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: xss
+    accuracy: high
+    tags: [w13-s-01, gotestwaf]
+tests:
+  match:
+  - uri: /v1/search?q=%28alert%29%281%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/search?q=alert%3F.%28document%3F.cookie%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/search?q=alert.call%28%20%2C+%22XSS%22%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/search?q=%22OnClick%3D%22%28prompt%601%60%29
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: /v1/settings?label=Set+an+alert+%28daily%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/ai?q=improve+my+prompt%28s%29+please
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/help?q=please+confirm+%28yes+or+no%29
+    headers: { Host: api.example.test, Accept: application/json }

@@ -1,0 +1,40 @@
+# Strata gap rule, W13-S-01: SMTP / IMAP command injection after a line
+# break in a parameter (GoTestWAF mail-injection, 15/10/2026).
+rule:
+  id: 300002
+  name: Mail server command after a line break in a parameter
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '[\r\n]\s*(?:rcpt\s+to\s*:|mail\s+from\s*:|(?:helo|ehlo|vrfy|expn)\s+\S|(?:quit|rset|data)\s*(?:[\r\n]|$)|[a-z]\d{1,6}\s+(?:capability|fetch|login|select|examine|store|copy|logout|append|uid)\b)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+    accuracy: high
+    tags: [w13-s-01, gotestwaf, mail-injection]
+tests:
+  match:
+  - uri: /v1/contact?to=%0ARCPT%20TO:%20test@example.test%0A
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/contact?name=x%0D%0AQUIT%0D%0A
+    headers: { Host: api.example.test, Accept: application/json }
+  - method: POST
+    uri: /v1/mail
+    headers: { Host: api.example.test, Content-Type: application/x-www-form-urlencoded }
+    body: folder=%0D%0AV100%20CAPABILITY%0D%0AV101%20FETCH%204791
+  no_match:
+  - method: POST
+    uri: /v1/contact
+    headers: { Host: api.example.test, Content-Type: application/x-www-form-urlencoded }
+    body: message=Hello%2C%0D%0AI+want+to+quit+smoking.%0D%0AData+is+attached.%0D%0AThanks
+  - uri: /v1/contact?to=team%40example.test
+    headers: { Host: api.example.test, Accept: application/json }

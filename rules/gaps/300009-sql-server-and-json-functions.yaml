@@ -1,0 +1,37 @@
+# Strata gap rule, W13-S-01: SQL injection forms past CRS PL1: MSSQL
+# variable declarations and system objects, MySQL JSON functions, nested
+# time-based subqueries (GoTestWAF sql-injection, 15/10/2026).
+rule:
+  id: 300009
+  name: SQL injection with MSSQL declarations or JSON functions
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args }, { var: request_headers } ]
+      transforms: [ replace_comments, compress_whitespace, lowercase ]
+      operator:
+        type: rx
+        value: '\bdeclare\s+@\w+\s+(?:n?var)?char\b|\bmaster\.(?:sys|dbo)\.|\bfn_varbintohexstr\b|\bjson_(?:extract|depth|keys|length|value|search|contains)\s*\(\s*''[^'']*''\s*(?:,|\))\s*\S{0,40}?\s*(?:!=|=|<|>|\band\b|\bor\b)|\(\s*select\s*\(\s*\d+\s*\)\s*from\s*\(\s*select\s*\(\s*sleep\s*\(\s*\d+'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: sql-injection
+    accuracy: high
+    tags: [w13-s-01, gotestwaf]
+tests:
+  match:
+  - uri: /v1/items?id=3%3B%2F%2A%20a%20%2A%2F%20DECLARE%20@c%20varchar%28255%29%3B%2F%2A%20b%20%2A%2FSELECT%20@c%3D%27ping%20%27%2Bmaster.sys.fn_varbintohexstr%28convert%28varbinary%2CSYSTEM_USER%29%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/items?id=123%29%20AND%2012%3D12%20%20AND%20JSON_DEPTH%28%27%7B%7D%27%29%20%21%3D%202521
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/items?id=%28select%280%29from%28select%28sleep%2815%29%29%29v%29
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: /v1/docs?q=how+to+declare+a+variable+in+sql
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/docs?q=json_extract+usage+examples
+    headers: { Host: api.example.test, Accept: application/json }
