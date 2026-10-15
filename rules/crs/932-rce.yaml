@@ -1885,6 +1885,11 @@ rules:
             - var: args
             - var: xml
             - var: xml_attributes
+        - operator:
+            type: rx
+            value: ^[\s\x0b]*[^\s\x0b]+[\s\x0b]*$|[-/\x5c~|;&$\x60<>*?'"(){}\[\]=]|[0-9A-Za-z]\.[0-9A-Za-z]
+          targets:
+            - var: matched_vars
     score: 100
     action_mode: score
     severity: critical

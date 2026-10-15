@@ -481,14 +481,37 @@ func Import(groups []Group, opts Options) (*Result, error) {
 // the query ("admin'--", "1 OR 1=1 --", "'; DROP TABLE t; #"), while prose
 // that libinjection reads as a comment ("50% off -- today only. drop me a
 // line") has its words after it (W11-S-01: the 12 benign false positives
-// left in the v0 corpus). Linear: no lookaround; the prefix is any text
-// without "--" or "#", and a single "-" may come right before the signal.
-const sqlSignal = `(?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b)`
+// left in the v0 corpus). An SQL keyword alone is not enough: it needs
+// another keyword or a number with it ("1 or 1", "x or true"), since a
+// word of prose such as "john+or@var.es" (GoTestWAF's false-positive set,
+// 15/10/2026) is flagged by libinjection with one keyword and nothing
+// else. Linear: no lookaround; the prefix is any text without "--" or
+// "#", and a single "-" may come right before the signal.
+const sqlSignal = `(?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b(?:[^#-]|-[^#-])*-?\b(?:(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)|[0-9]+)\b|\b[0-9]+\b(?:[^#-]|-[^#-])*-?\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b)`
 
-// tune applies Strata's tuning of CRS PL1 (W09-S-01, rules/reviews): two
-// rules that, as CRS writes them, block common prose on their own (8.35%
-// of the benign corpus, Gate A asks under 1%). Each change keeps what the
-// rule is for; the go-ftw tests of both rules still pass.
+// shellSignal, for 932250 (see tune): the value is one word (the command
+// alone: "id", "whoami"), or holds shell syntax or a path: an option, a
+// slash, a pipe, a redirection, a substitution, a quote, a glob, or a host
+// or file name ("wget evil.example"). "ls foo bar" (CRS test 932250-9) is
+// prose to this test, as "ls 300 lexus" is: the one go-ftw test the tuning
+// gives up (docs/decisions/base64-args.md §3).
+const shellSignal = `^[\s\x0b]*[^\s\x0b]+[\s\x0b]*$|[-/\x5c~|;&$\x60<>*?'"(){}\[\]=]|[0-9A-Za-z]\.[0-9A-Za-z]`
+
+// jsSignal, for 941210 (see tune): a call or an assignment, or an
+// obfuscated word (a tab or newline between two of its letters, an entity).
+const jsSignal = `(?i)[(\x60=]|[a-z][\t\n\r]+[a-z:]|&(?:tab|newline|colon);|&#`
+
+// 942190's "union, any words, select" and what Strata allows instead.
+const (
+	unionAnyWords = `union(?:[\s\x0b]select[\s\x0b]@|[\s\x0b\(0-9A-Z_a-z]*?select)`
+	unionTight    = `union(?:[\s\x0b]select[\s\x0b]@|[\(0-9A-Z_a-z]*?[\s\x0b\(]*?(?:(?:all|distinct(?:row)?)[\s\x0b\(]*?)?select)`
+)
+
+// tune applies Strata's tuning of CRS PL1 (W09-S-01, rules/reviews): rules
+// that, as CRS writes them, block common prose on their own (8.35% of the
+// benign corpus, Gate A asks under 1%; 15/10/2026: GoTestWAF's
+// false-positive set, docs/decisions/base64-args.md). Each change keeps
+// what the rule is for; the go-ftw tests of the rules still pass.
 //   - 930120 (OS file access) lists "program files", which matches text
 //     such as "C:/Program Files is slow". Strata lists "program files/":
 //     a path into the directory still matches (normalize_path_win makes
@@ -496,7 +519,23 @@ const sqlSignal = `(?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|
 //   - 942100 (libinjection) flags "50% off -- today only" (fingerprint
 //     1c, as the C library does). Strata adds a condition on the value
 //     libinjection flagged: it must also hold, before its first SQL
-//     comment, a quote, a parenthesis, "=", ";" or an SQL keyword.
+//     comment, a quote, a parenthesis, "=", ";", or an SQL keyword with
+//     another keyword or a number (sqlSignal).
+//   - 932250 (Unix command at the start of a value) matches prose that
+//     starts with a command name: "ls 300 lexus", "zsh is the best!".
+//     Strata adds a condition: the value is the command alone, or holds a
+//     character of shell syntax or of a path (shellSignal).
+//   - 941210 ("javascript:" with obfuscations) matches "JavaScript: Basics
+//     of JavaScript". Strata adds a condition, after the rule's own
+//     transforms: the value holds "(", "`" or "=", which a script needs
+//     to call or assign anything, or the word is obfuscated (a tab or a
+//     newline inside it, an entity left: "ja&tab;vascript:"), which prose
+//     never is (jsSignal).
+//   - 942190 (MSSQL, "union ... select") allows any words between union
+//     and select: "union was a great select". Strata allows one run without
+//     spaces right after union (what is left of a comment once
+//     remove_comments_char took its marks: "union/*x*/select",
+//     "union#x\nselect"), then spaces, "(" and ALL, DISTINCT or DISTINCTROW.
 func tune(id int, ir map[string]any, notes *[]string) {
 	m, _ := ir["match"].(map[string]any)
 	all, _ := m["all"].([]any)
@@ -518,7 +557,34 @@ func tune(id int, ir map[string]any, notes *[]string) {
 			"operator": map[string]any{"type": "rx", "value": sqlSignal},
 			"targets":  []any{map[string]any{"var": "matched_vars"}},
 		})
-		*notes = append(*notes, "Strata tuning: the value libinjection flags must also hold, before its first SQL comment (-- or #), a quote, a parenthesis, =, ; or an SQL keyword (prose such as \"50% off -- today only. drop me a line\" is flagged by libinjection alone)")
+		*notes = append(*notes, "Strata tuning: the value libinjection flags must also hold, before its first SQL comment (-- or #), a quote, a parenthesis, =, ;, or an SQL keyword with another keyword or a number (prose such as \"50% off -- today only. drop me a line\" or \"john+or@var.es\" is flagged by libinjection alone)")
+	case 932250:
+		m["all"] = append(all, map[string]any{
+			"operator": map[string]any{"type": "rx", "value": shellSignal},
+			"targets":  []any{map[string]any{"var": "matched_vars"}},
+		})
+		*notes = append(*notes, "Strata tuning: the value must also be the command alone or hold shell or path syntax (prose such as \"ls 300 lexus\" starts with a command name)")
+	case 941210:
+		first, _ := all[0].(map[string]any)
+		c := map[string]any{
+			"operator": map[string]any{"type": "rx", "value": jsSignal},
+			"targets":  []any{map[string]any{"var": "matched_vars"}},
+		}
+		if tr, ok := first["transforms"]; ok {
+			c["transforms"] = tr
+		}
+		m["all"] = append(all, c)
+		*notes = append(*notes, "Strata tuning: the value must also hold (, ` or = after the rule's transforms (prose such as \"JavaScript: Basics of JavaScript\" names the word)")
+	case 942190:
+		for _, c := range all {
+			cm, _ := c.(map[string]any)
+			op, _ := cm["operator"].(map[string]any)
+			v, _ := op["value"].(string)
+			if strings.Contains(v, unionAnyWords) {
+				op["value"] = strings.Replace(v, unionAnyWords, unionTight, 1)
+				*notes = append(*notes, "Strata tuning: between union and select only spaces, (, ALL or DISTINCT, or one run without spaces (prose such as \"union was a great select\" has words between them)")
+			}
+		}
 	}
 }
 
