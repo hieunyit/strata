@@ -614,6 +614,10 @@ size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
  * on the event socket like an event: copied into `dst` when it fits `cap`.
  * Returns its length (at most 8192), 0 when the transaction is not
  * sampled. Call it once the request is done, after `strata_tx_event`.
+ * When the transaction is not sampled and `cap` is at least 8192, about
+ * once a second it gives the engine's per-policy request counts instead
+ * (RV-N-01, a datagram starting `\xffSC1`), sent the same way; a call
+ * with a smaller buffer never does, so a length query takes nothing.
  *
  * # Safety
  * `tx` must be NULL or live; `dst` must point to `cap` writable bytes (or

@@ -1246,6 +1246,61 @@ impl Tx {
         }
     }
 
+    /// Why this request was not fully inspected, if it was not (RV-N-01): the
+    /// same classes as the event's `inspection`, plus other engine errors.
+    fn gap(&self) -> crate::counters::Gap {
+        use crate::counters::Gap;
+        if self.error == E_BUDGET {
+            Gap::Partial
+        } else if self.body_skipped || self.error == E_INCOMPLETE {
+            Gap::BodySkipped
+        } else if self.error != OK {
+            Gap::Error
+        } else {
+            Gap::None
+        }
+    }
+
+    /// The engine's per-policy counts (RV-N-01) when about a second passed
+    /// since it last sent them: COUNTERS_MAGIC + event.proto
+    /// `PolicyCounters`, at most MAX_DATAGRAM bytes (what does not fit waits
+    /// for the next time). This transaction is not in them yet (it counts
+    /// when dropped).
+    pub fn encode_counters(&self) -> Option<Vec<u8>> {
+        let e = self.engine.as_ref()?;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as u64);
+        let counts = e.counters().take_due(now_ms)?;
+        if counts.is_empty() {
+            return None;
+        }
+        let unknown = e.counters().unknown_slot();
+        let entries: Vec<(&[u8], [u64; crate::counters::N])> = counts
+            .iter()
+            .map(|&(slot, v)| {
+                let name = if slot == unknown {
+                    &b""[..]
+                } else {
+                    e.policy_by_index(slot as u32).map_or(&b""[..], |p| p.name)
+                };
+                (name, v)
+            })
+            .collect();
+        let node = std::str::from_utf8(&self.node_id[..self.node_id_len]).unwrap_or("");
+        let (out, n) = crate::event::encode_counters(
+            now_ms,
+            node,
+            self.bundle_version,
+            &entries,
+            crate::event::MAX_DATAGRAM,
+        );
+        for &(slot, v) in &counts[n..] {
+            e.counters().give_back(slot, v);
+        }
+        (n > 0).then_some(out)
+    }
+
     /// Encodes the event for this transaction into a protobuf datagram (at most 8 KB).
     /// Returns None when there is no event (clean requests without findings).
     pub fn encode_event(&self) -> Option<Vec<u8>> {
@@ -1397,6 +1452,16 @@ fn keep_for_event(headers: &[(&[u8], &[u8])]) -> Vec<(Vec<u8>, Vec<u8>)> {
             (k[..k.len().min(256)].to_vec(), v.to_vec())
         })
         .collect()
+}
+
+/// Each transaction counts once for its policy (RV-N-01).
+impl Drop for Tx {
+    fn drop(&mut self) {
+        if let Some(e) = self.engine.as_ref() {
+            e.counters()
+                .count(self.policy_index, self.gap(), self.degraded);
+        }
+    }
 }
 
 #[cfg(test)]

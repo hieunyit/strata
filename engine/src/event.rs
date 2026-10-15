@@ -626,6 +626,45 @@ pub fn encode_sample(
     out
 }
 
+/// First bytes of a counters datagram on the event socket (RV-N-01,
+/// `crate::counters`).
+pub const COUNTERS_MAGIC: &[u8; 4] = b"\xffSC1";
+
+/// Encodes per-policy counts (event.proto `PolicyCounters`) after
+/// COUNTERS_MAGIC, as many entries as fit `max` bytes; returns the datagram
+/// and how many entries it holds.
+pub fn encode_counters(
+    time_unix_ms: u64,
+    node_id: &str,
+    bundle_version: u64,
+    entries: &[(&[u8], [u64; crate::counters::N])],
+    max: usize,
+) -> (Vec<u8>, usize) {
+    let mut out = Vec::with_capacity(256);
+    out.extend_from_slice(COUNTERS_MAGIC);
+    put_uint64(1, time_unix_ms, &mut out);
+    put_string(2, node_id, &mut out);
+    put_uint64(3, bundle_version, &mut out);
+    let mut n = 0;
+    for (name, v) in entries {
+        let mut e = Vec::with_capacity(name.len() + 32);
+        put_bytes(1, name, &mut e);
+        for (k, x) in v.iter().enumerate() {
+            put_uint64(k as u32 + 2, *x, &mut e);
+        }
+        let mut item = Vec::with_capacity(e.len() + 4);
+        put_tag(4, 2, &mut item);
+        put_varint(e.len() as u64, &mut item);
+        item.extend_from_slice(&e);
+        if out.len() + item.len() > max {
+            break;
+        }
+        out.extend_from_slice(&item);
+        n += 1;
+    }
+    (out, n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

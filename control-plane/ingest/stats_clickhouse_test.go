@@ -81,6 +81,19 @@ func TestOverview_ClickHouseMatchesMock(t *testing.T) {
 	if err := mock.SaveEvents(ctx, events); err != nil {
 		t.Fatal(err)
 	}
+	// RV-N-01: requests per node and policy, every 15 minutes
+	var counts []PolicyRequests
+	for i := 0; i < 300; i++ {
+		counts = append(counts, PolicyRequests{Time: base.Add(-time.Duration(i) * 15 * time.Minute),
+			NodeID: fmt.Sprintf("node-%02d", i%4), PolicyID: policies[i%3], Requests: uint64(100 + i),
+			Partial: uint64(i % 5), BodySkipped: uint64(i % 3), Error: uint64(i % 2), Degraded: uint64(i % 7)})
+	}
+	if err := ch.SavePolicyRequests(ctx, counts); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.SavePolicyRequests(ctx, counts); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, f := range []OverviewFilter{
 		{From: base.Add(-24 * time.Hour), To: base, Clients: true},
@@ -99,6 +112,9 @@ func TestOverview_ClickHouseMatchesMock(t *testing.T) {
 		got.From, got.To = got.From.UTC(), got.To.UTC()
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("window %v..%v policy %q:\nclickhouse %+v\nmock       %+v", f.From, f.To, f.PolicyID, got, want)
+		}
+		if len(got.Inspection) == 0 && f.Step == 0 {
+			t.Errorf("window %v..%v: no requests per policy", f.From, f.To)
 		}
 		if got.Totals.Events == 0 && f.Step == 0 {
 			t.Errorf("window %v..%v counted nothing: the test data is wrong", f.From, f.To)

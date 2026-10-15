@@ -107,7 +107,12 @@ fn request(e: *mut EngineHandle, uri: &[u8]) -> Option<Vec<u8>> {
         let mut v = std::mem::zeroed::<strata_verdict_t>();
         strata_tx_verdict(tx, &mut v);
         let mut buf = vec![0u8; 8192];
-        let n = strata_tx_sample(tx, buf.as_mut_ptr(), buf.len());
+        let mut n = strata_tx_sample(tx, buf.as_mut_ptr(), buf.len());
+        // without a sample, the call may carry the per-policy counts
+        // instead (RV-N-01, tests/policy_counters.rs): not a sample
+        if buf[..n].starts_with(b"\xffSC1") {
+            n = 0;
+        }
         assert_eq!(
             strata_tx_sample(tx, std::ptr::null_mut(), 0),
             n,

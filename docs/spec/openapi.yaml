@@ -723,9 +723,47 @@ components:
         block:
           type: integer
           format: int64
+    OverviewPolicyInspection:
+      type: object
+      description: >-
+        One policy's requests over the window, from the nodes' counters
+        (RV-N-01), and of them the ones not fully inspected: the fail mode
+        decided (CPU budget, body not inspected, engine error).
+      required: [policy_id, requests, not_inspected, partial, body_skipped, error, degraded, share]
+      properties:
+        policy_id:
+          type: string
+          description: Empty for requests whose strata_policy the node's bundle does not have.
+        requests:
+          type: integer
+          format: int64
+        not_inspected:
+          type: integer
+          format: int64
+          description: partial + body_skipped + error.
+        partial:
+          type: integer
+          format: int64
+          description: The CPU budget ran out.
+        body_skipped:
+          type: integer
+          format: int64
+          description: The body, or part of it, was not inspected.
+        error:
+          type: integer
+          format: int64
+          description: Another engine error.
+        degraded:
+          type: integer
+          format: int64
+          description: Requests the worker's circuit breaker ran degraded (also counted in requests).
+        share:
+          type: number
+          format: double
+          description: not_inspected / requests (0 without requests).
     OverviewResponse:
       type: object
-      required: [from, to, step_seconds, totals, series, top_rules, top_routes]
+      required: [from, to, step_seconds, totals, series, top_rules, top_routes, inspection]
       properties:
         from:
           type: string
@@ -751,6 +789,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OverviewRouteCount'
+        inspection:
+          type: array
+          description: Per policy, the most requests first (at most 10); empty before the nodes send counters (module and agent from RV-N-01).
+          items:
+            $ref: '#/components/schemas/OverviewPolicyInspection'
         top_clients:
           type: array
           description: Absent for callers without events:read_sensitive.

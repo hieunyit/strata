@@ -104,7 +104,16 @@
     "allNodesOnline_other": "Cả {{count}} node đã đăng ký đều online.",
     "lastSeen": "thấy {{when}}",
     "updated": "Cập nhật lúc {{when}}",
-    "autoRefresh": "tự làm mới mỗi 30 giây"
+    "autoRefresh": "tự làm mới mỗi 30 giây",
+    "inspection": {
+      "title": "Request không được kiểm đủ",
+      "note": "theo policy, trên mọi request",
+      "policy": "Policy",
+      "requests": "Request",
+      "notInspected": "Không kiểm đủ",
+      "breakdown": "Hết CPU budget {{partial}} · bỏ qua body {{body}} · lỗi engine {{error}} · chạy giảm cấp {{degraded}}",
+      "empty": "Chưa có số request: node gửi từ bản module và agent có RV-N-01."
+    }
   },
   "events": {
     "title": "Sự kiện",

@@ -212,6 +212,10 @@ sub req {
               : {});
 }
 
+# every \xffSC1 datagram seen so far: { policy => [requests, partial,
+# body_skipped, error, degraded] }
+our @policy_counts;
+
 # every datagram that arrives within $wait seconds
 sub events {
     my ($wait) = @_;
@@ -222,6 +226,12 @@ sub events {
         last unless $sel->can_read($left);
         my $d;
         $sock->recv($d, 65536);
+        # per-policy counts (RV-N-01) are kept apart; replay samples
+        # (W12-N-01) are not on here
+        if (substr($d, 0, 4) eq "\xffSC1") {
+            push @policy_counts, policy_counts(substr $d, 4);
+            next;
+        }
         push @out, decode($d);
         $deadline = time + 0.2 if @out;    # a little longer for a second one
     }
@@ -241,6 +251,44 @@ sub varint {
 }
 
 # the fields of strata.event.v1.Event this suite checks
+sub policy_counts {
+    my ($d) = @_;
+    my ($i, %m) = (0);
+    while ($i < length $d) {
+        my $tag = varint(\$d, \$i);
+        my ($f, $wt) = ($tag >> 3, $tag & 7);
+        if ($wt == 0) {
+            varint(\$d, \$i);
+            next;
+        }
+        my $n = varint(\$d, \$i);
+        my $v = substr $d, $i, $n;
+        $i += $n;
+        next unless $f == 4;
+        my ($j, $name, @c) = (0, '', 0, 0, 0, 0, 0);
+        while ($j < length $v) {
+            my $t = varint(\$v, \$j);
+            if (($t & 7) == 0) {
+                my $x = varint(\$v, \$j);
+                $c[($t >> 3) - 2] = $x if ($t >> 3) >= 2 && ($t >> 3) <= 6;
+            } else {
+                my $k = varint(\$v, \$j);
+                $name = substr $v, $j, $k if ($t >> 3) == 1;
+                $j += $k;
+            }
+        }
+        $m{$name} = \@c;
+    }
+    return \%m;
+}
+
+sub policy_total {
+    my ($policy, $k) = @_;
+    my $t = 0;
+    for my $m (@policy_counts) { $t += $m->{$policy}[$k] // 0 }
+    return $t;
+}
+
 sub decode {
     my ($d) = @_;
     my ($i, %e) = (0);
@@ -389,6 +437,27 @@ subtest "redirect after inspection: one inspection, one count, one event" => sub
     is(hist_total($d), 1, "one engine time sample");
 };
 
+# RV-N-01: libstrata's per-policy counts reach the event socket about once a
+# second (through strata_tx_sample, no connector code of their own): the
+# requests of each policy, and the engine errors of the panics above
+subtest "requests per policy on the event socket" => sub {
+    my ($api0, $web0) = (policy_total("example-api", 0), policy_total("example-web", 0));
+    req("GET", "/t/") for 1 .. 5;
+    req("GET", "/shadow/");
+    # each worker sends its counts on a request of its own, a second after
+    # its last send: keep asking until both have
+    my $deadline = time + 6;
+    while (time < $deadline
+        && (policy_total("example-api", 0) - $api0 < 5 || policy_total("example-web", 0) - $web0 < 1)) {
+        req("GET", "/t/");
+        events(0.3);
+    }
+    ok(@policy_counts > 0, "counts datagrams: " . scalar @policy_counts);
+    cmp_ok(policy_total("example-api", 0) - $api0, '>=', 5, "example-api requests");
+    cmp_ok(policy_total("example-web", 0) - $web0, '>=', 1, "example-web requests");
+    cmp_ok(policy_total("example-api", 3), '>=', 1, "engine errors of the panics counted");
+};
+
 # incident (d): no agent
 subtest "no event socket: requests unaffected, drops counted" => sub {
     close $sock;
@@ -398,7 +467,9 @@ subtest "no event socket: requests unaffected, drops counted" => sub {
         is(req("GET", "/open?STRATA-TEST-BLOCK")->{status}, 403, "open: still 403");
         is(req("GET", "/t")->{status}, 200, "clean request: 200");
     });
-    is($d->[C_DROPPED], 2, "two events dropped (the clean request has none)");
+    # two events (the clean request has none), and maybe a per-policy counts
+    # datagram from each worker (RV-N-01: at most one a second per worker)
+    ok($d->[C_DROPPED] >= 2 && $d->[C_DROPPED] <= 2 + $workers, "two events dropped: $d->[C_DROPPED]");
     is($d->[C_OPEN] + $d->[C_CLOSED], 0, "not a fail mode");
     listen_events();
 };
