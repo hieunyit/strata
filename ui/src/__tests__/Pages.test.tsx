@@ -162,6 +162,23 @@ describe('fleet page', () => {
   });
 });
 
+describe('fleet order', () => {
+  it('lists online nodes first and revoked ones last, in API order within each', async () => {
+    vi.spyOn(apiClient, 'listNodes').mockResolvedValue([
+      { id: 'old-1', group_id: 'lab', online: false, revoked: true },
+      { id: 'down-1', group_id: 'lab', online: false },
+      { id: 'up-1', group_id: 'lab', online: true },
+      { id: 'old-2', group_id: 'lab', online: false, revoked: true },
+      { id: 'up-2', group_id: 'lab', online: true },
+    ]);
+    vi.spyOn(apiClient, 'listGroups').mockResolvedValue([{ id: 'lab', name: 'Lab' }]);
+    vi.spyOn(apiClient, 'listRollouts').mockResolvedValue([]);
+    render(<StaticAuthProvider roles={['viewer']}><FleetPage /></StaticAuthProvider>);
+    const rows = await screen.findAllByTestId('node-row');
+    expect(rows.map((r) => r.getAttribute('data-node'))).toEqual(['up-1', 'up-2', 'down-1', 'old-1', 'old-2']);
+  });
+});
+
 describe('CSV export is an operator+ action (W08-F-01)', () => {
   it('policies: every role can export', async () => {
     vi.spyOn(apiClient, 'listPolicies').mockResolvedValue([
