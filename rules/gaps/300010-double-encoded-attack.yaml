@@ -2,6 +2,10 @@
 # percent-encoded after the proxy's decoding and, decoded once more, holds a
 # shell command, a path traversal, markup or a MySQL versioned comment.
 # strata-mutate: double URL encoding bypassed 92% of command injection.
+# A command counts only after shell syntax (; | & ` newline $(): prose that
+# starts with a command name ("echo in the mirror") is not a command, and
+# multipart and JSON values are never percent-decoded, so "%20" there is
+# no sign of double encoding (GoTestWAF true-negative set, 15/10/2026).
 rule:
   id: 300010
   name: Double-encoded attack payload in a parameter
@@ -15,7 +19,7 @@ rule:
       transforms: [ url_decode_uni, lowercase ]
       operator:
         type: rx
-        value: '(?:^|[;|&`\n]|\$\()\s*(?:id|whoami|uname|cat|wget|curl|ping|echo|sleep|nc|ncat|bash|sh|getent|nslookup|set)(?:\s|$|;|\||&|`|\))|\$\(\(|\.\./|<\s*(?:script|svg|img|iframe|body)\b|/\*!\s*\d*\s*(?:union|select)\b'
+        value: '(?:[;|&`\n]|\$\()\s*(?:id|whoami|uname|cat|wget|curl|ping|echo|sleep|nc|ncat|bash|sh|getent|nslookup|set)(?:\s|$|;|\||&|`|\))|\$\(\(|\.\./|<\s*(?:script|svg|img|iframe|body)\b|/\*!\s*\d*\s*(?:union|select)\b'
   score: 100
   action_mode: score
   severity: critical
@@ -36,6 +40,14 @@ tests:
   - uri: /v1/items?id=-1945+%2F%2A%21%2555NiOn%2A%2F%2520%2F%2A%21%2553eLEct%2A%2F+1
     headers: { Host: api.example.test, Accept: application/json }
   no_match:
+  - method: POST
+    uri: /v1/profile
+    headers: { Host: api.example.test, Content-Type: 'multipart/form-data; boundary=x1' }
+    body: "--x1\r\nContent-Disposition: form-data; name=\"bio\"\r\n\r\necho%20in%20the%20mirror\r\n--x1\r\nContent-Disposition: form-data; name=\"hobby\"\r\n\r\nnc%208000%20controller\r\n--x1--\r\n"
+  - method: POST
+    uri: /v1/profile
+    headers: { Host: api.example.test, Content-Type: application/json }
+    body: '{"bio":"bash%20away%20in%20the%20gym","note":"curl%20and%20divergence"}'
   - uri: /v1/auth/callback?return=https%253A%252F%252Fapp.example.test%252Fcb%253Fx%253D1%2526id%253D5
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/search?q=50%2525+off+today
