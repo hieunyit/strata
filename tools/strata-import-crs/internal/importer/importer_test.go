@@ -432,7 +432,7 @@ func TestTuneProseFalsePositives(t *testing.T) {
 	cond := func(op string, v any) map[string]any {
 		return map[string]any{"operator": map[string]any{"type": op, "value": v}, "targets": []any{map[string]any{"var": "args"}}, "transforms": []any{"html_entity_decode"}}
 	}
-	for _, id := range []int{932250, 941210} {
+	for _, id := range []int{932250, 941210, 941390} {
 		r := map[string]any{"match": map[string]any{"all": []any{cond("rx", "x")}}}
 		var notes []string
 		tune(id, r, &notes)
@@ -444,7 +444,7 @@ func TestTuneProseFalsePositives(t *testing.T) {
 		if c["targets"].([]any)[0].(map[string]any)["var"] != "matched_vars" {
 			t.Errorf("%d condition: %v", id, c)
 		}
-		if _, ok := c["transforms"]; ok != (id == 941210) {
+		if _, ok := c["transforms"]; ok != (id != 932250) {
 			t.Errorf("%d transforms: %v", id, c)
 		}
 	}
@@ -456,6 +456,17 @@ func TestTuneProseFalsePositives(t *testing.T) {
 	}
 	if js.MatchString("JavaScript: Basics of JavaScript Language") {
 		t.Error("jsSignal matches prose")
+	}
+	call := regexp.MustCompile(jsCallSignal)
+	for _, v := range []string{"alert(1)", "alert (1)", "prompt()", "eval(atob('x'))", "alert (document.cookie)", "confirm ('x')", "setTimeout(function(){}", "fetch('//x')", "new Function('x')", "alert{x}", "import ('x')", "console.log(x)", "import { sayHi, sayBye } from"} {
+		if !call.MatchString(v) {
+			t.Errorf("jsCallSignal misses %q", v)
+		}
+	}
+	for _, v := range []string{"Set an alert (daily)", "please confirm (yes or no)", "improve the prompt (for the team)", "fetch (the data) later", "willing to import (and perhaps wait around"} {
+		if call.MatchString(v) {
+			t.Errorf("jsCallSignal matches prose %q", v)
+		}
 	}
 	r := map[string]any{"match": map[string]any{"all": []any{cond("rx", "(?i)x|"+unionAnyWords+"|y")}}}
 	var notes []string
