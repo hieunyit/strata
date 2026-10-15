@@ -81,7 +81,9 @@ func (u *jsonUInt64) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func formatClickHouseStringArray(items []string) string {
+// FormatStringArray writes items as a ClickHouse Array(String) literal for
+// a query parameter.
+func FormatStringArray(items []string) string {
 	if len(items) == 0 {
 		return "[]"
 	}
@@ -124,8 +126,8 @@ func Query(ctx context.Context, opts Options) ([]Row, error) {
 		q.Set("database", opts.Database)
 	}
 	q.Set("param_since_s", strconv.FormatUint(uint64(sinceSeconds), 10))
-	q.Set("param_policies", formatClickHouseStringArray(opts.Policies))
-	q.Set("param_exclude", formatClickHouseStringArray(opts.ExcludeCIDRs))
+	q.Set("param_policies", FormatStringArray(opts.Policies))
+	q.Set("param_exclude", FormatStringArray(opts.ExcludeCIDRs))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(QuerySQL))
