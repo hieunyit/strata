@@ -82,8 +82,17 @@ fn memmem_8k(
 
 pub fn parse_with_budget(
     b: &[u8],
-    mut budget: Option<&mut crate::budget::TxBudget>,
+    budget: Option<&mut crate::budget::TxBudget>,
 ) -> Result<Xml, crate::budget::BudgetExceeded> {
+    Ok(parse_checked_with_budget(b, budget)?.0)
+}
+
+/// As `parse_with_budget`, and whether the whole document was read (#97):
+/// false when a tag, comment, CDATA section or declaration does not end.
+pub fn parse_checked_with_budget(
+    b: &[u8],
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<(Xml, bool), crate::budget::BudgetExceeded> {
     let mut x = Xml::default();
     let mut i = 0;
     while i < b.len() {
@@ -112,10 +121,10 @@ pub fn parse_with_budget(
         };
         match next {
             Some(n) => i = n,
-            None => break,
+            None => return Ok((x, false)),
         }
     }
-    Ok(x)
+    Ok((x, true))
 }
 
 pub fn parse(b: &[u8]) -> Xml {
@@ -309,5 +318,23 @@ mod tests {
     fn at_most_max_attrs() {
         let doc = [b"<a ".as_slice(), &b"k=\"v\" ".repeat(MAX_ATTRS + 3), b"/>"].concat();
         assert_eq!(parse(&doc).attrs.len(), MAX_ATTRS);
+    }
+
+    /// #97: whether the whole document was read.
+    #[test]
+    fn complete_only_when_every_markup_ends() {
+        let whole = |b: &[u8]| parse_checked_with_budget(b, None).unwrap().1;
+        assert!(whole(
+            b"<?xml version=\"1.0\"?><a x=\"1\">t<![CDATA[c]]><!-- k --></a>"
+        ));
+        assert!(whole(b"<!DOCTYPE a [<!ENTITY x \"y\">]><a/>"));
+        for bad in [
+            &b"<a>t</a><!-- open"[..],
+            b"<a x=\"1\"",
+            b"<![CDATA[x",
+            b"<?xml version",
+        ] {
+            assert!(!whole(bad), "{}", String::from_utf8_lossy(bad));
+        }
     }
 }

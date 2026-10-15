@@ -74,12 +74,27 @@ where
 pub fn args_with_budget(
     b: &[u8],
     max: usize,
-    mut budget: Option<&mut crate::budget::TxBudget>,
+    budget: Option<&mut crate::budget::TxBudget>,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, crate::budget::BudgetExceeded> {
+    Ok(args_checked_with_budget(b, max, budget)?.0)
+}
+
+/// As `args_with_budget`, and whether the whole document was read (#97):
+/// false when it is damaged, nested deeper than MAX_DEPTH, or followed by
+/// anything but whitespace. Reaching `max` counts as read: the arguments
+/// left out are rule 100021's.
+#[allow(clippy::type_complexity)]
+pub fn args_checked_with_budget(
+    b: &[u8],
+    max: usize,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<(Vec<(Vec<u8>, Vec<u8>)>, bool), crate::budget::BudgetExceeded> {
     let mut out = vec![];
     let mut path = b"json".to_vec();
     let mut stack: Vec<Frame> = vec![];
-    let mut i = skip_ws(b, 0);
+    // a UTF-8 byte order mark is not damage
+    let start = if b.starts_with(b"\xef\xbb\xbf") { 3 } else { 0 };
+    let mut i = skip_ws(b, start);
     // a value is expected at i; after it, the container goes on
     'value: while i < b.len() && out.len() < max {
         match b[i] {
@@ -170,7 +185,8 @@ pub fn args_with_budget(
             }
         }
     }
-    Ok(out)
+    let complete = out.len() >= max || (stack.is_empty() && skip_ws(b, i) >= b.len());
+    Ok((out, complete))
 }
 
 /// (name, value) of every scalar, at most `max`.
@@ -344,5 +360,44 @@ mod tests {
     fn at_most_max() {
         let doc = format!("[{}1]", "1,".repeat(50));
         assert_eq!(args(doc.as_bytes(), 10).len(), 10);
+    }
+
+    /// #97: whether the whole document was read.
+    #[test]
+    fn complete_only_when_read_to_the_end() {
+        let whole = |b: &[u8]| args_checked_with_budget(b, 100, None).unwrap().1;
+        for ok in [
+            &b"{\"a\": 1}"[..],
+            b"[1, 2]",
+            b"\"x\"",
+            b"7",
+            b"  {} \r\n",
+            b"\xef\xbb\xbf{\"a\":1}",
+        ] {
+            assert!(whole(ok), "{}", String::from_utf8_lossy(ok));
+        }
+        let deep = [
+            b"[".repeat(MAX_DEPTH + 1),
+            b"1".to_vec(),
+            b"]".repeat(MAX_DEPTH + 1),
+        ]
+        .concat();
+        for bad in [
+            &br#"{"a": "1", "b" 2}"#[..],
+            br#"{"a": "x"#,
+            b"{,}",
+            b"[1, 2",
+            br#"{"a":1} {"b":2}"#,
+            &deep,
+        ] {
+            assert!(!whole(bad), "{}", String::from_utf8_lossy(bad));
+        }
+        // stopping at max is rule 100021's, not damage
+        let doc = format!("[{}1]", "1,".repeat(50));
+        assert!(
+            args_checked_with_budget(doc.as_bytes(), 10, None)
+                .unwrap()
+                .1
+        );
     }
 }
