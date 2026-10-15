@@ -10,6 +10,10 @@ publish.workspace = true
 name = "strata-compile"
 path = "src/bin/strata-compile.rs"
 
+[[bin]]
+name = "strata-pattern-cost"
+path = "src/bin/strata-pattern-cost.rs"
+
 [dependencies]
 libstrata = { path = ".." }
 strata-hs = { path = "../ffi/hyperscan", features = ["compile"] }

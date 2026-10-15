@@ -490,6 +490,67 @@ fn patterns(
     (pats, conds, rule_of)
 }
 
+/// The Hyperscan database of a bundle: its patterns, the condition and
+/// rule of each, and the stream-mode image.
+pub struct HsImage {
+    pub pats: Vec<strata_hs::Pattern>,
+    pub conds: Vec<u32>,
+    pub rule_of: Vec<u32>,
+    pub image: Vec<u8>,
+}
+
+/// Compiles the patterns of `rules` (lowered already) in stream mode. An rx
+/// pattern Hyperscan refuses (too large) runs with the regex crate if that
+/// takes it: its condition joins `apart` and the rest compiles again;
+/// anything else is an error. None when no condition has a pattern.
+fn hs_image(rules: &[RuleDef], apart: &mut BTreeSet<u32>) -> Result<Option<HsImage>> {
+    let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
+    let rx_conds: Vec<Option<&[u8]>> = rules
+        .iter()
+        .flat_map(|r| &r.conditions)
+        .map(|c| match &c.value {
+            RValue::Str(v) if c.op == rx => Some(&v[..]),
+            _ => None,
+        })
+        .collect();
+    loop {
+        let (pats, conds, rule_of) = patterns(rules, apart);
+        if pats.is_empty() {
+            return Ok(None);
+        }
+        match strata_hs::compile(&pats) {
+            Ok(image) => {
+                return Ok(Some(HsImage {
+                    pats,
+                    conds,
+                    rule_of,
+                    image,
+                }));
+            }
+            Err((i, msg)) => {
+                let ci = conds.get(i).copied().unwrap_or(u32::MAX);
+                let rx = rx_conds.get(ci as usize).copied().flatten();
+                if rx.is_some_and(|p| libstrata::eval::fallback_regex(p).is_ok()) {
+                    apart.insert(ci);
+                    continue;
+                }
+                return Err(format!(
+                    "rule {}: pattern not supported by Hyperscan: {msg}",
+                    rule_of.get(i).copied().unwrap_or(0)
+                ));
+            }
+        }
+    }
+}
+
+/// The Hyperscan patterns a bundle of `rules` holds, as `compile` builds
+/// them (conditions lowered, refused ones apart): for tools that measure
+/// them (#28, strata-pattern-cost).
+pub fn hyperscan_patterns(rules: &[RuleDef]) -> Result<Option<HsImage>> {
+    let (lowered, mut apart) = lower_loose(rules);
+    hs_image(&lowered, &mut apart)
+}
+
 /// Signs a bundle from rules (in input order) and policies.
 pub fn compile(
     rules: &[RuleDef],
@@ -668,6 +729,40 @@ fn selectivity(c: &CondDef) -> usize {
 /// rx conditions outside the database have always run with the `regex`
 /// crate (engines before W09 compile them all when the bundle is mapped).
 pub fn lower_loose(rules: &[RuleDef]) -> (Vec<RuleDef>, BTreeSet<u32>) {
+    let (lowered, mut apart) = lower_loose_conditions(rules);
+    apart.extend(costly_outside_hs(&lowered));
+    (lowered, apart)
+}
+
+/// Rules whose `rx` conditions run with the `regex` crate rather than in
+/// the Hyperscan database (#28, measured with strata-pattern-cost,
+/// docs/reports/issue-28-pattern-cost.md). One pattern can make every scan
+/// of the shared database slower: 932340 (Unix commands with evasion
+/// characters between the letters, no literal Hyperscan can start from)
+/// keeps a large NFA running on every value, about a third of the cost of
+/// each scan of the full pack, while the regex crate's lazy DFA runs it in
+/// about a twentieth of the time on the same values. Its rule is then
+/// evaluated on every request (no gate), as rules with only fallback
+/// regexes always were.
+pub const REGEX_OUTSIDE_HS: &[u32] = &[932_340];
+
+/// The `rx` conditions of the rules in REGEX_OUTSIDE_HS.
+fn costly_outside_hs(rules: &[RuleDef]) -> BTreeSet<u32> {
+    let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
+    let mut out = BTreeSet::new();
+    let mut ci = 0u32;
+    for r in rules {
+        for c in &r.conditions {
+            if REGEX_OUTSIDE_HS.contains(&r.id) && c.op == rx {
+                out.insert(ci);
+            }
+            ci += 1;
+        }
+    }
+    out
+}
+
+fn lower_loose_conditions(rules: &[RuleDef]) -> (Vec<RuleDef>, BTreeSet<u32>) {
     let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
     let matched_vars = rules::code(rules::VARS, "matched_vars").unwrap_or(u8::MAX);
     let mut out = rules.to_vec();
@@ -793,37 +888,10 @@ fn compile_unsigned_with(
     };
     let rules = &lowered[..];
     let mut sections = rules::encode(rules, policies.block_page.as_ref());
-    let rx = rules::code(OPERATORS, "rx").unwrap_or(u8::MAX);
-    let rx_conds: Vec<Option<&[u8]>> = rules
-        .iter()
-        .flat_map(|r| &r.conditions)
-        .map(|c| match &c.value {
-            RValue::Str(v) if c.op == rx => Some(&v[..]),
-            _ => None,
-        })
-        .collect();
-    loop {
-        let (pats, conds, rule_of) = patterns(rules, &apart);
-        if pats.is_empty() {
-            break;
-        }
-        let image = match strata_hs::compile(&pats) {
-            Ok(image) => image,
-            Err((i, msg)) => {
-                // an rx pattern Hyperscan refuses (too large) runs with the
-                // regex crate if that takes it; anything else is an error
-                let ci = conds.get(i).copied().unwrap_or(u32::MAX);
-                let rx = rx_conds.get(ci as usize).copied().flatten();
-                if rx.is_some_and(|p| libstrata::eval::fallback_regex(p).is_ok()) {
-                    apart.insert(ci);
-                    continue;
-                }
-                return Err(format!(
-                    "rule {}: pattern not supported by Hyperscan: {msg}",
-                    rule_of.get(i).copied().unwrap_or(0)
-                ));
-            }
-        };
+    if let Some(HsImage {
+        pats, conds, image, ..
+    }) = hs_image(rules, &mut apart)?
+    {
         sections.push((
             libstrata::bundle::kind::HYPERSCAN,
             rules::encode_hyperscan(strata_hs::version(), &conds, &image),
@@ -844,7 +912,6 @@ fn compile_unsigned_with(
                 ));
             }
         }
-        break;
     }
     let privacy = libstrata::privacy::encode(&policies.privacy, policies.identity_key.as_ref())
         .map_err(|e| format!("{e} (strata-compile --identity-key)"))?;
