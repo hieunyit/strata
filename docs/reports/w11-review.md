@@ -10,9 +10,8 @@ bản sửa soak (#77). Chạy trên nhân 6–10, không chạy benchmark.
 
 - **Đạt "Xong khi"**: W11-N-01, W11-G1-01, RV-S-01, W11-F-01, RV-G2-01. W11-S-01 đạt một phần
   (mục 2).
-- **Chưa kiểm được trên lab**: điều kiện "replay 1 triệu request dưới 10 phút **trên lab**"
-  của W11-R-01. Con số đã có (2 phút 12 giây) được đo trong container cloud (`w11-report.md`).
-  Chạy lại là một phép đo hiệu năng, mà phiên này không được chạy benchmark: **cần PO quyết**.
+- **W11-R-01 trên lab** (PO cho chạy ngày 15/10): replay 1 triệu request trong **213,5 s**
+  (4 luồng) và **182,7 s** (5 luồng), dưới mốc 10 phút. Chi tiết ở mục 2.
 - **Chờ người**: W11-G2-01 (pháp chế duyệt).
 - **Canary**: vẫn không bật, vì Gate A chưa đạt (A1, A2, A3; `gate-a.md`).
 - Phát hiện mới: phần C đã dùng **2.999 / 3.000** dòng thực (mục 3, dòng 1).
@@ -21,7 +20,7 @@ bản sửa soak (#77). Chạy trên nhân 6–10, không chạy benchmark.
 
 | Nhiệm vụ | Điều kiện | Kết quả |
 | --- | --- | --- |
-| W11-R-01 | Cùng client luôn cùng nhóm canary; replay 1 triệu request dưới 10 phút trên lab | Nhóm canary: test Rust PASS (`make test`). Replay trên lab: **chưa chạy** (mục 1) |
+| W11-R-01 | Cùng client luôn cùng nhóm canary; replay 1 triệu request dưới 10 phút trên lab | Nhóm canary: test Rust PASS (`make test`). Replay trên lab ngày 15/10: `strata-replay gen --count 1000000` (corpus benign và tấn công), rồi `run` với gói đầy đủ 0.0.1 (9.054 rule), nhân 6–10, máy tải khoảng 9: **213,5 s** (4 luồng, 4.683 request/s), **182,7 s** (5 luồng, 5.473 request/s); 2.808 request bị chặn mới, khớp lần đo cloud. **Đạt** |
 | W11-N-01 | Panic hàng loạt → breaker mở trong 10 giây, chạy giảm cấp; half-open tự đóng; payload nặng không làm breaker mở | `t/090-breaker.t` PASS trên 1.31.6 (`make test`) và ASan 1.30.5 (14/10, PR #77) |
 | W11-G1-01 | Tỉ lệ chặn tăng gấp 3 → shadow trong tối đa 6 giây, không cần control plane | Unit `TestNodeFallsBackWithinSixSeconds` PASS. Lab: `lab-fallback.sh` PASS (sau #72: nền 1% không bắn nhầm; một nguồn gửi dồn không tắt được WAF; 12 nguồn → shadow, node-2 vẫn chặn; `clearForceShadow` gỡ sau 1 giây) |
 | W11-G2-01 | Định dạng ẩn danh được pháp chế duyệt; lưu được vào MinIO | Code xong (`w11-report.md`); **chờ pháp chế** |
@@ -34,7 +33,7 @@ bản sửa soak (#77). Chạy trên nhân 6–10, không chạy benchmark.
 
 | # | Mức | Phát hiện | Xử lý |
 | --- | --- | --- | --- |
-| 1 | **Cao** | `make check-c-lines`: **2.999 / 3.000** dòng thực sau tuần 12 sớm (#76). Thay đổi C tiếp theo sẽ đỏ | Không tự nâng giới hạn (PO duyệt mức 3.000 ngày 12/10). Đề xuất: mọi logic mới đặt trong libstrata; nếu tuần 12 cần thêm C thì PO quyết nâng giới hạn hoặc chuyển phần C nào sang Rust |
+| 1 | **Cao** | `make check-c-lines`: **2.999 / 3.000** dòng thực sau tuần 12 sớm (#76). Thay đổi C tiếp theo sẽ đỏ | **PO quyết ngày 15/10: không nâng giới hạn; mọi logic mới đặt trong libstrata.** Đã báo các phiên đang làm |
 | 2 | TB | Test Playwright lab "a deploy shows node by node on the Fleet page" hỏng: lab có 30 node bị thu hồi (từ các lần thử gói W10-N-01) đứng đầu bảng Fleet, mà test đọc dòng đầu | Sửa test: chỉ đọc node online. UI xếp node bị thu hồi trước node online; nên đưa node online lên đầu (việc của luồng UI) |
 | 3 | **Cao** (Gate A) | Soak 24 giờ FAIL: RSS worker +18 MB mỗi lần nạp gói đầy đủ, do arena glibc theo luồng thread pool | Đã sửa và đo (PR #77); soak 24 giờ mới chạy trên CPU 11–13 tới khoảng 15/10 23:45 UTC |
 | 4 | TB | Ba lỗi trong `deploy.sh` / `pilot.sh`: ghi đè `$d`; node thí điểm chạy module cũ chặn rollout; `pilot.sh` thoát im lặng | Đã sửa trong tuần (PR #69, #71) |
@@ -55,9 +54,8 @@ bản sửa soak (#77). Chạy trên nhân 6–10, không chạy benchmark.
 
 ## 5. Còn mở
 
-- W11-R-01: replay 1 triệu request trên lab (cần PO cho phép chạy phép đo).
 - W11-G2-01: pháp chế duyệt.
 - W11-S-01: traffic thật; ngày thứ 2 của bảng FP sau 15/10 21:50 UTC; v0.1 lên staging sau
   20/10 11:18 UTC.
 - Gate A: A1/A2 (#27, #28), A3 (soak 24 giờ mới).
-- Giới hạn dòng C (mục 3, dòng 1).
+- Phần C ở 2.999 / 3.000 dòng: logic mới vào libstrata (PO 15/10).
