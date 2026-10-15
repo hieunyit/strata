@@ -97,12 +97,30 @@ Trong container, giá trị này thuộc network namespace của container agent
 ## Agent không chạy
 
 Cảnh báo `StrataAgentDown`. NGINX giữ bundle đang chạy và vẫn kiểm request. Trong lúc
-agent dừng: không nhận bundle mới, không nhận lệnh ép shadow, sự kiện bị bỏ ở socket.
+agent dừng: không nhận bundle mới, không nhận lệnh ép shadow. Từ W13-G1-01, systemd giữ event
+socket (`strata-agent.socket`), nên sự kiện được xếp hàng trong kernel, tối đa
+`net.unix.max_dgram_qlen` (8192) datagram; quá mức đó mới bị bỏ (`strata_events_dropped_total`).
+Nếu `strata-agent.socket` không chạy (`systemctl status strata-agent.socket`), sự kiện bị bỏ
+ngay.
 
 ```bash
 systemctl status strata-agent
 journalctl -u strata-agent --since -15min
 ```
+
+## Nâng cấp agent
+
+Cài gói mới (`apt-get install ./strata-agent_….deb` hoặc `dnf install ./strata-agent-….rpm`).
+Gói tự khởi động lại agent; không cần dừng NGINX, và bundle không đổi.
+- Từ W13-G1-01, gói giữ event socket bằng systemd, nên không mất sự kiện khi nâng cấp
+  (`deploy/packaging/test/test-upgrade.sh`: 0 sự kiện mất).
+- Lần nâng cấp **đầu tiên** từ gói cũ hơn (tới `v0.11.0-rc.3`) chuyển socket sang systemd một
+  lần, mất khoảng 20 sự kiện.
+- Gói cũ hơn có một lỗi: khi nâng cấp, prerm của nó dừng **và tắt** agent. Gói mới bật lại
+  agent sau đó (deb trong `postinst`, rpm trong `%posttrans`).
+- Sau khi nâng cấp, kiểm:
+  - `systemctl is-active strata-agent strata-agent.socket`;
+  - `systemctl is-enabled strata-agent`.
 
 ## Agent mất kết nối
 
