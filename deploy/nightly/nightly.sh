@@ -5,7 +5,8 @@
 # of its own (build/nightly/src), so the working tree of the repository is
 # never touched. Each run keeps build/nightly/<UTC date>/: the report, the
 # summary and the log; history.tsv gets one line per run (bypass rate), and
-# the 14 latest runs are kept.
+# the 14 latest runs are kept. On Mondays it also writes the weekly rule
+# review (RV-S-02, strata-rules lifecycle) of staging: lifecycle.md.
 #
 # Usage: deploy/nightly/nightly.sh            (cron: install-cron.sh)
 # NIGHTLY_CPUS: the CPUs the dev container may use (default 0-5).
@@ -38,6 +39,21 @@ STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=${NIGHTLY_CPUS:-0-5} -v $root/build/go:/sr
     "$src/deploy/dev/run.sh" make mutate </dev/null || rc=$?
 cp "$src/docs/mutation-report.md" "$out/" 2>/dev/null || true
 cp "$src/build/mutate/summary.json" "$out/" 2>/dev/null || true
+
+# Mondays (or LIFECYCLE_NOW=1): the weekly rule review of RV-S-02 on the
+# staging event store, with its attack sources excluded (the pilot
+# traffic's attacker, pilot-traffic.sh sources). STAGING_STATE: the
+# staging state directory (its env holds the ClickHouse password).
+state="${STAGING_STATE:-$HOME/strata-w10/deploy/staging/.state}"
+if { [ "$(date -u +%u)" = 1 ] || [ -n "${LIFECYCLE_NOW:-}" ]; } && [ -f "$state/env" ]; then
+    # shellcheck disable=SC1091
+    pw=$(. "$state/env" && echo "$CLICKHOUSE_PASSWORD")
+    cp "$state/pilot/attack-sources.txt" "$src/build/attack-sources.txt" 2>/dev/null || : > "$src/build/attack-sources.txt"
+    STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=${NIGHTLY_CPUS:-0-5} --network host -e STRATA_CLICKHOUSE_USER=strata -e STRATA_CLICKHOUSE_PASSWORD=$pw -v $root/build/go:/src/build/go" \
+        "$src/deploy/dev/run.sh" sh -c 'cd tools/strata-rules && go run . lifecycle --repo ../.. --clickhouse http://127.0.0.1:28123 --policy pilot-verify,pilot-upload --exclude-ips ../../build/attack-sources.txt' \
+        </dev/null > "$out/lifecycle.md" || { echo "nightly: lifecycle report failed"; rc=1; }
+    echo "nightly: lifecycle report $out/lifecycle.md"
+fi
 
 # one line: date, commit, exit code, variants tested, bypassed, rate
 line=$(python3 - "$out/summary.json" <<'PY' 2>/dev/null || echo "- - -"
