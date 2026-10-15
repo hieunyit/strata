@@ -27,6 +27,9 @@ type Spec struct {
 	// enforce policy blocks (0.01..99.99, two decimals); 0 = every client
 	// (W12-G2-01; policies.schema.json canary_percent).
 	CanaryPercent float64 `json:"canary_percent,omitempty"`
+	// MaxArgs: arguments inspected, 1..1020 (rounded up to four by the
+	// compiler); 0 = the engine's 1024. More go by Oversize (rule 100021, #28).
+	MaxArgs int `json:"max_args,omitempty"`
 }
 
 // CanaryBasisPoints of the spec's canary (0: none).
@@ -70,6 +73,9 @@ func (s Spec) Validate() error {
 	case "", "pass", "block":
 	default:
 		return fmt.Errorf("oversize must be pass or block, got %q", s.Oversize)
+	}
+	if s.MaxArgs < 0 || s.MaxArgs > 1020 {
+		return fmt.Errorf("max_args must be 1..1020, got %d", s.MaxArgs)
 	}
 	switch s.MaxSnippetSize {
 	case 0, 128, 2048, 4096:

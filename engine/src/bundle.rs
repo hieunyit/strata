@@ -101,6 +101,25 @@ const EVENT_BYTE: usize = POLICY_NAME_LEN + 6;
 const SNIPPET_MASK: u8 = 0b11;
 const PRIVACY_BIT: u8 = 1 << 2;
 
+/// Last byte of the policy entry (#28): the arguments the policy inspects,
+/// in fours; 0 (bundles written before it) is the engine's limit,
+/// `MAX_ARGS_DEFAULT`. Engines from before it refuse a bundle with this
+/// byte set rather than inspect more arguments than the policy asks.
+const ARGS_BYTE: usize = POLICY_NAME_LEN + 7;
+/// The engine's limit when the policy sets none (eval::MAX_ARGS).
+pub const MAX_ARGS_DEFAULT: usize = 1024;
+/// Highest `max_args` a policy sets (255 fours).
+pub const MAX_ARGS_POLICY: usize = 255 * 4;
+
+/// The byte for `max_args` (0 = the default), rounded up to four.
+pub fn args_byte(max_args: usize) -> Option<u8> {
+    match max_args {
+        0 => Some(0),
+        n if n <= MAX_ARGS_POLICY => Some(n.div_ceil(4) as u8),
+        _ => None,
+    }
+}
+
 /// Longest snippet of a match in the policy's events (P-01 §1b, set by
 /// admins with `max_snippet_size`): bits 0-1 of EVENT_BYTE, 0 in bundles
 /// written before it.
@@ -150,6 +169,8 @@ pub struct Policy<'a> {
     pub snippet: SnippetSize,
     /// the policy has privacy settings (section PRIVACY)
     pub privacy: bool,
+    /// arguments inspected (query and body fields): see ARGS_BYTE
+    pub max_args: usize,
 }
 
 /// Rules of the signature pack for a policy (RV-S-01). The default (0 in
@@ -192,6 +213,8 @@ pub struct PolicySpec<'a> {
     /// bit 2 of EVENT_BYTE: the policy has privacy settings; engines that do not
     /// read section PRIVACY refuse the bundle rather than ignore them
     pub privacy: bool,
+    /// See `Policy::max_args`; 0 = the default. Rounded up to four.
+    pub max_args: usize,
 }
 
 impl<'a> PolicySpec<'a> {
@@ -206,6 +229,7 @@ impl<'a> PolicySpec<'a> {
             signatures: Signatures::Shadow,
             snippet: SnippetSize::Small,
             privacy: false,
+            max_args: 0,
         }
     }
 }
@@ -292,7 +316,7 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && Signatures::from_byte(entry[POLICY_NAME_LEN + 5]).is_some()
         && entry[EVENT_BYTE] & !(SNIPPET_MASK | PRIVACY_BIT) == 0
         && entry[EVENT_BYTE] & SNIPPET_MASK <= SnippetSize::Kb4 as u8
-        && entry[EVENT_BYTE + 1..].iter().all(|&c| c == 0)
+        && entry[ARGS_BYTE + 1..].iter().all(|&c| c == 0)
 }
 
 /// A canary share only makes sense on an enforce policy.
@@ -448,6 +472,10 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             signatures: Signatures::from_byte(e[POLICY_NAME_LEN + 5]).unwrap_or_default(),
             snippet: SnippetSize::of(e[EVENT_BYTE] & SNIPPET_MASK),
             privacy: e[EVENT_BYTE] & PRIVACY_BIT != 0,
+            max_args: match e[ARGS_BYTE] {
+                0 => MAX_ARGS_DEFAULT,
+                n => n as usize * 4,
+            },
         })
 }
 
@@ -509,6 +537,9 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
     out[16..24].copy_from_slice(&spec.version.to_le_bytes());
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
     for (i, p) in spec.policies.iter().enumerate() {
+        let Some(args) = args_byte(p.max_args) else {
+            return Err(Error::BadLayout("bad policy entry"));
+        };
         if p.response.0 & !Response::ALL != 0 || !valid_canary(p.mode, p.canary) {
             return Err(Error::BadLayout("bad policy entry"));
         }
@@ -521,6 +552,7 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
             .copy_from_slice(&p.canary.to_le_bytes());
         out[at + POLICY_NAME_LEN + 5] = p.signatures as u8;
         out[at + EVENT_BYTE] = p.snippet as u8 | if p.privacy { PRIVACY_BIT } else { 0 };
+        out[at + ARGS_BYTE] = args;
     }
 
     if spec.sections.len() > MAX_SECTIONS {
@@ -722,6 +754,34 @@ mod tests {
         bad3.extend_from_slice(&sig.to_bytes());
         assert_eq!(
             verify(&bad3, &public_key(&SEED)),
+            Err(Error::BadLayout("bad policy entry"))
+        );
+
+        // max_args (#28): byte 63 in fours; 0 is the engine's 1024
+        assert_eq!(
+            find_policy(&b, &verify(&b, &public_key(&SEED)).unwrap(), b"example-api")
+                .unwrap()
+                .max_args,
+            MAX_ARGS_DEFAULT
+        );
+        for (set, got, byte) in [(1, 4, 1u8), (5, 8, 2), (100, 100, 25), (1020, 1020, 255)] {
+            let pa = PolicySpec { max_args: set, ..p };
+            let ab = build(&spec(&[pa]), &SEED).unwrap();
+            assert_eq!(ab[HEADER_LEN + ARGS_BYTE], byte);
+            let info = verify(&ab, &public_key(&SEED)).unwrap();
+            assert_eq!(
+                find_policy(&ab, &info, b"example-api").unwrap().max_args,
+                got
+            );
+        }
+        assert_eq!(
+            build(
+                &spec(&[PolicySpec {
+                    max_args: 1021,
+                    ..p
+                }]),
+                &SEED
+            ),
             Err(Error::BadLayout("bad policy entry"))
         );
 

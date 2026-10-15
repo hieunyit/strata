@@ -54,6 +54,11 @@ message PolicySpec {
   // two decimals), whose requests this enforce policy blocks; the others
   // run in shadow. 0: every client.
   double canary_percent = 6;
+  // Arguments inspected, query then body fields (#28): 1 to 1020, rounded up
+  // to a multiple of 4; 0 = 1024. A request with more goes by `oversize`
+  // (rule 100021). Modules from before the setting refuse bundles that set
+  // it: upgrade them first.
+  uint32 max_args = 7;
 }
 
 message PrivacySettings {
