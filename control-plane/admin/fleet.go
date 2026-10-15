@@ -60,7 +60,7 @@ type fleetAdmin struct {
 func audit(ctx context.Context, resource string) store.Audit {
 	a := store.Audit{Resource: resource, Channel: "api"}
 	if p := auth.FromContext(ctx); p != nil {
-		a.Actor = p.Subject
+		a.Actor, a.Subject = p.Subject, p.Subject
 		if p.Name != "" {
 			a.Actor = p.Name + " (" + p.Subject + ")"
 		}

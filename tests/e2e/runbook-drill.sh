@@ -33,6 +33,11 @@ TOKEN=$(curl -fsS "http://127.0.0.1:${p}8180/realms/strata/protocol/openid-conne
     sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 [ -n "$TOKEN" ] || fail "no token"
 api() { curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
+APPROVER=$(curl -fsS "http://127.0.0.1:${p}8180/realms/strata/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+    -d username=lab-approver --data-urlencode "password=$LAB_APPROVER_PASSWORD" |
+    sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[ -n "$APPROVER" ] || fail "no approver token"
 json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 code() { curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.example.test' "http://127.0.0.1:$1$attack"; }
 # until_code <port> <status> <seconds>: prints the seconds it took
@@ -87,6 +92,10 @@ patch_spec() { # spec JSON
     local etag
     etag=$(api "$CP/v1/policies/example-api" | json "d['policy']['etag']")
     api -X PATCH "$CP/v1/policies/example-api" -d "{\"etag\":\"$etag\",\"spec\":$1}" >/dev/null
+    # four eyes (W13-G2-02): lab-admin submits, lab-approver approves
+    v=$(api -X POST "$CP/v1/policies/example-api:submit" -d '{}' | json "d['version']['version']")
+    curl -fsS -o /dev/null -H "Authorization: Bearer $APPROVER" -H 'Content-Type: application/json' \
+        -X POST "$CP/v1/policies/example-api:approve" -d "{\"version\":$v}" || fail "approve version $v"
 }
 spec_good=$(api "$CP/v1/policies/example-api/versions/$good" | json "json.dumps(d['version']['spec'])")
 bad=$(python3 -c "import json,sys; s=json.loads(sys.argv[1]); s['mode']='MODE_SHADOW'; print(json.dumps(s))" "$spec_good")

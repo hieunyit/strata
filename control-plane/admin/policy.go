@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,6 +25,10 @@ type PolicyStore interface {
 	UpdatePolicy(ctx context.Context, id, etag string, spec json.RawMessage, a store.Audit) (store.Policy, error)
 	ListPolicyVersions(ctx context.Context, id string) ([]store.PolicyVersion, error)
 	GetPolicyVersion(ctx context.Context, id string, version int) (store.PolicyVersion, error)
+	// four eyes (W13-G2-02)
+	ListVersionsByState(ctx context.Context, state string) ([]store.PolicyVersion, error)
+	SubmitPolicyVersion(ctx context.Context, id string, version int, a store.Audit) (store.PolicyVersion, error)
+	DecidePolicyVersion(ctx context.Context, id string, version int, approve bool, comment string, a store.Audit) (store.PolicyVersion, error)
 }
 
 // Deployer publishes bundles (policy.Deployer).
@@ -90,12 +97,21 @@ func policyPB(p store.Policy) *adminv1.Policy {
 	return &adminv1.Policy{
 		Id: p.ID, Name: p.Name, Spec: specPB(p.Spec), Version: uint32(p.CurrentVersion), Etag: p.Etag,
 		CreatedBy: p.CreatedBy, CreateTime: timestamppb.New(p.CreatedAt), UpdateTime: timestamppb.New(p.UpdatedAt),
+		ApprovedVersion: uint32(p.ApprovedVersion), DeployedVersion: uint32(p.DeployedVersion),
 	}
 }
 
 func versionPB(v store.PolicyVersion) *adminv1.PolicyVersion {
-	return &adminv1.PolicyVersion{PolicyId: v.PolicyID, Version: uint32(v.Version), Spec: specPB(v.Spec), State: v.State,
-		CreatedBy: v.CreatedBy, CreateTime: timestamppb.New(v.CreatedAt)}
+	out := &adminv1.PolicyVersion{PolicyId: v.PolicyID, Version: uint32(v.Version), Spec: specPB(v.Spec), State: v.State,
+		CreatedBy: v.CreatedBy, CreateTime: timestamppb.New(v.CreatedAt), SubmittedBy: v.SubmittedBy,
+		DecidedBy: v.DecidedBy, DecisionComment: v.DecisionComment}
+	if v.SubmittedAt != nil {
+		out.SubmitTime = timestamppb.New(*v.SubmittedAt)
+	}
+	if v.DecidedAt != nil {
+		out.DecideTime = timestamppb.New(*v.DecidedAt)
+	}
+	return out
 }
 
 func notFound(err error, what string) error {
@@ -176,14 +192,31 @@ func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolic
 	return &adminv1.UpdatePolicyResponse{Policy: policyPB(updated), ReplayOperation: p.replayNew(ctx, updated.ID, updated.CurrentVersion)}, nil
 }
 
+var versionStates = map[string]bool{store.VersionDraft: true, store.VersionSubmitted: true, store.VersionApproved: true,
+	store.VersionRejected: true, store.VersionDeployed: true}
+
 func (p *policyAdmin) ListPolicyVersions(ctx context.Context, req *adminv1.ListPolicyVersionsRequest) (*adminv1.ListPolicyVersionsResponse, error) {
-	vs, err := p.store.ListPolicyVersions(ctx, req.GetPolicyId())
-	if err != nil {
+	state := req.GetState()
+	if state != "" && !versionStates[state] {
+		return nil, status.Error(codes.InvalidArgument, "state must be DRAFT, SUBMITTED, APPROVED, REJECTED or DEPLOYED")
+	}
+	var vs []store.PolicyVersion
+	var err error
+	if req.GetPolicyId() == "-" {
+		if state == "" {
+			return nil, status.Error(codes.InvalidArgument, "policy_id - (every policy) needs a state")
+		}
+		if vs, err = p.store.ListVersionsByState(ctx, state); err != nil {
+			return nil, internal("list versions", err)
+		}
+	} else if vs, err = p.store.ListPolicyVersions(ctx, req.GetPolicyId()); err != nil {
 		return nil, notFound(err, "policy")
 	}
 	out := &adminv1.ListPolicyVersionsResponse{}
 	for _, v := range vs {
-		out.Versions = append(out.Versions, versionPB(v))
+		if state == "" || v.State == state {
+			out.Versions = append(out.Versions, versionPB(v))
+		}
 	}
 	return out, nil
 }
@@ -200,8 +233,19 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	if p.deploy == nil {
 		return nil, status.Error(codes.FailedPrecondition, "deploys are not configured on this control plane (compiler, signing key, object store)")
 	}
-	if _, err := p.store.GetPolicy(ctx, req.GetPolicyId()); err != nil {
+	cur, err := p.store.GetPolicy(ctx, req.GetPolicyId())
+	if err != nil {
 		return nil, notFound(err, "policy")
+	}
+	// four eyes (W13-G2-02): the policy's newest version must be approved
+	if cur.ApprovedVersion != cur.CurrentVersion {
+		v, err := p.store.GetPolicyVersion(ctx, cur.ID, cur.CurrentVersion)
+		if err != nil {
+			return nil, notFound(err, "policy version")
+		}
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"version %d of policy %s is %s: it must be submitted and approved by someone else before a deploy (four eyes)",
+			cur.CurrentVersion, cur.ID, v.State)
 	}
 	d, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
 	var costErr *policy.CostError
@@ -216,4 +260,73 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 		out.RolloutId = d.Rollout.ID
 	}
 	return out, nil
+}
+
+// SubmitPolicy implements POST /v1/policies/{policy_id}:submit.
+func (p *policyAdmin) SubmitPolicy(ctx context.Context, req *adminv1.SubmitPolicyRequest) (*adminv1.SubmitPolicyResponse, error) {
+	version := int(req.GetVersion())
+	if version == 0 {
+		cur, err := p.store.GetPolicy(ctx, req.GetPolicyId())
+		if err != nil {
+			return nil, notFound(err, "policy")
+		}
+		version = cur.CurrentVersion
+	}
+	v, err := p.store.SubmitPolicyVersion(ctx, req.GetPolicyId(), version,
+		audit(ctx, "policies/"+req.GetPolicyId()+"/versions/"+strconv.Itoa(version)+":submit"))
+	if err != nil {
+		return nil, decisionErr(err)
+	}
+	return &adminv1.SubmitPolicyResponse{Version: versionPB(v)}, nil
+}
+
+// ApprovePolicy implements POST /v1/policies/{policy_id}:approve.
+func (p *policyAdmin) ApprovePolicy(ctx context.Context, req *adminv1.ApprovePolicyRequest) (*adminv1.ApprovePolicyResponse, error) {
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), true, req.GetComment())
+	if err != nil {
+		return nil, err
+	}
+	return &adminv1.ApprovePolicyResponse{Version: versionPB(v)}, nil
+}
+
+// RejectPolicy implements POST /v1/policies/{policy_id}:reject.
+func (p *policyAdmin) RejectPolicy(ctx context.Context, req *adminv1.RejectPolicyRequest) (*adminv1.RejectPolicyResponse, error) {
+	if strings.TrimSpace(req.GetComment()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "a comment saying why is required")
+	}
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), false, req.GetComment())
+	if err != nil {
+		return nil, err
+	}
+	return &adminv1.RejectPolicyResponse{Version: versionPB(v)}, nil
+}
+
+func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, approve bool, comment string) (store.PolicyVersion, error) {
+	if version == 0 {
+		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "version is required: the one reviewed")
+	}
+	if utf8.RuneCountInString(comment) > 1000 {
+		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "comment: at most 1000 characters")
+	}
+	verb := ":reject"
+	if approve {
+		verb = ":approve"
+	}
+	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment,
+		audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb))
+	if err != nil {
+		return store.PolicyVersion{}, decisionErr(err)
+	}
+	return v, nil
+}
+
+func decisionErr(err error) error {
+	var se *store.StateError
+	switch {
+	case errors.Is(err, store.ErrFourEyes):
+		return status.Error(codes.PermissionDenied, "whoever drafted or submitted a version cannot approve it (four eyes)")
+	case errors.As(err, &se):
+		return status.Error(codes.FailedPrecondition, se.Msg)
+	}
+	return notFound(err, "policy version")
 }

@@ -183,6 +183,7 @@ func (p *platform) deploy(t *testing.T, mode string) string {
 	} else if c == http.StatusOK {
 		p.call(t, "operator", http.MethodPatch, "/v1/policies/example-api", fmt.Sprintf(`{"etag":%q,"spec":{"mode":%q}}`, pol.Policy.Etag, mode), nil)
 	}
+	approve(t, p.call, "example-api")
 	var d struct {
 		RolloutID string `json:"rollout_id"`
 	}

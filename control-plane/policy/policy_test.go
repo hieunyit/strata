@@ -65,7 +65,9 @@ type fakeStore struct {
 	bundles  []store.Bundle
 }
 
-func (f *fakeStore) ListPolicies(context.Context) ([]store.Policy, error) { return f.policies, nil }
+func (f *fakeStore) DeployablePolicies(context.Context) ([]store.Policy, error) {
+	return f.policies, nil
+}
 func (f *fakeStore) WithBundleLock(_ context.Context, build func(uint64) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

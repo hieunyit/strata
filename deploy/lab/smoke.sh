@@ -75,6 +75,17 @@ out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"m
 [ "$(tail -1 <<<"$out")" = 200 ] && grep -q '"version":2' <<<"$out" && ok "edit with the current etag: version 2" || bad "edit with the current etag: $out"
 out=$(api operator PATCH "/v1/policies/$pid" "{\"etag\":\"$etag1\",\"spec\":{\"mode\":\"MODE_SHADOW\"}}")
 [ "$(tail -1 <<<"$out")" = 409 ] && ok "edit with a stale etag: 409" || bad "edit with a stale etag: $out"
+op=$(head -n -1 <<<"$out" | field replay_operation)
+replayed() { api viewer GET "/v1/operations/$op" | grep -q '"done":true'; }
+if [ -n "$op" ] && retry 120 replayed && api viewer GET "/v1/operations/$op" | grep -q '"state":"DONE"'; then
+    ok "version 2 replayed on its own against the bundle in force ($op, W13-G2-01)"
+else
+    bad "version 2 replayed on its own: $op $(api viewer GET "/v1/operations/$op" | head -c 300)"
+fi
+[ "$(api operator POST "/v1/policies/$pid:deploy" '{}' | tail -1)" = 400 ] && ok "deploy of a draft: 400 (four eyes)" || bad "deploy of a draft: 400"
+[ "$(api operator POST "/v1/policies/$pid:submit" '{}' | tail -1)" = 200 ] && ok "operator submits version 2" || bad "operator submits version 2"
+[ "$(api operator POST "/v1/policies/$pid:approve" '{"version":2}' | tail -1)" = 403 ] && ok "operator may not approve: 403" || bad "operator may not approve: 403"
+[ "$(api approver POST "/v1/policies/$pid:approve" '{"version":2,"comment":"smoke"}' | tail -1)" = 200 ] && ok "approver approves version 2" || bad "approver approves version 2"
 out=$(api operator POST "/v1/policies/$pid:deploy" '{}')
 key=$(head -n -1 <<<"$out" | field object_key); sum=$(head -n -1 <<<"$out" | field sha256)
 if [ "$(tail -1 <<<"$out")" = 200 ] && [ -n "$key" ]; then ok "deploy built and signed a bundle ($key)"; else bad "deploy: $out"; fi

@@ -581,6 +581,15 @@
                 "update_time": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "approved_version": {
+                  "type": "integer",
+                  "format": "int64",
+                  "title": "the newest approved (or deployed) version, which a deploy builds, and\nthe newest deployed one; 0: none"
+                },
+                "deployed_version": {
+                  "type": "integer",
+                  "format": "int64"
                 }
               },
               "title": "id, spec, and the etag it was read with"
@@ -625,7 +634,7 @@
     },
     "/v1/policies/{policy_id}/versions": {
       "get": {
-        "summary": "REST: GET /v1/policies/{policy_id}/versions",
+        "summary": "REST: GET /v1/policies/{policy_id}/versions; policy_id \"-\" with a state\nlists that state across policies (the review queue: state=SUBMITTED).",
         "operationId": "PolicyService_ListPolicyVersions",
         "responses": {
           "200": {
@@ -644,8 +653,16 @@
         "parameters": [
           {
             "name": "policy_id",
+            "description": "\"-\": every policy (state is then required)",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "description": "only versions in this state; \"\": all",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -730,9 +747,48 @@
         ]
       }
     },
+    "/v1/policies/{policy_id}:approve": {
+      "post": {
+        "summary": "REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED\nversion; whoever drafted or submitted it may not (PERMISSION_DENIED).",
+        "operationId": "PolicyService_ApprovePolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApprovePolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PolicyServiceApprovePolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
     "/v1/policies/{policy_id}:deploy": {
       "post": {
-        "summary": "REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the\ncurrent version of every policy, signs it and stores it in object\nstorage.",
+        "summary": "REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the\nnewest approved version of every policy, signs it and stores it in\nobject storage. Refused (FAILED_PRECONDITION) while the policy's newest\nversion is not approved.",
         "operationId": "PolicyService_DeployPolicy",
         "responses": {
           "200": {
@@ -761,6 +817,45 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/PolicyServiceDeployPolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}:reject": {
+      "post": {
+        "summary": "REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED\nversion, with a comment.",
+        "operationId": "PolicyService_RejectPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RejectPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PolicyServiceRejectPolicyBody"
             }
           }
         ],
@@ -800,6 +895,45 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/PolicyServiceReplayPolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policies/{policy_id}:submit": {
+      "post": {
+        "summary": "REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)\nversion (0: the newest) up for review.",
+        "operationId": "PolicyService_SubmitPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SubmitPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PolicyServiceSubmitPolicyBody"
             }
           }
         ],
@@ -1169,10 +1303,48 @@
         }
       }
     },
+    "PolicyServiceApprovePolicyBody": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int64",
+          "title": "required"
+        },
+        "comment": {
+          "type": "string",
+          "title": "optional, at most 1000 characters"
+        }
+      }
+    },
     "PolicyServiceDeployPolicyBody": {
       "type": "object"
     },
+    "PolicyServiceRejectPolicyBody": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int64",
+          "title": "required"
+        },
+        "comment": {
+          "type": "string",
+          "title": "required, 1 to 1000 characters"
+        }
+      }
+    },
     "PolicyServiceReplayPolicyBody": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int64",
+          "title": "0: the newest"
+        }
+      }
+    },
+    "PolicyServiceSubmitPolicyBody": {
       "type": "object",
       "properties": {
         "version": {
@@ -1243,6 +1415,14 @@
       "properties": {
         "rollout": {
           "$ref": "#/definitions/v1Rollout"
+        }
+      }
+    },
+    "v1ApprovePolicyResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/v1PolicyVersion"
         }
       }
     },
@@ -1831,6 +2011,15 @@
         "update_time": {
           "type": "string",
           "format": "date-time"
+        },
+        "approved_version": {
+          "type": "integer",
+          "format": "int64",
+          "title": "the newest approved (or deployed) version, which a deploy builds, and\nthe newest deployed one; 0: none"
+        },
+        "deployed_version": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
@@ -1882,7 +2071,8 @@
           "$ref": "#/definitions/v1PolicySpec"
         },
         "state": {
-          "type": "string"
+          "type": "string",
+          "title": "DRAFT, SUBMITTED, APPROVED, REJECTED or DEPLOYED"
         },
         "created_by": {
           "type": "string"
@@ -1890,6 +2080,24 @@
         "create_time": {
           "type": "string",
           "format": "date-time"
+        },
+        "submitted_by": {
+          "type": "string"
+        },
+        "submit_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decided_by": {
+          "type": "string",
+          "title": "who approved or rejected it, when, and why"
+        },
+        "decide_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision_comment": {
+          "type": "string"
         }
       }
     },
@@ -1913,6 +2121,14 @@
         "identity": {
           "type": "string",
           "description": "plain (default) or hmac: events carry hmac: and 32 hex digits of\nHMAC-SHA256 with the installation's identity key instead of the\nidentity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps)."
+        }
+      }
+    },
+    "v1RejectPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/v1PolicyVersion"
         }
       }
     },
@@ -2234,6 +2450,14 @@
             "type": "object",
             "$ref": "#/definitions/v1NodeCommand"
           }
+        }
+      }
+    },
+    "v1SubmitPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/v1PolicyVersion"
         }
       }
     },

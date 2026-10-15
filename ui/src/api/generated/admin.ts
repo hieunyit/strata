@@ -100,7 +100,10 @@ export interface paths {
     get: operations["PolicyService_GetPolicy"];
   };
   "/v1/policies/{policy_id}/versions": {
-    /** REST: GET /v1/policies/{policy_id}/versions */
+    /**
+     * REST: GET /v1/policies/{policy_id}/versions; policy_id "-" with a state
+     * lists that state across policies (the review queue: state=SUBMITTED).
+     */
     get: operations["PolicyService_ListPolicyVersions"];
   };
   "/v1/policies/{policy_id}/versions/{version}": {
@@ -114,13 +117,28 @@ export interface paths {
      */
     get: operations["PolicyService_GetPolicyVersionReplay"];
   };
+  "/v1/policies/{policy_id}:approve": {
+    /**
+     * REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED
+     * version; whoever drafted or submitted it may not (PERMISSION_DENIED).
+     */
+    post: operations["PolicyService_ApprovePolicy"];
+  };
   "/v1/policies/{policy_id}:deploy": {
     /**
      * REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
-     * current version of every policy, signs it and stores it in object
-     * storage.
+     * newest approved version of every policy, signs it and stores it in
+     * object storage. Refused (FAILED_PRECONDITION) while the policy's newest
+     * version is not approved.
      */
     post: operations["PolicyService_DeployPolicy"];
+  };
+  "/v1/policies/{policy_id}:reject": {
+    /**
+     * REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED
+     * version, with a comment.
+     */
+    post: operations["PolicyService_RejectPolicy"];
   };
   "/v1/policies/{policy_id}:replay": {
     /**
@@ -130,6 +148,13 @@ export interface paths {
      * GET /v1/operations/{operation_id}.
      */
     post: operations["PolicyService_ReplayPolicy"];
+  };
+  "/v1/policies/{policy_id}:submit": {
+    /**
+     * REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)
+     * version (0: the newest) up for review.
+     */
+    post: operations["PolicyService_SubmitPolicy"];
   };
   "/v1/rollouts": {
     /** REST: GET /v1/rollouts */
@@ -211,8 +236,33 @@ export interface components {
       rate_percent?: number;
       rotate_key?: boolean;
     };
+    PolicyServiceApprovePolicyBody: {
+      /**
+       * required
+       * Format: int64
+       */
+      version?: number;
+      /** optional, at most 1000 characters */
+      comment?: string;
+    };
     PolicyServiceDeployPolicyBody: Record<string, never>;
+    PolicyServiceRejectPolicyBody: {
+      /**
+       * required
+       * Format: int64
+       */
+      version?: number;
+      /** required, 1 to 1000 characters */
+      comment?: string;
+    };
     PolicyServiceReplayPolicyBody: {
+      /**
+       * 0: the newest
+       * Format: int64
+       */
+      version?: number;
+    };
+    PolicyServiceSubmitPolicyBody: {
       /**
        * 0: the newest
        * Format: int64
@@ -245,6 +295,9 @@ export interface components {
     };
     v1AbortRolloutResponse: {
       rollout?: components["schemas"]["v1Rollout"];
+    };
+    v1ApprovePolicyResponse: {
+      version?: components["schemas"]["v1PolicyVersion"];
     };
     v1Bundle: {
       /** Format: uint64 */
@@ -488,6 +541,14 @@ export interface components {
       create_time?: string;
       /** Format: date-time */
       update_time?: string;
+      /**
+       * the newest approved (or deployed) version, which a deploy builds, and
+       * the newest deployed one; 0: none
+       * Format: int64
+       */
+      approved_version?: number;
+      /** Format: int64 */
+      deployed_version?: number;
     };
     /**
      * @description PolicySpec is what the bundle carries for the policy
@@ -526,10 +587,19 @@ export interface components {
       /** Format: int64 */
       version?: number;
       spec?: components["schemas"]["v1PolicySpec"];
+      /** DRAFT, SUBMITTED, APPROVED, REJECTED or DEPLOYED */
       state?: string;
       created_by?: string;
       /** Format: date-time */
       create_time?: string;
+      submitted_by?: string;
+      /** Format: date-time */
+      submit_time?: string;
+      /** who approved or rejected it, when, and why */
+      decided_by?: string;
+      /** Format: date-time */
+      decide_time?: string;
+      decision_comment?: string;
     };
     v1PrivacySettings: {
       /**
@@ -548,6 +618,9 @@ export interface components {
        * identity (STRATA_IDENTITY_HMAC_KEY, or a key the control plane keeps).
        */
       identity?: string;
+    };
+    v1RejectPolicyResponse: {
+      version?: components["schemas"]["v1PolicyVersion"];
     };
     v1ReplayComparison: {
       /** Format: uint64 */
@@ -695,6 +768,9 @@ export interface components {
     v1SetReplaySamplingResponse: {
       sampling?: components["schemas"]["v1ReplaySampling"];
       commands?: components["schemas"]["v1NodeCommand"][];
+    };
+    v1SubmitPolicyResponse: {
+      version?: components["schemas"]["v1PolicyVersion"];
     };
     v1UpdatePolicyResponse: {
       policy?: components["schemas"]["v1Policy"];
@@ -1114,6 +1190,14 @@ export interface operations {
           create_time?: string;
           /** Format: date-time */
           update_time?: string;
+          /**
+           * the newest approved (or deployed) version, which a deploy builds, and
+           * the newest deployed one; 0: none
+           * Format: int64
+           */
+          approved_version?: number;
+          /** Format: int64 */
+          deployed_version?: number;
         };
       };
     };
@@ -1154,10 +1238,18 @@ export interface operations {
       };
     };
   };
-  /** REST: GET /v1/policies/{policy_id}/versions */
+  /**
+   * REST: GET /v1/policies/{policy_id}/versions; policy_id "-" with a state
+   * lists that state across policies (the review queue: state=SUBMITTED).
+   */
   PolicyService_ListPolicyVersions: {
     parameters: {
+      query?: {
+        /** @description only versions in this state; "": all */
+        state?: string;
+      };
       path: {
+        /** @description "-": every policy (state is then required) */
         policy_id: string;
       };
     };
@@ -1226,9 +1318,40 @@ export interface operations {
     };
   };
   /**
+   * REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED
+   * version; whoever drafted or submitted it may not (PERMISSION_DENIED).
+   */
+  PolicyService_ApprovePolicy: {
+    parameters: {
+      path: {
+        policy_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyServiceApprovePolicyBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ApprovePolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
    * REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
-   * current version of every policy, signs it and stores it in object
-   * storage.
+   * newest approved version of every policy, signs it and stores it in
+   * object storage. Refused (FAILED_PRECONDITION) while the policy's newest
+   * version is not approved.
    */
   PolicyService_DeployPolicy: {
     parameters: {
@@ -1246,6 +1369,36 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1DeployPolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED
+   * version, with a comment.
+   */
+  PolicyService_RejectPolicy: {
+    parameters: {
+      path: {
+        policy_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyServiceRejectPolicyBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1RejectPolicyResponse"];
         };
       };
       /** @description An unexpected error response. */
@@ -1278,6 +1431,36 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1ReplayPolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)
+   * version (0: the newest) up for review.
+   */
+  PolicyService_SubmitPolicy: {
+    parameters: {
+      path: {
+        policy_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyServiceSubmitPolicyBody"];
+      };
+    };
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1SubmitPolicyResponse"];
         };
       };
       /** @description An unexpected error response. */

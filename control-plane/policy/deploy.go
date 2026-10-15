@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -13,7 +14,9 @@ import (
 
 // Store is the part of store.Store deploys use.
 type Store interface {
-	ListPolicies(ctx context.Context) ([]store.Policy, error)
+	// DeployablePolicies: each policy at its newest approved version (four
+	// eyes, W13-G2-02).
+	DeployablePolicies(ctx context.Context) ([]store.Policy, error)
 	WithBundleLock(ctx context.Context, build func(next uint64) error) error
 	RecordBundle(ctx context.Context, b store.Bundle, a store.Audit) (store.Bundle, error)
 }
@@ -46,8 +49,8 @@ func ObjectKey(version uint64) string {
 	return fmt.Sprintf("bundles/%020d/bundle-%d.sbn", version, version)
 }
 
-// Deploy builds the next bundle from the current version of every policy,
-// verifies it, uploads it, records it and starts its rollout.
+// Deploy builds the next bundle from the newest approved version of every
+// policy, verifies it, uploads it, records it and starts its rollout.
 func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (Deployment, error) {
 	b, err := d.build(ctx, a)
 	if err != nil || d.Publish == nil {
@@ -63,9 +66,12 @@ func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (Deployment, error
 func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, error) {
 	var out store.Bundle
 	err := d.Store.WithBundleLock(ctx, func(next uint64) error {
-		ps, err := d.Store.ListPolicies(ctx)
+		ps, err := d.Store.DeployablePolicies(ctx)
 		if err != nil {
 			return err
+		}
+		if len(ps) == 0 {
+			return errors.New("policy: no policy has an approved version")
 		}
 		sort.Slice(ps, func(i, j int) bool { return ps[i].Name < ps[j].Name })
 		named := make([]Named, 0, len(ps))

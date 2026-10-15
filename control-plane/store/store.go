@@ -32,7 +32,10 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // Audit is one audit_log row.
 type Audit struct {
-	Actor     string
+	Actor string
+	// Subject: the caller's token subject (sub), which the user cannot
+	// change, unlike the name in Actor; the four-eyes rule compares it.
+	Subject   string
 	Channel   string // ui, api, gitops, system
 	Action    string // full method name, e.g. /strata.admin.v1.FleetAdminService/RevokeNode
 	Resource  string // e.g. nodes/node-abc

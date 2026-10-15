@@ -9,8 +9,9 @@ import "strata/admin/v1/operation.proto";
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
 // one is refused with ABORTED (HTTP 409). Each new version is replayed
-// against the traffic samples on its own (W13-G2-01); approval (four eyes)
-// comes with W13-G2-02.
+// against the traffic samples on its own (W13-G2-01), and goes through four
+// eyes (W13-G2-02): DRAFT, :submit, then :approve or :reject by someone
+// else; deploys build each policy's newest approved version.
 service PolicyService {
   // REST: GET /v1/policies
   rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
@@ -20,13 +21,15 @@ service PolicyService {
   rpc CreatePolicy(CreatePolicyRequest) returns (CreatePolicyResponse);
   // REST: PATCH /v1/policies/{policy.id}
   rpc UpdatePolicy(UpdatePolicyRequest) returns (UpdatePolicyResponse);
-  // REST: GET /v1/policies/{policy_id}/versions
+  // REST: GET /v1/policies/{policy_id}/versions; policy_id "-" with a state
+  // lists that state across policies (the review queue: state=SUBMITTED).
   rpc ListPolicyVersions(ListPolicyVersionsRequest) returns (ListPolicyVersionsResponse);
   // REST: GET /v1/policies/{policy_id}/versions/{version}
   rpc GetPolicyVersion(GetPolicyVersionRequest) returns (GetPolicyVersionResponse);
   // REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
-  // current version of every policy, signs it and stores it in object
-  // storage.
+  // newest approved version of every policy, signs it and stores it in
+  // object storage. Refused (FAILED_PRECONDITION) while the policy's newest
+  // version is not approved.
   rpc DeployPolicy(DeployPolicyRequest) returns (DeployPolicyResponse);
   // REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
   // version (0: the newest) against the bundle in force, on the policy's
@@ -36,6 +39,15 @@ service PolicyService {
   // REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
   // newest replay of the version, done or not; NOT_FOUND when there is none.
   rpc GetPolicyVersionReplay(GetPolicyVersionReplayRequest) returns (GetPolicyVersionReplayResponse);
+  // REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)
+  // version (0: the newest) up for review.
+  rpc SubmitPolicy(SubmitPolicyRequest) returns (SubmitPolicyResponse);
+  // REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED
+  // version; whoever drafted or submitted it may not (PERMISSION_DENIED).
+  rpc ApprovePolicy(ApprovePolicyRequest) returns (ApprovePolicyResponse);
+  // REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED
+  // version, with a comment.
+  rpc RejectPolicy(RejectPolicyRequest) returns (RejectPolicyResponse);
 }
 
 // PolicySpec is what the bundle carries for the policy
@@ -102,15 +114,26 @@ message Policy {
   string created_by = 6;
   google.protobuf.Timestamp create_time = 7;
   google.protobuf.Timestamp update_time = 8;
+  // the newest approved (or deployed) version, which a deploy builds, and
+  // the newest deployed one; 0: none
+  uint32 approved_version = 9;
+  uint32 deployed_version = 10;
 }
 
 message PolicyVersion {
   string policy_id = 1;
   uint32 version = 2;
   PolicySpec spec = 3;
+  // DRAFT, SUBMITTED, APPROVED, REJECTED or DEPLOYED
   string state = 4;
   string created_by = 5;
   google.protobuf.Timestamp create_time = 6;
+  string submitted_by = 7;
+  google.protobuf.Timestamp submit_time = 8;
+  // who approved or rejected it, when, and why
+  string decided_by = 9;
+  google.protobuf.Timestamp decide_time = 10;
+  string decision_comment = 11;
 }
 
 message Bundle {
@@ -160,7 +183,8 @@ message UpdatePolicyResponse {
 }
 
 message ListPolicyVersionsRequest {
-  string policy_id = 1;
+  string policy_id = 1; // "-": every policy (state is then required)
+  string state = 2;     // only versions in this state; "": all
 }
 
 message ListPolicyVersionsResponse {
@@ -203,4 +227,33 @@ message ReplayPolicyResponse {
 
 message GetPolicyVersionReplayResponse {
   Operation operation = 1;
+}
+
+message SubmitPolicyRequest {
+  string policy_id = 1;
+  uint32 version = 2; // 0: the newest
+}
+
+message SubmitPolicyResponse {
+  PolicyVersion version = 1;
+}
+
+message ApprovePolicyRequest {
+  string policy_id = 1;
+  uint32 version = 2; // required
+  string comment = 3; // optional, at most 1000 characters
+}
+
+message ApprovePolicyResponse {
+  PolicyVersion version = 1;
+}
+
+message RejectPolicyRequest {
+  string policy_id = 1;
+  uint32 version = 2; // required
+  string comment = 3; // required, 1 to 1000 characters
+}
+
+message RejectPolicyResponse {
+  PolicyVersion version = 1;
 }

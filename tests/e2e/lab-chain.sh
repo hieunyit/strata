@@ -4,7 +4,8 @@
 # changes what they do with a test request.
 #
 #   1. example-web is in shadow: a path traversal under /web/ passes (200).
-#   2. As lab-operator: PATCH example-web to enforce (with its etag), deploy.
+#   2. As lab-operator: PATCH example-web to enforce (with its etag), submit;
+#      lab-approver approves (four eyes); deploy.
 #   3. The rollout takes the bundle to both nodes, one wave after the other
 #      (each agent fetches it, checks it and points its control file at it),
 #      and both NGINX builds answer 403 with a Block ID; a clean request
@@ -27,6 +28,11 @@ token=$(curl -fsS http://127.0.0.1:18180/realms/strata/protocol/openid-connect/t
     sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 [ -n "$token" ] || fail "no token for lab-operator"
 api() { curl -fsS -H "Authorization: Bearer $token" -H 'Content-Type: application/json' "$@"; }
+approver=$(curl -fsS http://127.0.0.1:18180/realms/strata/protocol/openid-connect/token \
+    -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+    -d username=lab-approver --data-urlencode "password=$LAB_APPROVER_PASSWORD" |
+    sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[ -n "$approver" ] || fail "no token for lab-approver"
 # field <name>: the first "name":"value" of a JSON answer (the resource's
 # own field comes before those of nested objects)
 field() { grep -o "\"$1\":\"[^\"]*\"" | head -1 | sed 's/.*:"\(.*\)"/\1/'; }
@@ -51,6 +57,10 @@ set_mode() {
     [ -n "$etag" ] || fail "example-web not found (did fleet-init run?)"
     api -X PATCH "$cp/v1/policies/example-web" \
         -d "{\"etag\":\"$etag\",\"spec\":{\"mode\":\"$1\",\"oversize\":\"OVERSIZE_PASS\"}}" >/dev/null
+    # four eyes (W13-G2-02): lab-operator submits, lab-approver approves
+    version=$(api -X POST "$cp/v1/policies/example-web:submit" -d '{}' | grep -o '"version":[0-9]*' | head -1 | cut -d: -f2)
+    curl -fsS -o /dev/null -H "Authorization: Bearer $approver" -H 'Content-Type: application/json' \
+        -X POST "$cp/v1/policies/example-web:approve" -d "{\"version\":$version}" || fail "approve version $version"
     out=$(api -X POST "$cp/v1/policies/example-web:deploy" -d '{}')
     version=$(field version <<<"$out"); rollout=$(field rollout_id <<<"$out")
     [ -n "$version" ] && [ -n "$rollout" ] || fail "deploy: $out"
