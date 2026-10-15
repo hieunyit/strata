@@ -1,0 +1,40 @@
+# Strata gap rule, W13-S-01 (#34): a parameter that is still
+# percent-encoded after the proxy's decoding and, decoded once more, holds a
+# shell command, a path traversal, markup or a MySQL versioned comment.
+# strata-mutate: double URL encoding bypassed 92% of command injection.
+rule:
+  id: 300010
+  name: Double-encoded attack payload in a parameter
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args } ]
+      operator: { type: rx, value: '%[0-9a-fA-F]{2}' }
+    - targets: [ { var: args } ]
+      transforms: [ url_decode_uni, lowercase ]
+      operator:
+        type: rx
+        value: '(?:^|[;|&`\n]|\$\()\s*(?:id|whoami|uname|cat|wget|curl|ping|echo|sleep|nc|ncat|bash|sh|getent|nslookup|set)(?:\s|$|;|\||&|`|\))|\$\(\(|\.\./|<\s*(?:script|svg|img|iframe|body)\b|/\*!\s*\d*\s*(?:union|select)\b'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: command-injection
+    accuracy: medium
+    tags: [w13-s-01, issue-34, double-encoding]
+tests:
+  match:
+  - uri: /v1/run?cmd=%2527%257C%257Cecho%2520ETYFQP%2524%2528%252833%252B58%2529%2529
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/files?f=%252e%252e%252f%252e%252e%252fetc%252fpasswd
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/items?id=-1945+%2F%2A%21%2555NiOn%2A%2F%2520%2F%2A%21%2553eLEct%2A%2F+1
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: /v1/auth/callback?return=https%253A%252F%252Fapp.example.test%252Fcb%253Fx%253D1%2526id%253D5
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/search?q=50%2525+off+today
+    headers: { Host: api.example.test, Accept: application/json }

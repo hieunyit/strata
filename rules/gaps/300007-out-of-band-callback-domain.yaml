@@ -1,0 +1,36 @@
+# Strata gap rule, W13-S-01: out-of-band (OAST) callback domains that
+# scanners and exploit tools plant in payloads (GoTestWAF
+# community-user-agent, shell-injection, rce-urlparam, 15/10/2026).
+rule:
+  id: 300007
+  name: Out-of-band callback domain in the request
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: uri_raw }, { var: args }, { var: request_headers } ]
+      transforms: [ url_decode_uni, lowercase ]
+      multi_match: true
+      operator:
+        type: rx
+        value: '[\w-]\.(?:burpcollaborator\.net|oastify\.com|interact\.sh|interactsh\.com|oast\.(?:fun|live|me|online|pro|site)|dnslog\.cn|ceye\.io|requestbin\.net|canarytokens\.com|pipedream\.net)\b'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: scanner
+    accuracy: high
+    tags: [w13-s-01, gotestwaf]
+tests:
+  match:
+  - uri: /
+    headers: { Host: api.example.test, User-Agent: 'Mozilla/5.0 root@w63gecoroprj5um8ypnd7r6in9t0hseg3.interact.sh' }
+  - uri: /v1/lookup?h=%7Cgetent+hosts+somehost.burpcollaborator.net.%26
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: /v1/docs?q=what+is+burpcollaborator
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/links?u=https%3A%2F%2Fwww.example.test%2Finteract
+    headers: { Host: api.example.test, Accept: application/json }
