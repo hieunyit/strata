@@ -30,6 +30,9 @@ type Spec struct {
 	// MaxArgs: arguments inspected, 1..1020 (rounded up to four by the
 	// compiler); 0 = the engine's 1024. More go by Oversize (rule 100021, #28).
 	MaxArgs int `json:"max_args,omitempty"`
+	// FailOnFindings: "pass" (default) or "block": the CPU budget runs out
+	// on a request that already has findings, block fails closed (#98).
+	FailOnFindings string `json:"fail_on_findings,omitempty"`
 }
 
 // CanaryBasisPoints of the spec's canary (0: none).
@@ -73,6 +76,11 @@ func (s Spec) Validate() error {
 	case "", "pass", "block":
 	default:
 		return fmt.Errorf("oversize must be pass or block, got %q", s.Oversize)
+	}
+	switch s.FailOnFindings {
+	case "", "pass", "block":
+	default:
+		return fmt.Errorf("fail_on_findings must be pass or block, got %q", s.FailOnFindings)
 	}
 	if s.MaxArgs < 0 || s.MaxArgs > 1020 {
 		return fmt.Errorf("max_args must be 1..1020, got %d", s.MaxArgs)
