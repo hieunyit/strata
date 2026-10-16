@@ -1,0 +1,22 @@
+=== RUN   TestNetworkOutageHeals
+2026/10/16 22:56:51 [INFO] fleet: node node-gmts2q7rrf3chy5f enrolled in group lab (certificate 2513632db54e1b7cc2dcb599753e747c, until 2026-10-17T22:56:51Z)
+    agent_resilience_test.go:266: network cut: node offline after 16ms; cut lasts 5m0s
+    agent_resilience_test.go:280: network back after 5m46s: node online again 46.316s later
+--- PASS: TestNetworkOutageHeals (370.75s)
+=== RUN   TestEventsSurviveNetworkFaults
+2026/10/16 23:03:02 [INFO] fleet: node node-4kgmbunswioroyks enrolled in group lab (certificate 31132ada1842b775b40d1097bebcf16f, until 2026-10-17T23:03:02Z)
+    network_faults_test.go:115: all 100 events delivered exactly once across two network cuts and connection resets
+--- PASS: TestEventsSurviveNetworkFaults (16.63s)
+=== RUN   TestBundleRolloutSurvivesNetworkFaults
+2026/10/16 23:03:21 [INFO] fleet: node node-cd5gvgp2x4nwldkr enrolled in group lab (certificate 85c6104895586d422c47bbe3a8fc598, until 2026-10-17T23:03:21Z)
+2026/10/16 23:03:23 [INFO] fleet: rollout 1 of bundle 1: waves [1] over 1 nodes
+2026/10/16 23:03:23 [INFO] fleet: node node-cd5gvgp2x4nwldkr bundle 1 DOWNLOADING 
+2026/10/16 23:03:23 [INFO] fleet: node node-cd5gvgp2x4nwldkr bundle 1 VERIFIED 
+2026/10/16 23:03:29 [INFO] fleet: node node-cd5gvgp2x4nwldkr bundle 1 ACTIVE 
+2026/10/16 23:03:29 [INFO] fleet: node node-cd5gvgp2x4nwldkr bundle 1 ACTIVE 
+2026/10/16 23:03:29 [INFO] fleet: rollout 1 of bundle 1 done
+    network_faults_test.go:158: bundle 4160 bytes downloaded, verified and activated across a cut
+2026/10/16 23:03:31 [WARN] fleet: rollouts: store: running rollouts: closed pool
+--- PASS: TestBundleRolloutSurvivesNetworkFaults (20.96s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	409.524s
