@@ -116,9 +116,14 @@ func TestPolicyDraftReplay(t *testing.T) {
 		PolicyID string `json:"policy_id"`
 		Version  uint32 `json:"version"`
 		Replay   *struct {
-			Samples     string `json:"samples"`
-			SampleFiles uint32 `json:"sample_files"`
-			Traffic     *struct {
+			InputDigest    string   `json:"input_digest"`
+			DraftSHA256    string   `json:"draft_sha256"`
+			BaselineSHA256 string   `json:"baseline_sha256"`
+			ReplaySHA256   string   `json:"replay_sha256"`
+			SampleSHA256   []string `json:"sample_sha256"`
+			Samples        string   `json:"samples"`
+			SampleFiles    uint32   `json:"sample_files"`
+			Traffic        *struct {
 				NewlyBlocked      string            `json:"newly_blocked"`
 				NewlyBlockedRules map[string]string `json:"newly_blocked_rules"`
 				ExamplesBlocked   []example         `json:"examples_blocked"`
@@ -157,6 +162,9 @@ func TestPolicyDraftReplay(t *testing.T) {
 	if got.State != "DONE" || got.PolicyID != "example-api" || got.Version != 1 || got.Replay == nil || got.Replay.Samples != "5" ||
 		got.Replay.SampleFiles != 1 || got.Replay.Traffic == nil || got.Replay.Corpus != nil || got.Replay.Traffic.NewlyBlockedRules["942100"] != "2" {
 		t.Fatalf("replay of the new policy: %+v (%s)", got, got.Error)
+	}
+	if len(got.Replay.InputDigest) != 64 || len(got.Replay.DraftSHA256) != 64 || len(got.Replay.BaselineSHA256) != 64 || len(got.Replay.ReplaySHA256) != 64 || len(got.Replay.SampleSHA256) != 1 {
+		t.Fatalf("API lost provenance: %+v", got.Replay)
 	}
 	if len(got.Replay.Traffic.ExamplesBlocked) != 0 {
 		t.Fatalf("a viewer sees examples: %+v", got.Replay.Traffic.ExamplesBlocked)

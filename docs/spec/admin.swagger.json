@@ -1468,6 +1468,9 @@
         "create_time": {
           "type": "string",
           "format": "date-time"
+        },
+        "input_digest": {
+          "type": "string"
         }
       }
     },
@@ -2111,6 +2114,10 @@
         },
         "decision_comment": {
           "type": "string"
+        },
+        "approved_replay_id": {
+          "type": "string",
+          "description": "Completed replay bound by the approval, not a later unapproved replay."
         }
       }
     },
@@ -2313,6 +2320,25 @@
         },
         "corpus": {
           "$ref": "#/definitions/v1ReplayComparison"
+        },
+        "input_digest": {
+          "type": "string",
+          "description": "SHA-256 of the prepared compiler inputs and exact compared artifacts."
+        },
+        "draft_sha256": {
+          "type": "string"
+        },
+        "baseline_sha256": {
+          "type": "string"
+        },
+        "replay_sha256": {
+          "type": "string"
+        },
+        "sample_sha256": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "description": "What the draft changes against the bundle in force (engine/replay\ncompare, W12-R-01): on the policy's traffic samples of the last 7 days,\nand on the benign and attack corpus, apart."

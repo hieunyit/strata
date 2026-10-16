@@ -106,7 +106,7 @@ func policyPB(p store.Policy) *adminv1.Policy {
 func versionPB(v store.PolicyVersion) *adminv1.PolicyVersion {
 	out := &adminv1.PolicyVersion{PolicyId: v.PolicyID, Version: uint32(v.Version), Spec: specPB(v.Spec), State: v.State,
 		CreatedBy: v.CreatedBy, CreateTime: timestamppb.New(v.CreatedAt), SubmittedBy: v.SubmittedBy,
-		DecidedBy: v.DecidedBy, DecisionComment: v.DecisionComment}
+		DecidedBy: v.DecidedBy, DecisionComment: v.DecisionComment, ApprovedReplayId: v.ApprovedReplayID}
 	if v.SubmittedAt != nil {
 		out.SubmitTime = timestamppb.New(*v.SubmittedAt)
 	}

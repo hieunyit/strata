@@ -35,7 +35,7 @@ func bundlePB(b store.Bundle) *adminv1.Bundle {
 	for k, v := range b.Contents {
 		contents[k] = uint32(v)
 	}
-	return &adminv1.Bundle{Version: b.Version, Sha256: hex.EncodeToString(b.SHA256), ObjectKey: b.ObjectKey,
+	return &adminv1.Bundle{InputDigest: b.InputDigest, Version: b.Version, Sha256: hex.EncodeToString(b.SHA256), ObjectKey: b.ObjectKey,
 		SizeBytes: uint64(b.SizeBytes), Contents: contents, CreatedBy: b.CreatedBy, CreateTime: timestamppb.New(b.CreatedAt)}
 }
 
