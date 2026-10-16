@@ -23,6 +23,23 @@ func (m *mockAuditStore) AuditEntries(_ context.Context, limit int) ([]store.Aud
 	return m.entries[:limit], nil
 }
 
+func (m *mockAuditStore) SearchAudit(_ context.Context, f store.AuditFilter) ([]store.Audit, error) {
+	var res []store.Audit
+	for _, e := range m.entries {
+		if f.Actor != "" && e.Actor != f.Actor {
+			continue
+		}
+		if f.Channel != "" && e.Channel != f.Channel {
+			continue
+		}
+		res = append(res, e)
+	}
+	if f.Limit > 0 && len(res) > f.Limit {
+		return res[:f.Limit], nil
+	}
+	return res, nil
+}
+
 func TestAuditEndpoint_RBAC(t *testing.T) {
 	now := time.Now().UTC()
 	mock := &mockAuditStore{

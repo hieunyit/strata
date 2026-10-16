@@ -10,12 +10,18 @@ type Principal struct {
 	Subject string // the token's sub
 	Name    string // preferred_username, for audit
 	Roles   []Role
+	Scopes  []Permission // explicit scopes (e.g. service account token scopes)
 }
 
-// Can reports whether any of the caller's roles grants p.
+// Can reports whether any of the caller's roles or explicit scopes grants p.
 func (p *Principal) Can(perm Permission) bool {
 	if p == nil {
 		return false
+	}
+	for _, s := range p.Scopes {
+		if s == perm || s == "*" {
+			return true
+		}
 	}
 	for _, r := range p.Roles {
 		if r.Allows(perm) {

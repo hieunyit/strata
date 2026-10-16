@@ -129,6 +129,12 @@ var contextColumns = []string{
 	"referer String CODEC(ZSTD(1))",
 	"headers Nested(name LowCardinality(String), value String)",
 	"inspection LowCardinality(String)",
+	"country_iso LowCardinality(String) CODEC(ZSTD(1))",
+	"city LowCardinality(String) CODEC(ZSTD(1))",
+	"lat Float32 CODEC(DoubleDelta, ZSTD(1))",
+	"lon Float32 CODEC(DoubleDelta, ZSTD(1))",
+	"asn UInt32 CODEC(T64, ZSTD(1))",
+	"as_org String CODEC(ZSTD(1))",
 }
 
 // EnsureColumns adds the columns of later schemas to an events table made
@@ -159,7 +165,8 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		client_ip, identity, request_id, http_method, http_host, http_path,
 		status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 		matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-		received_at, user_agent, referer, headers.name, headers.value, inspection
+		received_at, user_agent, referer, headers.name, headers.value, inspection,
+		country_iso, city, lat, lon, asn, as_org
 	)`, s.tableName)
 
 	batch, err := s.conn.PrepareBatch(ctx, query)
@@ -215,6 +222,12 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			hNames,
 			hValues,
 			e.Inspection,
+			e.CountryISO,
+			e.City,
+			e.Lat,
+			e.Lon,
+			e.ASN,
+			e.ASOrg,
 		)
 		if err != nil {
 			return fmt.Errorf("appending event %s to batch: %w", e.BlockID, err)

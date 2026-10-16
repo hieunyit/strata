@@ -27,6 +27,7 @@ type IngestService struct {
 	dedup   *NodeDeduplicator
 	batcher *Batcher
 	store   EventStore
+	geoIP   *GeoIPEnricher
 
 	// Metrics
 	batchesReceived atomic.Uint64
@@ -56,6 +57,11 @@ func NewIngestService(store EventStore, batcherCfg BatcherConfig, nodeTTL time.D
 		store:               store,
 		invalidEventsByNode: make(map[string]uint64),
 	}
+}
+
+// SetGeoIPEnricher configures GeoIP resolution for incoming events.
+func (s *IngestService) SetGeoIPEnricher(g *GeoIPEnricher) {
+	s.geoIP = g
 }
 
 // ProcessBatch processes an incoming EventBatch from a connector/agent.
@@ -96,6 +102,9 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 			continue
 		}
 		s.eventsValid.Add(1)
+		if s.geoIP != nil {
+			s.geoIP.Enrich(evt)
+		}
 		validEvents = append(validEvents, *evt)
 	}
 

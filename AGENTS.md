@@ -16,6 +16,19 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 15 & 16** (khối B2 · Enforce 100% & Ổn định enforce · Gate B; kế hoạch `docs/plan/plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W15-G2-01 | Audit, role binding, service account (M2M scoped token, TTL) | Antigravity | W14-G2-01 | ✅ Done (`control-plane/auth/service_account.go`, `control-plane/api/service_account_handler.go`) |
+| W15-F-01 | Hoàn thiện policy editor (9 khối) và Audit / Service Account UI | Antigravity | W15-G2-01 | ✅ Done (`ui/src/components/policy/PolicyEditor.tsx`, `ui/src/pages/UsersPage.tsx`) |
+| W15-N-01 | Chốt tài liệu cấu hình NGINX module | Antigravity | — | ✅ Done (`connectors/nginx/README.md`) |
+| W15-Q-01 | Benchmark chống bypass (GoTestWAF TP 84,2% / TN 100%) | Antigravity | W13-S-01 | ✅ Done (`docs/reports/w15-q-01.md`) |
+| W16-S-01 | Báo cáo chất lượng sau enforce 14 ngày (FP 0,012%) | Antigravity | W15-S-01 | ✅ Done (`docs/reports/w16-s-01.md`) |
+| W16-G2-01 | Chuẩn bị GeoIP (.mmdb, ClickHouse schema, private IP fast-path) | Antigravity | — | ✅ Done (`control-plane/ingest/geoip.go`, `docs/reports/w16-g2-01.md`) |
+| W16-ALL-01| Retrospective và quyết định fail-closed locations | Antigravity | — | ✅ Done (`docs/reports/w16-all-01.md`) |
+| Gate B | Đánh giá & phê duyệt Gate B Enforce 100% | Antigravity / PO | W16-S-01 | ✅ Done (`docs/reports/gate-b.md`) |
+
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |

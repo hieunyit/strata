@@ -17,6 +17,7 @@ import (
 // AuditStore supplies recent audit log entries for GET /v1/audit.
 type AuditStore interface {
 	AuditEntries(ctx context.Context, limit int) ([]store.Audit, error)
+	SearchAudit(ctx context.Context, f store.AuditFilter) ([]store.Audit, error)
 }
 
 // ServerConfig defines HTTP server configuration options.
@@ -42,6 +43,8 @@ type ServerConfig struct {
 	Local *localauth.Handler
 	// Audit serves GET /v1/audit (recent audit_log entries); nil leaves it out.
 	Audit AuditStore
+	// ServiceAccounts manages machine accounts and tokens; nil leaves it out.
+	ServiceAccounts auth.ServiceAccountStore
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
 }
@@ -150,7 +153,14 @@ func (s *Server) registerRoutes() {
 					limit = n
 				}
 			}
-			entries, err := s.cfg.Audit.AuditEntries(r.Context(), limit)
+			filter := store.AuditFilter{
+				Actor:    r.URL.Query().Get("actor"),
+				Channel:  r.URL.Query().Get("channel"),
+				Action:   r.URL.Query().Get("action"),
+				Resource: r.URL.Query().Get("resource"),
+				Limit:    limit,
+			}
+			entries, err := s.cfg.Audit.SearchAudit(r.Context(), filter)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
@@ -165,6 +175,9 @@ func (s *Server) registerRoutes() {
 	if s.cfg.Local != nil {
 		s.cfg.Local.Authenticated(v1)
 		s.cfg.Local.Public(s.mux)
+	}
+	if s.cfg.ServiceAccounts != nil {
+		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
 	}
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)
