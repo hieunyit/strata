@@ -14,8 +14,8 @@ Phạm vi là 24 phát hiện của review toàn repo/nhánh/issue đã được
 | 8 | M8 event privacy | PR #119: sensitive headers/query names, mask trước truncate. |
 | 9 | H6/M3 benchmark giả | Chưa hoàn tất; harness HTTP mới có số đếm thật, benchmark rate limiter vẫn cần thay. |
 | 10 | M3 rate limiter integration | Prototype chưa nối worker/shared node data path. PO 17/10: trước mắt chỉ đo, chưa đổi hành vi xử lý bảng đầy; không tự kích hoạt enforcement. |
-| 11 | M3 collision/concurrency | Chưa xong: cần harness đo collision/table-full và atomic window; thay đổi xử lý bão hòa hoãn theo lựa chọn người dùng 17/10. |
-| 12 | M3 XFF identity | Chưa xong: cần trusted proxy chain, malformed input và route case. |
+| 11 | M3 collision/concurrency | Harness đã đo prototype ghim 95246eb: collision dư 17/20 allow; pressure dư 2.982/5.120; race khởi tạo/lật cửa sổ mất đếm. Xem m3-rate-measurement.md. Chưa sửa hành vi bão hòa theo lựa chọn người dùng 17/10. |
+| 12 | M3 XFF identity | Harness xác nhận helper nhận XFF trái nhất/garbage, path bị lowercase và IPv6 text khác hash; chưa gọi từ NGINX. Cần sửa/tích hợp sau; measurement không được coi là bảo vệ đã hoạt động. |
 | 13 | H3 FP write RBAC | PR #123: viewer/approver bị từ chối, operator/admin được phép; API kiểm quyền. |
 | 14 | M1 FP durability | PR #122/#123: PostgreSQL annotation, etag, request_id, audit transaction và overlay. |
 | 15 | M2 exception durability | PR #138/#143/#148–#151: endpoint tạo draft từ Block ID, exact scope/TTL/etag/request_id, draft+audit+replay queue atomic. PostgreSQL test 12 request đồng thời, retry qua restart/retention; không còn approve RAM riêng. |
