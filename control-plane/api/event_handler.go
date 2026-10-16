@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
@@ -198,3 +199,65 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		TotalMatched:  res.Total,
 	})
 }
+
+// HandleMarkFalsePositive handles POST /v1/events/{block_id}:markFalsePositive.
+func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/v1/events/")
+	path = strings.TrimSuffix(path, ":markFalsePositive")
+	blockID := strings.TrimSpace(path)
+	if blockID == "" || strings.Contains(blockID, "/") {
+		writeError(w, http.StatusBadRequest, "block_id path parameter is required", "")
+		return
+	}
+
+	blockID = strings.ToUpper(blockID)
+	if err := ingest.ValidateBlockID(blockID); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid block_id format: "+err.Error(), blockID)
+		return
+	}
+
+	var req MarkFalsePositiveRequest
+	if r.Body != nil && r.ContentLength > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10) // 64 KB limit
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	reason := strings.TrimSpace(req.Reason)
+	if len(reason) > 500 {
+		writeError(w, http.StatusBadRequest, "reason cannot exceed 500 characters", blockID)
+		return
+	}
+
+	caller := auth.FromContext(r.Context())
+	actor := caller.Name
+	if actor == "" {
+		actor = caller.Subject
+	}
+	if actor == "" {
+		actor = "unknown"
+	}
+
+	if err := h.store.MarkFalsePositive(r.Context(), blockID, reason); err != nil {
+		if errors.Is(err, ingest.ErrEventNotFound) {
+			writeError(w, http.StatusNotFound, "event not found", blockID)
+			return
+		}
+		log.Printf("[ERROR] failed to mark false positive for event %s: %v", blockID, err)
+		writeError(w, http.StatusInternalServerError, "internal server error", blockID)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, MarkFalsePositiveResponse{
+		BlockID:       blockID,
+		FalsePositive: true,
+		Reason:        reason,
+		MarkedBy:      actor,
+		MarkedAt:      time.Now().UTC(),
+	})
+}
+

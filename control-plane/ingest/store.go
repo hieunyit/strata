@@ -42,6 +42,7 @@ type EventStore interface {
 	SaveEvents(ctx context.Context, events []Event) error
 	GetEvent(ctx context.Context, blockID string) (*Event, error)
 	SearchEvents(ctx context.Context, filter SearchFilter) (*SearchResult, error)
+	MarkFalsePositive(ctx context.Context, blockID string, reason string) error
 	GetNodeSeq(ctx context.Context, nodeID string) (uint64, error)
 	SetNodeSeq(ctx context.Context, nodeID string, seq uint64) error
 	Close() error
@@ -324,6 +325,19 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 	return &e, nil
 }
 
+// MarkFalsePositive marks an event as false positive in ClickHouse.
+func (s *ClickHouseStore) MarkFalsePositive(ctx context.Context, blockID string, reason string) error {
+	e, err := s.GetEvent(ctx, blockID)
+	if err != nil {
+		return err
+	}
+	e.FalsePositive = true
+	e.FalsePositiveReason = reason
+	e.FalsePositiveAt = time.Now().UTC()
+	e.ReceivedAt = time.Now().UTC()
+	return s.SaveEvents(ctx, []Event{*e})
+}
+
 // SearchEvents filters events matching the specified criteria.
 func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter) (*SearchResult, error) {
 	whereClauses := []string{"1=1"}
@@ -579,6 +593,28 @@ func (m *MockEventStore) GetEvent(ctx context.Context, blockID string) (*Event, 
 		return nil, ErrEventNotFound
 	}
 	return &e, nil
+}
+
+func (m *MockEventStore) MarkFalsePositive(ctx context.Context, blockID string, reason string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	e, found := m.eventsByID[blockID]
+	if !found {
+		return ErrEventNotFound
+	}
+	e.FalsePositive = true
+	e.FalsePositiveReason = reason
+	e.FalsePositiveAt = time.Now().UTC()
+	m.eventsByID[blockID] = e
+
+	for i := range m.eventsList {
+		if m.eventsList[i].BlockID == blockID {
+			m.eventsList[i] = e
+			break
+		}
+	}
+	return nil
 }
 
 func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) (*SearchResult, error) {

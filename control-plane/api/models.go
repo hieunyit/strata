@@ -25,6 +25,52 @@ type GetEventResponse struct {
 	Rules map[string]rulecat.Rule `json:"rules,omitempty"`
 }
 
+// MarkFalsePositiveRequest is the payload for POST /v1/events/{block_id}:markFalsePositive.
+type MarkFalsePositiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+// MarkFalsePositiveResponse is the result of POST /v1/events/{block_id}:markFalsePositive.
+type MarkFalsePositiveResponse struct {
+	BlockID       string    `json:"block_id"`
+	FalsePositive bool      `json:"false_positive"`
+	Reason        string    `json:"reason"`
+	MarkedBy      string    `json:"marked_by"`
+	MarkedAt      time.Time `json:"marked_at"`
+}
+
+// CreateExceptionFromBlockIDRequest is the payload for POST /v1/exceptions:fromBlockId.
+type CreateExceptionFromBlockIDRequest struct {
+	BlockID    string `json:"block_id"`
+	TTLSeconds int64  `json:"ttl_seconds"` // 60..2592000 (up to 30 days)
+	Reason     string `json:"reason"`
+}
+
+// Exception models a rule exception (W14-G2-01).
+type Exception struct {
+	ID         string    `json:"id"`
+	BlockID    string    `json:"block_id"`
+	PolicyID   string    `json:"policy_id"`
+	RuleID     uint32    `json:"rule_id"`
+	Field      string    `json:"field"`
+	Reason     string    `json:"reason"`
+	State      string    `json:"state"` // SUBMITTED, APPROVED, REJECTED, EXPIRED, REVOKED
+	CreatedBy  string    `json:"created_by"`
+	ApprovedBy string    `json:"approved_by,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+// ListExceptionsResponse is the response for GET /v1/exceptions.
+type ListExceptionsResponse struct {
+	Exceptions []Exception `json:"exceptions"`
+}
+
+// ApproveExceptionResponse is the response for POST /v1/exceptions/{id}:approve.
+type ApproveExceptionResponse struct {
+	Exception Exception `json:"exception"`
+}
+
 // SearchEventsRequest defines search criteria for querying security events.
 type SearchEventsRequest struct {
 	From       time.Time `json:"from"`

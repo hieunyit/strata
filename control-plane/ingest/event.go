@@ -50,6 +50,11 @@ type Event struct {
 	// RV-N-01: full, partial (CPU budget ran out), body_skipped; empty for
 	// modules from before the field.
 	Inspection string `json:"inspection,omitempty" ch:"inspection"`
+
+	// W14-G2-01: false positive marking from helpdesk / operator
+	FalsePositive       bool      `json:"false_positive,omitempty" ch:"false_positive"`
+	FalsePositiveReason string    `json:"false_positive_reason,omitempty" ch:"false_positive_reason"`
+	FalsePositiveAt     time.Time `json:"false_positive_at,omitempty" ch:"false_positive_at"`
 }
 
 // EventBatch models a batch of events sent by an agent with a monotonic sequence number.

@@ -35,6 +35,8 @@ type ServerConfig struct {
 	Local *localauth.Handler
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
+	// Exceptions is the exception store (nil: in-memory store is used).
+	Exceptions ExceptionStore
 }
 
 // AuthMethods is GET /v1/auth/methods: how the UI may sign in.
@@ -53,10 +55,11 @@ type Me struct {
 
 // Server provides the REST API server for Strata control plane.
 type Server struct {
-	cfg        ServerConfig
-	httpServer *http.Server
-	handler    *EventHandler
-	mux        *http.ServeMux
+	cfg              ServerConfig
+	httpServer       *http.Server
+	handler          *EventHandler
+	exceptionHandler *ExceptionHandler
+	mux              *http.ServeMux
 }
 
 // NewServer initializes the HTTP router and server with middleware.
@@ -78,12 +81,14 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 
 	eventHandler := NewEventHandler(store, cfg.Rules)
+	exceptionHandler := NewExceptionHandler(store, cfg.Exceptions)
 	mux := http.NewServeMux()
 
 	s := &Server{
-		cfg:     cfg,
-		handler: eventHandler,
-		mux:     mux,
+		cfg:              cfg,
+		handler:          eventHandler,
+		exceptionHandler: exceptionHandler,
+		mux:              mux,
 	}
 
 	s.registerRoutes()
@@ -107,14 +112,42 @@ func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
 	search := auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleSearchEvents)
 	v1.HandleFunc("/v1/events:search", search)
-	// Handles /v1/events/{block_id}
+	// Handles /v1/events/{block_id} and /v1/events/{block_id}:markFalsePositive
 	v1.HandleFunc("/v1/events/", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ":search") {
 			search(w, r)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
+			s.handler.HandleMarkFalsePositive(w, r)
+			return
+		}
 		s.handler.HandleGetEvent(w, r)
 	}))
+	// W14-G2-01: Exceptions endpoints
+	v1.HandleFunc("/v1/exceptions:fromBlockId", auth.RequireHTTP(auth.PermExceptionsWrite, s.exceptionHandler.HandleCreateFromBlockID))
+	v1.HandleFunc("/v1/exceptions", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			s.exceptionHandler.HandleListExceptions(w, r)
+			return
+		}
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+	}))
+	v1.HandleFunc("/v1/exceptions/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ":approve") {
+			auth.RequireHTTP(auth.PermPoliciesApprove, s.exceptionHandler.HandleApproveException)(w, r)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			auth.RequireHTTP(auth.PermExceptionsWrite, s.exceptionHandler.HandleDeleteException)(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			auth.RequireHTTP(auth.PermEventsRead, s.exceptionHandler.HandleGetException)(w, r)
+			return
+		}
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+	})
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
