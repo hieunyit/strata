@@ -35,6 +35,8 @@ type ServerConfig struct {
 	Local *localauth.Handler
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
+	// HealthMonitor monitors rule health metrics and handles auto-quarantine; nil creates default.
+	HealthMonitor *RuleHealthMonitor
 }
 
 // AuthMethods is GET /v1/auth/methods: how the UI may sign in.
@@ -53,10 +55,11 @@ type Me struct {
 
 // Server provides the REST API server for Strata control plane.
 type Server struct {
-	cfg        ServerConfig
-	httpServer *http.Server
-	handler    *EventHandler
-	mux        *http.ServeMux
+	cfg           ServerConfig
+	httpServer    *http.Server
+	handler       *EventHandler
+	mux           *http.ServeMux
+	healthMonitor *RuleHealthMonitor
 }
 
 // NewServer initializes the HTTP router and server with middleware.
@@ -80,10 +83,16 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	eventHandler := NewEventHandler(store, cfg.Rules)
 	mux := http.NewServeMux()
 
+	hm := cfg.HealthMonitor
+	if hm == nil {
+		hm = NewRuleHealthMonitor(DefaultQuarantineConfig())
+	}
+
 	s := &Server{
-		cfg:     cfg,
-		handler: eventHandler,
-		mux:     mux,
+		cfg:           cfg,
+		handler:       eventHandler,
+		mux:           mux,
+		healthMonitor: hm,
 	}
 
 	s.registerRoutes()
@@ -114,6 +123,14 @@ func (s *Server) registerRoutes() {
 			return
 		}
 		s.handler.HandleGetEvent(w, r)
+	}))
+	// Handles /v1/rules/{rule_id}/health
+	v1.HandleFunc("/v1/rules/", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/health") {
+			s.HandleGetRuleHealth(w, r)
+			return
+		}
+		writeError(w, http.StatusNotFound, "route not found", "")
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
