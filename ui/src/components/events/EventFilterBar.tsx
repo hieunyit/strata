@@ -47,6 +47,10 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({ initial, onApply }) =
     };
   }, []);
 
+  useEffect(() => {
+    setF(initial);
+  }, [initial]);
+
   const set = (k: keyof EventFilters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   const submit = (e: React.FormEvent) => {

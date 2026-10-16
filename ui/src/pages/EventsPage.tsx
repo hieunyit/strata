@@ -52,6 +52,13 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
   const [pageIndex, setPageIndex] = useState(initialPage);
   const [next, setNext] = useState<string | undefined>();
 
+  useEffect(() => {
+    const qf = filtersFromQuery(route?.query);
+    setFilters(qf);
+    const p = route?.query?.page ? Math.max(0, parseInt(route.query.page, 10)) : 0;
+    setPageIndex(p);
+  }, [route?.query]);
+
   const updateRoute = (f: EventFilters, p: number) => {
     const query: Record<string, string> = {};
     for (const [k, v] of Object.entries(f)) if (v && !(k === 'range' && v === '24h')) query[k] = v;

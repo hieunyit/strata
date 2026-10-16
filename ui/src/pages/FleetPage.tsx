@@ -245,7 +245,10 @@ export const FleetPage: React.FC = () => {
       })}
       {revokingNode && (
         <DestructiveConfirmModal
-          title={t('fleet.revokeModal.title', `Revoke Node Certificate: ${revokingNode.hostname || revokingNode.id}`)}
+          title={t('fleet.revokeModal.title', {
+            name: revokingNode.hostname || revokingNode.id,
+            defaultValue: `Revoke Node Certificate: ${revokingNode.hostname || revokingNode.id}`,
+          })}
           description={t(
             'fleet.revokeModal.desc',
             'Permanently invalidates mTLS certificates for this proxy node. It will be immediately disconnected from the fleet and blocked from receiving bundles. This cannot be undone.'

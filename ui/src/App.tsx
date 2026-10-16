@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OverviewPage } from './pages/OverviewPage';
 import { EventsPage } from './pages/EventsPage';
@@ -42,6 +42,12 @@ export const AppContent: React.FC = () => {
     onActive: () => void apiClient.me().catch(() => {}),
   });
 
+  const [demoIdle, setDemoIdle] = useState(false);
+  useEffect(() => {
+    (window as any).__showIdleDemo = () => setDemoIdle(true);
+    (window as any).__hideIdleDemo = () => setDemoIdle(false);
+  }, []);
+
   if (status !== 'authenticated') return <LoginPage />;
 
   const renderPage = () => {
@@ -68,9 +74,12 @@ export const AppContent: React.FC = () => {
   return (
     <>
       <IdleTimeoutModal
-        isOpen={isWarningOpen}
-        secondsRemaining={secondsRemaining}
-        onStaySignedIn={staySignedIn}
+        isOpen={isWarningOpen || demoIdle}
+        secondsRemaining={demoIdle ? 45 : secondsRemaining}
+        onStaySignedIn={() => {
+          setDemoIdle(false);
+          staySignedIn();
+        }}
         onSignOut={signOutNow}
       />
       <KeyboardHelpModal
