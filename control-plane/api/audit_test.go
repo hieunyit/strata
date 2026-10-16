@@ -40,6 +40,11 @@ func (m *mockAuditStore) SearchAudit(_ context.Context, f store.AuditFilter) ([]
 	return res, nil
 }
 
+func (m *mockAuditStore) RecordAudit(_ context.Context, a store.Audit) error {
+	m.entries = append(m.entries, a)
+	return nil
+}
+
 func TestAuditEndpoint_RBAC(t *testing.T) {
 	now := time.Now().UTC()
 	mock := &mockAuditStore{

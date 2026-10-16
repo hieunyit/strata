@@ -69,6 +69,13 @@ func writeAudit(ctx context.Context, tx pgx.Tx, a Audit) error {
 	return err
 }
 
+// RecordAudit logs a standalone audit event (e.g. from API handlers).
+func (s *Store) RecordAudit(ctx context.Context, a Audit) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return writeAudit(ctx, tx, a)
+	})
+}
+
 func (s *Store) inTx(ctx context.Context, f func(pgx.Tx) error) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

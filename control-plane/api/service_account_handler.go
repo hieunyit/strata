@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,7 +9,13 @@ import (
 	"time"
 
 	"github.com/strata/strata/control-plane/auth"
+	"github.com/strata/strata/control-plane/store"
 )
+
+// AuditRecorder persists audit log entries.
+type AuditRecorder interface {
+	RecordAudit(ctx context.Context, a store.Audit) error
+}
 
 type CreateServiceAccountRequest struct {
 	ID          string      `json:"id"`
@@ -32,9 +39,39 @@ func writeSAError(w http.ResponseWriter, status int, msg string) {
 }
 
 // RegisterServiceAccountRoutes registers service account management endpoints.
-func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountStore) {
-	if store == nil {
+func RegisterServiceAccountRoutes(mux *http.ServeMux, saStore auth.ServiceAccountStore, audit ...AuditRecorder) {
+	if saStore == nil {
 		return
+	}
+	var auditor AuditRecorder
+	if len(audit) > 0 {
+		auditor = audit[0]
+	}
+
+	logAudit := func(ctx context.Context, caller *auth.Principal, action, resource string, before, after any) {
+		if auditor == nil {
+			return
+		}
+		actor := "system"
+		subject := ""
+		if caller != nil {
+			if caller.Name != "" {
+				actor = caller.Name
+			} else if caller.Subject != "" {
+				actor = caller.Subject
+			}
+			subject = caller.Subject
+		}
+		_ = auditor.RecordAudit(ctx, store.Audit{
+			At:       time.Now().UTC(),
+			Actor:    actor,
+			Subject:  subject,
+			Channel:  "api",
+			Action:   action,
+			Resource: resource,
+			Before:   before,
+			After:    after,
+		})
 	}
 
 	// List or Create Service Accounts
@@ -42,7 +79,7 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 		switch r.Method {
 		case http.MethodGet:
 			auth.RequireHTTP(auth.PermServiceAccountsRead, func(w http.ResponseWriter, r *http.Request) {
-				list, err := store.ListServiceAccounts(r.Context())
+				list, err := saStore.ListServiceAccounts(r.Context())
 				if err != nil {
 					writeSAError(w, http.StatusInternalServerError, err.Error())
 					return
@@ -81,10 +118,11 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 					CreatedAt:   time.Now().UTC(),
 					CreatedBy:   createdBy,
 				}
-				if err := store.CreateServiceAccount(r.Context(), created); err != nil {
+				if err := saStore.CreateServiceAccount(r.Context(), created); err != nil {
 					writeSAError(w, http.StatusConflict, err.Error())
 					return
 				}
+				logAudit(r.Context(), caller, "/v1/service-accounts:create", "service_accounts/"+created.ID, nil, created)
 				writeJSON(w, http.StatusCreated, created)
 			})(w, r)
 
@@ -108,7 +146,7 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 			switch r.Method {
 			case http.MethodGet:
 				auth.RequireHTTP(auth.PermServiceAccountsRead, func(w http.ResponseWriter, r *http.Request) {
-					sa, err := store.GetServiceAccount(r.Context(), saID)
+					sa, err := saStore.GetServiceAccount(r.Context(), saID)
 					if err != nil {
 						if errors.Is(err, auth.ErrServiceAccountNotFound) {
 							w.WriteHeader(http.StatusNotFound)
@@ -122,10 +160,13 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 
 			case http.MethodDelete:
 				auth.RequireHTTP(auth.PermServiceAccountsWrite, func(w http.ResponseWriter, r *http.Request) {
-					if err := store.DeleteServiceAccount(r.Context(), saID); err != nil {
+					caller := auth.FromContext(r.Context())
+					existing, _ := saStore.GetServiceAccount(r.Context(), saID)
+					if err := saStore.DeleteServiceAccount(r.Context(), saID); err != nil {
 						writeSAError(w, http.StatusInternalServerError, err.Error())
 						return
 					}
+					logAudit(r.Context(), caller, "/v1/service-accounts:delete", "service_accounts/"+saID, existing, nil)
 					w.WriteHeader(http.StatusNoContent)
 				})(w, r)
 
@@ -141,7 +182,7 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 				switch r.Method {
 				case http.MethodGet:
 					auth.RequireHTTP(auth.PermServiceAccountsRead, func(w http.ResponseWriter, r *http.Request) {
-						tokens, err := store.ListTokens(r.Context(), saID)
+						tokens, err := saStore.ListTokens(r.Context(), saID)
 						if err != nil {
 							writeSAError(w, http.StatusInternalServerError, err.Error())
 							return
@@ -168,10 +209,12 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 							writeSAError(w, http.StatusBadRequest, err.Error())
 							return
 						}
-						if err := store.CreateToken(r.Context(), tok); err != nil {
+						if err := saStore.CreateToken(r.Context(), tok); err != nil {
 							writeSAError(w, http.StatusInternalServerError, err.Error())
 							return
 						}
+						caller := auth.FromContext(r.Context())
+						logAudit(r.Context(), caller, "/v1/service-accounts/tokens:create", "service_accounts/"+saID+"/tokens/"+tok.ID, nil, tok)
 						writeJSON(w, http.StatusCreated, CreateTokenResponse{
 							RawToken: raw,
 							Token:    tok,
@@ -188,7 +231,7 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 				// /v1/service-accounts/{id}/tokens/{token_id}
 				tokenID := parts[2]
 				auth.RequireHTTP(auth.PermServiceAccountsWrite, func(w http.ResponseWriter, r *http.Request) {
-					tokens, err := store.ListTokens(r.Context(), saID)
+					tokens, err := saStore.ListTokens(r.Context(), saID)
 					if err != nil {
 						writeSAError(w, http.StatusInternalServerError, err.Error())
 						return
@@ -204,10 +247,12 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 						writeSAError(w, http.StatusNotFound, "token not found for this service account")
 						return
 					}
-					if err := store.RevokeToken(r.Context(), tokenID); err != nil {
+					if err := saStore.RevokeToken(r.Context(), tokenID); err != nil {
 						writeSAError(w, http.StatusNotFound, "token not found")
 						return
 					}
+					caller := auth.FromContext(r.Context())
+					logAudit(r.Context(), caller, "/v1/service-accounts/tokens:revoke", "service_accounts/"+saID+"/tokens/"+tokenID, nil, map[string]string{"status": "revoked"})
 					w.WriteHeader(http.StatusNoContent)
 				})(w, r)
 				return

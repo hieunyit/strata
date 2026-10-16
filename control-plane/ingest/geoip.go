@@ -27,13 +27,27 @@ type GeoIPReader interface {
 // GeoIPEnricher enriches incoming security events with GeoIP and ASN metadata.
 type GeoIPEnricher struct {
 	reader        GeoIPReader
-	cache         sync.Map // string (IP) -> *GeoIPLocation
+	cache         atomic.Pointer[sync.Map] // atomic swap on max entries
 	cachedEntries atomic.Int64
 }
 
 // NewGeoIPEnricher creates a GeoIPEnricher with the given reader.
 func NewGeoIPEnricher(reader GeoIPReader) *GeoIPEnricher {
-	return &GeoIPEnricher{reader: reader}
+	e := &GeoIPEnricher{reader: reader}
+	e.cache.Store(&sync.Map{})
+	return e
+}
+
+func (e *GeoIPEnricher) getCache() *sync.Map {
+	c := e.cache.Load()
+	if c == nil {
+		newMap := &sync.Map{}
+		if e.cache.CompareAndSwap(nil, newMap) {
+			return newMap
+		}
+		return e.cache.Load()
+	}
+	return c
 }
 
 // Enrich populates GeoIP fields in the provided Event.
@@ -55,7 +69,8 @@ func (e *GeoIPEnricher) Enrich(evt *Event) {
 
 // Resolve looks up the IP, handling private IPs, caching, and reader lookup.
 func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
-	if val, ok := e.cache.Load(rawIP); ok {
+	cache := e.getCache()
+	if val, ok := cache.Load(rawIP); ok {
 		return val.(*GeoIPLocation)
 	}
 
@@ -94,27 +109,25 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 
 func (e *GeoIPEnricher) storeCache(rawIP string, loc *GeoIPLocation) {
 	if e.cachedEntries.Load() >= MaxGeoIPCacheEntries {
-		e.cache = sync.Map{}
-		e.cachedEntries.Store(0)
+		if e.cachedEntries.CompareAndSwap(e.cachedEntries.Load(), 0) {
+			e.cache.Store(&sync.Map{})
+		}
 	}
-	if _, loaded := e.cache.LoadOrStore(rawIP, loc); !loaded {
+	cache := e.getCache()
+	if _, loaded := cache.LoadOrStore(rawIP, loc); !loaded {
 		e.cachedEntries.Add(1)
 	}
 }
 
 func isPrivateOrInternal(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsPrivate() {
 		return true
 	}
-	// IPv4 Private subnets
+	// CGNAT RFC 6598: 100.64.0.0/10
 	if ip4 := ip.To4(); ip4 != nil {
-		return ip4[0] == 10 ||
-			(ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31) ||
-			(ip4[0] == 192 && ip4[1] == 168) ||
-			(ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127) // CGNAT RFC 6598
+		return ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127
 	}
-	// IPv6 ULA (fc00::/7)
-	return len(ip) == net.IPv6len && (ip[0]&0xfe) == 0xfc
+	return false
 }
 
 // MockGeoIPReader implements GeoIPReader with predefined mappings for testing.

@@ -420,7 +420,7 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			client_ip, identity, request_id, http_method, http_host, http_path,
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-			received_at
+			received_at, country_iso, city, lat, lon, asn, as_org
 		FROM %[1]s
 		WHERE (block_id, timestamp) IN (
 			SELECT block_id, timestamp FROM %[1]s
@@ -440,11 +440,17 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 	var events []Event
 	for rows.Next() {
 		var (
-			e        Event
-			ruleIDs  []uint32
-			layers   []string
-			fields   []string
-			snippets []string
+			e          Event
+			ruleIDs    []uint32
+			layers     []string
+			fields     []string
+			snippets   []string
+			countryISO *string
+			city       *string
+			lat        *float32
+			lon        *float32
+			asn        *uint32
+			asOrg      *string
 		)
 		err := rows.Scan(
 			&e.BlockID,
@@ -471,9 +477,33 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			&fields,
 			&snippets,
 			&e.ReceivedAt,
+			&countryISO,
+			&city,
+			&lat,
+			&lon,
+			&asn,
+			&asOrg,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scanning search row: %w", err)
+		}
+		if countryISO != nil {
+			e.CountryISO = *countryISO
+		}
+		if city != nil {
+			e.City = *city
+		}
+		if lat != nil {
+			e.Lat = *lat
+		}
+		if lon != nil {
+			e.Lon = *lon
+		}
+		if asn != nil {
+			e.ASN = *asn
+		}
+		if asOrg != nil {
+			e.ASOrg = *asOrg
 		}
 
 		e.Violations = make([]Violation, len(ruleIDs))

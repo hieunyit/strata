@@ -177,7 +177,11 @@ func (s *Server) registerRoutes() {
 		s.cfg.Local.Public(s.mux)
 	}
 	if s.cfg.ServiceAccounts != nil {
-		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
+		var auditRec AuditRecorder
+		if ar, ok := s.cfg.Audit.(AuditRecorder); ok {
+			auditRec = ar
+		}
+		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts, auditRec)
 	}
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)

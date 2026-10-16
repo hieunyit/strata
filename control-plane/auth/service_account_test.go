@@ -144,3 +144,70 @@ func TestServiceAccount_ScopeCeilingAdminRole(t *testing.T) {
 		t.Errorf("SECURITY FLAW: Can(PermAuditRead) should be false when not in token scopes")
 	}
 }
+
+func TestServiceAccount_SoftRevocationAndTokenCount(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryServiceAccountStore()
+	authn := NewServiceAccountAuthenticator(store)
+
+	sa := ServiceAccount{
+		ID:    "sa-ops",
+		Name:  "Ops Bot",
+		Roles: []Role{RoleOperator},
+	}
+	_ = store.CreateServiceAccount(ctx, sa)
+
+	// Issue 2 tokens
+	raw1, tok1, _ := GenerateToken(sa.ID, []Permission{PermPoliciesRead}, 1*time.Hour)
+	_ = store.CreateToken(ctx, tok1)
+
+	_, tok2, _ := GenerateToken(sa.ID, []Permission{PermPoliciesRead}, 1*time.Hour)
+	_ = store.CreateToken(ctx, tok2)
+
+	// Check token count
+	saList, err := store.ListServiceAccounts(ctx)
+	if err != nil || len(saList) != 1 {
+		t.Fatalf("unexpected list: %v", err)
+	}
+	if saList[0].TokenCount != 2 {
+		t.Errorf("expected TokenCount=2, got %d", saList[0].TokenCount)
+	}
+
+	// Revoke tok1
+	if err := store.RevokeToken(ctx, tok1.ID); err != nil {
+		t.Fatalf("revoke failed: %v", err)
+	}
+
+	// Token 1 cannot authenticate
+	if _, err := authn.Authenticate(ctx, raw1); err == nil {
+		t.Errorf("expected authentication failure for revoked token")
+	}
+
+	// ListTokens preserves revoked token for audit visibility
+	tokens, err := store.ListTokens(ctx, sa.ID)
+	if err != nil {
+		t.Fatalf("list tokens failed: %v", err)
+	}
+	if len(tokens) != 2 {
+		t.Fatalf("expected 2 tokens in list, got %d", len(tokens))
+	}
+	var revTok *ServiceAccountToken
+	for i := range tokens {
+		if tokens[i].ID == tok1.ID {
+			revTok = &tokens[i]
+			break
+		}
+	}
+	if revTok == nil || !revTok.Revoked || revTok.RevokedAt == nil {
+		t.Errorf("expected revoked token with Revoked=true and RevokedAt!=nil, got %+v", revTok)
+	}
+
+	// Active token count decremented to 1
+	saAfter, err := store.GetServiceAccount(ctx, sa.ID)
+	if err != nil {
+		t.Fatalf("get sa failed: %v", err)
+	}
+	if saAfter.TokenCount != 1 {
+		t.Errorf("expected active TokenCount=1 after revocation, got %d", saAfter.TokenCount)
+	}
+}

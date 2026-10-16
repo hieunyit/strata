@@ -109,3 +109,84 @@ func TestServiceAccountAPI_LifecycleAndScoping(t *testing.T) {
 		t.Fatalf("revoked SA token got %d, want 401", rec.Code)
 	}
 }
+
+func TestServiceAccountAPI_AuditLogging(t *testing.T) {
+	saStore := auth.NewMemoryServiceAccountStore()
+	mockAudit := &mockAuditStore{}
+
+	dispatch := auth.Dispatch{
+		OIDC: tokenRoles{}, // maps "admin" -> RoleAdmin
+	}
+
+	server := NewServer(ServerConfig{
+		Auth:            dispatch,
+		ServiceAccounts: saStore,
+		Audit:           mockAudit,
+	}, ingest.NewMockEventStore())
+	handler := server.Handler()
+
+	// 1. Create SA
+	body, _ := json.Marshal(CreateServiceAccountRequest{
+		ID:   "sa-audited",
+		Name: "Audited Bot",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/service-accounts", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create SA got status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Issue Token
+	tokBody, _ := json.Marshal(CreateTokenRequest{
+		Scopes:     []auth.Permission{auth.PermPoliciesRead},
+		TTLSeconds: 3600,
+	})
+	req = httptest.NewRequest(http.MethodPost, "/v1/service-accounts/sa-audited/tokens", bytes.NewReader(tokBody))
+	req.Header.Set("Authorization", "Bearer admin")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create token got status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp CreateTokenResponse
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+
+	// 3. Revoke Token
+	req = httptest.NewRequest(http.MethodDelete, "/v1/service-accounts/sa-audited/tokens/"+resp.Token.ID, nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("revoke token got status %d", rec.Code)
+	}
+
+	// 4. Delete SA
+	req = httptest.NewRequest(http.MethodDelete, "/v1/service-accounts/sa-audited", nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete SA got status %d", rec.Code)
+	}
+
+	// Verify Audit entries
+	if len(mockAudit.entries) != 4 {
+		t.Fatalf("expected 4 audit entries, got %d", len(mockAudit.entries))
+	}
+	expectedActions := []string{
+		"/v1/service-accounts:create",
+		"/v1/service-accounts/tokens:create",
+		"/v1/service-accounts/tokens:revoke",
+		"/v1/service-accounts:delete",
+	}
+	for i, exp := range expectedActions {
+		if mockAudit.entries[i].Action != exp {
+			t.Errorf("entry %d action: got %q, want %q", i, mockAudit.entries[i].Action, exp)
+		}
+		if mockAudit.entries[i].Actor != "user-admin" {
+			t.Errorf("entry %d actor: got %q, want 'user-admin'", i, mockAudit.entries[i].Actor)
+		}
+	}
+}

@@ -29,6 +29,7 @@ type ServiceAccount struct {
 	Roles       []Role    `json:"roles"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedBy   string    `json:"created_by"`
+	TokenCount  int       `json:"token_count,omitempty"`
 }
 
 // ServiceAccountToken is a scoped, bounded-lifetime credential issued to a ServiceAccount.
@@ -41,6 +42,8 @@ type ServiceAccountToken struct {
 	ExpiresAt        time.Time    `json:"expires_at"`
 	CreatedAt        time.Time    `json:"created_at"`
 	LastUsedAt       *time.Time   `json:"last_used_at,omitempty"`
+	Revoked          bool         `json:"revoked"`
+	RevokedAt        *time.Time   `json:"revoked_at,omitempty"`
 }
 
 // ServiceAccountStore persists service accounts and tokens.
@@ -81,7 +84,7 @@ func (a *ServiceAccountAuthenticator) Authenticate(ctx context.Context, raw stri
 		return nil, err
 	}
 
-	if time.Now().After(tok.ExpiresAt) {
+	if tok.Revoked || time.Now().After(tok.ExpiresAt) {
 		return nil, ErrUnauthenticated
 	}
 
@@ -176,14 +179,30 @@ func (m *MemoryServiceAccountStore) GetServiceAccount(_ context.Context, id stri
 	if !ok {
 		return nil, ErrServiceAccountNotFound
 	}
+	now := time.Now()
+	count := 0
+	for _, tok := range m.tokens {
+		if tok.ServiceAccountID == id && !tok.Revoked && now.Before(tok.ExpiresAt) {
+			count++
+		}
+	}
+	sa.TokenCount = count
 	return &sa, nil
 }
 
 func (m *MemoryServiceAccountStore) ListServiceAccounts(_ context.Context) ([]ServiceAccount, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	counts := make(map[string]int)
+	now := time.Now()
+	for _, tok := range m.tokens {
+		if !tok.Revoked && now.Before(tok.ExpiresAt) {
+			counts[tok.ServiceAccountID]++
+		}
+	}
 	res := make([]ServiceAccount, 0, len(m.accounts))
 	for _, sa := range m.accounts {
+		sa.TokenCount = counts[sa.ID]
 		res = append(res, sa)
 	}
 	return res, nil
@@ -221,6 +240,9 @@ func (m *MemoryServiceAccountStore) FindTokenByHash(_ context.Context, hash stri
 		return nil, nil, ErrServiceAccountNotFound
 	}
 	tok := m.tokens[tid]
+	if tok.Revoked {
+		return nil, nil, ErrServiceAccountNotFound
+	}
 	sa, ok := m.accounts[tok.ServiceAccountID]
 	if !ok {
 		return nil, nil, ErrServiceAccountNotFound
@@ -248,7 +270,10 @@ func (m *MemoryServiceAccountStore) RevokeToken(_ context.Context, tokenID strin
 		return errors.New("token not found")
 	}
 	delete(m.byHash, tok.TokenHash)
-	delete(m.tokens, tokenID)
+	tok.Revoked = true
+	now := time.Now().UTC()
+	tok.RevokedAt = &now
+	m.tokens[tokenID] = tok
 	return nil
 }
 
