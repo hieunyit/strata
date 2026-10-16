@@ -1,0 +1,22 @@
+{
+  "nginx_sha256": "4708c7c5929190cbb3345e3e4bdda9eddb719438f3a472447127409bca724a0e",
+  "module_sha256": "1032c5ddba42865824e535a32c623a546c0fba9e21c610169b951036d747b98e",
+  "mkbundle_sha256": "2e6d5518144a94189060d0d4c80b6ddbbeb3d4eea41d1732f256aef3acc47533",
+  "bundle_sha256": "9aa36753a741931b6b2b3112663095a69680cf6f85a0f34e8af7209d9bfe9b47",
+  "pubkey_sha256": "fe812c12f3ab4ce6ac5db69ac352f906cb1b11ef43fb33e252ef7ff552263889",
+  "harness_sha256": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21",
+  "cases_sha256": "c6a036774e8f5c9666d5fb1899548d9e1f28eea97778f7f82d8686fe827616f6",
+  "scope": "explicit_header_exception_and_other_field_enforcement",
+  "policy": "example-api",
+  "rounds": 1,
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "not_tested": [
+    "botnet fallback",
+    "canary hashing",
+    "event delivery",
+    "browser XSS"
+  ],
+  "configuration_sha256": "cc4127deb8edb5b8e1f1d0f887eece4d31f1907920b18ba37a5bf6aeb38133d0",
+  "exception_probe_sha256": "448236e544c108de8b4b312c70acd3939f91638f73737c5cbcd3e4784b0d6afb"
+}
