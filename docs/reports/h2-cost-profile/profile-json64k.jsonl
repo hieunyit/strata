@@ -1,0 +1,1 @@
+{"action":0,"blocked":0,"body_bytes":65749,"body_skipped":0,"budget_errors":0,"budget_us":0,"engine_serial_rps":23.955014973201884,"errors":0,"full":30,"matched":30,"max_us":77610.739,"mean_us":41744.912333333334,"n":30,"p50_us":36460.439999999995,"p99_us":77610.739,"partial":0,"request":"json64k","rules":[800002]}

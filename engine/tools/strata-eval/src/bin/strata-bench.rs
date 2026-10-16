@@ -3,7 +3,7 @@
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
 //!              [--budget-us N] [--only small|nul|attack|json|64k|json64k|1m] [--event] [--diagnose]
-//!              [--cold N [--warm]] [--rule-cost-every N] [--rule-cost-ab]
+//!              [--profile-cost] [--cold N [--warm]] [--rule-cost-every N] [--rule-cost-ab]
 //!
 //! `--rule-cost-ab` (W13-R-02) runs the iterations in turn with rule-cost
 //! sampling off, at 1% and at 100%, in one process (the machine drifts
@@ -221,6 +221,24 @@ fn requests() -> Vec<Req> {
         body.shrink_to_fit();
         cases.push(base(name, b"POST", "/t", body, Some(ct)));
     }
+    let mut header = base("headers", b"GET", "/metadata", vec![], None);
+    header.headers.extend([
+        ("X-Example-Filter", "1".to_string()),
+        (
+            "Authorization",
+            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJleGFtcGxlIn0.signature".to_string(),
+        ),
+        ("If-None-Match", "W/\"example-v1\"".to_string()),
+        (
+            "X-Example-Text",
+            "select the best union membership plan".to_string(),
+        ),
+        (
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+        ),
+    ]);
+    cases.push(header);
     cases
 }
 
@@ -299,6 +317,17 @@ fn main() {
     }
     // also encode the event of each transaction, as the connector does
     let event = args.iter().any(|a| a == "--event");
+    // Opt-in diagnostic only: 100% sampling changes timings, never an SLO run.
+    let profile_cost = args.iter().any(|a| a == "--profile-cost");
+    if profile_cost {
+        assert!(
+            !args
+                .iter()
+                .any(|a| matches!(a.as_str(), "--cold" | "--rule-cost-ab")),
+            "--profile-cost requires the regular timed workload"
+        );
+        libstrata::rulecost::set_sample_every(1);
+    }
     // as NGINX runs it: strata_cpu_budget (10 ms by default); 0 = none
     let budget_us: u64 = get("--budget-us")
         .map(|s| s.parse().expect("--budget-us"))
@@ -447,6 +476,9 @@ fn main() {
         for _ in 0..n.min(50) {
             run_one(&e, policy.as_bytes(), budget_us, event, &r); // warm-up
         }
+        if profile_cost {
+            e.rule_costs().take(); // discard warm-up samples
+        }
         let mut us = Vec::with_capacity(n);
         let mut last = (0, vec![], 0, 0);
         let mut inspections = [0usize; 4];
@@ -463,6 +495,26 @@ fn main() {
             matched += usize::from(!last.1.is_empty());
             errors += usize::from(last.3 != libstrata::verdict::OK);
             budget_errors += usize::from(last.3 == libstrata::verdict::E_BUDGET);
+        }
+        if profile_cost {
+            let (costs, sampled_requests, engine_ns) = e.rule_costs().take();
+            let tables = e.tables();
+            let rows: Vec<_> = costs
+                .iter()
+                .take(20)
+                .map(|&(index, samples, total_ns, max_ns)| {
+                    serde_json::json!({
+                        "rule_id": index.and_then(|i| tables.rule(i as usize)).map(|r| r.id),
+                        "phase": if index.is_none() { "prefilter" } else { "rule" },
+                        "samples": samples, "total_ns": total_ns, "max_ns": max_ns
+                    })
+                })
+                .collect();
+            eprintln!(
+                "{}",
+                serde_json::json!({"kind":"sampled_rule_cost_diagnostic", "request":r.name,
+                "sample_every":1, "sampled_requests":sampled_requests, "recorded_engine_ns":engine_ns, "top20":rows})
+            );
         }
         us.sort_by(|a, b| a.total_cmp(b));
         let mean = us.iter().sum::<f64>() / n as f64;
