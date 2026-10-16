@@ -192,6 +192,11 @@ ngx_http_strata_apply_verdict(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx)
     if (v->error != STRATA_OK) {
         ctx->failed = 1;
 
+        /* #98: budget out on a request with findings, policy says block */
+        if (v->flags & STRATA_VF_FAIL_CLOSED) {
+            ctx->fail_closed = 1;
+        }
+
         if (v->error != STRATA_E_BUNDLE) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "strata: engine error %D, event id %s, fail mode %s",
