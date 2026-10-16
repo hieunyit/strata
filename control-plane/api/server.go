@@ -17,6 +17,7 @@ import (
 // AuditStore supplies recent audit log entries for GET /v1/audit.
 type AuditStore interface {
 	AuditEntries(ctx context.Context, limit int) ([]store.Audit, error)
+	SearchAudit(ctx context.Context, f store.AuditFilter) ([]store.Audit, error)
 }
 
 // ServerConfig defines HTTP server configuration options.
@@ -42,6 +43,10 @@ type ServerConfig struct {
 	Local *localauth.Handler
 	// Audit serves GET /v1/audit (recent audit_log entries); nil leaves it out.
 	Audit AuditStore
+	// ServiceAccounts manages machine accounts and tokens; nil leaves it out.
+	ServiceAccounts auth.ServiceAccountStore
+	// MapTilesPath is the filesystem path containing offline vector tiles.
+	MapTilesPath string
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
 }
@@ -125,6 +130,7 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	v1.HandleFunc("/v1/stats/geo", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleGeoStats))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
 		roles := make([]string, len(p.Roles))
@@ -150,7 +156,14 @@ func (s *Server) registerRoutes() {
 					limit = n
 				}
 			}
-			entries, err := s.cfg.Audit.AuditEntries(r.Context(), limit)
+			filter := store.AuditFilter{
+				Actor:    r.URL.Query().Get("actor"),
+				Channel:  r.URL.Query().Get("channel"),
+				Action:   r.URL.Query().Get("action"),
+				Resource: r.URL.Query().Get("resource"),
+				Limit:    limit,
+			}
+			entries, err := s.cfg.Audit.SearchAudit(r.Context(), filter)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
@@ -166,12 +179,20 @@ func (s *Server) registerRoutes() {
 		s.cfg.Local.Authenticated(v1)
 		s.cfg.Local.Public(s.mux)
 	}
+	if s.cfg.ServiceAccounts != nil {
+		var auditRec AuditRecorder
+		if ar, ok := s.cfg.Audit.(AuditRecorder); ok {
+			auditRec = ar
+		}
+		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts, auditRec)
+	}
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)
 	}
 	s.mux.HandleFunc("/v1/auth/methods", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, AuthMethods{Local: s.cfg.Local != nil, OIDC: s.cfg.OIDC})
 	})
+	RegisterMapTileRoutes(s.mux, s.cfg.MapTilesPath)
 
 	// Liveness for the container healthcheck; it reveals nothing.
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

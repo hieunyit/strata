@@ -235,12 +235,150 @@ export const apiClient = {
     return r.node ?? {};
   },
 
-  /** GET /v1/audit: list newest audit log entries */
-  async listAuditLogs(limit = 100): Promise<AuditEntry[]> {
-    const r = await call<ListAuditResponse>(`/audit?limit=${limit}`, { method: 'GET' }, 'Failed to list audit log');
+  /** GET /v1/audit: list audit log entries with optional filters */
+  async listAuditLogs(params?: number | { limit?: number; actor?: string; channel?: string; action?: string; resource?: string }): Promise<AuditEntry[]> {
+    const q = new URLSearchParams();
+    if (typeof params === 'number') {
+      q.set('limit', String(params));
+    } else if (params) {
+      if (params.limit) q.set('limit', String(params.limit));
+      if (params.actor) q.set('actor', params.actor);
+      if (params.channel) q.set('channel', params.channel);
+      if (params.action) q.set('action', params.action);
+      if (params.resource) q.set('resource', params.resource);
+    }
+    const queryStr = q.toString() ? `?${q.toString()}` : '';
+    const r = await call<ListAuditResponse>(`/audit${queryStr}`, { method: 'GET' }, 'Failed to list audit log');
     return r.entries ?? [];
   },
+
+  /** GET /v1/service-accounts */
+  async listServiceAccounts(): Promise<ServiceAccount[]> {
+    const r = await call<{ service_accounts: ServiceAccount[] }>('/service-accounts', { method: 'GET' }, 'Failed to list service accounts');
+    return r.service_accounts ?? [];
+  },
+
+  /** POST /v1/service-accounts */
+  async createServiceAccount(sa: { name: string; description?: string; id?: string; roles?: string[] }): Promise<ServiceAccount> {
+    const payload = {
+      id: sa.id || sa.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
+      name: sa.name,
+      description: sa.description || '',
+      roles: sa.roles || ['viewer'],
+    };
+    return call<ServiceAccount>('/service-accounts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, 'Failed to create service account');
+  },
+
+  /** DELETE /v1/service-accounts/{id} */
+  async deleteServiceAccount(id: string): Promise<void> {
+    await call<void>(`/service-accounts/${encodeURIComponent(id)}`, { method: 'DELETE' }, 'Failed to delete service account');
+  },
+
+  /** GET /v1/service-accounts/{id}/tokens */
+  async listServiceAccountTokens(saId: string): Promise<ServiceAccountToken[]> {
+    const r = await call<{ tokens: ServiceAccountToken[] }>(`/service-accounts/${encodeURIComponent(saId)}/tokens`, { method: 'GET' }, 'Failed to list tokens');
+    return r.tokens ?? [];
+  },
+
+  /** POST /v1/service-accounts/{id}/tokens */
+  async createServiceAccountToken(saId: string, req: { scopes: string[]; ttl_seconds?: number } | string[], ttlSeconds?: number): Promise<CreateTokenResponse> {
+    const body = Array.isArray(req)
+      ? { scopes: req, ttl_seconds: ttlSeconds }
+      : { scopes: req.scopes, ttl_seconds: req.ttl_seconds };
+    return call<CreateTokenResponse>(`/service-accounts/${encodeURIComponent(saId)}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }, 'Failed to create token');
+  },
+
+  /** DELETE /v1/service-accounts/{id}/tokens/{tokenId} */
+  async revokeServiceAccountToken(saId: string, tokenId: string): Promise<void> {
+    await call<void>(`/service-accounts/${encodeURIComponent(saId)}/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' }, 'Failed to revoke token');
+  },
+
+  /** GET /v1/stats/geo */
+  async getGeoStats(filter?: GeoStatsFilter): Promise<GeoStatsResponse> {
+    const q = new URLSearchParams();
+    if (filter?.from) q.set('from', filter.from);
+    if (filter?.to) q.set('to', filter.to);
+    if (filter?.groupBy) q.set('groupBy', filter.groupBy);
+    if (filter?.policy_id) q.set('policy_id', filter.policy_id);
+    if (filter?.action) q.set('action', filter.action);
+    const qs = q.toString();
+    return call<GeoStatsResponse>(`/stats/geo${qs ? '?' + qs : ''}`, { method: 'GET' }, 'Failed to fetch geo statistics');
+  },
 };
+
+export interface GeoCountryStat {
+  country_iso: string;
+  events: number;
+  blocked: number;
+  top_attack_type: string;
+}
+
+export interface GeoASNStat {
+  asn: number;
+  as_org: string;
+  events: number;
+  blocked: number;
+}
+
+export interface GeoGridStat {
+  geohash: string;
+  lat: number;
+  lon: number;
+  city: string;
+  country_iso: string;
+  events: number;
+  blocked: number;
+  top_attack_type: string;
+}
+
+export interface GeoStatsResponse {
+  from: string;
+  to: string;
+  countries?: GeoCountryStat[];
+  asns?: GeoASNStat[];
+  grid?: GeoGridStat[];
+}
+
+export interface GeoStatsFilter {
+  from?: string;
+  to?: string;
+  groupBy?: string;
+  policy_id?: string;
+  action?: string;
+}
+
+export interface ServiceAccount {
+  id: string;
+  name: string;
+  description?: string;
+  roles: string[];
+  created_at: string;
+  created_by?: string;
+  updated_at?: string;
+  token_count?: number;
+}
+
+export interface ServiceAccountToken {
+  id: string;
+  service_account_id: string;
+  token_prefix: string;
+  scopes: string[];
+  expires_at: string;
+  created_at: string;
+  last_used_at?: string;
+  revoked?: boolean;
+}
+
+export interface CreateTokenResponse {
+  raw_token: string;
+  token: ServiceAccountToken;
+}
 
 export interface AuditEntry {
   at?: string;

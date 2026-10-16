@@ -1,0 +1,45 @@
+# OWASP CRS 4.25.2, REQUEST-941-APPLICATION-ATTACK-XSS.conf (PL2)
+# Paranoia Level 2 Cross-Site Scripting Detection
+rule:
+  id: 941101
+  name: "XSS Filter: Script Tag & Event Handler Vector (PL2)"
+  layer: managed
+  stage: request_body
+  match:
+    all:
+      - operator:
+          type: rx
+          value: '(?i)(?:<\s*script[^>]*>|<\s*img[^>]+onerror\s*=|javascript\s*:\s*[a-z0-9_$]+\s*\(|on(?:load|error|click|mouseover)\s*=\s*["''][^"'']*\(|\bdocument\.(?:cookie|location|write)\b)'
+        targets:
+          - var: args
+          - var: args_names
+          - var: request_cookies
+          - var: request_headers
+            key: Referer
+        transforms:
+          - lowercase
+          - url_decode_uni
+  score: 100
+  action_mode: score
+  severity: critical
+  paranoia_level: 2
+  metadata:
+    source: crs
+    license: Apache-2.0
+    author: OWASP CRS project
+    upstream_id: "941101"
+    upstream_version: "4.25.2"
+    attack_type: xss
+    accuracy: high
+    tags: [crs-pl2, xss]
+tests:
+  match:
+    - uri: /v1/comments?body=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+      headers: { Host: api.example.test, Accept: application/json }
+    - uri: /v1/avatar?url=javascript:alert(document.cookie)
+      headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+    - uri: /v1/search?q=javascript+tutorials
+      headers: { Host: api.example.test, Accept: application/json }
+    - uri: /v1/posts?title=How+to+write+clean+code
+      headers: { Host: api.example.test, Accept: application/json }
