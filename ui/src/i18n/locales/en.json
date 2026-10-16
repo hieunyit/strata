@@ -13,7 +13,8 @@
     "events": "Events",
     "policies": "Policies",
     "fleet": "Fleet",
-    "users": "Users"
+    "users": "Users",
+    "audit": "Audit"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -131,8 +132,14 @@
       "httpMethod": "Method",
       "allMethods": "Any method",
       "apply": "Apply filters",
-      "reset": "Clear filters"
+      "reset": "Clear filters",
+      "allPolicies": "All policies",
+      "allNodes": "All nodes"
     },
+    "pausedPage": "Paused (Page {{page}})",
+    "pausedPageTooltip": "Live updates paused on historical pages",
+    "livePausedNotice": "Live updates are paused on historical pages to prevent shifting rows under your inspection.",
+    "returnToLive": "Return to Page 1 for Live Stream →",
     "table": {
       "timestamp": "Time",
       "blockId": "Block ID",
@@ -152,10 +159,17 @@
       "prev": "Previous"
     }
   },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "search": "Focus Block ID search bar",
+    "escape": "Close open modal or drawer",
+    "help": "Toggle this keyboard shortcuts dialog"
+  },
   "detail": {
     "back": "Events",
     "loading": "Loading the decision trace…",
     "copyId": "Copy ID",
+    "copyCurl": "Copy as cURL",
     "copyJson": "Copy JSON",
     "missingHelp": "The event may be older than the retention period (90 days), or the node has not sent it yet. Check the ID the user gave you, then try again in a minute.",
     "verdictTitle": "Why",
@@ -231,6 +245,13 @@
     "throttled": "Too many attempts from this address. Try again in a few minutes.",
     "failed": "Sign-in failed. Check that the control plane is reachable."
   },
+  "auth": {
+    "idleWarningTitle": "Session Expiring Soon",
+    "idleWarningMessage": "You have been inactive. For your security, your session will automatically end in {{seconds}} seconds.",
+    "idleStay": "Stay signed in",
+    "idleLogout": "Sign out now",
+    "sessionExpiredInactivity": "Your session ended due to inactivity."
+  },
   "errors": {
     "apiUnreachable": "Cannot reach the control plane API. Check that it is running, then refresh.",
     "blockIdNotFound": "No event with Block ID {{id}}",
@@ -302,6 +323,12 @@
       "DONE": "done",
       "ABORTED": "aborted"
     },
+    "revoke": "Revoke",
+    "revokeModal": {
+      "title": "Revoke Node Certificate: {{name}}",
+      "desc": "Permanently invalidates mTLS certificates for this proxy node. It will be immediately disconnected from the fleet and blocked from receiving bundles. This cannot be undone.",
+      "confirm": "Revoke Certificate"
+    },
     "rollout": {
       "none": "No rollout in progress.",
       "title": "Rollout {{id}}, bundle v{{version}}",
@@ -320,7 +347,33 @@
     "resume": "Resume",
     "refresh": "Refresh",
     "copied": "Copied",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "reset": "Reset",
+    "typeToConfirm": "To confirm, type",
+    "below": "below:",
+    "auditReason": "Reason (required for audit log):",
+    "reasonPlaceholder": "Explain why this action is taken…"
+  },
+  "audit": {
+    "title": "Audit Trail",
+    "subtitle": "Chronological log of administrative actions, policy releases, and node operations.",
+    "searchPlaceholder": "Filter by actor, resource, or action…",
+    "allActions": "All Actions",
+    "loading": "Loading audit log…",
+    "empty": "No audit log entries match your filter.",
+    "inspect": "Diff",
+    "before": "Before State",
+    "after": "After State",
+    "col": {
+      "time": "Timestamp",
+      "actor": "Actor",
+      "channel": "Channel",
+      "action": "Action",
+      "resource": "Resource",
+      "details": "Details"
+    }
   },
   "account": {
     "title": "Change password",

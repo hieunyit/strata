@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download } from 'lucide-react';
 import { apiClient, FleetNode, Group, Rollout } from '../api/client';
@@ -6,6 +6,8 @@ import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell } from './PageShell';
 import { PageHeader, ErrorBanner, formatTime, relativeTime } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { DestructiveConfirmModal } from '../components/layout/DestructiveConfirmModal';
 
 type Status = 'online' | 'offline' | 'revoked';
 
@@ -113,7 +115,11 @@ const RolloutPanel: React.FC<{ rollout?: Rollout; names: Map<string, string> }> 
 // seconds, so a node's DOWNLOADING → VERIFIED → ACTIVE shows as it happens.
 export const FleetPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { data, error, loading } = usePolling(load, 3000);
+  const { data, error, loading, refresh } = usePolling(load, 3000);
+  const { roles } = useAuth();
+  const canRevoke = roles.includes('admin');
+  const [revokingNode, setRevokingNode] = useState<FleetNode | null>(null);
+
   const nodes = data?.nodes ?? [];
   const groups = data?.groups ?? [];
   const online = nodes.filter((n) => statusOf(n) === 'online').length;
@@ -183,11 +189,12 @@ export const FleetPage: React.FC = () => {
                     <th className="th">{t('fleet.col.bundle')}</th>
                     <th className="th">{t('fleet.col.lastSeen')}</th>
                     <th className="th">{t('fleet.col.cert')}</th>
+                    {canRevoke && <th className="th text-right">{t('common.actions', 'Actions')}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {members.length === 0 && (
-                    <tr><td colSpan={7} className="td py-6 text-center text-muted">{t('fleet.groupEmpty')}</td></tr>
+                    <tr><td colSpan={canRevoke ? 8 : 7} className="td py-6 text-center text-muted">{t('fleet.groupEmpty')}</td></tr>
                   )}
                   {members.map((n) => {
                     const s = statusOf(n);
@@ -213,6 +220,20 @@ export const FleetPage: React.FC = () => {
                           {n.last_seen_time ? relativeTime(n.last_seen_time, i18n.language) : t('common.never')}
                         </td>
                         <td className="td whitespace-nowrap text-muted">{formatTime(n.cert_expire_time, i18n.language, t('common.never'))}</td>
+                        {canRevoke && (
+                          <td className="td text-right whitespace-nowrap">
+                            {s !== 'revoked' && (
+                              <button
+                                type="button"
+                                className="btn py-1 px-2 h-7 text-xs text-block hover:bg-block/10"
+                                data-testid="revoke-node-btn"
+                                onClick={() => setRevokingNode(n)}
+                              >
+                                {t('fleet.revoke', 'Revoke')}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -222,6 +243,29 @@ export const FleetPage: React.FC = () => {
           </section>
         );
       })}
+      {revokingNode && (
+        <DestructiveConfirmModal
+          title={t('fleet.revokeModal.title', {
+            name: revokingNode.hostname || revokingNode.id,
+            defaultValue: `Revoke Node Certificate: ${revokingNode.hostname || revokingNode.id}`,
+          })}
+          description={t(
+            'fleet.revokeModal.desc',
+            'Permanently invalidates mTLS certificates for this proxy node. It will be immediately disconnected from the fleet and blocked from receiving bundles. This cannot be undone.'
+          )}
+          expectedMatch={revokingNode.id ?? ''}
+          requireReason={true}
+          minReasonLength={10}
+          confirmLabel={t('fleet.revokeModal.confirm', 'Revoke Certificate')}
+          onConfirm={async () => {
+            if (revokingNode.id) {
+              await apiClient.revokeNode(revokingNode.id);
+              void refresh();
+            }
+          }}
+          onClose={() => setRevokingNode(null)}
+        />
+      )}
     </PageShell>
   );
 };

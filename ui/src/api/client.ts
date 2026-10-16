@@ -227,4 +227,34 @@ export const apiClient = {
       `/rollouts/${encodeURIComponent(id)}`, { method: 'GET' }, 'Failed to get rollout');
     return r.rollout;
   },
+
+  /** DELETE /v1/nodes/{id}: revokes a node's mTLS certificate and access */
+  async revokeNode(nodeId: string): Promise<FleetNode> {
+    const r = await call<admin['schemas']['v1RevokeNodeResponse']>(
+      `/nodes/${encodeURIComponent(nodeId)}`, { method: 'DELETE' }, 'Failed to revoke node');
+    return r.node ?? {};
+  },
+
+  /** GET /v1/audit: list newest audit log entries */
+  async listAuditLogs(limit = 100): Promise<AuditEntry[]> {
+    const r = await call<ListAuditResponse>(`/audit?limit=${limit}`, { method: 'GET' }, 'Failed to list audit log');
+    return r.entries ?? [];
+  },
 };
+
+export interface AuditEntry {
+  at?: string;
+  actor: string;
+  subject?: string;
+  channel: string;
+  action: string;
+  resource: string;
+  request_id?: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+export interface ListAuditResponse {
+  entries: AuditEntry[];
+}
+

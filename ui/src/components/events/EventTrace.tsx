@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Lock, Copy, Check, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Event, GetEventResponse } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { fieldLocation, markPath } from '../../lib/trace';
@@ -97,6 +97,17 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
           <div data-testid="viewer-notice" className="flex items-start gap-2.5 rounded-md border border-shadow/40 bg-shadow/10 px-3 py-2.5 text-[13px]">
             <Lock className="mt-0.5 w-4 h-4 shrink-0 text-shadow" />
             <span>{t('detail.viewerNotice')}</span>
+          </div>
+        )}
+
+        {event.inspection && event.inspection !== 'full' && (
+          <div data-testid="truncation-notice" className="flex items-start gap-2.5 rounded-md border border-shadow/40 bg-shadow/10 px-3 py-2.5 text-[13px]">
+            <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0 text-shadow" />
+            <span>
+              {event.inspection === 'partial'
+                ? t('detail.inspection.partial', 'Not fully inspected: the CPU budget ran out and the fail mode applied. Rules after that point did not run.')
+                : t('detail.inspection.body_skipped', 'The request body, or part of it, was not inspected (over the inspection limit or spooled to disk).')}
+            </span>
           </div>
         )}
 

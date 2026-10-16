@@ -47,9 +47,24 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [live, setLive] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const initialPage = route?.query?.page ? Math.max(0, parseInt(route.query.page, 10)) : 0;
   const [tokens, setTokens] = useState<string[]>(['']);
-  const [pageIndex, setPageIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(initialPage);
   const [next, setNext] = useState<string | undefined>();
+
+  useEffect(() => {
+    const qf = filtersFromQuery(route?.query);
+    setFilters(qf);
+    const p = route?.query?.page ? Math.max(0, parseInt(route.query.page, 10)) : 0;
+    setPageIndex(p);
+  }, [route?.query]);
+
+  const updateRoute = (f: EventFilters, p: number) => {
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(f)) if (v && !(k === 'range' && v === '24h')) query[k] = v;
+    if (p > 0) query.page = String(p);
+    replaceQuery({ page: 'events', query });
+  };
 
   const fetchEvents = useCallback(
     async (background = false) => {
@@ -87,9 +102,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
     setFilters(f);
     setTokens(['']);
     setPageIndex(0);
-    const query: Record<string, string> = {};
-    for (const [k, v] of Object.entries(f)) if (v && !(k === 'range' && v === '24h')) query[k] = v;
-    replaceQuery({ page: 'events', query });
+    updateRoute(f, 0);
   };
 
   // Export CSV: what the table shows. A viewer gets the client IP masked
@@ -113,9 +126,25 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
         description={t('events.subtitle')}
         actions={
           <>
-            <button type="button" className="btn" data-testid="auto-refresh-toggle-btn" onClick={() => setLive(!live)} aria-pressed={!live}>
-              {live ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              {live ? t('common.pause') : t('common.resume')}
+            <button
+              type="button"
+              className={`btn ${pageIndex > 0 ? 'border-dashed text-muted' : live ? 'text-ok' : ''}`}
+              data-testid="auto-refresh-toggle-btn"
+              onClick={() => setLive(!live)}
+              aria-pressed={!live}
+              title={pageIndex > 0 ? t('events.pausedPageTooltip', 'Live updates paused on historical pages') : undefined}
+            >
+              {pageIndex > 0 ? (
+                <>
+                  <Pause className="w-3.5 h-3.5 text-shadow" />
+                  <span>{t('events.pausedPage', 'Paused (Page {{page}})', { page: pageIndex + 1 })}</span>
+                </>
+              ) : (
+                <>
+                  {live ? <Pause className="w-3.5 h-3.5 text-ok" /> : <Play className="w-3.5 h-3.5" />}
+                  <span>{live ? t('common.pause') : t('common.resume')}</span>
+                </>
+              )}
             </button>
             <button type="button" className="btn" data-testid="manual-refresh-btn" onClick={() => void fetchEvents(true)} disabled={refreshing}>
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -130,6 +159,30 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
       />
       <ErrorBanner message={error} onClose={() => setError(null)} testId="error-banner" />
       <EventFilterBar initial={filters} onApply={apply} />
+
+      {pageIndex > 0 && (
+        <div
+          className="panel px-3.5 py-2 mb-3 bg-shadow/10 border-shadow/30 flex items-center justify-between text-[13px]"
+          data-testid="live-paused-banner"
+        >
+          <div className="flex items-center gap-2 text-ink">
+            <Pause className="w-4 h-4 text-shadow shrink-0" />
+            <span>{t('events.livePausedNotice', 'Live updates are paused on historical pages to prevent shifting rows under your inspection.')}</span>
+          </div>
+          <button
+            type="button"
+            className="btn text-xs py-1 h-7 font-medium text-accent hover:underline shrink-0"
+            onClick={() => {
+              setPageIndex(0);
+              updateRoute(filters, 0);
+            }}
+            data-testid="return-page-1-btn"
+          >
+            {t('events.returnToLive', 'Return to Page 1 for Live Stream →')}
+          </button>
+        </div>
+      )}
+
       <EventsTable
         events={events}
         isLoading={loading}
@@ -139,10 +192,18 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
         hasPrevPage={pageIndex > 0}
         onNextPage={() => {
           if (!next) return;
-          if (pageIndex + 1 >= tokens.length) setTokens([...tokens, next]);
-          setPageIndex(pageIndex + 1);
+          const nextIdx = pageIndex + 1;
+          if (nextIdx >= tokens.length) setTokens([...tokens, next]);
+          setPageIndex(nextIdx);
+          updateRoute(filters, nextIdx);
         }}
-        onPrevPage={() => pageIndex > 0 && setPageIndex(pageIndex - 1)}
+        onPrevPage={() => {
+          if (pageIndex > 0) {
+            const prevIdx = pageIndex - 1;
+            setPageIndex(prevIdx);
+            updateRoute(filters, prevIdx);
+          }
+        }}
       />
     </AppShell>
   );

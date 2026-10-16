@@ -34,6 +34,11 @@ export function canWritePolicies(roles: UserRole[]): boolean {
   return roles.includes('operator') || roles.includes('admin');
 }
 
+// canReadAudit: the roles with audit:read in the control plane (admin only)
+export function canReadAudit(roles: UserRole[]): boolean {
+  return roles.includes('admin');
+}
+
 // knownRoles keeps the four roles of a list (a local session's roles).
 export function knownRoles(roles: string[]): UserRole[] {
   return known.filter((r) => roles.includes(r));

@@ -93,6 +93,9 @@ code, kbd, pre, .font-mono {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded text-[13px] font-medium bg-accent text-accent-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity;
   }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded text-[13px] font-medium bg-block text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity;
+  }
   .field {
     @apply h-8 w-full px-2.5 rounded border border-line bg-surface text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent;
   }

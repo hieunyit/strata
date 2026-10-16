@@ -10,7 +10,14 @@ import (
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
+	"github.com/strata/strata/control-plane/store"
+	"strconv"
 )
+
+// AuditStore supplies recent audit log entries for GET /v1/audit.
+type AuditStore interface {
+	AuditEntries(ctx context.Context, limit int) ([]store.Audit, error)
+}
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
@@ -33,6 +40,8 @@ type ServerConfig struct {
 	// Local serves sign-in with local accounts and their administration;
 	// nil when -local-auth is off.
 	Local *localauth.Handler
+	// Audit serves GET /v1/audit (recent audit_log entries); nil leaves it out.
+	Audit AuditStore
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
 }
@@ -129,6 +138,30 @@ func (s *Server) registerRoutes() {
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusOK, Me{Username: name, Roles: roles, Local: localauth.LocalUsername(p) != ""})
 	})
+	if s.cfg.Audit != nil {
+		v1.HandleFunc("/v1/audit", auth.RequireHTTP(auth.PermAuditRead, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			limit := 100
+			if l := r.URL.Query().Get("limit"); l != "" {
+				if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 500 {
+					limit = n
+				}
+			}
+			entries, err := s.cfg.Audit.AuditEntries(r.Context(), limit)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			if entries == nil {
+				entries = []store.Audit{}
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+		}))
+	}
 	if s.cfg.Local != nil {
 		s.cfg.Local.Authenticated(v1)
 		s.cfg.Local.Public(s.mux)

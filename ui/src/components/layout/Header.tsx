@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
     (onSearchBlockId ?? ((b: string) => navigate({ page: 'event', blockId: b })))(id);
   };
 
-  const lang = i18n.language.startsWith('vi') ? 'vi' : 'en';
+  const lang = (i18n.language || 'en').startsWith('vi') ? 'vi' : 'en';
 
   return (
     <header className="sticky top-0 z-30 h-14 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-3 px-4 lg:px-6">

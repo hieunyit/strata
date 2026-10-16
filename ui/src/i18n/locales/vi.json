@@ -13,7 +13,8 @@
     "events": "Sự kiện",
     "policies": "Policy",
     "fleet": "Fleet",
-    "users": "Người dùng"
+    "users": "Người dùng",
+    "audit": "Kiểm toán"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -128,8 +129,14 @@
       "httpMethod": "Phương thức",
       "allMethods": "Mọi phương thức",
       "apply": "Lọc",
-      "reset": "Xóa bộ lọc"
+      "reset": "Xóa bộ lọc",
+      "allPolicies": "Mọi policy",
+      "allNodes": "Mọi node"
     },
+    "pausedPage": "Tạm dừng (Trang {{page}})",
+    "pausedPageTooltip": "Cập nhật thời gian thực tạm dừng khi đang ở trang lịch sử",
+    "livePausedNotice": "Cập nhật thời gian thực tạm dừng khi xem các trang trước để tránh thay đổi dòng khi bạn đang điều tra.",
+    "returnToLive": "Về Trang 1 để xem thời gian thực →",
     "table": {
       "timestamp": "Thời điểm",
       "blockId": "Block ID",
@@ -148,10 +155,17 @@
       "prev": "Trước"
     }
   },
+  "shortcuts": {
+    "title": "Phím tắt",
+    "search": "Tìm kiếm theo Block ID",
+    "escape": "Đóng cửa sổ modal hoặc panel",
+    "help": "Bật/tắt bảng trợ giúp phím tắt này"
+  },
   "detail": {
     "back": "Sự kiện",
     "loading": "Đang tải decision trace…",
     "copyId": "Chép ID",
+    "copyCurl": "Chép lệnh cURL",
     "copyJson": "Chép JSON",
     "missingHelp": "Sự kiện có thể đã quá thời gian lưu (90 ngày), hoặc node chưa gửi tới. Kiểm lại ID người dùng đưa, rồi thử lại sau một phút.",
     "verdictTitle": "Vì sao",
@@ -226,6 +240,13 @@
     "throttled": "Quá nhiều lần thử từ địa chỉ này. Thử lại sau vài phút.",
     "failed": "Không đăng nhập được. Kiểm tra control plane có truy cập được không."
   },
+  "auth": {
+    "idleWarningTitle": "Phiên làm việc sắp hết hạn",
+    "idleWarningMessage": "Bạn đã không hoạt động trong một khoảng thời gian. Vì lý do an toàn, phiên làm việc sẽ tự động kết thúc sau {{seconds}} giây.",
+    "idleStay": "Tiếp tục làm việc",
+    "idleLogout": "Đăng xuất ngay",
+    "sessionExpiredInactivity": "Phiên làm việc đã kết thúc do không hoạt động."
+  },
   "errors": {
     "apiUnreachable": "Không kết nối được API của control plane. Kiểm tra dịch vụ đang chạy rồi tải lại.",
     "blockIdNotFound": "Không có sự kiện với Block ID {{id}}",
@@ -296,6 +317,12 @@
       "DONE": "xong",
       "ABORTED": "đã hủy"
     },
+    "revoke": "Thu hồi",
+    "revokeModal": {
+      "title": "Thu hồi chứng chỉ Node: {{name}}",
+      "desc": "Vô hiệu hóa vĩnh viễn chứng chỉ mTLS của node proxy này. Node sẽ ngay lập tức bị ngắt kết nối khỏi cụm và bị chặn nhận bundle. Hành động này không thể hoàn tác.",
+      "confirm": "Thu hồi chứng chỉ"
+    },
     "rollout": {
       "none": "Không có rollout đang chạy.",
       "title": "Rollout {{id}}, bundle v{{version}}",
@@ -314,7 +341,33 @@
     "resume": "Tiếp tục",
     "refresh": "Làm mới",
     "copied": "Đã chép",
-    "cancel": "Hủy"
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "actions": "Thao tác",
+    "reset": "Đặt lại",
+    "typeToConfirm": "Để xác nhận, hãy nhập",
+    "below": "vào bên dưới:",
+    "auditReason": "Lý do (bắt buộc cho nhật ký kiểm toán):",
+    "reasonPlaceholder": "Giải thích lý do thực hiện thao tác này…"
+  },
+  "audit": {
+    "title": "Nhật ký kiểm toán",
+    "subtitle": "Lịch sử tuần tự các thao tác quản trị, phát hành policy và vận hành node.",
+    "searchPlaceholder": "Lọc theo người thực hiện, tài nguyên hoặc thao tác…",
+    "allActions": "Tất cả thao tác",
+    "loading": "Đang tải nhật ký kiểm toán…",
+    "empty": "Không có bản ghi kiểm toán nào khớp bộ lọc.",
+    "inspect": "Xem khác biệt",
+    "before": "Trạng thái trước",
+    "after": "Trạng thái sau",
+    "col": {
+      "time": "Thời gian",
+      "actor": "Người thực hiện",
+      "channel": "Kênh",
+      "action": "Thao tác",
+      "resource": "Tài nguyên",
+      "details": "Chi tiết"
+    }
   },
   "account": {
     "title": "Đổi mật khẩu",
