@@ -33,7 +33,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
 
 | Mục | Thực tế |
 | --- | --- |
-| Request không được kiểm | Khi vượt CPU budget, request đi theo fail mode (mặc định: cho qua). Gói đầy đủ: 0,11–0,12% GET nhỏ; **100%** POST 64 KB (bench Linux). Route thí điểm: mặc định budget 2 ms thì 89% JSON và 100% upload không được kiểm; với 20 ms thì JSON đủ, upload còn 68% (`w10-g2-01.md` §4). Request đầu tiên trên worker mới sau reload cũng có thể đi qua (#49). Tỉ lệ theo route trên Tổng quan: RV-N-01 Còn hai đường lọt, mở ngày 15/10 từ một báo cáo kiểm toán bên ngoài: body JSON/XML/multipart không parse hết thì không có rule nào báo (#97, **đã sửa ở PR #105**: rule 100022 theo `oversize`, có từ tag sau rc.4); hết budget khi đã có finding dưới ngưỡng thì fail-open vẫn cho qua (#98, cần PO quyết, mục 4.6) |
+| Request không được kiểm | Khi vượt CPU budget, request đi theo fail mode (mặc định: cho qua). Gói đầy đủ: 0,11–0,12% GET nhỏ; **100%** POST 64 KB (bench Linux). Route thí điểm: mặc định budget 2 ms thì 89% JSON và 100% upload không được kiểm; với 20 ms thì JSON đủ, upload còn 68% (`w10-g2-01.md` §4). Request đầu tiên trên worker mới sau reload cũng có thể đi qua (#49). Tỉ lệ theo route trên Tổng quan: RV-N-01 Còn hai đường lọt, mở ngày 15/10 từ một báo cáo kiểm toán bên ngoài: body JSON/XML/multipart không parse hết thì không có rule nào báo (#97, **đã sửa ở PR #105**: rule 100022 theo `oversize`, có từ tag sau rc.4); hết budget khi đã có finding dưới ngưỡng thì fail-open vẫn cho qua (#98, **đã có tùy chọn ở PR #116**: `fail_on_findings: block` theo policy, mặc định tắt; đo trước bằng `strata-rules lifecycle`) |
 | Route thí điểm | **Giả lập**: `pilot-verify`, `pilot-upload` trên staging và prod-sim, lưu lượng sinh tự động. Prod-sim không phải production. Bảng FP (W10-S-01) mới chứng minh công cụ chạy đúng; ngày đầu: 0 nghi FP từ lưu lượng benign trên `pilot-verify` |
 | Cô lập lỗi | `catch_unwind` biến panic Rust thành lỗi engine. Nó **không** bắt abort, OOM, stack overflow hay lỗi bộ nhớ trong `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: W11-N-01 |
 | Connector | Chỉ NGINX OSS 1.30.5 / 1.31.6, x86_64. Gói deb/rpm đã thử trên Ubuntu 24.04, Debian 12, Rocky 9 (`w10-n-01.md`) |
@@ -57,7 +57,7 @@ Gate A mở (không ngoại lệ hiệu năng) cho tới khi A1/A2 đạt.
    push) của phiên engine đã dừng giữa chừng; #57 (`would_block`) chờ nhánh này.
    *Đã xong 14/10: PR #68 (phiên engine), #70 (#57).*
 5. **#28 bước 2** (`issue-28-scan-once.md` §5): *đã xử lý ngày 15/10, không còn chờ PO.* B (giới hạn `max_args` theo policy; phần vượt đi theo `oversize` qua rule 100021, trước đây bị bỏ qua lặng lẽ) đã làm ở PR #87. A (DB Hyperscan theo lớp giá trị) đã đo và không đề xuất, vì bundle vượt giới hạn ký của Vault (`issue-28-args-db-prototype.md`). #28 vẫn mở: body 64 KB vượt budget 10 ms.
-6. **#98**: hết CPU budget khi request **đã có finding** (điểm > 0) thì xử lý thế nào? Hiện fail-open cho qua. Đề xuất: tùy chọn của policy `fail_on_findings: block`, xử lý như fail-closed (503 + Event ID), mặc định giữ hành vi hiện tại; trước khi bật, đo trong shadow tỉ lệ request "hết budget + có finding" trên route thí điểm.
+6. **#98**: *PO đồng ý ngày 16/10, đã làm ở PR #116*: tùy chọn `fail_on_findings: block` theo policy (mặc định `pass`). Chưa bật cho policy nào: cần đo trong shadow trước (mục #98 của `strata-rules lifecycle`).
 
 ## 5. Mốc còn chờ
 
