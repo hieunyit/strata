@@ -64,6 +64,10 @@ func MapStyle(tileURL string) map[string]any {
 // RegisterMapTileRoutes registers offline vector tile and style endpoints.
 func RegisterMapTileRoutes(mux *http.ServeMux, tilePath string) {
 	mux.HandleFunc("/v1/maps/style.json", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		scheme := "http"
@@ -76,23 +80,39 @@ func RegisterMapTileRoutes(mux *http.ServeMux, tilePath string) {
 	})
 
 	mux.HandleFunc("/v1/maps/tiles/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
 
 		path := strings.TrimPrefix(r.URL.Path, "/v1/maps/tiles/")
+		if strings.Contains(path, "..") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		parts := strings.Split(path, "/")
 		if len(parts) < 3 {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		// If a physical vector tile directory exists, serve from it
-		targetFile := filepath.Join(tilePath, path)
-		if fi, err := os.Stat(targetFile); err == nil && !fi.IsDir() {
-			w.Header().Set("Content-Type", "application/x-protobuf")
-			w.Header().Set("Content-Encoding", "gzip")
-			http.ServeFile(w, r, targetFile)
-			return
+		// If a physical vector tile directory exists, safely serve from it
+		if tilePath != "" {
+			cleanTilePath := filepath.Clean(tilePath)
+			targetFile := filepath.Clean(filepath.Join(cleanTilePath, path))
+			if !strings.HasPrefix(targetFile, cleanTilePath+string(filepath.Separator)) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if fi, err := os.Stat(targetFile); err == nil && !fi.IsDir() {
+				w.Header().Set("Content-Type", "application/x-protobuf")
+				w.Header().Set("Content-Encoding", "gzip")
+				http.ServeFile(w, r, targetFile)
+				return
+			}
 		}
 
 		// Fallback empty vector tile response for test environments

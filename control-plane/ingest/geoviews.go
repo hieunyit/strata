@@ -78,12 +78,13 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 		attack_type LowCardinality(String),
 		country_iso LowCardinality(String),
 		asn UInt32 CODEC(T64, ZSTD(1)),
+		as_org LowCardinality(String),
 		count UInt64,
 		blocked_count UInt64
 	) ENGINE = SummingMergeTree()
 	PARTITION BY toYYYYMM(minute)
-	PRIMARY KEY (minute, policy_id, action, attack_type, country_iso, asn)
-	ORDER BY (minute, policy_id, action, attack_type, country_iso, asn)
+	PRIMARY KEY (minute, policy_id, action, attack_type, country_iso, asn, as_org)
+	ORDER BY (minute, policy_id, action, attack_type, country_iso, asn, as_org)
 	TTL minute + INTERVAL 13 MONTH`, geoMinuteTable)
 
 	if err := s.conn.Exec(ctx, createMinuteTable); err != nil {
@@ -100,10 +101,11 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 		if(score_sqli > 0, 'sqli', if(score_xss > 0, 'xss', if(score_protocol > 0, 'protocol', 'anomaly'))) AS attack_type,
 		country_iso,
 		asn,
+		as_org,
 		count() AS count,
 		countIf(action = 'block') AS blocked_count
 	FROM %s
-	GROUP BY minute, site, policy_id, action, attack_type, country_iso, asn`, geoMinuteMV, geoMinuteTable, s.tableName)
+	GROUP BY minute, site, policy_id, action, attack_type, country_iso, asn, as_org`, geoMinuteMV, geoMinuteTable, s.tableName)
 
 	if err := s.conn.Exec(ctx, createMinuteMV); err != nil {
 		return fmt.Errorf("creating %s: %w", geoMinuteMV, err)
@@ -200,19 +202,22 @@ func (s *ClickHouseStore) GeoStats(ctx context.Context, f GeoStatsFilter) (*GeoS
 
 		cArgs := append(args, limit)
 		rows, err := s.conn.Query(ctx, q, cArgs...)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var st GeoCountryStat
-				if err := rows.Scan(&st.CountryISO, &st.Events, &st.Blocked, &st.TopAttackType); err == nil {
-					resp.Countries = append(resp.Countries, st)
-				}
-			}
+		if err != nil {
+			return nil, fmt.Errorf("querying country stats from %s: %w", geoMinuteTable, err)
 		}
+		for rows.Next() {
+			var st GeoCountryStat
+			if err := rows.Scan(&st.CountryISO, &st.Events, &st.Blocked, &st.TopAttackType); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("scanning country stat: %w", err)
+			}
+			resp.Countries = append(resp.Countries, st)
+		}
+		rows.Close()
 	}
 
 	if doASN {
-		q := fmt.Sprintf(`SELECT asn, sum(count) as evts, sum(blocked_count) as blk
+		q := fmt.Sprintf(`SELECT asn, any(as_org) as as_org, sum(count) as evts, sum(blocked_count) as blk
 			FROM %s
 			WHERE %s AND asn > 0
 			GROUP BY asn
@@ -221,15 +226,18 @@ func (s *ClickHouseStore) GeoStats(ctx context.Context, f GeoStatsFilter) (*GeoS
 
 		aArgs := append(args, limit)
 		rows, err := s.conn.Query(ctx, q, aArgs...)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var st GeoASNStat
-				if err := rows.Scan(&st.ASN, &st.Events, &st.Blocked); err == nil {
-					resp.ASNs = append(resp.ASNs, st)
-				}
-			}
+		if err != nil {
+			return nil, fmt.Errorf("querying asn stats from %s: %w", geoMinuteTable, err)
 		}
+		for rows.Next() {
+			var st GeoASNStat
+			if err := rows.Scan(&st.ASN, &st.ASOrg, &st.Events, &st.Blocked); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("scanning asn stat: %w", err)
+			}
+			resp.ASNs = append(resp.ASNs, st)
+		}
+		rows.Close()
 	}
 
 	if doGrid {
@@ -242,15 +250,18 @@ func (s *ClickHouseStore) GeoStats(ctx context.Context, f GeoStatsFilter) (*GeoS
 			LIMIT ?`, geoGridTable, gridWhere)
 
 		rows, err := s.conn.Query(ctx, q, f.From, f.To, limit)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var st GeoGridStat
-				if err := rows.Scan(&st.Geohash, &st.CountryISO, &st.City, &st.Lat, &st.Lon, &st.TopAttackType, &st.Events, &st.Blocked); err == nil {
-					resp.Grid = append(resp.Grid, st)
-				}
-			}
+		if err != nil {
+			return nil, fmt.Errorf("querying grid stats from %s: %w", geoGridTable, err)
 		}
+		for rows.Next() {
+			var st GeoGridStat
+			if err := rows.Scan(&st.Geohash, &st.CountryISO, &st.City, &st.Lat, &st.Lon, &st.TopAttackType, &st.Events, &st.Blocked); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("scanning grid stat: %w", err)
+			}
+			resp.Grid = append(resp.Grid, st)
+		}
+		rows.Close()
 	}
 
 	return resp, nil

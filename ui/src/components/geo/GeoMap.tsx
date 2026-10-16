@@ -41,10 +41,13 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
   }, [fetchData]);
 
   const handleCountryClick = (iso: string) => {
-    setSelectedCountry(iso);
-    if (onSelectCountry) {
-      onSelectCountry(iso);
-    }
+    setSelectedCountry((prev) => {
+      const next = prev === iso ? null : iso;
+      if (onSelectCountry) {
+        onSelectCountry(next ?? '');
+      }
+      return next;
+    });
   };
 
   const countries = data?.countries ?? [];
@@ -228,7 +231,19 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                 <Globe className="w-3.5 h-3.5 text-accent" />
                 Top Countries
               </h3>
-              <span className="text-[11px] text-muted">{countries.length} detected</span>
+              <div className="flex items-center gap-2">
+                {selectedCountry && (
+                  <button
+                    type="button"
+                    onClick={() => handleCountryClick(selectedCountry)}
+                    className="text-[10px] text-accent hover:underline"
+                    data-testid="clear-country-filter"
+                  >
+                    Clear ({selectedCountry})
+                  </button>
+                )}
+                <span className="text-[11px] text-muted">{countries.length} detected</span>
+              </div>
             </div>
 
             {countries.length === 0 && !loading && (

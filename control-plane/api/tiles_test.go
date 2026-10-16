@@ -57,4 +57,22 @@ func TestMapTileRoutes(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("invalid tile path returned %d, want 404", rec.Code)
 	}
+
+	// 4. GET /v1/maps/tiles/../etc/passwd (path traversal attempt rejected by ServeMux or handler)
+	req = httptest.NewRequest(http.MethodGet, "/v1/maps/tiles/../../../etc/passwd", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Errorf("path traversal attempt must not return 200 OK, got %d", rec.Code)
+	}
+
+	// 5. POST /v1/maps/style.json (method not allowed)
+	req = httptest.NewRequest(http.MethodPost, "/v1/maps/style.json", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST style.json returned %d, want 405", rec.Code)
+	}
 }

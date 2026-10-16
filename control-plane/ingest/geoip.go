@@ -38,6 +38,18 @@ func NewGeoIPEnricher(reader GeoIPReader) *GeoIPEnricher {
 	return e
 }
 
+// SetReader updates the underlying GeoIP reader and resets the in-memory cache.
+func (e *GeoIPEnricher) SetReader(reader GeoIPReader) {
+	e.reader = reader
+	e.ResetCache()
+}
+
+// ResetCache clears all cached IP lookups.
+func (e *GeoIPEnricher) ResetCache() {
+	e.cache.Store(&sync.Map{})
+	e.cachedEntries.Store(0)
+}
+
 func (e *GeoIPEnricher) getCache() *sync.Map {
 	c := e.cache.Load()
 	if c == nil {

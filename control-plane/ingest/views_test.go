@@ -104,6 +104,9 @@ func TestMockEventStore_GeoStats(t *testing.T) {
 	if resASN.ASNs[0].ASN != 7552 || resASN.ASNs[0].Events != 2 {
 		t.Errorf("unexpected top ASN: %+v", resASN.ASNs[0])
 	}
+	if resASN.ASNs[0].ASOrg != "Viettel Group" {
+		t.Errorf("expected ASOrg 'Viettel Group', got %q", resASN.ASNs[0].ASOrg)
+	}
 
 	// 3. Query Grid aggregation
 	resGrid, err := store.GeoStats(ctx, GeoStatsFilter{

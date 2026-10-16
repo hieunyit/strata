@@ -78,4 +78,27 @@ func TestGeoStatsEndpoint(t *testing.T) {
 	if len(resp.Grid) != 2 {
 		t.Errorf("expected 2 grid points, got %d", len(resp.Grid))
 	}
+
+	// 2. from > to returns 400 Bad Request
+	qBad := url.Values{}
+	qBad.Set("from", base.Format(time.RFC3339))
+	qBad.Set("to", base.Add(-1*time.Hour).Format(time.RFC3339))
+	req = httptest.NewRequest(http.MethodGet, "/v1/stats/geo?"+qBad.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer viewer")
+	rec = httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for from > to, got %d", rec.Code)
+	}
+
+	// 3. POST /v1/stats/geo returns 405 Method Not Allowed
+	req = httptest.NewRequest(http.MethodPost, "/v1/stats/geo", nil)
+	req.Header.Set("Authorization", "Bearer operator")
+	rec = httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405 Method Not Allowed, got %d", rec.Code)
+	}
 }

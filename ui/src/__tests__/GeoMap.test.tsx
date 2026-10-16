@@ -68,6 +68,16 @@ describe('GeoMap Component (W17-F-01)', () => {
 
     fireEvent.click(screen.getByTestId('country-row-VN'));
     expect(handleSelectCountry).toHaveBeenCalledWith('VN');
+
+    // Deselect by clicking again
+    fireEvent.click(screen.getByTestId('country-row-VN'));
+    expect(handleSelectCountry).toHaveBeenCalledWith('');
+
+    // Select again and clear via clear button
+    fireEvent.click(screen.getByTestId('country-row-VN'));
+    expect(screen.getByTestId('clear-country-filter')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('clear-country-filter'));
+    expect(handleSelectCountry).toHaveBeenCalledWith('');
   });
 
   it('fires onSelectASN callback when clicking on an ASN entry', async () => {

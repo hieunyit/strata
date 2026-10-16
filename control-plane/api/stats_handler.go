@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/strata/strata/control-plane/auth"
@@ -113,12 +114,25 @@ func (h *EventHandler) HandleGeoStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if from.After(to) {
+		writeError(w, http.StatusBadRequest, "'from' timestamp must be before or equal to 'to' timestamp", "")
+		return
+	}
+
+	limit := 0
+	if v := q.Get("limit"); v != "" {
+		if l, err := strconv.Atoi(v); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
 	filter := ingest.GeoStatsFilter{
 		From:     from,
 		To:       to,
 		GroupBy:  q.Get("groupBy"),
 		PolicyID: q.Get("policy_id"),
 		Action:   q.Get("action"),
+		Limit:    limit,
 	}
 
 	res, err := geoStore.GeoStats(r.Context(), filter)

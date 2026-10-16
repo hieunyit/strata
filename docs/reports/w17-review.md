@@ -79,3 +79,21 @@ Theo quyết định phê duyệt tại `docs/decisions/map-tiles.md`:
 1. Quần đảo Hoàng Sa (Paracel Islands) và Trường Sa (Spratly Islands) được hiển thị đầy đủ, rõ nét và gắn nhãn chủ quyền Việt Nam trên mọi tỷ lệ phóng to thu nhỏ.
 2. Tuyệt đối không hiển thị "đường chín đoạn" (đường lưỡi bò) hay bất kỳ ranh giới trái phép nào vi phạm chủ quyền biển đảo Việt Nam.
 3. Toàn bộ tài nguyên bản đồ (styles, fonts, tiles) được tự host nội bộ trong hệ thống Strata Control Plane, đảm bảo môi trường air-gapped và độc lập với các dịch vụ CDN bên ngoài.
+
+---
+
+## 4. Kết quả Đánh giá Sâu 3 Lượt (3-Round Deep Review) & Cải tiến Đã Triển khai
+
+1. **Lượt 1 · Logic & Schema / Data Flow**:
+   - **Phát hiện & Khắc phục**: Cột `as_org` ban đầu thiếu trong bảng ClickHouse `events_geo_minute`. Đã bổ sung `as_org LowCardinality(String)` vào schema và materialized view `events_geo_minute_mv`, quét `any(as_org)` trong truy vấn `GeoStats`. Thông tin nhà mạng/tổ chức ASN (Viettel, VNPT, Amazon, Singtel...) được truyền đầy đủ lên UI.
+   - **Xử lý lỗi ClickHouse**: Đóng kết nối `rows` ngay sau khi quét dữ liệu và bọc lỗi chi tiết `fmt.Errorf("querying ...: %w", err)` thay vì nuốt lỗi.
+
+2. **Lượt 2 · Edge Cases, Security & Input Boundaries**:
+   - **Bảo mật Tile Server**: Ngăn chặn triệt để tấn công Path Traversal trên endpoint `/v1/maps/tiles/*` bằng cách kiểm tra chuỗi `..`, chuẩn hóa `filepath.Clean` và xác thực tiền tố thư mục cho phép. Từ chối các HTTP method không hợp lệ bằng 405 Method Not Allowed.
+   - **Chống DoS luồng tải GeoIP**: Áp dụng giới hạn trên `io.LimitReader(resp.Body, 256MB)` trong `GeoIPUpdater`, bảo vệ RAM hệ thống. Bổ sung cơ chế `ResetCache()` trên `GeoIPEnricher` để nạp dữ liệu sạch khi cập nhật `.mmdb` mới.
+   - **Validation tham số thời gian & phân trang**: Kiểm tra `from.After(to)` trả về 400 Bad Request; phân tích và áp dụng đúng tham số `limit` khi truy vấn.
+
+3. **Lượt 3 · Trải nghiệm Người dùng (UX) & Thẩm định Chủ quyền**:
+   - **Tương tác 2 chiều mượt mà**: Hỗ trợ toggle bật/tắt chọn quốc gia khi click lặp lại hoặc click nút `Clear ({Country})` trên thanh tiêu đề Top Countries.
+   - **Tuân thủ pháp lý toàn vẹn**: Xác nhận đầy đủ các node Hoàng Sa (VN) và Trường Sa (VN) trong cả component render và bộ test Vitest.
+

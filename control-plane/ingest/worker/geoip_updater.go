@@ -67,9 +67,13 @@ func (u *GeoIPUpdater) Sync(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	const maxGeoIPDownloadSize = 256 * 1024 * 1024 // 256 MB upper limit
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxGeoIPDownloadSize+1))
 	if err != nil {
 		return "", fmt.Errorf("reading geoip response: %w", err)
+	}
+	if len(data) > maxGeoIPDownloadSize {
+		return "", errors.New("geoip database exceeds maximum allowed size (256 MB)")
 	}
 
 	if len(data) < 16 {
@@ -91,6 +95,10 @@ func (u *GeoIPUpdater) Sync(ctx context.Context) (string, error) {
 		if err := u.objects.Put(ctx, key, data, shaHex); err != nil {
 			return "", fmt.Errorf("storing geoip in object storage: %w", err)
 		}
+	}
+
+	if u.enricher != nil {
+		u.enricher.ResetCache()
 	}
 
 	u.lastSHA256 = shaHex
