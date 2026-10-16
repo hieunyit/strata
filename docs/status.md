@@ -66,7 +66,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Replay | **Một phần** | Định dạng mẫu 1 (`docs/spec/replay-sample.md`, **chưa được pháp chế duyệt**), ẩn danh trong libstrata = Go (`engine/tests/anon_vectors.rs`), lấy mẫu tại connector với khóa HMAC mỗi group (W12-N-01, `t/120-replay-sample.t`; **mặc định tắt**, cần `-replay-sampling-approved`), `strata-replay compare` + báo cáo bản nháp (W12-R-01, `docs/reports/w12/r01-replay-signatures.md`). service (W13-G2-01): mỗi version mới tự replay so với bundle đang chạy, trên mẫu traffic 7 ngày và corpus, kết quả qua `GET /v1/operations/{id}` và `…/versions/{v}/replay` |
 | Differential với Coraza + CRS 4.25.2 | **Có** | `make coraza-diff` (`tools/coraza-diff`, `docs/reports/w12/r01-coraza-diff.md`): mọi khác biệt có lý do, 0 ticket |
 | Policy editor | **Một phần** | Form + YAML, lưu bản nháp (`ui/src/__tests__/PolicyEditor.test.tsx`, `ui/tests/policy-editor.spec.ts`); diff hai phiên bản theo khối (W12-F-01, `PolicyDiff.test.tsx`, `ui/tests/policy-diff.spec.ts`). Chưa có luồng duyệt (W13) |
-| Luồng duyệt policy | **Thiết kế** | W13 |
+| Luồng duyệt policy | **Một phần** | API (W13-G2-02): `:submit`, `:approve`, `:reject`, người soạn/gửi không tự duyệt (theo `sub`, có CHECK trong DB), deploy chỉ lấy bản đã duyệt, hàng chờ `…/-/versions?state=SUBMITTED` (`tests/e2e/four_eyes_test.go`). Chưa có màn hình hàng chờ (W13-F-01) |
 | GitOps, OpenAPI công khai, bản đồ GeoIP | **Thiết kế** | W19–W21 |
 | Connector khác NGINX (Apache, HAProxy, Envoy, Kong) | **Thiết kế** | Chỉ có NGINX; connector khác sau v1 |
 | Chế độ Lite cho cụm nhỏ | **Thiết kế** | RV-G1-01 (tuần 19, cần PO) |

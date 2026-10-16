@@ -28,6 +28,9 @@ const (
 	PolicyService_DeployPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/DeployPolicy"
 	PolicyService_ReplayPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/ReplayPolicy"
 	PolicyService_GetPolicyVersionReplay_FullMethodName = "/strata.admin.v1.PolicyService/GetPolicyVersionReplay"
+	PolicyService_SubmitPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/SubmitPolicy"
+	PolicyService_ApprovePolicy_FullMethodName          = "/strata.admin.v1.PolicyService/ApprovePolicy"
+	PolicyService_RejectPolicy_FullMethodName           = "/strata.admin.v1.PolicyService/RejectPolicy"
 )
 
 // PolicyServiceClient is the client API for PolicyService service.
@@ -38,8 +41,9 @@ const (
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
 // one is refused with ABORTED (HTTP 409). Each new version is replayed
-// against the traffic samples on its own (W13-G2-01); approval (four eyes)
-// comes with W13-G2-02.
+// against the traffic samples on its own (W13-G2-01), and goes through four
+// eyes (W13-G2-02): DRAFT, :submit, then :approve or :reject by someone
+// else; deploys build each policy's newest approved version.
 type PolicyServiceClient interface {
 	// REST: GET /v1/policies
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
@@ -49,13 +53,15 @@ type PolicyServiceClient interface {
 	CreatePolicy(ctx context.Context, in *CreatePolicyRequest, opts ...grpc.CallOption) (*CreatePolicyResponse, error)
 	// REST: PATCH /v1/policies/{policy.id}
 	UpdatePolicy(ctx context.Context, in *UpdatePolicyRequest, opts ...grpc.CallOption) (*UpdatePolicyResponse, error)
-	// REST: GET /v1/policies/{policy_id}/versions
+	// REST: GET /v1/policies/{policy_id}/versions; policy_id "-" with a state
+	// lists that state across policies (the review queue: state=SUBMITTED).
 	ListPolicyVersions(ctx context.Context, in *ListPolicyVersionsRequest, opts ...grpc.CallOption) (*ListPolicyVersionsResponse, error)
 	// REST: GET /v1/policies/{policy_id}/versions/{version}
 	GetPolicyVersion(ctx context.Context, in *GetPolicyVersionRequest, opts ...grpc.CallOption) (*GetPolicyVersionResponse, error)
 	// REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
-	// current version of every policy, signs it and stores it in object
-	// storage.
+	// newest approved version of every policy, signs it and stores it in
+	// object storage. Refused (FAILED_PRECONDITION) while the policy's newest
+	// version is not approved.
 	DeployPolicy(ctx context.Context, in *DeployPolicyRequest, opts ...grpc.CallOption) (*DeployPolicyResponse, error)
 	// REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
 	// version (0: the newest) against the bundle in force, on the policy's
@@ -65,6 +71,15 @@ type PolicyServiceClient interface {
 	// REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
 	// newest replay of the version, done or not; NOT_FOUND when there is none.
 	GetPolicyVersionReplay(ctx context.Context, in *GetPolicyVersionReplayRequest, opts ...grpc.CallOption) (*GetPolicyVersionReplayResponse, error)
+	// REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)
+	// version (0: the newest) up for review.
+	SubmitPolicy(ctx context.Context, in *SubmitPolicyRequest, opts ...grpc.CallOption) (*SubmitPolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED
+	// version; whoever drafted or submitted it may not (PERMISSION_DENIED).
+	ApprovePolicy(ctx context.Context, in *ApprovePolicyRequest, opts ...grpc.CallOption) (*ApprovePolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED
+	// version, with a comment.
+	RejectPolicy(ctx context.Context, in *RejectPolicyRequest, opts ...grpc.CallOption) (*RejectPolicyResponse, error)
 }
 
 type policyServiceClient struct {
@@ -165,6 +180,36 @@ func (c *policyServiceClient) GetPolicyVersionReplay(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *policyServiceClient) SubmitPolicy(ctx context.Context, in *SubmitPolicyRequest, opts ...grpc.CallOption) (*SubmitPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_SubmitPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) ApprovePolicy(ctx context.Context, in *ApprovePolicyRequest, opts ...grpc.CallOption) (*ApprovePolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApprovePolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_ApprovePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) RejectPolicy(ctx context.Context, in *RejectPolicyRequest, opts ...grpc.CallOption) (*RejectPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RejectPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_RejectPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PolicyServiceServer is the server API for PolicyService service.
 // All implementations must embed UnimplementedPolicyServiceServer
 // for forward compatibility.
@@ -173,8 +218,9 @@ func (c *policyServiceClient) GetPolicyVersionReplay(ctx context.Context, in *Ge
 // (nginx-module.md › API quản trị: Policy, Phiên bản policy). Every edit is
 // a new version; updates carry the etag they were based on, and a stale
 // one is refused with ABORTED (HTTP 409). Each new version is replayed
-// against the traffic samples on its own (W13-G2-01); approval (four eyes)
-// comes with W13-G2-02.
+// against the traffic samples on its own (W13-G2-01), and goes through four
+// eyes (W13-G2-02): DRAFT, :submit, then :approve or :reject by someone
+// else; deploys build each policy's newest approved version.
 type PolicyServiceServer interface {
 	// REST: GET /v1/policies
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
@@ -184,13 +230,15 @@ type PolicyServiceServer interface {
 	CreatePolicy(context.Context, *CreatePolicyRequest) (*CreatePolicyResponse, error)
 	// REST: PATCH /v1/policies/{policy.id}
 	UpdatePolicy(context.Context, *UpdatePolicyRequest) (*UpdatePolicyResponse, error)
-	// REST: GET /v1/policies/{policy_id}/versions
+	// REST: GET /v1/policies/{policy_id}/versions; policy_id "-" with a state
+	// lists that state across policies (the review queue: state=SUBMITTED).
 	ListPolicyVersions(context.Context, *ListPolicyVersionsRequest) (*ListPolicyVersionsResponse, error)
 	// REST: GET /v1/policies/{policy_id}/versions/{version}
 	GetPolicyVersion(context.Context, *GetPolicyVersionRequest) (*GetPolicyVersionResponse, error)
 	// REST: POST /v1/policies/{policy_id}:deploy. Builds a bundle of the
-	// current version of every policy, signs it and stores it in object
-	// storage.
+	// newest approved version of every policy, signs it and stores it in
+	// object storage. Refused (FAILED_PRECONDITION) while the policy's newest
+	// version is not approved.
 	DeployPolicy(context.Context, *DeployPolicyRequest) (*DeployPolicyResponse, error)
 	// REST: POST /v1/policies/{policy_id}:replay. Queues the replay of a
 	// version (0: the newest) against the bundle in force, on the policy's
@@ -200,6 +248,15 @@ type PolicyServiceServer interface {
 	// REST: GET /v1/policies/{policy_id}/versions/{version}/replay. The
 	// newest replay of the version, done or not; NOT_FOUND when there is none.
 	GetPolicyVersionReplay(context.Context, *GetPolicyVersionReplayRequest) (*GetPolicyVersionReplayResponse, error)
+	// REST: POST /v1/policies/{policy_id}:submit. Puts a DRAFT (or REJECTED)
+	// version (0: the newest) up for review.
+	SubmitPolicy(context.Context, *SubmitPolicyRequest) (*SubmitPolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:approve. Approves a SUBMITTED
+	// version; whoever drafted or submitted it may not (PERMISSION_DENIED).
+	ApprovePolicy(context.Context, *ApprovePolicyRequest) (*ApprovePolicyResponse, error)
+	// REST: POST /v1/policies/{policy_id}:reject. Rejects a SUBMITTED
+	// version, with a comment.
+	RejectPolicy(context.Context, *RejectPolicyRequest) (*RejectPolicyResponse, error)
 	mustEmbedUnimplementedPolicyServiceServer()
 }
 
@@ -236,6 +293,15 @@ func (UnimplementedPolicyServiceServer) ReplayPolicy(context.Context, *ReplayPol
 }
 func (UnimplementedPolicyServiceServer) GetPolicyVersionReplay(context.Context, *GetPolicyVersionReplayRequest) (*GetPolicyVersionReplayResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPolicyVersionReplay not implemented")
+}
+func (UnimplementedPolicyServiceServer) SubmitPolicy(context.Context, *SubmitPolicyRequest) (*SubmitPolicyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitPolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) ApprovePolicy(context.Context, *ApprovePolicyRequest) (*ApprovePolicyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApprovePolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) RejectPolicy(context.Context, *RejectPolicyRequest) (*RejectPolicyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RejectPolicy not implemented")
 }
 func (UnimplementedPolicyServiceServer) mustEmbedUnimplementedPolicyServiceServer() {}
 func (UnimplementedPolicyServiceServer) testEmbeddedByValue()                       {}
@@ -420,6 +486,60 @@ func _PolicyService_GetPolicyVersionReplay_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PolicyService_SubmitPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).SubmitPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_SubmitPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).SubmitPolicy(ctx, req.(*SubmitPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_ApprovePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApprovePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).ApprovePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_ApprovePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).ApprovePolicy(ctx, req.(*ApprovePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_RejectPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).RejectPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_RejectPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).RejectPolicy(ctx, req.(*RejectPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PolicyService_ServiceDesc is the grpc.ServiceDesc for PolicyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -462,6 +582,18 @@ var PolicyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPolicyVersionReplay",
 			Handler:    _PolicyService_GetPolicyVersionReplay_Handler,
+		},
+		{
+			MethodName: "SubmitPolicy",
+			Handler:    _PolicyService_SubmitPolicy_Handler,
+		},
+		{
+			MethodName: "ApprovePolicy",
+			Handler:    _PolicyService_ApprovePolicy_Handler,
+		},
+		{
+			MethodName: "RejectPolicy",
+			Handler:    _PolicyService_RejectPolicy_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

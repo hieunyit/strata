@@ -184,6 +184,11 @@ func TestPolicyEditAndDeploy(t *testing.T) {
 			Contents  map[string]uint32 `json:"contents"`
 		} `json:"bundle"`
 	}
+	// four eyes (W13-G2-02): not before version 3 is approved
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:deploy", `{}`, nil); c != http.StatusBadRequest {
+		t.Fatalf("deploy of a draft: %d", c)
+	}
+	approve(t, e.call, "example-api")
 	for want := 1; want <= 2; want++ {
 		var d dep
 		if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:deploy", `{}`, &d); c != http.StatusOK {
@@ -222,9 +227,35 @@ func TestPolicyEditAndDeploy(t *testing.T) {
 	for _, a := range entries {
 		actions = append(actions, a.Action)
 	}
-	for _, want := range []string{"CreatePolicy", "UpdatePolicy", "DeployPolicy"} {
+	for _, want := range []string{"CreatePolicy", "UpdatePolicy", "SubmitPolicy", "ApprovePolicy", "DeployPolicy"} {
 		if !strings.Contains(strings.Join(actions, " "), want) {
 			t.Errorf("audit lacks %s: %v", want, actions)
 		}
+	}
+}
+
+type caller func(t *testing.T, role, method, path, body string, out any) int
+
+// approve submits the newest version of a policy as an operator and
+// approves it as an approver (four eyes, W13-G2-02).
+func approve(t *testing.T, call caller, id string) {
+	t.Helper()
+	var sub struct {
+		Version struct {
+			Version uint32 `json:"version"`
+			State   string `json:"state"`
+		} `json:"version"`
+	}
+	if c := call(t, "operator", http.MethodPost, "/v1/policies/"+id+":submit", `{}`, &sub); c != http.StatusOK || sub.Version.State != "SUBMITTED" {
+		t.Fatalf("submit %s: %d %+v", id, c, sub)
+	}
+	var ap struct {
+		Version struct {
+			State string `json:"state"`
+		} `json:"version"`
+	}
+	if c := call(t, "approver", http.MethodPost, "/v1/policies/"+id+":approve",
+		fmt.Sprintf(`{"version":%d,"comment":"looks right"}`, sub.Version.Version), &ap); c != http.StatusOK || ap.Version.State != "APPROVED" {
+		t.Fatalf("approve %s: %d %+v", id, c, ap)
 	}
 }

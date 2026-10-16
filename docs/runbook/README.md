@@ -14,7 +14,8 @@ dưới đây.
   lệnh đó và đo thời gian; biên bản diễn tập nằm trong `docs/reports/w10-n-01.md`.
 
 Quy ước trong lệnh: `$CP` là URL REST của control plane, `$TOKEN` là access token của
-một người có vai trò `operator` (ép shadow) hoặc `admin` (deploy).
+một người có vai trò `operator` (ép shadow) hoặc `admin` (deploy). Mọi thay đổi policy
+trước khi deploy cần người thứ hai duyệt (`approver` hoặc `admin` khác người sửa).
 
 ## Module không gửi metrics
 
@@ -293,9 +294,13 @@ Vì vậy rollback là **deploy lại nội dung policy cũ** thành một bundl
    `GET $CP/v1/policies/{id}/versions`, rồi `GET $CP/v1/policies/{id}/versions/{v}`.
 3. Ghi lại spec đó lên policy, kèm etag hiện tại:
    `PATCH $CP/v1/policies/{id}` với `{"etag":"<etag>","spec":<spec của v>}`.
-4. `POST $CP/v1/policies/{id}:deploy`, rồi theo dõi `GET $CP/v1/rollouts/{rollout_id}`
+4. Quy tắc 4 mắt (W13-G2-02) áp dụng cả cho rollback: người ghi gửi duyệt
+   `POST $CP/v1/policies/{id}:submit` với `{}`, một người **khác** có vai trò `approver`
+   hoặc `admin` duyệt `POST $CP/v1/policies/{id}:approve` với `{"version":<version mới>}`.
+   Trong lúc chờ người duyệt, ép shadow (mục trên) là thao tác không cần duyệt.
+5. `POST $CP/v1/policies/{id}:deploy`, rồi theo dõi `GET $CP/v1/rollouts/{rollout_id}`
    tới `DONE`.
-5. Kiểm: request thử cho kết quả như trước sự cố. Panel "Bundle version per worker"
+6. Kiểm: request thử cho kết quả như trước sự cố. Panel "Bundle version per worker"
    cho thấy mọi worker đã sang bundle mới.
 
 Trong lúc chờ rollout: **ép shadow** những node đang chặn nhầm.

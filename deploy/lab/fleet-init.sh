@@ -7,10 +7,13 @@ set -euo pipefail
 cp=http://control-plane:8080
 kc=http://keycloak:8080/realms/strata/protocol/openid-connect/token
 
-token=$(curl -fsS "$kc" \
-    -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
-    -d username=lab-admin --data-urlencode "password=$LAB_ADMIN_PASSWORD" |
-    sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+login() { # user password
+    curl -fsS "$kc" \
+        -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+        -d username="$1" --data-urlencode "password=$2" |
+        sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
+}
+token=$(login lab-admin "$LAB_ADMIN_PASSWORD")
 [ -n "$token" ] || { echo "fleet-init: no admin token" >&2; exit 1; }
 auth=(-H "Authorization: Bearer $token" -H 'Content-Type: application/json')
 
@@ -37,12 +40,19 @@ done
 # each node's bundle directory so NGINX starts with it. Later bundles reach
 # the nodes through their agents (FetchBundle, rollouts).
 if [ ! -f /node-1/control ]; then
+    # four eyes (W13-G2-02): lab-admin drafts and submits, lab-approver
+    # approves
+    approver=$(login lab-approver "$LAB_APPROVER_PASSWORD")
+    [ -n "$approver" ] || { echo "fleet-init: no approver token" >&2; exit 1; }
     ensure() { # id mode oversize
         code=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$cp/v1/policies/$1")
         [ "$code" = 200 ] && return 0
         curl -fsS -o /dev/null "${auth[@]}" -X POST "$cp/v1/policies" \
             -d "{\"id\":\"$1\",\"name\":\"$1\",\"spec\":{\"mode\":\"$2\",\"oversize\":\"$3\"}}"
-        echo "fleet-init: policy $1 created"
+        curl -fsS -o /dev/null "${auth[@]}" -X POST "$cp/v1/policies/$1:submit" -d '{}'
+        curl -fsS -o /dev/null -H "Authorization: Bearer $approver" -H 'Content-Type: application/json' \
+            -X POST "$cp/v1/policies/$1:approve" -d '{"version":1,"comment":"lab bootstrap"}'
+        echo "fleet-init: policy $1 created and approved"
     }
     ensure example-api MODE_ENFORCE OVERSIZE_BLOCK
     ensure example-web MODE_SHADOW OVERSIZE_PASS

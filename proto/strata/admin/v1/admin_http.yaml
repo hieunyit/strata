@@ -66,6 +66,15 @@ http:
       body: "*"
     - selector: strata.admin.v1.PolicyService.GetPolicyVersionReplay
       get: /v1/policies/{policy_id}/versions/{version}/replay
+    - selector: strata.admin.v1.PolicyService.SubmitPolicy
+      post: /v1/policies/{policy_id}:submit
+      body: "*"
+    - selector: strata.admin.v1.PolicyService.ApprovePolicy
+      post: /v1/policies/{policy_id}:approve
+      body: "*"
+    - selector: strata.admin.v1.PolicyService.RejectPolicy
+      post: /v1/policies/{policy_id}:reject
+      body: "*"
     - selector: strata.admin.v1.OperationService.GetOperation
       get: /v1/operations/{operation_id}
     - selector: strata.admin.v1.RolloutService.ListBundles

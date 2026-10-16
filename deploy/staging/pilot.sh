@@ -55,6 +55,16 @@ new_token() {
         sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
 }
 api() { curl -fsS -H "Authorization: Bearer $(new_token)" -H 'Content-Type: application/json' "$@"; }
+# four eyes (W13-G2-02): lab-admin drafts and submits, lab-approver approves
+approve_new() { # policy: version 1, just created
+    api -X POST "$cp/v1/policies/$1:submit" -d '{}' >/dev/null || die "submit $1"
+    curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $(curl -fsS \
+        "http://127.0.0.1:${d}8180/realms/strata/protocol/openid-connect/token" \
+        -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \
+        -d username=lab-approver --data-urlencode "password=$LAB_APPROVER_PASSWORD" |
+        sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')" \
+        "$cp/v1/policies/$1:approve" -d '{"version":1,"comment":"pilot route, shadow"}' || die "approve $1"
+}
 
 status() {
     api "$cp/v1/nodes" | python3 -c '
@@ -122,7 +132,7 @@ policies)
         c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $(new_token)" -H 'Content-Type: application/json' \
             "$cp/v1/policies" -d "{\"id\":\"$r\",\"name\":\"$r\",\"spec\":{\"mode\":\"MODE_SHADOW\",\"oversize\":\"OVERSIZE_PASS\"}}")
         case "$c" in
-            200) say "policy $r created in shadow" ;;
+            200) approve_new "$r"; say "policy $r created in shadow, approved" ;;
             409) mode=$(api "$cp/v1/policies/$r" | python3 -c 'import json,sys; print(json.load(sys.stdin)["policy"]["spec"]["mode"])')
                  [ "$mode" = MODE_SHADOW ] || die "policy $r exists in $mode, not MODE_SHADOW" ;;
             *) die "create policy $r: HTTP $c" ;;

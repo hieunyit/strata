@@ -302,7 +302,7 @@ func main() {
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
-				runner := &replay.Runner{Store: pg, Deployable: pg.ListPolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
+				runner := &replay.Runner{Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
 					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
 					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
 				if err := runner.Init(); err != nil {
