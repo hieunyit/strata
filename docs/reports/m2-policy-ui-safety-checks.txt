@@ -1,0 +1,13 @@
+Before:
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/PolicyAdvanced.test.tsx > policy settings outside the basic form > normalization keeps exceptions, privacy, limits and PAN
+ FAIL  src/__tests__/PolicyAdvanced.test.tsx > policy settings outside the basic form > a form edit preserves the other security settings on save
+ FAIL  src/__tests__/PolicyAdvanced.test.tsx > policy settings outside the basic form > a yaml edit preserves the other security settings on save
+ FAIL  src/__tests__/PolicyAdvanced.test.tsx > policy settings outside the basic form > review diff exposes exception scope, expiry and removal
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+After:
+> tsc --noEmit
+ Test Files  9 passed (9)
+      Tests  70 passed (70)
+✓ built in 15.82s

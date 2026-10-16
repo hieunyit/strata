@@ -368,12 +368,16 @@
     "mode": "Chế độ",
     "oversize": "Body request lớn hơn phần được kiểm",
     "response": "Lớp response",
+      "advanced": "Thiết lập bảo mật khác",
     "allowedCodes": "Kiểm mã trạng thái response theo danh sách cho phép",
     "dbErrors": "Tìm thông báo lỗi cơ sở dữ liệu trong body",
     "guard": {
       "cccd": "Che số căn cước công dân (CCCD)",
-      "jwt": "Che JSON Web Token"
+      "jwt": "Che JSON Web Token",
+      "pan": "Che số thẻ thanh toán"
     },
+    "advanced": "Thiết lập bảo mật khác",
+    "advancedNote": "Các thiết lập này được giữ khi sửa form hoặc YAML cơ bản. Thay đổi exception cần bản nháp policy mới, replay và phê duyệt.",
     "yaml": "YAML",
     "yamlError": "Dòng {{line}}: {{message}}",
     "cancel": "Hủy",
@@ -399,7 +403,7 @@
       "responseNext": "các khóa của response nằm ở các dòng tiếp theo",
       "bool": "cần true hoặc false, nhận \"{{value}}\"",
       "list": "cần một danh sách: [cccd, jwt]",
-      "guard": "data_guard chỉ nhận cccd và jwt, nhận \"{{value}}\"",
+      "guard": "data_guard chỉ nhận cccd, jwt và pan, nhận \"{{value}}\"",
       "guardTwice": "data_guard có giá trị lặp lại",
       "unknown": "khóa không hợp lệ \"{{key}}\"",
       "modeRequired": "thiếu mode",
@@ -431,7 +435,8 @@
       "allowed_codes_check": "Kiểm mã trạng thái response",
       "db_errors": "Lỗi cơ sở dữ liệu trong body",
       "data_guard": "Che dữ liệu nhạy cảm",
-      "canary_percent": "Canary (%)"
+      "canary_percent": "Canary (%)",
+      "advanced": "Exception, quyền riêng tư và giới hạn"
     }
   }
 }

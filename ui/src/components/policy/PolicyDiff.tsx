@@ -85,8 +85,8 @@ export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onC
                     <span className={f.changed ? 'font-medium' : 'text-muted'}>{t(`diff.key.${f.key}`)}</span>
                     <code className="ml-2 text-xs text-muted">{f.key}</code>
                   </td>
-                  <td className="td font-mono text-xs">{f.from}</td>
-                  <td className="td font-mono text-xs">
+                  <td className="td font-mono text-xs whitespace-pre-wrap break-words">{f.from}</td>
+                  <td className="td font-mono text-xs whitespace-pre-wrap break-words">
                     {f.to}
                     {(f.added ?? []).map((g) => (
                       <span key={`+${g}`} className="ml-2 text-ok" data-testid="diff-added">

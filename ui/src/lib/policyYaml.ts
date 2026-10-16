@@ -14,7 +14,7 @@ const modeOut: Record<string, string> = { MODE_SHADOW: 'shadow', MODE_ENFORCE: '
 const modeIn: Record<string, Mode> = { shadow: 'MODE_SHADOW', enforce: 'MODE_ENFORCE' };
 const oversizeOut: Record<string, string> = { OVERSIZE_PASS: 'pass', OVERSIZE_BLOCK: 'block' };
 const oversizeIn: Record<string, Oversize> = { pass: 'OVERSIZE_PASS', block: 'OVERSIZE_BLOCK' };
-export const DATA_GUARDS = ['cccd', 'jwt'] as const;
+export const DATA_GUARDS = ['cccd', 'jwt', 'pan'] as const;
 
 // specToYaml writes the canonical text of a spec: always the same text for
 // the same spec, so form edits give a stable YAML view.
@@ -192,17 +192,38 @@ export function yamlToSpec(text: string): ParseResult {
 // normalized: the spec the API stores for the same content (what the form
 // shows, what is sent on save).
 export function normalizeSpec(spec: PolicySpec): PolicySpec {
-  const out: PolicySpec = { mode: spec.mode && spec.mode !== 'MODE_UNSPECIFIED' ? spec.mode : 'MODE_SHADOW' };
+  const out: PolicySpec = { ...spec, mode: spec.mode && spec.mode !== 'MODE_UNSPECIFIED' ? spec.mode : 'MODE_SHADOW' };
+  delete out.oversize;
+  delete out.canary_percent;
+  delete out.response;
   if (spec.oversize && spec.oversize !== 'OVERSIZE_UNSPECIFIED') out.oversize = spec.oversize;
   // a canary only exists on an enforce policy
   if (out.mode === 'MODE_ENFORCE' && validCanary(spec.canary_percent)) out.canary_percent = spec.canary_percent;
   const r = spec.response;
-  const guards = (r?.data_guard ?? []).filter((g) => (DATA_GUARDS as readonly string[]).includes(g));
-  if (r && (r.allowed_codes_check || r.db_errors || guards.length)) {
-    out.response = {};
-    if (r.allowed_codes_check) out.response.allowed_codes_check = true;
-    if (r.db_errors) out.response.db_errors = true;
-    if (guards.length) out.response.data_guard = guards;
+  if (r) {
+    const response = { ...r };
+    if (!r.allowed_codes_check) delete response.allowed_codes_check;
+    if (!r.db_errors) delete response.db_errors;
+    if (!(r.data_guard?.length)) delete response.data_guard;
+    if (Object.keys(response).length) out.response = response;
+  }
+  return out;
+}
+
+// The basic YAML form owns only these fields. Preserve the rest across edits;
+// show them separately so the operator can review the full saved policy.
+export function mergeYamlSpec(base: PolicySpec, editable: PolicySpec): PolicySpec {
+  return normalizeSpec({ ...base, mode: editable.mode, oversize: editable.oversize,
+    canary_percent: editable.canary_percent, response: editable.response });
+}
+
+export function advancedSpec(spec: PolicySpec): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...spec };
+  for (const key of ['mode', 'oversize', 'canary_percent', 'response']) delete out[key];
+  // Zero/empty values emitted by protojson are equivalent to an absent default.
+  for (const [key, value] of Object.entries(out)) {
+    if (value === 0 || value === null || value === '' || (Array.isArray(value) && !value.length)
+      || (key === 'fail_on_findings' && ['FAIL_ON_FINDINGS_UNSPECIFIED', 'FAIL_ON_FINDINGS_PASS'].includes(String(value)))) delete out[key];
   }
   return out;
 }
