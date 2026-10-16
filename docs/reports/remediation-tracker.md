@@ -18,7 +18,7 @@ Phạm vi là 24 phát hiện của review toàn repo/nhánh/issue đã được
 | 12 | M3 XFF identity | Chưa xong: cần trusted proxy chain, malformed input và route case. |
 | 13 | H3 FP write RBAC | PR #123: viewer/approver bị từ chối, operator/admin được phép; API kiểm quyền. |
 | 14 | M1 FP durability | PR #122/#123: PostgreSQL annotation, etag, request_id, audit transaction và overlay. |
-| 15 | M2 exception durability | Store.UpdatePolicyOnce + migration 0018 đã có test PostgreSQL/race cho draft+audit+request_id atomic. Còn endpoint/scope/TTL và tích hợp compiler/runtime; xem m2-policy-idempotency.md. |
+| 15 | M2 exception durability | Store.UpdatePolicyOnce/EditPolicyOnce + migration 0018 đã có test PostgreSQL/race cho draft+audit+request_id atomic, sinh ID/expiry đúng một lần. Còn endpoint/scope/TTL và tích hợp compiler/runtime; xem m2-policy-idempotency.md. |
 | 16 | M2 exception runtime | Chưa xong: compiler/bundle/engine và replay/four-eyes. |
 | 17 | H4 health router | Đã sửa local trên prototype: codex/h4-health-route / 3f2e4e7, test fail trước/pass sau, race/lint sạch. Chờ tích hợp M4; chưa đưa health prototype vào main. |
 | 18 | M4 quarantine thực | Chưa xong: durable pipeline và shadow behavior, không chỉ cờ RAM. |
