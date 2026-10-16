@@ -251,7 +251,10 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	}
 	d, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
 	var costErr *policy.CostError
+	var replayErr *policy.ReplayError
 	switch {
+	case errors.As(err, &replayErr):
+		return nil, status.Error(codes.FailedPrecondition, replayErr.Error())
 	case errors.As(err, &costErr):
 		return nil, status.Error(codes.InvalidArgument, costErr.Error())
 	case err != nil:
@@ -311,14 +314,26 @@ func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, app
 		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "comment: at most 1000 characters")
 	}
 	verb := ":reject"
+	proof := ""
 	if approve {
 		verb = ":approve"
 		if err := p.replayDone(ctx, id, int(version)); err != nil {
 			return store.PolicyVersion{}, err
 		}
+		if p.ops != nil {
+			op, err := p.ops.LatestReplay(ctx, id, int(version))
+			if err != nil {
+				return store.PolicyVersion{}, internal("replay", err)
+			}
+			if op.State != store.OpDone {
+				return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay changed; review the latest result")
+			}
+			proof = op.ID
+		}
 	}
-	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment,
-		audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb))
+	a := audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb)
+	a.ReplayOperation = proof
+	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment, a)
 	if err != nil {
 		return store.PolicyVersion{}, decisionErr(err)
 	}

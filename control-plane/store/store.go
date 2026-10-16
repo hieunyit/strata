@@ -32,6 +32,9 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // Audit is one audit_log row.
 type Audit struct {
+	// ReplayOperation is populated by the admin service, never from user JSON.
+	ReplayOperation string `json:"-"`
+
 	Actor string
 	// Subject: the caller's token subject (sub), which the user cannot
 	// change, unlike the name in Actor; the four-eyes rule compares it.
