@@ -88,12 +88,23 @@ deploy_wait() { # deploys, waits for the rollout; sets ver and ro
         sleep 0.5
     done
 }
+# approvals wait for the version's replay (PO 16/10: nothing is approved
+# without a DONE replay); the replay of a draft takes seconds to minutes
+replay_done() { # policy version
+    local st start=$SECONDS
+    until st=$(api "$CP/v1/policies/$1/versions/$2/replay" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+        [ "$st" = FAILED ] && return 1
+        [ $((SECONDS - start)) -lt 900 ] || return 1
+        sleep 2
+    done
+}
 patch_spec() { # spec JSON
     local etag
     etag=$(api "$CP/v1/policies/example-api" | json "d['policy']['etag']")
     api -X PATCH "$CP/v1/policies/example-api" -d "{\"etag\":\"$etag\",\"spec\":$1}" >/dev/null
     # four eyes (W13-G2-02): lab-admin submits, lab-approver approves
     v=$(api -X POST "$CP/v1/policies/example-api:submit" -d '{}' | json "d['version']['version']")
+    replay_done example-api "$v" || fail "the replay of version $v did not finish"
     curl -fsS -o /dev/null -H "Authorization: Bearer $APPROVER" -H 'Content-Type: application/json' \
         -X POST "$CP/v1/policies/example-api:approve" -d "{\"version\":$v}" || fail "approve version $v"
 }

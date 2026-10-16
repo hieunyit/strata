@@ -297,7 +297,10 @@ Vì vậy rollback là **deploy lại nội dung policy cũ** thành một bundl
 4. Quy tắc 4 mắt (W13-G2-02) áp dụng cả cho rollback: người ghi gửi duyệt
    `POST $CP/v1/policies/{id}:submit` với `{}`, một người **khác** có vai trò `approver`
    hoặc `admin` duyệt `POST $CP/v1/policies/{id}:approve` với `{"version":<version mới>}`.
-   Trong lúc chờ người duyệt, ép shadow (mục trên) là thao tác không cần duyệt.
+   Duyệt chỉ được khi replay của version mới đã DONE
+   (`GET $CP/v1/policies/{id}/versions/{v}/replay`; lab: vài giây, gói đầy đủ: vài phút).
+   Trong lúc chờ replay và người duyệt, ép shadow (mục trên) hoặc tắt rule khẩn cấp là
+   thao tác không cần duyệt.
 5. `POST $CP/v1/policies/{id}:deploy`, rồi theo dõi `GET $CP/v1/rollouts/{rollout_id}`
    tới `DONE`.
 6. Kiểm: request thử cho kết quả như trước sự cố. Panel "Bundle version per worker"
