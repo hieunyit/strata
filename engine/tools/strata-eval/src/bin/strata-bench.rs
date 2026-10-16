@@ -3,7 +3,7 @@
 //!
 //! strata-bench --bundle <file> --pubkey <file> [--policy example-api] [--iterations 2000]
 //!              [--budget-us N] [--only small|nul|attack|json|64k|json64k|1m] [--event] [--diagnose]
-//!              [--cold N [--warm]] [--rule-cost-every N] [--rule-cost-ab]
+//!              [--profile-cost] [--cold N [--warm]] [--rule-cost-every N] [--rule-cost-ab]
 //!
 //! `--rule-cost-ab` (W13-R-02) runs the iterations in turn with rule-cost
 //! sampling off, at 1% and at 100%, in one process (the machine drifts
@@ -92,7 +92,7 @@ fn requests() -> Vec<Req> {
             body,
         }
     };
-    vec![
+    let mut cases = vec![
         base(
             "small",
             b"GET",
@@ -144,7 +144,102 @@ fn requests() -> Vec<Req> {
             form(1_000_000),
             Some("application/x-www-form-urlencoded"),
         ),
-    ]
+    ];
+    // Same payload at opposite ends, without changing the bundle or budget.
+    for (name, ct, front, back) in [
+        (
+            "form-front",
+            "application/x-www-form-urlencoded",
+            true,
+            false,
+        ),
+        (
+            "form-back",
+            "application/x-www-form-urlencoded",
+            false,
+            true,
+        ),
+        ("json-front", "application/json", true, false),
+        ("json-back", "application/json", false, true),
+        (
+            "multipart-front",
+            "multipart/form-data; boundary=strata-bench",
+            true,
+            false,
+        ),
+        (
+            "multipart-back",
+            "multipart/form-data; boundary=strata-bench",
+            false,
+            true,
+        ),
+    ] {
+        let attack = "<script>alert(1)</script>";
+        let mut body = if ct == "application/json" {
+            let mut doc = json_doc(65536);
+            let field = format!("\"probe\":\"{attack}\",");
+            if front {
+                doc.splice(1..1, field.bytes());
+            }
+            if back {
+                doc.pop();
+                doc.push(b',');
+                doc.extend_from_slice(field.trim_end_matches(',').as_bytes());
+                doc.push(b'}');
+            }
+            doc
+        } else if ct.starts_with("multipart/") {
+            let field = |key: &str, value: &str| {
+                format!(
+                    "--strata-bench\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n"
+                )
+            };
+            let mut doc = Vec::new();
+            if front {
+                doc.extend_from_slice(field("probe", attack).as_bytes());
+            }
+            for i in 0..256 {
+                doc.extend_from_slice(field(&format!("field{i}"), &"a".repeat(256)).as_bytes());
+            }
+            if back {
+                doc.extend_from_slice(field("probe", attack).as_bytes());
+            }
+            doc.extend_from_slice(b"--strata-bench--\r\n");
+            doc
+        } else {
+            let probe = format!("probe={attack}&");
+            let mut doc = form(65536);
+            if front {
+                doc.splice(0..0, probe.bytes());
+            }
+            if back {
+                doc.push(b'&');
+                doc.extend_from_slice(probe.as_bytes());
+            }
+            doc
+        };
+        body.shrink_to_fit();
+        cases.push(base(name, b"POST", "/t", body, Some(ct)));
+    }
+    let mut header = base("headers", b"GET", "/metadata", vec![], None);
+    header.headers.extend([
+        ("X-Example-Filter", "1".to_string()),
+        (
+            "Authorization",
+            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJleGFtcGxlIn0.signature".to_string(),
+        ),
+        ("If-None-Match", "W/\"example-v1\"".to_string()),
+        (
+            "X-Example-Text",
+            "select the best union membership plan".to_string(),
+        ),
+        (
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+        ),
+    ]);
+    cases.push(header);
+    cases
 }
 
 fn run_one(
@@ -153,7 +248,7 @@ fn run_one(
     budget_us: u64,
     event: bool,
     r: &Req,
-) -> (u32, Vec<u32>) {
+) -> (u32, Vec<u32>, u8, i32) {
     let (path, args) = r.uri.split_once('?').unwrap_or((&r.uri, ""));
     let mut t = Tx::new(Some(e.clone()), b"bench", 0);
     if budget_us > 0 {
@@ -190,7 +285,7 @@ fn run_one(
     }
     let mut rules = v.rules[..v.n_rules as usize].to_vec();
     rules.sort_unstable();
-    (v.action, rules)
+    (v.action, rules, t.inspection() as u8, v.error)
 }
 
 fn main() {
@@ -207,7 +302,14 @@ fn main() {
     let iters: usize = get("--iterations")
         .map(|s| s.parse().expect("--iterations"))
         .unwrap_or(2000);
+    assert!(iters > 0, "--iterations must be positive");
     let only = get("--only");
+    if let Some(name) = &only {
+        assert!(
+            requests().iter().any(|r| r.name == name),
+            "unknown --only request"
+        );
+    }
     // W13-R-02: one transaction in N timed rule by rule (0: none; the
     // engine's default is 100)
     if let Some(n) = get("--rule-cost-every") {
@@ -215,6 +317,17 @@ fn main() {
     }
     // also encode the event of each transaction, as the connector does
     let event = args.iter().any(|a| a == "--event");
+    // Opt-in diagnostic only: 100% sampling changes timings, never an SLO run.
+    let profile_cost = args.iter().any(|a| a == "--profile-cost");
+    if profile_cost {
+        assert!(
+            !args
+                .iter()
+                .any(|a| matches!(a.as_str(), "--cold" | "--rule-cost-ab")),
+            "--profile-cost requires the regular timed workload"
+        );
+        libstrata::rulecost::set_sample_every(1);
+    }
     // as NGINX runs it: strata_cpu_budget (10 ms by default); 0 = none
     let budget_us: u64 = get("--budget-us")
         .map(|s| s.parse().expect("--budget-us"))
@@ -231,14 +344,17 @@ fn main() {
     };
     if let Some(n) = get("--cold") {
         let n: usize = n.parse().expect("--cold");
+        assert!(n > 0, "--cold must be positive");
         for r in requests() {
             if only.as_deref().is_some_and(|o| o != r.name) {
                 continue;
             }
             let mut first = Vec::with_capacity(n);
             let mut warm = Vec::with_capacity(n);
-            let mut last = (0, vec![]);
+            let mut last = (0, vec![], 0, 0);
             let warm_first = args.iter().any(|a| a == "--warm");
+            let mut first_full = 0usize;
+            let mut first_errors = 0usize;
             for _ in 0..n {
                 let e = map();
                 // as a connector may do after loading a bundle, off the
@@ -249,6 +365,8 @@ fn main() {
                 let s = Instant::now();
                 last = run_one(&e, policy.as_bytes(), budget_us, event, &r);
                 first.push(s.elapsed().as_secs_f64() * 1e6);
+                first_full += usize::from(last.2 == libstrata::event::Inspection::Full as u8);
+                first_errors += usize::from(last.3 != libstrata::verdict::OK);
                 let s = Instant::now();
                 run_one(&e, policy.as_bytes(), budget_us, event, &r);
                 warm.push(s.elapsed().as_secs_f64() * 1e6);
@@ -256,14 +374,12 @@ fn main() {
             first.sort_by(|a, b| a.total_cmp(b));
             warm.sort_by(|a, b| a.total_cmp(b));
             println!(
-                "{{\"request\":\"{}\",\"cold\":{},\"first_p50_us\":{:.1},\"first_max_us\":{:.1},\"second_p50_us\":{:.1},\"action\":{},\"rules\":{:?}}}",
-                r.name,
-                n,
-                first[n / 2],
-                first[n - 1],
-                warm[n / 2],
-                last.0,
-                last.1
+                "{}",
+                serde_json::json!({
+                    "request":r.name,"cold":n,"warm_first":warm_first,"budget_us":budget_us,
+                    "first_p50_us":first[n/2],"first_max_us":first[n-1],"second_p50_us":warm[n/2],
+                    "first_full":first_full,"first_errors":first_errors,"action":last.0,"rules":last.1
+                })
             );
         }
         return;
@@ -360,26 +476,103 @@ fn main() {
         for _ in 0..n.min(50) {
             run_one(&e, policy.as_bytes(), budget_us, event, &r); // warm-up
         }
+        if profile_cost {
+            e.rule_costs().take(); // discard warm-up samples
+        }
         let mut us = Vec::with_capacity(n);
-        let mut last = (0, vec![]);
+        let mut last = (0, vec![], 0, 0);
+        let mut inspections = [0usize; 4];
+        let mut blocked = 0usize;
+        let mut matched = 0usize;
+        let mut errors = 0usize;
+        let mut budget_errors = 0usize;
         for _ in 0..n {
             let s = Instant::now();
             last = run_one(&e, policy.as_bytes(), budget_us, event, &r);
             us.push(s.elapsed().as_secs_f64() * 1e6);
+            inspections[usize::from(last.2)] += 1;
+            blocked += usize::from(last.0 == libstrata::verdict::ACTION_BLOCK);
+            matched += usize::from(!last.1.is_empty());
+            errors += usize::from(last.3 != libstrata::verdict::OK);
+            budget_errors += usize::from(last.3 == libstrata::verdict::E_BUDGET);
+        }
+        if profile_cost {
+            let (costs, sampled_requests, engine_ns) = e.rule_costs().take();
+            let tables = e.tables();
+            let rows: Vec<_> = costs
+                .iter()
+                .take(20)
+                .map(|&(index, samples, total_ns, max_ns)| {
+                    serde_json::json!({
+                        "rule_id": index.and_then(|i| tables.rule(i as usize)).map(|r| r.id),
+                        "phase": if index.is_none() { "prefilter" } else { "rule" },
+                        "samples": samples, "total_ns": total_ns, "max_ns": max_ns
+                    })
+                })
+                .collect();
+            eprintln!(
+                "{}",
+                serde_json::json!({"kind":"sampled_rule_cost_diagnostic", "request":r.name,
+                "sample_every":1, "sampled_requests":sampled_requests, "recorded_engine_ns":engine_ns, "top20":rows})
+            );
         }
         us.sort_by(|a, b| a.total_cmp(b));
         let mean = us.iter().sum::<f64>() / n as f64;
         let pct = |p: f64| us[((n as f64 * p) as usize).min(n - 1)];
         println!(
-            "{{\"request\":\"{}\",\"n\":{},\"mean_us\":{:.1},\"p50_us\":{:.1},\"p99_us\":{:.1},\"max_us\":{:.1},\"action\":{},\"rules\":{:?}}}",
-            r.name,
-            n,
-            mean,
-            pct(0.5),
-            pct(0.99),
-            us[n - 1],
-            last.0,
-            last.1
+            "{}",
+            serde_json::json!({
+                "request": r.name, "n": n, "body_bytes": r.body.len(), "budget_us": budget_us,
+                "mean_us": mean, "p50_us": pct(0.5), "p99_us": pct(0.99), "max_us": us[n-1],
+                "action": last.0, "rules": last.1,
+                "full": inspections[1], "partial": inspections[2], "body_skipped": inspections[3],
+                "blocked": blocked, "matched": matched, "errors": errors, "budget_errors": budget_errors,
+                "engine_serial_rps": 1_000_000.0 / mean
+            })
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn body_probes_are_valid_and_at_both_ends() {
+        let cases = requests();
+        for kind in ["form", "json", "multipart"] {
+            let front = cases
+                .iter()
+                .find(|r| r.name == format!("{kind}-front"))
+                .unwrap();
+            let back = cases
+                .iter()
+                .find(|r| r.name == format!("{kind}-back"))
+                .unwrap();
+            for r in [front, back] {
+                assert!(r.body.len() >= 65536);
+                assert!(
+                    r.headers
+                        .iter()
+                        .any(|(k, v)| *k == "Content-Length" && v == &r.body.len().to_string())
+                );
+                if kind == "json" {
+                    serde_json::from_slice::<serde_json::Value>(&r.body).unwrap();
+                }
+                let positions: Vec<_> = r
+                    .body
+                    .windows(8)
+                    .enumerate()
+                    .filter(|(_, v)| *v == b"<script>")
+                    .map(|(i, _)| i)
+                    .collect();
+                assert_eq!(positions.len(), 1);
+                if r.name.ends_with("front") {
+                    assert!(positions[0] < 256);
+                } else {
+                    assert!(positions[0] > r.body.len() - 256);
+                }
+            }
+        }
     }
 }

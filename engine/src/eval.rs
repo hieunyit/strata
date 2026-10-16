@@ -1269,6 +1269,10 @@ fn may_match(
     }
 }
 
+// Raw request bytes are hostile keys. Keep the keyed standard hasher here;
+// FastBuildHasher is reserved for internally generated pointer/index keys.
+type ContentScans = HashMap<Box<[u8]>, Vec<u32>>;
+
 struct Ctx<'t, 'b, 'a> {
     engine_id: u64,
     tables: &'t Tables<'b>,
@@ -1278,7 +1282,7 @@ struct Ctx<'t, 'b, 'a> {
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
     /// transformed values (owned) -> conditions matched by the scan
-    scans_by_bytes: HashMap<Box<[u8]>, Vec<u32>, FastBuildHasher>,
+    scans_by_bytes: ContentScans,
     /// per scan group of the prefilter: the gates that hold, once computed
     groups: Vec<Option<Vec<u32>>>,
     /// #28: what the prefilter scanned, value by value
@@ -2274,7 +2278,7 @@ pub fn evaluate_with_budget(
         operators,
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
-        scans_by_bytes: HashMap::with_hasher(FastBuildHasher::default()),
+        scans_by_bytes: ContentScans::with_hasher(operators.content_hasher.clone()),
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
         pass: Pass::default(),
         budget,
@@ -2374,6 +2378,31 @@ pub fn evaluate_with_budget(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn raw_content_hash_resists_repeated_xor_pairs() {
+        use std::hash::BuildHasher;
+        // Equal-length inputs whose differing bytes are 64 apart collide under
+        // rotate-left(5) XOR. A hostile body can supply all 1024 distinct values.
+        let operators = crate::operators::CompiledOperators::default();
+        let cache = super::ContentScans::with_hasher(operators.content_hasher.clone());
+        let mut hashes = std::collections::HashSet::new();
+        for mask in 0..1024u16 {
+            let mut value = vec![b'a'; 128];
+            for bit in 0..10 {
+                if mask & (1 << bit) != 0 {
+                    value[bit] ^= 1;
+                    value[bit + 64] ^= 1;
+                }
+            }
+            hashes.insert(cache.hasher().hash_one(value.as_slice()));
+        }
+        assert!(
+            hashes.len() >= 1000,
+            "only {} hash values for 1024 hostile keys",
+            hashes.len()
+        );
+    }
+
     use super::*;
 
     #[test]

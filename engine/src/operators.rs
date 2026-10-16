@@ -382,6 +382,9 @@ where
 /// Pre-compiled operator lookup tables built once at bundle map time.
 #[derive(Clone, Debug, Default)]
 pub struct CompiledOperators {
+    // Seed during bundle loading, then clone on the request path. A worker's
+    // first content cache must not initialize OS randomness while inspecting.
+    pub(crate) content_hasher: std::collections::hash_map::RandomState,
     byte_ranges: Vec<(u32, ByteRangeSet)>,
     ip_matches: Vec<(u32, IpMatchSet)>,
 }
@@ -435,6 +438,7 @@ impl CompiledOperators {
         Ok(Self {
             byte_ranges,
             ip_matches,
+            content_hasher: std::collections::hash_map::RandomState::new(),
         })
     }
 
