@@ -1,6 +1,6 @@
 //! Bounded encoding and exact scope checks for policy exception artifacts.
-//! Engine/compiler wiring and the mandatory policy compatibility flag follow
-//! separately; exporting this module does not activate exceptions.
+//! Compiler and engine share this codec; section 10 and the mandatory policy
+//! compatibility flag activate only configured exceptions.
 #![forbid(unsafe_code)]
 
 use crate::bundle::{Error, MAX_POLICIES};
