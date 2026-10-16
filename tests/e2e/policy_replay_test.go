@@ -182,6 +182,8 @@ func TestPolicyDraftReplay(t *testing.T) {
 	if got := wait(again.Operation.ID); got.State != "DONE" {
 		t.Fatalf("second replay: %+v", got)
 	}
+	// PO 16/10: approved once the replay is DONE (it is, above)
+	approve(t, e.call, "example-api")
 	if c := e.call(t, "viewer", http.MethodGet, "/v1/operations/op-000000000000000000000000", "", nil); c != http.StatusNotFound {
 		t.Fatalf("missing operation: %d", c)
 	}

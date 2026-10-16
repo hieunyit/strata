@@ -56,8 +56,19 @@ new_token() {
 }
 api() { curl -fsS -H "Authorization: Bearer $(new_token)" -H 'Content-Type: application/json' "$@"; }
 # four eyes (W13-G2-02): lab-admin drafts and submits, lab-approver approves
+# approvals wait for the version's replay (PO 16/10: nothing is approved
+# without a DONE replay); the replay of a draft takes seconds to minutes
+replay_done() { # policy version
+    local st start=$SECONDS
+    until st=$(api "$cp/v1/policies/$1/versions/$2/replay" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+        [ "$st" = FAILED ] && return 1
+        [ $((SECONDS - start)) -lt 900 ] || return 1
+        sleep 2
+    done
+}
 approve_new() { # policy: version 1, just created
     api -X POST "$cp/v1/policies/$1:submit" -d '{}' >/dev/null || die "submit $1"
+    replay_done "$1" 1 || die "the replay of $1 version 1 did not finish"
     curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $(curl -fsS \
         "http://127.0.0.1:${d}8180/realms/strata/protocol/openid-connect/token" \
         -d grant_type=password -d client_id=strata-lab-cli -d "client_secret=$LAB_CLI_SECRET" \

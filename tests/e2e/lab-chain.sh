@@ -50,6 +50,17 @@ expect() {
     step "both nodes answer $want after $((SECONDS - start))s"
 }
 
+# approvals wait for the version's replay (PO 16/10: nothing is approved
+# without a DONE replay); the replay of a draft takes seconds to minutes
+replay_done() { # policy version
+    local st start=$SECONDS
+    until st=$(api "$cp/v1/policies/$1/versions/$2/replay" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+        [ "$st" = FAILED ] && return 1
+        [ $((SECONDS - start)) -lt 900 ] || return 1
+        sleep 2
+    done
+}
+
 # set_mode <MODE_...>: edit example-web, deploy, wait for the rollout.
 set_mode() {
     local etag out version rollout start=$SECONDS state
@@ -59,6 +70,7 @@ set_mode() {
         -d "{\"etag\":\"$etag\",\"spec\":{\"mode\":\"$1\",\"oversize\":\"OVERSIZE_PASS\"}}" >/dev/null
     # four eyes (W13-G2-02): lab-operator submits, lab-approver approves
     version=$(api -X POST "$cp/v1/policies/example-web:submit" -d '{}' | grep -o '"version":[0-9][0-9]*' | head -1 | cut -d: -f2)
+    replay_done example-web "$version" || fail "the replay of version $version did not finish"
     curl -fsS -o /dev/null -H "Authorization: Bearer $approver" -H 'Content-Type: application/json' \
         -X POST "$cp/v1/policies/example-web:approve" -d "{\"version\":$version}" || fail "approve version $version"
     out=$(api -X POST "$cp/v1/policies/example-web:deploy" -d '{}')

@@ -311,6 +311,9 @@ func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, app
 	verb := ":reject"
 	if approve {
 		verb = ":approve"
+		if err := p.replayDone(ctx, id, int(version)); err != nil {
+			return store.PolicyVersion{}, err
+		}
 	}
 	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment,
 		audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb))
@@ -329,4 +332,28 @@ func decisionErr(err error) error {
 		return status.Error(codes.FailedPrecondition, se.Msg)
 	}
 	return notFound(err, "policy version")
+}
+
+// replayDone: with replay configured, a version is approved only once its
+// newest replay is DONE (PO 16/10/2026: nothing reaches production
+// without a replay).
+func (p *policyAdmin) replayDone(ctx context.Context, id string, version int) error {
+	if p.ops == nil {
+		return nil
+	}
+	op, err := p.ops.LatestReplay(ctx, id, version)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return status.Errorf(codes.FailedPrecondition,
+			"version %d has no replay: run POST /v1/policies/%s:replay, then approve once it is DONE", version, id)
+	case err != nil:
+		return internal("replay", err)
+	case op.State == store.OpFailed:
+		return status.Errorf(codes.FailedPrecondition,
+			"the replay of version %d failed (%s): run POST /v1/policies/%s:replay again", version, op.Error, id)
+	case op.State != store.OpDone:
+		return status.Errorf(codes.FailedPrecondition,
+			"the replay of version %d is %s: approve once it is DONE (GET /v1/operations/%s)", version, op.State, op.ID)
+	}
+	return nil
 }

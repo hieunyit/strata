@@ -44,12 +44,23 @@ if [ ! -f /node-1/control ]; then
     # approves
     approver=$(login lab-approver "$LAB_APPROVER_PASSWORD")
     [ -n "$approver" ] || { echo "fleet-init: no approver token" >&2; exit 1; }
+    # approvals wait for the version's replay (PO 16/10: nothing is approved
+    # without a DONE replay); the replay of a draft takes seconds to minutes
+    replay_done() { # policy version
+        st=; start=$SECONDS
+        until st=$(curl -fsS "${auth[@]}" "$cp/v1/policies/$1/versions/$2/replay" | sed -n 's/.*"state":"\([A-Z]*\)".*/\1/p' | head -1) && [ "$st" = DONE ]; do
+            [ "$st" = FAILED ] && return 1
+            [ $((SECONDS - start)) -lt 900 ] || return 1
+            sleep 2
+        done
+    }
     ensure() { # id mode oversize
         code=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$cp/v1/policies/$1")
         [ "$code" = 200 ] && return 0
         curl -fsS -o /dev/null "${auth[@]}" -X POST "$cp/v1/policies" \
             -d "{\"id\":\"$1\",\"name\":\"$1\",\"spec\":{\"mode\":\"$2\",\"oversize\":\"$3\"}}"
         curl -fsS -o /dev/null "${auth[@]}" -X POST "$cp/v1/policies/$1:submit" -d '{}'
+        replay_done "$1" 1 || { echo "fleet-init: the replay of $1 did not finish" >&2; exit 1; }
         curl -fsS -o /dev/null -H "Authorization: Bearer $approver" -H 'Content-Type: application/json' \
             -X POST "$cp/v1/policies/$1:approve" -d '{"version":1,"comment":"lab bootstrap"}'
         echo "fleet-init: policy $1 created and approved"
