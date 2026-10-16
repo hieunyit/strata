@@ -92,6 +92,25 @@ message PolicySpec {
     FAIL_ON_FINDINGS_BLOCK = 2;
   }
   FailOnFindings fail_on_findings = 8;
+  // Exact, expiring managed-rule field exclusions; at most 128 per policy.
+  // Must follow the normal draft/replay/four-eyes/deploy flow. Old engines
+  // refuse the required policy flag: upgrade them before using exceptions.
+  repeated PolicyException exceptions = 9;
+}
+
+message PolicyException {
+  // exc- followed by 32 lowercase hex digits, unique within a policy.
+  string id = 1;
+  uint32 rule_id = 2;
+  string method = 3;
+  string host = 4;
+  string path = 5;
+  // ARGS:<case-sensitive name> or REQUEST_HEADERS:<ASCII token>.
+  string field = 6;
+  // Absolute expiry in Unix milliseconds, mandatory and positive.
+  int64 expires_unix_ms = 7;
+  string reason = 8;
+  string source_block_id = 9;
 }
 
 message PrivacySettings {

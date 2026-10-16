@@ -1,0 +1,7 @@
+ok  	github.com/strata/strata/control-plane/policy	1.476s
+ok  	github.com/strata/strata/control-plane/admin	6.667s
+0 issues.
+> tsc --noEmit
+ Test Files  8 passed (8)
+      Tests  66 passed (66)
+✓ built in 15.21s
