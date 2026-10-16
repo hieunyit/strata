@@ -326,6 +326,7 @@ export interface components {
       created_by?: string;
       /** Format: date-time */
       create_time?: string;
+      input_digest?: string;
     };
     v1ClearForceShadowRequest: {
       /** @description Exactly one of node_id and group_id. */
@@ -613,6 +614,8 @@ export interface components {
       /** Format: date-time */
       decide_time?: string;
       decision_comment?: string;
+      /** @description Completed replay bound by the approval, not a later unapproved replay. */
+      approved_replay_id?: string;
     };
     v1PrivacySettings: {
       /**
@@ -722,6 +725,12 @@ export interface components {
       truncated?: boolean;
       traffic?: components["schemas"]["v1ReplayComparison"];
       corpus?: components["schemas"]["v1ReplayComparison"];
+      /** @description SHA-256 of the prepared compiler inputs and exact compared artifacts. */
+      input_digest?: string;
+      draft_sha256?: string;
+      baseline_sha256?: string;
+      replay_sha256?: string;
+      sample_sha256?: string[];
     };
     v1ReplaySampling: {
       group_id?: string;

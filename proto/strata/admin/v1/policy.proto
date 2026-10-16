@@ -145,6 +145,8 @@ message PolicyVersion {
   string decided_by = 9;
   google.protobuf.Timestamp decide_time = 10;
   string decision_comment = 11;
+  // Completed replay bound by the approval, not a later unapproved replay.
+  string approved_replay_id = 12;
 }
 
 message Bundle {
@@ -156,6 +158,7 @@ message Bundle {
   map<string, uint32> contents = 5;
   string created_by = 6;
   google.protobuf.Timestamp create_time = 7;
+  string input_digest = 8;
 }
 
 message ListPoliciesRequest {}
