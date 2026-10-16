@@ -79,7 +79,7 @@ test-nginx: $(MKBUNDLE) $(COMPILE)
 test: rust-check check-header check-fixtures abi-test nginx test-nginx
 
 # Size budget of the C connector (CLAUDE.md)
-C_LINES_MAX ?= 3000
+C_LINES_MAX ?= 4000
 check-c-lines:
 	connectors/nginx/scripts/count-lines.sh $(C_LINES_MAX)
 

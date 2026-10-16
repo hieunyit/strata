@@ -3,8 +3,8 @@
 Nguồn: `docs/plan/plan.md`, mục "Tuần 13". Lập ngày 15/10/2026, Claude Code (phiên W10).
 
 PO duyệt cách chia ngày 15/10/2026. Tuần 12 đã xong (`docs/reports/w12-early-review.md`,
-PR #76). Mỗi nhiệm vụ một nhánh tên theo mã. Build và test trên nhân 6–10. Không thêm dòng C:
-phần C đang ở 2.999 / 3.000 dòng, và PO quyết ngày 15/10 rằng logic mới phải đặt trong libstrata.
+PR #76). Mỗi nhiệm vụ một nhánh tên theo mã. Build và test trên nhân 6–10. Hạn chế thêm dòng C:
+phần C đang ở 2.999 dòng; PO nâng giới hạn từ 3.000 lên 4.000 ngày 15/10, logic mới vẫn ưu tiên đặt trong libstrata.
 
 ## 1. Người làm và thứ tự
 

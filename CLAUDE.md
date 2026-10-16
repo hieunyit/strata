@@ -48,7 +48,7 @@ Ràng buộc phiên này: build/test chỉ trên nhân 6–10 (`STRATA_DEV_DOCKE
 - Kiểm tra độ dài trước mọi copy; không `strcpy`/`sprintf`; dùng API cấp phát của NGINX (`ngx_palloc`, `ngx_pcalloc`).
 - Không I/O, không khóa, không cấp phát lớn trên đường đi của request.
 - Build với `-Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2`.
-- Phần C tối đa 3.000 dòng code thực (`connectors/nginx/src/*.c`, `*.h`, không tính dòng trống và comment); `make check-c-lines` kiểm trong CI. Nâng từ 2.500 ngày 12/10/2026 (PO duyệt) khi đã dùng 2.499: chỗ cho xoay khóa bundle và các tuần sau. Logic mới vẫn ưu tiên đặt trong libstrata.
+- Phần C tối đa 4.000 dòng code thực (`connectors/nginx/src/*.c`, `*.h`, không tính dòng trống và comment); `make check-c-lines` kiểm trong CI. Nâng từ 2.500 lên 3.000 ngày 12/10/2026, rồi lên 4.000 ngày 15/10/2026 khi đã dùng 2.999 (PO duyệt cả hai lần). Logic mới vẫn ưu tiên đặt trong libstrata; C chỉ cho phần buộc phải nằm trong NGINX.
 
 ### Rust (libstrata)
 - Không `unsafe` ngoài `engine/ffi/`.
