@@ -25,6 +25,9 @@ export type LocalUser = components['schemas']['User'];
 export type CreateUserRequest = components['schemas']['CreateUserRequest'];
 export type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 
+export type ExceptionFromBlockRequest = components['schemas']['ExceptionFromBlockRequest'];
+export type ExceptionDraftResponse = components['schemas']['ExceptionDraftResponse'];
+
 export interface OverviewParams {
   from: string;
   to: string;
@@ -117,6 +120,9 @@ export async function localLogin(username: string, password: string): Promise<Lo
 }
 
 export const apiClient = {
+  createExceptionFromBlock(request: ExceptionFromBlockRequest): Promise<ExceptionDraftResponse> {
+    return call('/exceptions:fromBlockId', json('POST', request), 'Failed to create exception draft');
+  },
   /** POST /v1/events:search */
   searchEvents(params: SearchEventsRequest): Promise<SearchEventsResponse> {
     return call('/events:search', {
