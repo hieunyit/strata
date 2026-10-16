@@ -74,8 +74,8 @@ func TestPolicyDraftReplay(t *testing.T) {
 	copy(seed, "e2e-bundle-signing-seed-32-bytes")
 	pub := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
 	runner := &replay.Runner{Store: st, Deployable: st.ListPolicies,
-		Build:    replay.ReplayBuilder(policy.Compiler{Binary: buildFakeCompiler(t)}),
-		Baseline: func(context.Context) ([]byte, uint64, error) { return nil, 0, store.ErrNotFound },
+		Build:       replay.ReplayBuilder(policy.Compiler{Binary: buildFakeCompiler(t)}),
+		Baseline:    func(context.Context) ([]byte, uint64, error) { return nil, 0, store.ErrNotFound },
 		BaselinePub: pub, Samples: objects, Binary: bin, Poll: 50 * time.Millisecond}
 	if err := runner.Init(); err != nil {
 		t.Fatal(err)
