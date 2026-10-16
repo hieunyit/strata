@@ -12,6 +12,7 @@
     "overview": "Overview",
     "events": "Events",
     "policies": "Policies",
+    "reviews": "Reviews",
     "fleet": "Fleet",
     "users": "Users"
   },
@@ -263,7 +264,72 @@
       "OVERSIZE_PASS": "Pass",
       "OVERSIZE_UNSPECIFIED": "Pass"
     },
-    "compare": "Compare versions"
+    "compare": "Compare versions",
+    "submit": "Submit for review",
+    "submitted": "Version {{version}} submitted for review.",
+    "submitError": "Could not submit: {{error}}",
+    "openReviews": "Review queue"
+  },
+  "reviews": {
+    "title": "Review queue",
+    "subtitle": "Policy versions submitted for review. Each one is replayed against the bundle in force; approve once the replay is done, never your own version (four eyes).",
+    "empty": "No version waits for review.",
+    "col": {
+      "policy": "Policy",
+      "version": "Version",
+      "submittedBy": "Submitted by",
+      "submitted": "Submitted",
+      "replay": "Replay"
+    },
+    "replayOf": "Replay of {{name}} v{{version}}",
+    "replayAgain": "Replay again",
+    "newPolicy": "A new policy: no earlier version to compare with.",
+    "decision": "Decision",
+    "by": "Drafted by {{created}}, submitted by {{submitted}}.",
+    "comment": "Comment (required to reject)",
+    "needReplay": "Approval waits for the replay to be done.",
+    "ownVersion": "You drafted or submitted this version: someone else approves it.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "reasonRequired": "Say why in the comment",
+    "readOnly": "Approvers and admins approve or reject versions.",
+    "approved": "{{name}} v{{version}} approved: it can be deployed.",
+    "rejected": "{{name}} v{{version}} rejected."
+  },
+  "replay": {
+    "state": {
+      "NONE": "no replay",
+      "PENDING": "queued",
+      "RUNNING": "running",
+      "DONE": "done",
+      "FAILED": "failed"
+    },
+    "traffic": "Traffic samples (7 days)",
+    "corpus": "Benign and attack corpus",
+    "none": {
+      "traffic": "No traffic samples of this policy (sampling off, or no traffic).",
+      "corpus": "No corpus on this control plane."
+    },
+    "samples_one": "{{n}} sample",
+    "samples_other": "{{n}} samples",
+    "newlyBlocked": {
+      "traffic": "Newly blocked (possible false positives)",
+      "corpus": "Newly blocked"
+    },
+    "newlyAllowed": {
+      "traffic": "No longer blocked (possible misses)",
+      "corpus": "No longer blocked"
+    },
+    "rules": "Rules",
+    "paths": "Paths",
+    "examplesBlocked": "Examples newly blocked (anonymized)",
+    "examplesAllowed": "Examples no longer blocked (anonymized)",
+    "missing": "This version has no replay yet.",
+    "failed": "The replay failed: {{error}}",
+    "running": "The replay is running…",
+    "against": "Against bundle {{bundle}}, in force.",
+    "againstNone": "No bundle in force yet: against the policies as they are.",
+    "truncated": "More traffic samples than one replay takes: the newest days were used."
   },
   "fleet": {
     "title": "Fleet",

@@ -12,6 +12,7 @@
     "overview": "Tổng quan",
     "events": "Sự kiện",
     "policies": "Policy",
+    "reviews": "Duyệt",
     "fleet": "Fleet",
     "users": "Người dùng"
   },
@@ -258,7 +259,72 @@
       "OVERSIZE_PASS": "Cho qua",
       "OVERSIZE_UNSPECIFIED": "Cho qua"
     },
-    "compare": "So sánh phiên bản"
+    "compare": "So sánh phiên bản",
+    "submit": "Gửi duyệt",
+    "submitted": "Đã gửi duyệt version {{version}}.",
+    "submitError": "Không gửi duyệt được: {{error}}",
+    "openReviews": "Hàng chờ duyệt"
+  },
+  "reviews": {
+    "title": "Hàng chờ duyệt",
+    "subtitle": "Các version policy đang chờ duyệt. Mỗi version được replay so với bundle đang chạy; chỉ duyệt khi replay đã xong, và không duyệt version của chính mình (4 mắt).",
+    "empty": "Không có version nào chờ duyệt.",
+    "col": {
+      "policy": "Policy",
+      "version": "Version",
+      "submittedBy": "Người gửi",
+      "submitted": "Gửi lúc",
+      "replay": "Replay"
+    },
+    "replayOf": "Replay của {{name}} v{{version}}",
+    "replayAgain": "Replay lại",
+    "newPolicy": "Policy mới: chưa có version nào trước để so sánh.",
+    "decision": "Quyết định",
+    "by": "Soạn bởi {{created}}, gửi bởi {{submitted}}.",
+    "comment": "Ghi chú (bắt buộc khi từ chối)",
+    "needReplay": "Chờ replay xong mới duyệt được.",
+    "ownVersion": "Bạn đã soạn hoặc gửi version này: người khác phải duyệt.",
+    "approve": "Duyệt",
+    "reject": "Từ chối",
+    "reasonRequired": "Ghi lý do vào ô ghi chú",
+    "readOnly": "Approver và admin duyệt hoặc từ chối version.",
+    "approved": "Đã duyệt {{name}} v{{version}}: có thể deploy.",
+    "rejected": "Đã từ chối {{name}} v{{version}}."
+  },
+  "replay": {
+    "state": {
+      "NONE": "chưa replay",
+      "PENDING": "đang chờ",
+      "RUNNING": "đang chạy",
+      "DONE": "xong",
+      "FAILED": "lỗi"
+    },
+    "traffic": "Mẫu traffic (7 ngày)",
+    "corpus": "Corpus benign và tấn công",
+    "none": {
+      "traffic": "Policy này không có mẫu traffic (chưa bật lấy mẫu, hoặc không có traffic).",
+      "corpus": "Control plane này không có corpus."
+    },
+    "samples_one": "{{n}} mẫu",
+    "samples_other": "{{n}} mẫu",
+    "newlyBlocked": {
+      "traffic": "Bị chặn mới (có thể chặn nhầm)",
+      "corpus": "Bị chặn mới"
+    },
+    "newlyAllowed": {
+      "traffic": "Không còn bị chặn (có thể lọt)",
+      "corpus": "Không còn bị chặn"
+    },
+    "rules": "Rule",
+    "paths": "Đường dẫn",
+    "examplesBlocked": "Ví dụ bị chặn mới (đã ẩn danh)",
+    "examplesAllowed": "Ví dụ không còn bị chặn (đã ẩn danh)",
+    "missing": "Version này chưa có replay.",
+    "failed": "Replay lỗi: {{error}}",
+    "running": "Đang replay…",
+    "against": "So với bundle {{bundle}} đang chạy.",
+    "againstNone": "Chưa có bundle nào chạy: so với các policy hiện tại.",
+    "truncated": "Mẫu traffic nhiều hơn một lần replay nhận: dùng các ngày gần nhất."
   },
   "fleet": {
     "title": "Fleet",

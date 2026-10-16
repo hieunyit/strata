@@ -34,6 +34,12 @@ export function canWritePolicies(roles: UserRole[]): boolean {
   return roles.includes('operator') || roles.includes('admin');
 }
 
+// canApprovePolicies: the roles with policies:approve (approver, admin).
+// The API also refuses whoever drafted or submitted the version.
+export function canApprovePolicies(roles: UserRole[]): boolean {
+  return roles.includes('approver') || roles.includes('admin');
+}
+
 // knownRoles keeps the four roles of a list (a local session's roles).
 export function knownRoles(roles: string[]): UserRole[] {
   return known.filter((r) => roles.includes(r));

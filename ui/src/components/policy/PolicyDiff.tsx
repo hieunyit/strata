@@ -9,15 +9,21 @@ import { SectionTitle } from '../ui';
 // two versions, see each field of each block side by side, the changed
 // ones marked. The versions come from listPolicyVersions, which carries
 // every version's spec.
-export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onClose: () => void }> = ({
-  name,
-  versions,
-  onClose,
-}) => {
+// initialFrom and initialTo pick the versions shown first (the review
+// queue: the approved version against the submitted one); by default the
+// two newest.
+export const PolicyDiff: React.FC<{
+  name: string;
+  versions: PolicyVersion[];
+  onClose?: () => void;
+  initialFrom?: number;
+  initialTo?: number;
+}> = ({ name, versions, onClose, initialFrom, initialTo }) => {
   const { t } = useTranslation();
   const nums = useMemo(() => versions.map((v) => v.version ?? 0).sort((a, b) => b - a), [versions]);
-  const [to, setTo] = useState(nums[0] ?? 0);
-  const [from, setFrom] = useState(nums[1] ?? nums[0] ?? 0);
+  const has = (v?: number) => v !== undefined && nums.includes(v);
+  const [to, setTo] = useState(has(initialTo) ? (initialTo as number) : nums[0] ?? 0);
+  const [from, setFrom] = useState(has(initialFrom) ? (initialFrom as number) : nums[1] ?? nums[0] ?? 0);
   const spec = (n: number) => versions.find((v) => v.version === n)?.spec ?? {};
   const blocks = diffSpecs(spec(from), spec(to));
   const changed = blocks.reduce((n, b) => n + b.changed, 0);
@@ -39,10 +45,12 @@ export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onC
     <section className="panel" data-testid="policy-diff">
       <SectionTitle
         aside={
-          <button type="button" className="btn" onClick={onClose} data-testid="diff-close">
-            <X className="w-3.5 h-3.5" />
-            {t('diff.close')}
-          </button>
+          onClose && (
+            <button type="button" className="btn" onClick={onClose} data-testid="diff-close">
+              <X className="w-3.5 h-3.5" />
+              {t('diff.close')}
+            </button>
+          )
         }
       >
         {t('diff.title', { name })}
