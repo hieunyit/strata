@@ -210,6 +210,11 @@ http {{
                     print(json.dumps(summary))
                     if not valid:
                         raise RuntimeError('measurement incomplete; inspect requests.jsonl')
+                    if args.http_check_command:
+                        command = [part.replace('{url}', f'http://127.0.0.1:{port}') for part in args.http_check_command]
+                        (out/'http-check-command.json').write_text(json.dumps(command)+'\n')
+                        with (out/'http-check.log').open('w') as check_log:
+                            subprocess.run(command, check=True, stdout=check_log, stderr=subprocess.STDOUT, timeout=180)
                 finally:
                     if process.poll() is None:
                         process.send_signal(signal.SIGQUIT)
@@ -230,6 +235,8 @@ if __name__ == '__main__':
         parser.add_argument('--'+name, required=True)
     parser.add_argument('--policy', default='example-api')
     parser.add_argument('--rounds', type=int, default=1)
+    parser.add_argument('--http-check-command', nargs=argparse.REMAINDER, default=[],
+                        help='optional argv run while fixture is live; {url} is the proxy URL')
     arguments = parser.parse_args()
     if not 1 <= arguments.rounds <= 100:
         parser.error('rounds must be 1..100')

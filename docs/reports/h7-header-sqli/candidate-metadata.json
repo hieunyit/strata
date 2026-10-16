@@ -1,0 +1,21 @@
+{
+  "nginx_sha256": "a22f25764fb9ca4267ec1649686f46f28bc1bc3095552ce5a3ea729df57b8998",
+  "module_sha256": "1544a1b62738e56bc1e3f7b33b34bb73d8c1906957f225c756dd68f4bc17f3ce",
+  "mkbundle_sha256": "1db95bd2665c93f1eaa68fc905fab8766c9e555c30644d7c185897980164d1aa",
+  "bundle_sha256": "288f6f5f063eac61cdf45eb69d55090182da5662282c4ee9d45ee27ce370c472",
+  "pubkey_sha256": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e",
+  "harness_sha256": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21",
+  "cases_sha256": "7f03f19381f2c0c330faa40cc3528283e15b82fe6d3785c31190e78b50547002",
+  "scope": "serial_loopback_http_and_sqlite_oracle",
+  "policy": "example-api",
+  "rounds": 1,
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "not_tested": [
+    "botnet fallback",
+    "canary hashing",
+    "event delivery",
+    "browser XSS"
+  ],
+  "configuration_sha256": "aae2f2a2df15f897e02f7e1eedb097af91ff6f9e108aa89e38bd0323f50218e9"
+}
