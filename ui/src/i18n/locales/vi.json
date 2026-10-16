@@ -204,6 +204,36 @@
     "inspection": {
       "partial": "Chưa được kiểm đủ: hết budget CPU nên áp dụng fail mode. Các rule sau thời điểm đó không chạy.",
       "body_skipped": "Body của request, hoặc một phần body, không được kiểm (vượt giới hạn kiểm hoặc đã ghi ra đĩa)."
+    },
+    "actions": {
+      "title": "Xử lý sự kiện",
+      "markFp": "Đánh dấu False Positive",
+      "createException": "Tạo Exception",
+      "blockIdentity": "Chặn IP / Identity",
+      "fpMarked": "Đã đánh dấu False Positive",
+      "exceptionCreated": "Đã tạo exception thành công",
+      "exceptionApproved": "Đã duyệt exception thành công",
+      "cannotSelfApprove": "Người tạo không thể tự phê duyệt (quy tắc 4-Eyes)",
+      "fpDialogTitle": "Đánh dấu sự kiện là False Positive",
+      "fpReasonLabel": "Lý do đánh dấu",
+      "fpReasonPlaceholder": "Ví dụ: Tham số hợp lệ trong luồng đăng ký người dùng...",
+      "exceptionDialogTitle": "Tạo Exception hẹp từ Block ID",
+      "exceptionPolicyLabel": "Policy",
+      "exceptionRuleLabel": "Rule ID",
+      "exceptionFieldLabel": "Vị trí / Tham số (Field)",
+      "exceptionTtlLabel": "Thời hạn có hiệu lực (TTL)",
+      "exceptionReasonLabel": "Lý do tạo exception",
+      "blockDialogTitle": "Chặn IP hoặc Danh tính",
+      "blockTargetLabel": "Đối tượng chặn",
+      "blockReasonLabel": "Lý do chặn",
+      "confirm": "Xác nhận",
+      "cancel": "Hủy",
+      "approve": "Duyệt Exception",
+      "stateSubmitted": "Chờ duyệt",
+      "stateApproved": "Đã duyệt",
+      "ttl7": "7 ngày",
+      "ttl14": "14 ngày (khuyến nghị)",
+      "ttl30": "30 ngày"
     }
   },
   "login": {

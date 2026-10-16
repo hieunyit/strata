@@ -209,6 +209,36 @@
     "inspection": {
       "partial": "Not fully inspected: the CPU budget ran out and the fail mode applied. Rules after that point did not run.",
       "body_skipped": "The request body, or part of it, was not inspected (over the inspection limit or spooled to disk)."
+    },
+    "actions": {
+      "title": "Event Actions",
+      "markFp": "Mark False Positive",
+      "createException": "Create Exception",
+      "blockIdentity": "Block IP / Identity",
+      "fpMarked": "Marked as False Positive",
+      "exceptionCreated": "Exception created successfully",
+      "exceptionApproved": "Exception approved successfully",
+      "cannotSelfApprove": "Creator cannot approve own exception (Four-Eyes rule)",
+      "fpDialogTitle": "Mark Event as False Positive",
+      "fpReasonLabel": "Reason",
+      "fpReasonPlaceholder": "e.g., Valid parameter in registration flow...",
+      "exceptionDialogTitle": "Create Scoped Exception from Block ID",
+      "exceptionPolicyLabel": "Policy",
+      "exceptionRuleLabel": "Rule ID",
+      "exceptionFieldLabel": "Field / Parameter",
+      "exceptionTtlLabel": "Validity Duration (TTL)",
+      "exceptionReasonLabel": "Reason for Exception",
+      "blockDialogTitle": "Block IP or Identity",
+      "blockTargetLabel": "Target to block",
+      "blockReasonLabel": "Reason for blocking",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "approve": "Approve Exception",
+      "stateSubmitted": "Pending Review",
+      "stateApproved": "Approved",
+      "ttl7": "7 days",
+      "ttl14": "14 days (recommended)",
+      "ttl30": "30 days"
     }
   },
   "login": {

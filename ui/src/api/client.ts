@@ -25,6 +25,28 @@ export type LocalUser = components['schemas']['User'];
 export type CreateUserRequest = components['schemas']['CreateUserRequest'];
 export type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 
+export interface MarkFalsePositiveResponse {
+  block_id: string;
+  false_positive: boolean;
+  reason: string;
+  marked_by: string;
+  marked_at: string;
+}
+
+export interface Exception {
+  id: string;
+  block_id: string;
+  policy_id: string;
+  rule_id: number;
+  field: string;
+  reason: string;
+  state: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'REVOKED';
+  created_by: string;
+  approved_by?: string;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface OverviewParams {
   from: string;
   to: string;
@@ -226,5 +248,44 @@ export const apiClient = {
     const r = await call<admin['schemas']['v1GetRolloutResponse']>(
       `/rollouts/${encodeURIComponent(id)}`, { method: 'GET' }, 'Failed to get rollout');
     return r.rollout;
+  },
+
+  /** POST /v1/events/{block_id}:markFalsePositive */
+  async markFalsePositive(blockId: string, reason: string): Promise<MarkFalsePositiveResponse> {
+    return call<MarkFalsePositiveResponse>(
+      `/events/${encodeURIComponent(blockId)}:markFalsePositive`,
+      json('POST', { reason }),
+      'Failed to mark event as false positive'
+    );
+  },
+
+  /** POST /v1/exceptions:fromBlockId */
+  async createExceptionFromBlockId(blockId: string, ttlSeconds: number, reason: string): Promise<Exception> {
+    return call<Exception>(
+      `/exceptions:fromBlockId`,
+      json('POST', { block_id: blockId, ttl_seconds: ttlSeconds, reason }),
+      'Failed to create exception from Block ID'
+    );
+  },
+
+  /** GET /v1/exceptions */
+  async listExceptions(params?: { policy_id?: string; rule_id?: number; state?: string }): Promise<Exception[]> {
+    const q = new URLSearchParams();
+    if (params?.policy_id) q.set('policy_id', params.policy_id);
+    if (params?.rule_id) q.set('rule_id', String(params.rule_id));
+    if (params?.state) q.set('state', params.state);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await call<{ exceptions: Exception[] }>(`/exceptions${qs}`, { method: 'GET' }, 'Failed to list exceptions');
+    return res.exceptions ?? [];
+  },
+
+  /** POST /v1/exceptions/{id}:approve */
+  async approveException(id: string): Promise<Exception> {
+    const res = await call<{ exception: Exception }>(
+      `/exceptions/${encodeURIComponent(id)}:approve`,
+      json('POST', {}),
+      'Failed to approve exception'
+    );
+    return res.exception;
   },
 };
