@@ -24,7 +24,7 @@ Phạm vi là 24 phát hiện của review toàn repo/nhánh/issue đã được
 | 18 | M4 quarantine thực | Chưa xong: durable pipeline và shadow behavior, không chỉ cờ RAM. |
 | 19 | M4 bounded counters/callback | Chưa xong: time buckets hữu hạn, callback ngoài lock và kiểm tra race. |
 | 20 | L1 virtual patch | PR #131: runbook/API/schema đúng, fixture release/verify/test thật; chưa chứng minh SLA vận hành 24 giờ. |
-| 21 | H6 game day | Chưa xong: cần fault injection lab thực và bằng chứng continuity/metrics. |
+| 21 | H6 game day | Đã chạy 3 test fault mạng thật: outage 5 phút tự hồi, 100 event qua hai cut/reset, download/verify/activate qua link lỗi (h6-network-drills.md). Còn tắt process CP/agent, corrupt bundle, panic và chain NGINX/metrics; chưa gọi game day hoàn tất. |
 | 22 | H6 redteam evidence | Harness paired HTTP + SQL oracle, 10 cặp/20 attempt; báo cáo h6-http-evidence.md. Chưa tái chạy campaign cũ. |
 | 23 | H5 local checks | PR #127: cache xác minh hash, make lỗi đúng, resume đồng bộ, line budget. ET archive gốc còn thiếu; không thay checksum để bỏ qua. |
 | 24 | L4 trạng thái/nhánh/docs | docs/status.md đối chiếu main 991c4bb với các prototype/PR và sửa mô tả cũ về budget/privacy/soak. Không tự đổi tuần PO, không đóng issue thiếu deployment proof. |
