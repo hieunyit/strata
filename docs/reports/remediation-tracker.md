@@ -6,7 +6,7 @@ Phạm vi là 24 phát hiện của review toàn repo/nhánh/issue đã được
 |---|---|---|
 | 1 | H1 fallback source saturation | PR #118: loại interval bão hòa khỏi baseline/block-rate; giữ cảnh báo lỗi riêng. |
 | 2 | H2 body CPU budget | PR #125: đo/classification; cần đo lại pack hiện tại và tối ưu. Không đổi budget/fail mode/oversize/max_args theo quyết định người dùng. |
-| 3 | H7 custom header | Rule 300011 + paired HTTP: hai SQLi oracle bị chặn; GoTestWAF SQLi header 1/8 → 4/8. Còn coverage chưa đạt, giữ #108 mở; xem h7-header-sqli.md. |
+| 3 | H7 custom header | Rule 300011–300013: hai SQLi oracle bị chặn; GoTestWAF Header SQLi 8/8, XSS 54/56, TN 47/47. Giữ #108 mở cho hai ca chưa có browser oracle/coverage thực; perf tăng cần tune. Xem h7-header-coverage.md. |
 | 4 | L3 cold worker | PR #125 mới đo engine cold; còn NGINX cold/reload thực. |
 | 5 | M5 replay/provenance | PR #124/#126/#128/#129/#130: snapshot, proof gắn approval, gate deploy và API. Không attest runtime image/shared libraries. |
 | 6 | M7 collector | PR #120: authorization node/policy/key, giới hạn tổng/node/file/in-flight và timeout. |
