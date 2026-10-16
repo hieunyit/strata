@@ -13,7 +13,7 @@ use std::os::raw::c_char;
 /// version differs from the one it was compiled against.
 pub const STRATA_ABI_VERSION_MAJOR: u32 = 1;
 /// Minor ABI version: additive, backward-compatible changes only.
-pub const STRATA_ABI_VERSION_MINOR: u32 = 5;
+pub const STRATA_ABI_VERSION_MINOR: u32 = 6;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 
@@ -63,6 +63,11 @@ pub const STRATA_VF_CANARY: u16 = 1 << 3;
 /// The request's policy has an enforce canary and the client is outside it
 /// (shadow): the group the canary is compared with. ABI 1.4.
 pub const STRATA_VF_CANARY_SHADOW: u16 = 1 << 4;
+/// The CPU budget ran out on a request that already had findings, and its
+/// policy sets `fail_on_findings: block`: the connector answers as in fail
+/// mode closed (503 with the Event ID), whatever its fail mode. ABI 1.6,
+/// #98.
+pub const STRATA_VF_FAIL_CLOSED: u16 = 1 << 5;
 
 /// Per-request flags passed in `strata_conn_t.flags`.
 pub const STRATA_TXF_TLS: u32 = 1 << 0;

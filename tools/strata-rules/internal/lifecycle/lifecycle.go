@@ -42,6 +42,8 @@ type Stats struct {
 	Matches map[uint32]uint64
 	// how far back the event store goes
 	DataSince time.Time
+	// #98: per policy, requests whose budget ran out after a finding
+	BudgetFindings map[string]uint64
 }
 
 // FP: suspected false positives of one rule on one policy.
@@ -93,17 +95,19 @@ type Review struct {
 
 // Report of one run.
 type Report struct {
-	Now       time.Time
-	Opts      Options
-	Rules     int
-	Review    []Review
-	Old       []Rule
-	OldKnown  bool    // the store covers OldAfter: Old is meaningful
-	DataDays  float64 // days of events in the store
-	Due       []Rule  // review_by passed
-	NoOwner   map[string]int
-	NoReview  map[string]int
-	Upstreams []Pin
+	Now      time.Time
+	Opts     Options
+	Rules    int
+	Review   []Review
+	Old      []Rule
+	OldKnown bool    // the store covers OldAfter: Old is meaningful
+	DataDays float64 // days of events in the store
+	Due      []Rule  // review_by passed
+	// #98: per policy, budget out after a finding, and the policy's requests
+	BudgetFindings map[string][2]uint64
+	NoOwner        map[string]int
+	NoReview       map[string]int
+	Upstreams      []Pin
 }
 
 // Classify sorts the rules into the report.
@@ -127,6 +131,12 @@ func Classify(rules []Rule, st Stats, now time.Time, opt Options) Report {
 		}
 		if r.OldKnown && st.Matches[rl.ID] == 0 {
 			r.Old = append(r.Old, rl)
+		}
+	}
+	if len(st.BudgetFindings) > 0 {
+		r.BudgetFindings = map[string][2]uint64{}
+		for p, n := range st.BudgetFindings {
+			r.BudgetFindings[p] = [2]uint64{n, st.Requests[p]}
 		}
 	}
 	until := now.Add(opt.ExceptionFor).Format("2006-01-02")
@@ -282,6 +292,28 @@ func Markdown(w io.Writer, r Report) {
 		p("| Rule | Name | Source |\n| ---: | --- | --- |\n")
 		for _, o := range r.Old {
 			p("| %d | %s | %s |\n", o.ID, cell(o.Name), o.Source)
+		}
+		p("\n")
+	}
+
+	p("## Budget out after a finding (#98)\n\n")
+	if len(r.BudgetFindings) == 0 {
+		p("None in the window: `fail_on_findings: block` would answer no 503.\n\n")
+	} else {
+		p("Requests whose CPU budget ran out after a rule matched: `fail_on_findings: block` would answer them 503. Turn it on for a policy only when this share is near 0.\n\n")
+		p("| Policy | Requests out of budget with a finding | Requests | Share |\n| --- | ---: | ---: | ---: |\n")
+		var pols []string
+		for k := range r.BudgetFindings {
+			pols = append(pols, k)
+		}
+		sort.Strings(pols)
+		for _, k := range pols {
+			v := r.BudgetFindings[k]
+			req, share := "unknown", "-"
+			if v[1] > 0 {
+				req, share = fmt.Sprint(v[1]), fmt.Sprintf("%.3f%%", 100*float64(v[0])/float64(v[1]))
+			}
+			p("| %s | %d | %s | %s |\n", k, v[0], req, share)
 		}
 		p("\n")
 	}

@@ -75,7 +75,8 @@ sub bundle {
     print $fh "policies:\n",
               "  - { name: example-api, mode: enforce }\n",
               "  - { name: example-web, mode: shadow }\n",
-              "  - { name: example-guard, mode: enforce }\n";
+              "  - { name: example-guard, mode: enforce }\n",
+              "  - { name: example-fof, mode: enforce, fail_on_findings: block }\n";
     close $fh;
     my $r = join " ", map { "--rules $_" } @$rules;
     run("$compiler $r --policies $root/policies.yaml --key $fixtures/test.key"
@@ -144,6 +145,8 @@ http {
                             strata_cpu_budget 1ms; proxy_pass http://127.0.0.1:$port/backend/; }
         location /bclosed { strata on; strata_policy example-api; strata_fail_mode closed;
                             strata_cpu_budget 1ms; proxy_pass http://127.0.0.1:$port/backend/; }
+        location /bfof    { strata on; strata_policy example-fof; strata_fail_mode open;
+                            strata_cpu_budget 1ms; proxy_pass http://127.0.0.1:$port/backend/; }
 
         # inspected, then an internal redirect (error_page) to /shadow
         location /redir   { strata on; strata_policy example-web;
@@ -205,8 +208,9 @@ sub listen_events {
 # --- requests, events, metrics ----------------------------------------------
 
 sub req {
-    my ($method, $path, $body) = @_;
-    return $http->request($method, "http://127.0.0.1:$port$path",
+    my ($method, $path, $body, $host) = @_;
+    $host //= "127.0.0.1";
+    return $http->request($method, "http://$host:$port$path",
         $body ? { content => $body,
                   headers => { "content-type" => "application/x-www-form-urlencoded" } }
               : {});
@@ -367,7 +371,7 @@ subtest "metrics file layout" => sub {
     like($m->{nginx}, qr/^1\.\d+\.\d+$/, "NGINX version in the header");
     like(`nginx -v 2>&1`, qr/\Q$m->{nginx}\E/, "the running NGINX");
     is($m->{module}, "0.1.0", "module version");
-    is($m->{abi}, (1 << 16) | 5, "ABI version");
+    is($m->{abi}, (1 << 16) | 6, "ABI version");
 };
 
 subtest "clean request: no event, counted as allow" => sub {
@@ -559,6 +563,26 @@ subtest "budget exceeded, fail mode closed: 503" => sub {
     is($d->[C_BUDGET], 1, "budget exceeded +1");
     is($d->[C_CLOSED], 1, "fail closed +1");
     is((events(1))[0]{status}, 503, "event with status 503");
+};
+
+# #98: a policy with fail_on_findings: block. Host 127.0.0.1:<port> is a
+# numeric host (CRS 920350, 60 points, below the threshold): a finding
+# before the body runs the budget out
+subtest "budget out with findings, fail_on_findings block: 503 under fail mode open" => sub {
+    my $r;
+    my $d = delta(sub { $r = req("POST", "/bfof", $heavy) });
+    is($r->{status}, 503, "503");
+    is($d->[C_BUDGET], 1, "budget exceeded +1");
+    is($d->[C_CLOSED], 1, "fail closed +1");
+    is($d->[C_OPEN], 0, "not fail open");
+};
+
+# Host localhost:<port> is not numeric: no finding before the budget runs out
+subtest "budget out without findings: the fail mode (open) decides" => sub {
+    my $r;
+    my $d = delta(sub { $r = req("POST", "/bfof", $heavy, "localhost") });
+    is($r->{status}, 200, "passes");
+    is($d->[C_OPEN], 1, "fail open +1");
 };
 
 subtest "default budget, fail mode open: the heavy body passes, bytes counted" => sub {

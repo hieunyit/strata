@@ -81,6 +81,17 @@ message PolicySpec {
   // (rule 100021). Modules from before the setting refuse bundles that set
   // it: upgrade them first.
   uint32 max_args = 7;
+  // #98: when the CPU budget runs out on a request that already has
+  // findings (rules matched below the threshold), BLOCK answers as in fail
+  // mode closed (503 with the Event ID) whatever the connector's fail mode;
+  // PASS (and UNSPECIFIED) follows the fail mode. Enforce only. Modules
+  // from before the setting refuse bundles that set BLOCK: upgrade first.
+  enum FailOnFindings {
+    FAIL_ON_FINDINGS_UNSPECIFIED = 0; // pass
+    FAIL_ON_FINDINGS_PASS = 1;
+    FAIL_ON_FINDINGS_BLOCK = 2;
+  }
+  FailOnFindings fail_on_findings = 8;
 }
 
 message PrivacySettings {

@@ -1354,6 +1354,16 @@
         }
       }
     },
+    "PolicySpecFailOnFindings": {
+      "type": "string",
+      "enum": [
+        "FAIL_ON_FINDINGS_UNSPECIFIED",
+        "FAIL_ON_FINDINGS_PASS",
+        "FAIL_ON_FINDINGS_BLOCK"
+      ],
+      "default": "FAIL_ON_FINDINGS_UNSPECIFIED",
+      "description": "#98: when the CPU budget runs out on a request that already has\nfindings (rules matched below the threshold), BLOCK answers as in fail\nmode closed (503 with the Event ID) whatever the connector's fail mode;\nPASS (and UNSPECIFIED) follows the fail mode. Enforce only. Modules\nfrom before the setting refuse bundles that set BLOCK: upgrade first.\n\n - FAIL_ON_FINDINGS_UNSPECIFIED: pass"
+    },
     "PolicySpecMode": {
       "type": "string",
       "enum": [
@@ -2053,6 +2063,9 @@
           "type": "integer",
           "format": "int64",
           "description": "Arguments inspected, query then body fields (#28): 1 to 1020, rounded up\nto a multiple of 4; 0 = 1024. A request with more goes by `oversize`\n(rule 100021). Modules from before the setting refuse bundles that set\nit: upgrade them first."
+        },
+        "fail_on_findings": {
+          "$ref": "#/definitions/PolicySpecFailOnFindings"
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

@@ -24,7 +24,9 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "shadow", Privacy: &Privacy{Identity: "hmac"}}, {Mode: "shadow", Privacy: &Privacy{Identity: "plain"}},
 		{Mode: "enforce", CanaryPercent: 1}, {Mode: "enforce", CanaryPercent: 0.01}, {Mode: "enforce", CanaryPercent: 99.99}, {Mode: "enforce", CanaryPercent: 12.34},
 		// #28: max_args 1..1020
-		{Mode: "enforce", MaxArgs: 1}, {Mode: "enforce", MaxArgs: 1020}}
+		{Mode: "enforce", MaxArgs: 1}, {Mode: "enforce", MaxArgs: 1020},
+		// #98: fail_on_findings
+		{Mode: "enforce", FailOnFindings: "pass"}, {Mode: "enforce", FailOnFindings: "block"}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -41,7 +43,8 @@ func TestSpecValidate(t *testing.T) {
 		// W12-G2-01: canary only on enforce, 0.01..99.99, two decimals
 		{Mode: "shadow", CanaryPercent: 5}, {Mode: "enforce", CanaryPercent: 100}, {Mode: "enforce", CanaryPercent: -1},
 		{Mode: "enforce", CanaryPercent: 0.005}, {Mode: "enforce", CanaryPercent: 1.234},
-		{Mode: "enforce", MaxArgs: -1}, {Mode: "enforce", MaxArgs: 1021}}
+		{Mode: "enforce", MaxArgs: -1}, {Mode: "enforce", MaxArgs: 1021},
+		{Mode: "enforce", FailOnFindings: "maybe"}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)
@@ -162,7 +165,7 @@ done
 	page := filepath.Join(dir, "block.html")
 	_ = os.WriteFile(page, []byte("<p>{{block_id}}</p>"), 0o644)
 	c := &Compiler{Binary: script, KeyFile: "/keys/seed", Rules: []string{"a.yaml", "b.yaml"}, BlockPage: page, SupportContact: "ops@example.test"}
-	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200}}})
+	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block"}}})
 	if err != nil || string(out) != "bundle" {
 		t.Fatalf("%q %v", out, err)
 	}
@@ -180,7 +183,7 @@ done
 	if err := json.Unmarshal(pol, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" || doc.Policies[0]["canary_percent"] != 5.0 || doc.Policies[0]["max_args"] != 200.0 ||
+	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" || doc.Policies[0]["canary_percent"] != 5.0 || doc.Policies[0]["max_args"] != 200.0 || doc.Policies[0]["fail_on_findings"] != "block" ||
 		doc.BlockPage["html"] != "<p>{{block_id}}</p>" || doc.BlockPage["support_contact"] != "ops@example.test" {
 		t.Fatalf("policies file %s", pol)
 	}

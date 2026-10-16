@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 5
+#define STRATA_ABI_VERSION_MINOR 6
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -82,6 +82,14 @@
  * (shadow): the group the canary is compared with. ABI 1.4.
  */
 #define STRATA_VF_CANARY_SHADOW (1 << 4)
+
+/**
+ * The CPU budget ran out on a request that already had findings, and its
+ * policy sets `fail_on_findings: block`: the connector answers as in fail
+ * mode closed (503 with the Event ID), whatever its fail mode. ABI 1.6,
+ * #98.
+ */
+#define STRATA_VF_FAIL_CLOSED (1 << 5)
 
 /**
  * Per-request flags passed in `strata_conn_t.flags`.

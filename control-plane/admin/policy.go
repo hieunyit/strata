@@ -51,6 +51,8 @@ var (
 	modeOfPB = map[adminv1.PolicySpec_Mode]string{adminv1.PolicySpec_MODE_SHADOW: "shadow", adminv1.PolicySpec_MODE_ENFORCE: "enforce"}
 	overToPB = map[string]adminv1.PolicySpec_Oversize{"": adminv1.PolicySpec_OVERSIZE_UNSPECIFIED, "pass": adminv1.PolicySpec_OVERSIZE_PASS, "block": adminv1.PolicySpec_OVERSIZE_BLOCK}
 	overOfPB = map[adminv1.PolicySpec_Oversize]string{adminv1.PolicySpec_OVERSIZE_UNSPECIFIED: "", adminv1.PolicySpec_OVERSIZE_PASS: "pass", adminv1.PolicySpec_OVERSIZE_BLOCK: "block"}
+	failToPB = map[string]adminv1.PolicySpec_FailOnFindings{"": adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED, "pass": adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS, "block": adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK}
+	failOfPB = map[adminv1.PolicySpec_FailOnFindings]string{adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED: "", adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS: "pass", adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK: "block"}
 )
 
 // specOf converts and validates a spec from the API.
@@ -59,7 +61,7 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
-		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs())}
+		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()]}
 	if s.MaxSnippetSize == 128 {
 		s.MaxSnippetSize = 0 // the default, stored as absent
 	}
@@ -83,7 +85,7 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
-		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs)}
+		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings]}
 	if s.Privacy != nil {
 		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
 	}
