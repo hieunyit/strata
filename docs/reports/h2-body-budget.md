@@ -7,7 +7,7 @@ Thay đổi:
 - Thêm XSS ở đầu/cuối form, JSON và multipart; unit test kiểm JSON hợp lệ, vị trí payload, Content-Length. Phân loại inspection dùng chung logic với event, không đổi semantics.
 - `tests/perf/body-budget.sh` build binary trước khi đo; lưu SHA của bundle/public key/executable, commit và digest diff nguồn; chạy tuần tự 10 ms, không giới hạn, cold có/không warm.
 
-Kết quả engine-only, dữ liệu tổng hợp, full pack **9.054 rule**, bundle SHA-256 `604284d6a1c919b9ce296f8369b251fa093ded0944e44fb78cc82d5c89ea1a9c`. Raw JSON và metadata trong thư mục `h2-body-budget/` kèm báo cáo này. Máy lab dùng CPU set 6–10; còn dịch vụ khác chạy trên host. Không lấy đây làm SLO p99 sản xuất hay TPS NGINX.
+Kết quả engine-only, dữ liệu tổng hợp, bundle cache **9.054 rule** (thiếu 300001–300010 trong rules/gaps/, không phải full pack hiện tại; đo lại ở h2-current-pack.md), bundle SHA-256 `604284d6a1c919b9ce296f8369b251fa093ded0944e44fb78cc82d5c89ea1a9c`. Raw JSON và metadata trong thư mục `h2-body-budget/` kèm báo cáo này. Máy lab dùng CPU set 6–10; còn dịch vụ khác chạy trên host. Không lấy đây làm SLO p99 sản xuất hay TPS NGINX.
 
 | Ca | n | p50 không giới hạn (ms) | FULL/PARTIAL (không giới hạn) | Chặn (không giới hạn) | FULL/PARTIAL (10 ms) | Chặn (10 ms) |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
