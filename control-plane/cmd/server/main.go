@@ -405,6 +405,9 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
+		if pg != nil {
+			ingestSvc.Gate = pg
+		}
 		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
 		// requests per policy from the heartbeats (RV-N-01)
 		if sink, ok := store.(fleet.PolicyRequestsSink); ok {

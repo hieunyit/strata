@@ -250,7 +250,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at, user_agent, referer, headers.name, headers.value, inspection
-		FROM %s 
+		FROM %s FINAL
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
 
@@ -384,7 +384,7 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 	}
 
 	// 1. Get total count
-	countQuery := fmt.Sprintf("SELECT count() FROM %s WHERE %s", s.tableName, whereSQL)
+	countQuery := fmt.Sprintf("SELECT count() FROM %s FINAL WHERE %s", s.tableName, whereSQL)
 	var total uint64
 	if err := s.conn.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("counting events: %w", err)
@@ -401,9 +401,9 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at
-		FROM %[1]s
+		FROM %[1]s FINAL
 		WHERE (block_id, timestamp) IN (
-			SELECT block_id, timestamp FROM %[1]s
+			SELECT block_id, timestamp FROM %[1]s FINAL
 			WHERE %[2]s
 			ORDER BY timestamp DESC, block_id DESC
 			LIMIT ? OFFSET ?)
