@@ -140,18 +140,28 @@ pub fn context_with(headers: &[(&[u8], &[u8])], privacy: Option<&Privacy>) -> Co
     let mut room = MAX_HEADERS_BYTES;
     for &(name, value) in headers {
         let n = String::from_utf8_lossy(name);
+        let sensitive = is_sensitive_word(n.trim())
+            || privacy.is_some_and(|p| p.sensitive(&format!("REQUEST_HEADERS:{}", n.trim())));
         if n.eq_ignore_ascii_case("user-agent") {
             if c.user_agent.is_empty() {
-                c.user_agent = utf8_cut(&bounded_mask(value, MAX_UA_LEN, privacy), MAX_UA_LEN);
+                c.user_agent = if sensitive {
+                    MASKED.to_vec()
+                } else {
+                    utf8_cut(&bounded_mask(value, MAX_UA_LEN, privacy), MAX_UA_LEN)
+                };
             }
             continue;
         }
         if n.eq_ignore_ascii_case("referer") {
             if c.referer.is_empty() {
-                c.referer = utf8_cut(
-                    &mask_query(&bounded_mask(value, MAX_UA_LEN, privacy)),
-                    MAX_UA_LEN,
-                );
+                c.referer = if sensitive {
+                    MASKED.to_vec()
+                } else {
+                    utf8_cut(
+                        &mask_query_with(&bounded_mask(value, MASK_WINDOW, privacy), privacy),
+                        MAX_UA_LEN,
+                    )
+                };
             }
             continue;
         }
@@ -161,8 +171,6 @@ pub fn context_with(headers: &[(&[u8], &[u8])], privacy: Option<&Privacy>) -> Co
         // the name is a proto string: valid UTF-8, or the agent's decoder
         // refuses the whole event; the value is bytes
         let name = utf8_cut(name, room);
-        let sensitive = is_sensitive_word(n.trim())
-            || privacy.is_some_and(|p| p.sensitive(&format!("REQUEST_HEADERS:{}", n.trim())));
         let v = if sensitive {
             MASKED.to_vec()
         } else {
@@ -199,6 +207,10 @@ fn bounded_mask(v: &[u8], max: usize, privacy: Option<&Privacy>) -> Vec<u8> {
 /// The values of sensitive query parameters of a URL replaced by
 /// [MASKED] (`?access_token=...`, `&password=...`).
 pub fn mask_query(url: &[u8]) -> Vec<u8> {
+    mask_query_with(url, None)
+}
+
+fn mask_query_with(url: &[u8], privacy: Option<&Privacy>) -> Vec<u8> {
     let Some(q) = url.iter().position(|&c| c == b'?') else {
         return url.to_vec();
     };
@@ -212,7 +224,7 @@ pub fn mask_query(url: &[u8]) -> Vec<u8> {
             out.push(b'&');
         }
         match pair.iter().position(|&c| c == b'=') {
-            Some(e) if is_sensitive_word(&String::from_utf8_lossy(&pair[..e])) => {
+            Some(e) if sensitive_query_name(&pair[..e], privacy) => {
                 out.extend_from_slice(&pair[..=e]);
                 out.extend_from_slice(MASKED);
             }
@@ -221,6 +233,16 @@ pub fn mask_query(url: &[u8]) -> Vec<u8> {
     }
     out.extend_from_slice(fragment);
     out
+}
+
+fn sensitive_query_name(raw: &[u8], privacy: Option<&Privacy>) -> bool {
+    let decoded = crate::transform::url_decode(raw);
+    let name = String::from_utf8_lossy(&decoded);
+    // Ambiguous/malformed encodings are masked conservatively; decoding is bounded
+    // to one pass, so privacy handling cannot become a recursive decoder.
+    decoded.contains(&b'%')
+        || is_sensitive_target(&format!("ARGS:{name}"))
+        || privacy.is_some_and(|p| p.sensitive(&format!("ARGS:{name}")))
 }
 
 fn is_sensitive_word(word: &str) -> bool {
@@ -812,6 +834,30 @@ mod tests {
                 (b"X-Api-Key".to_vec(), MASKED.to_vec()),
                 (b"Proxy-Authorization".to_vec(), MASKED.to_vec())
             ]
+        );
+    }
+
+    #[test]
+    fn encoded_and_policy_query_names_are_masked() {
+        let sec = crate::privacy::encode(
+            &[crate::privacy::PrivacySpec {
+                policy_index: 0,
+                sensitive_fields: vec!["customer_id".into(), "user-agent".into()],
+                ..Default::default()
+            }],
+            None,
+        )
+        .unwrap();
+        let settings = crate::privacy::parse(&sec, 1, &[0]).unwrap();
+        let c = context_with(&[
+            (b"User-Agent", b"private-agent"),
+            (b"Referer", b"https://api.example.test/?pass%77ord=secret&customer%5fid=private&q=safe&token=other"),
+        ], settings[0].as_ref());
+        assert_eq!(c.user_agent, MASKED);
+        assert_eq!(c.referer, b"https://api.example.test/?pass%77ord=[MASKED]&customer%5fid=[MASKED]&q=safe&token=[MASKED]");
+        assert_eq!(
+            mask_query(b"/?%2570assword=secret&bad%=hidden"),
+            b"/?%2570assword=[MASKED]&bad%=[MASKED]"
         );
     }
 
