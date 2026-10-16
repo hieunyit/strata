@@ -308,7 +308,7 @@ func (s *Server) HandleGetRuleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ruleID64, err := strconv.ParseUint(parts[2], 10, 32)
-	if err != nil {
+	if err != nil || ruleID64 == 0 {
 		writeError(w, http.StatusBadRequest, "invalid rule_id: must be positive integer", "")
 		return
 	}

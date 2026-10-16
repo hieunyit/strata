@@ -1,0 +1,9 @@
+--- FAIL: TestHealthRouteDoesNotShadowAdminRuleActions (0.27s)
+    rule_health_routing_test.go:37: /v1/rules/942100:emergencyDisable: got 404, want gateway response
+    rule_health_routing_test.go:37: /v1/rules/942100:emergencyEnable: got 404, want gateway response
+    rule_health_routing_test.go:37: /v1/rules/942100/details: got 404, want gateway response
+    rule_health_routing_test.go:37: /v1/rules/942100/health/extra: got 404, want gateway response
+    rule_health_routing_test.go:41: gateway calls=0, want 4
+FAIL
+FAIL	github.com/strata/strata/control-plane/api	0.374s
+FAIL

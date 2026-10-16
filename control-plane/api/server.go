@@ -124,14 +124,8 @@ func (s *Server) registerRoutes() {
 		}
 		s.handler.HandleGetEvent(w, r)
 	}))
-	// Handles /v1/rules/{rule_id}/health
-	v1.HandleFunc("/v1/rules/", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/health") {
-			s.HandleGetRuleHealth(w, r)
-			return
-		}
-		writeError(w, http.StatusNotFound, "route not found", "")
-	}))
+	// Match only health reads. Fleet rule actions must reach the admin gateway.
+	v1.HandleFunc("GET /v1/rules/{rule_id}/health", auth.RequireHTTP(auth.PermEventsRead, s.HandleGetRuleHealth))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
