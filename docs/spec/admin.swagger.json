@@ -2036,6 +2036,43 @@
         }
       }
     },
+    "v1PolicyException": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "exc- followed by 32 lowercase hex digits, unique within a policy."
+        },
+        "rule_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "method": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string",
+          "description": "ARGS:\u003ccase-sensitive name\u003e or REQUEST_HEADERS:\u003cASCII token\u003e."
+        },
+        "expires_unix_ms": {
+          "type": "string",
+          "format": "int64",
+          "description": "Absolute expiry in Unix milliseconds, mandatory and positive."
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source_block_id": {
+          "type": "string"
+        }
+      }
+    },
     "v1PolicySpec": {
       "type": "object",
       "properties": {
@@ -2069,6 +2106,14 @@
         },
         "fail_on_findings": {
           "$ref": "#/definitions/PolicySpecFailOnFindings"
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyException"
+          },
+          "description": "Exact, expiring managed-rule field exclusions; at most 128 per policy.\nMust follow the normal draft/replay/four-eyes/deploy flow. Old engines\nrefuse the required policy flag: upgrade them before using exceptions."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

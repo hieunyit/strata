@@ -62,6 +62,12 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
 		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()]}
+	for _, e := range pb.GetExceptions() {
+		if e == nil {
+			return nil, status.Error(codes.InvalidArgument, "nil policy exception")
+		}
+		s.Exceptions = append(s.Exceptions, policy.Exception{ID: e.GetId(), RuleID: e.GetRuleId(), Method: e.GetMethod(), Host: e.GetHost(), Path: e.GetPath(), Field: e.GetField(), ExpiresUnixMS: e.GetExpiresUnixMs(), Reason: e.GetReason(), SourceBlockID: e.GetSourceBlockId()})
+	}
 	if s.MaxSnippetSize == 128 {
 		s.MaxSnippetSize = 0 // the default, stored as absent
 	}
@@ -86,6 +92,9 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings]}
+	for _, e := range s.Exceptions {
+		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
+	}
 	if s.Privacy != nil {
 		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
 	}
