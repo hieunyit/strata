@@ -14,6 +14,9 @@ import (
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	// Annotations persists event classifications; nil disables writes.
+	Annotations EventAnnotationStore
+
 	Addr         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
@@ -78,6 +81,7 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 
 	eventHandler := NewEventHandler(store, cfg.Rules)
+	eventHandler.annotations = cfg.Annotations
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -111,6 +115,10 @@ func (s *Server) registerRoutes() {
 	v1.HandleFunc("/v1/events/", auth.RequireHTTP(auth.PermEventsRead, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ":search") {
 			search(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
+			auth.RequireHTTP(auth.PermExceptionsWrite, s.handler.HandleMarkFalsePositive)(w, r)
 			return
 		}
 		s.handler.HandleGetEvent(w, r)
