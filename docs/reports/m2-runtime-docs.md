@@ -1,0 +1,3 @@
+Đồng bộ thiết kế bundle với implementation M2 đã kiểm chứng: bit 4 byte 62, section 10 SEX1, mandatory upgrade, bounds và exact field/expiry. Nêu rõ create chỉ là policy DRAFT, revoke là version mới, replay/four-eyes/deploy như các policy khác. Tracker cập nhật PR và bằng chứng thật, các phần chưa xong không đổi sang Done. Không sửa tuần PO, không thay đổi runtime, không tự merge/deploy.
+
+Ghi nhận quyết định mới của người dùng 17/10: rate-limit khi bảng đầy trước mắt chỉ đo, chưa đổi hành vi. Body lớn vẫn chỉ đo/tối ưu, không đổi budget/fail mode/oversize/max_args. Base kỹ thuật codex/remediation-stage2 kết hợp các draft M2 để tiếp tục remediation; main giữ nguyên.

@@ -103,3 +103,6 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 - Benchmark/HTTP trong remediation có hash executable/bundle và đơn vị rõ. `engine_serial_rps` không phải TPS NGINX; 1052,62 ms tương đương khoảng 1,053 giây. Campaign redteam cũ và game day chưa được xác nhận lại bởi các phép thử paired HTTP mới.
 
 Không có bằng chứng rollout staging/production mới trong đợt remediation này. Theo yêu cầu người dùng, chạy kiểm chứng local, không chờ hosted CI; trạng thái CI cũ không được ghi thành PASS. Các điều kiện vận hành/Gate còn thiếu giữ nguyên.
+
+
+Cập nhật remediation 17/10 (PR nháp, chưa merge/triển khai): #145–#151/#154/#155 nối exception chính xác từ policy/API vào compiler/bundle/engine, có PostgreSQL audit/idempotency và cùng replay/four-eyes/deploy. Probe thật 15 cặp/30 HTTP attempts kiểm trước/sau/thu hồi/hết TTL; object storage, event input và auth principal là test boundary, không phải chứng cứ ingest/Fleet/production. #153 giữ các thiết lập ngoài form UI và hiển thị trong diff; form tạo exception và hàng duyệt UI chưa được đưa vào stack này. Xem [tracker](reports/remediation-tracker.md).
