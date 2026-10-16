@@ -684,6 +684,14 @@ ngx_http_strata_bundle_init_process(ngx_cycle_t *cycle)
 
     ngx_http_strata_smcf = smcf;
     ngx_http_strata_current = smcf->bundle;   /* holds its "current" ref */
+    if (ngx_http_strata_current != NULL
+        && strata_engine_prepare_thread(ngx_http_strata_current->engine)
+           != STRATA_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+                      "strata: worker cache preparation failed; "
+                      "inspection will retry on requests");
+    }
     ngx_http_strata_apply_disabled(cycle->log); /* read by the master */
     ngx_http_strata_seen = smcf->generation;
 
@@ -1033,6 +1041,12 @@ ngx_http_strata_load_done(void *data)
                       "strata: no memory for the block page of bundle "
                       "version %uL, using the built-in page", bundle->version);
         bundle->page = NULL;
+    }
+
+    if (strata_engine_prepare_thread(bundle->engine) != STRATA_OK) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "strata: bundle cache preparation failed; "
+                      "inspection will retry on requests");
     }
 
     old = ngx_http_strata_current;
