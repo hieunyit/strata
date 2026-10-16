@@ -301,12 +301,12 @@ func TestOneSourceCannotTrip(t *testing.T) {
 	d, cur := warm(t, Options{}, 10, 0)
 	cur.Requests += 1000
 	cur.Blocked += 500
-	if r := d.StepCapped(*cur, Capped{3, 3}); r != "" {
+	if r := d.StepCapped(*cur, Capped{Blocked: 3, Would: 3}); r != "" {
 		t.Fatalf("one source tripped: %s", r)
 	}
 	cur.Requests += 1000
 	cur.Blocked += 500
-	if r := d.StepCapped(*cur, Capped{300, 300}); r != ReasonBlockRate {
+	if r := d.StepCapped(*cur, Capped{Blocked: 300, Would: 300}); r != ReasonBlockRate {
 		t.Fatalf("100 sources: %q", r)
 	}
 }
@@ -318,7 +318,7 @@ func TestOneSourceDoesNotRaiseTheReference(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		cur.Requests += 1000
 		cur.Blocked += 500
-		if r := d.StepCapped(*cur, Capped{3, 3}); r != "" {
+		if r := d.StepCapped(*cur, Capped{Blocked: 3, Would: 3}); r != "" {
 			t.Fatalf("one source tripped: %s", r)
 		}
 	}
@@ -327,7 +327,7 @@ func TestOneSourceDoesNotRaiseTheReference(t *testing.T) {
 	}
 	cur.Requests += 1000
 	cur.Blocked += 100
-	if r := d.StepCapped(*cur, Capped{100, 100}); r != ReasonBlockRate {
+	if r := d.StepCapped(*cur, Capped{Blocked: 100, Would: 100}); r != ReasonBlockRate {
 		t.Fatalf("spike from many sources after the flood: %q", r)
 	}
 }
@@ -353,19 +353,19 @@ func TestSources(t *testing.T) {
 		s.Observe(&eventv1.Event{BlockId: "EVT-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_LOG, ClientIp: ip,
 			RuleIds: []uint32{942100}, WouldBlock: true, Inspection: eventv1.Inspection_INSPECTION_FULL})
 	}
-	if got := s.Take(3); got != (Capped{6, 9}) {
+	if got := s.Take(3); got != (Capped{Blocked: 6, Would: 9}) {
 		t.Fatalf("capped %v, want {6 9}", got)
 	}
 	if got := s.Take(3); got != (Capped{}) {
 		t.Fatalf("not reset: %v", got)
 	}
-	// past MaxSources, each further source counts one block
+	// Past MaxSources, exclude untracked sources and mark the interval incomplete.
 	for i := 0; i < 5; i++ {
 		s.Observe(blockEvent(fmt.Sprintf("198.51.100.%d", i)))
 		s.Observe(blockEvent(fmt.Sprintf("198.51.100.%d", i)))
 	}
-	if got := s.Take(1); got != (Capped{7, 7}) {
-		t.Fatalf("with overflow %v, want 7", got)
+	if got := s.Take(1); got != (Capped{Blocked: 3, Would: 3, Saturated: true}) {
+		t.Fatalf("with overflow %v, want 3 with saturation", got)
 	}
 }
 

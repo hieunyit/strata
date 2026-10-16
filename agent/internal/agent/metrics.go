@@ -38,7 +38,7 @@ var (
 	dReplay    = desc("replay_rate_bp", "Share of requests the workers sample for replay, basis points (0: off or not told yet).")
 	dFbActive  = desc("fallback_active", "1 while the node fallback holds every policy in shadow; only a clear from the control plane ends it.")
 	dFallback  = prometheus.NewDesc("strata_agent_fallback_triggers_total", "Times the node fallback forced every policy into shadow, by reason.", []string{"reason"}, nil)
-	dFbAlert   = prometheus.NewDesc("strata_agent_fallback_alerts_total", "Jumps of engine errors or budget overruns that left the policies as they are (--fallback-on-errors off), by reason.", []string{"reason"}, nil)
+	dFbAlert   = prometheus.NewDesc("strata_agent_fallback_alerts_total", "Source saturation or jumps of engine errors or budget overruns that left the policies as they are, by reason.", []string{"reason"}, nil)
 )
 
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
@@ -103,7 +103,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(dFallback, prometheus.CounterValue, float64(t[r]), r)
 		}
 		al := c.a.Fallback.Alerts()
-		for _, r := range []string{fallback.ReasonErrors, fallback.ReasonBudget} {
+		for _, r := range []string{fallback.ReasonErrors, fallback.ReasonBudget, fallback.ReasonSourceLimit} {
 			ch <- prometheus.MustNewConstMetric(dFbAlert, prometheus.CounterValue, float64(al[r]), r)
 		}
 	}

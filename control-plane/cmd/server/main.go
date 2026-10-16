@@ -462,6 +462,7 @@ func main() {
 		if pg != nil {
 			src.Enrolled, src.Active = pg.EnrolledNodes, pg.ActiveRollouts
 			src.CanaryTrips, src.OpenTrips = canary.Trips, pg.OpenCanaryTrips
+			src.CanarySourceSaturations = canary.SourceSaturations
 		}
 		if ingestSvc != nil {
 			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors

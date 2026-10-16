@@ -128,8 +128,9 @@ func TestStateCollector(t *testing.T) {
 			return ingest.IngestStats{TotalBatchesReceived: 10, TotalBatchesAccepted: 7, TotalBatchesDropped: 2,
 				TotalEventsValid: 50, TotalEventsInvalid: 3, TotalEventsFlushed: 48, BufferQueueLen: 2}
 		},
-		IngestErrors: func() uint64 { return 4 },
-		CanaryTrips:  func() map[string]uint64 { return map[string]uint64{"block_rate": 1} },
+		IngestErrors:            func() uint64 { return 4 },
+		CanaryTrips:             func() map[string]uint64 { return map[string]uint64{"block_rate": 1} },
+		CanarySourceSaturations: func() uint64 { return 3 },
 		OpenTrips: func(context.Context) ([]store.CanaryTrip, error) {
 			return []store.CanaryTrip{{GroupID: "edge", Reason: "block_rate"}}, nil
 		},
@@ -152,6 +153,7 @@ func TestStateCollector(t *testing.T) {
 		`strata_cp_build_info{commit="",version="dev"} 1`,
 		`strata_cp_canary_trips_total{reason="block_rate"} 1`,
 		`strata_cp_canary_trips_total{reason="latency"} 0`,
+		"strata_cp_canary_source_saturations_total 3",
 		`strata_cp_canary_fallback_active{group="edge",reason="block_rate"} 1`,
 	} {
 		if !strings.Contains(out, want+"\n") {
