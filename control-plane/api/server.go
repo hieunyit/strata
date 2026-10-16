@@ -119,7 +119,7 @@ func (s *Server) registerRoutes() {
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
-			s.handler.HandleMarkFalsePositive(w, r)
+			auth.RequireHTTP(auth.PermExceptionsWrite, s.handler.HandleMarkFalsePositive)(w, r)
 			return
 		}
 		s.handler.HandleGetEvent(w, r)

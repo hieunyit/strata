@@ -368,3 +368,25 @@ func (m *mockAuthDynamic) Authenticate(ctx context.Context, token string) (*auth
 		Roles:   m.currentRoles,
 	}, nil
 }
+
+func TestMarkFalsePositivePermissionMatrix(t *testing.T) {
+	for _, tc := range []struct {
+		role string
+		want int
+	}{{"viewer", 403}, {"approver", 403}, {"operator", 200}, {"admin", 200}} {
+		t.Run(tc.role, func(t *testing.T) {
+			server, st := setupExceptionTestServer(t, mockAuthWithSubject{subject: "test-" + tc.role, roles: []auth.Role{auth.Role(tc.role)}})
+			r := httptest.NewRequest("POST", "/v1/events/STR-8F3K-Q2VD-7XNM-A1PC:markFalsePositive", bytes.NewBufferString(`{"reason":"legitimate request"}`))
+			r.Header.Set("Authorization", "Bearer "+tc.role)
+			w := httptest.NewRecorder()
+			server.Handler().ServeHTTP(w, r)
+			if w.Code != tc.want {
+				t.Fatalf("%s: %d %s", tc.role, w.Code, w.Body)
+			}
+			e, err := st.GetEvent(t.Context(), "STR-8F3K-Q2VD-7XNM-A1PC")
+			if err != nil || e.FalsePositive != (tc.want == 200) {
+				t.Fatalf("unexpected write: %+v %v", e, err)
+			}
+		})
+	}
+}

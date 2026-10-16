@@ -260,4 +260,3 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 		MarkedAt:      time.Now().UTC(),
 	})
 }
-
