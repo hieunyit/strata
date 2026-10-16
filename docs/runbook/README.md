@@ -189,6 +189,15 @@ fallback tự động), lý do ở nhãn `reason`:
   không đổi policy. Lý do: shadow không đổi fail mode (fail-open vẫn cho qua, fail-closed
   vẫn trả 503), nên ép shadow không giúp gì mà còn mở đường tắt WAF.
 
+Cảnh báo `StrataFallbackSourcesSaturated` nghĩa là bảng nguồn đã đầy: agent theo mỗi
+5 giây, control plane theo từng khoảng trong cửa sổ 1 phút. Khi đó WAF giữ enforcement,
+không tự shadow hoặc học baseline chặn từ số đếm thiếu. Lỗi engine, 5xx và latency vẫn
+được xử lý theo cấu hình riêng. Xem `strata_agent_fallback_alerts_total{reason="source_limit"}`
+và `strata_cp_canary_source_saturations_total`, đối chiếu lưu lượng nhiều nguồn/tấn công
+với FP thật; xử lý FP bằng rollback/tắt rule đã duyệt nếu cần. Không tăng giới hạn nguồn
+để tắt cảnh báo khi chưa đánh giá bộ nhớ. Quyết định theo block-rate tự hoạt động lại
+sau khoảng đầy đủ kế tiếp ở agent hoặc khi mọi khoảng bão hòa hết cửa sổ ở control plane.
+
 Node giữ shadow **cho tới khi control plane gỡ** (W12-G1-01): không có hạn, restart agent
 vẫn giữ (`force-shadow.json`). Giữ quá 1 giờ thì có cảnh báo `StrataNodeFallbackHeld`.
 Kiểm: metric `strata_agent_fallback_active`, hoặc `collectDiagnostics` (`force_shadow.fallback`

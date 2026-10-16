@@ -207,6 +207,9 @@ type Sources struct {
 	CanaryTrips func() map[string]uint64
 	OpenTrips   func(context.Context) ([]store.CanaryTrip, error)
 	Now         func() time.Time
+
+	// CanarySourceSaturations counts incomplete source buckets across groups.
+	CanarySourceSaturations func() uint64
 }
 
 // Watch registers a collector over s.
@@ -229,6 +232,7 @@ var (
 	dQueue        = prometheus.NewDesc("strata_cp_ingest_queue", "Events waiting to be written to the event store.", nil, nil)
 	dStoreErrors  = prometheus.NewDesc("strata_cp_ingest_store_errors_total", "Writes to the event store that failed.", nil, nil)
 	dTrips        = prometheus.NewDesc("strata_cp_canary_trips_total", "Canary fallbacks this control plane made (canary policies of a connector group forced into shadow), by reason.", []string{"reason"}, nil)
+	dSourceFull   = prometheus.NewDesc("strata_cp_canary_source_saturations_total", "Canary source buckets that overflowed; block-rate decisions and learning pause until their windows expire.", nil, nil)
 	dTripOpen     = prometheus.NewDesc("strata_cp_canary_fallback_active", "1 while a connector group's canary policies are held in shadow by the canary fallback.", []string{"group", "reason"}, nil)
 	scrapeTimeout = 3 * time.Second
 )
@@ -237,7 +241,7 @@ type stateCollector struct{ s Sources }
 
 func (c stateCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dConnected, dEnrolled, dRollouts, dRolloutAge, dStoreUp,
-		dBatches, dEvents, dFlushed, dQueue, dStoreErrors, dTrips, dTripOpen} {
+		dBatches, dEvents, dFlushed, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull} {
 		ch <- d
 	}
 }
@@ -250,6 +254,9 @@ func (c stateCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(d, prometheus.CounterValue, float64(v), l...)
 	}
 	s := c.s
+	if s.CanarySourceSaturations != nil {
+		counter(dSourceFull, s.CanarySourceSaturations())
+	}
 	if s.Connected != nil {
 		gauge(dConnected, float64(len(s.Connected())))
 	}
