@@ -4,3 +4,4 @@
 --- PASS: TestExceptionDraftValidationInPostgres (0.50s)
 PASS
 ok  	github.com/strata/strata/control-plane/api	2.247s
+0 issues.
