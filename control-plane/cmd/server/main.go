@@ -349,11 +349,15 @@ func main() {
 	}
 
 	var annotations api.EventAnnotationStore
+	var exceptions api.ExceptionPolicyStore
 	if pg != nil {
 		annotations = pg
+		exceptions = pg
 	}
 	srv := api.NewServer(api.ServerConfig{
 		Annotations:  annotations,
+		Exceptions:   exceptions,
+		ReplayKick:   deps.ReplayKick,
 		Addr:         *addr,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

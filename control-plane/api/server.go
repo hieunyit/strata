@@ -16,6 +16,8 @@ import (
 type ServerConfig struct {
 	// Annotations persists event classifications; nil disables writes.
 	Annotations EventAnnotationStore
+	Exceptions  ExceptionPolicyStore
+	ReplayKick  func()
 
 	Addr         string
 	ReadTimeout  time.Duration
@@ -109,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
+	v1.HandleFunc("/v1/exceptions:fromBlockId", auth.RequireHTTP(auth.PermExceptionsWrite, s.HandleExceptionFromBlock))
 	search := auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleSearchEvents)
 	v1.HandleFunc("/v1/events:search", search)
 	// Handles /v1/events/{block_id}
