@@ -36,6 +36,7 @@ pub struct Engine {
     prefilter_on: bool,
     /// per policy index: its privacy settings (P-01 §1)
     privacy: Vec<Option<crate::privacy::Privacy>>,
+    exceptions: Vec<Vec<crate::exceptions::Exception>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -108,6 +109,31 @@ impl Engine {
             &flagged,
         )
         .map_err(|e| (E_BUNDLE, e.message()))?;
+        let flagged_exceptions: Vec<u32> = bundle::policies(bytes, &info)
+            .filter(|p| p.exceptions)
+            .map(|p| p.index)
+            .collect();
+        let parsed_exceptions = crate::exceptions::parse(
+            info.section(bytes, bundle::kind::EXCEPTIONS),
+            info.n_policies,
+            &flagged_exceptions,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut exceptions = vec![vec![]; info.n_policies as usize];
+        if !parsed_exceptions.is_empty() {
+            let managed = crate::rules::code(crate::rules::LAYERS, "managed");
+            let managed_ids: std::collections::HashSet<u32> = (0..tables.n_rules())
+                .filter_map(|i| tables.rule(i))
+                .filter(|r| Some(r.layer) == managed)
+                .map(|r| r.id)
+                .collect();
+            for e in parsed_exceptions {
+                if !managed_ids.contains(&e.rule_id) {
+                    return Err((E_BUNDLE, "exception must name an existing managed rule"));
+                }
+                exceptions[e.policy_index as usize].push(e);
+            }
+        }
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -180,6 +206,7 @@ impl Engine {
             prefilter,
             prefilter_on: true,
             privacy,
+            exceptions,
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
@@ -203,6 +230,12 @@ impl Engine {
     }
 
     /// Privacy settings of the policy at `index`, if it has some.
+    pub fn exceptions(&self, index: u32) -> &[crate::exceptions::Exception] {
+        self.exceptions
+            .get(index as usize)
+            .map_or(&[], Vec::as_slice)
+    }
+
     pub fn privacy(&self, index: u32) -> Option<&crate::privacy::Privacy> {
         self.privacy.get(index as usize).and_then(Option::as_ref)
     }
