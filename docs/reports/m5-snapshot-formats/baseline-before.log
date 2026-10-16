@@ -1,0 +1,7 @@
+=== RUN   TestFirstReplayBaselineUsesPreparedCompilerInputs
+2026/10/16 15:53:38 [WARN] replay: first-baseline (policy example-api version 2): building the baseline bundle: original compiler path used after Prepare
+    provenance_test.go:101: invalid character 'e' looking for beginning of value error: building the baseline bundle: original compiler path used after Prepare
+--- FAIL: TestFirstReplayBaselineUsesPreparedCompilerInputs (0.03s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/replay	0.121s
+FAIL

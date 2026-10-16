@@ -311,12 +311,14 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 	}
 	rep := &Report{}
 	var data []byte
+	buildBaseline := r.Build
 	if r.Prepare != nil {
 		snapshot, e := r.Prepare(ctx, draft)
 		if e != nil {
 			return nil, e
 		}
 		defer snapshot.Close()
+		buildBaseline = snapshot.ReplayBuildPolicies
 		rep.InputDigest = snapshot.Digest
 		data, err = snapshot.ReplayBuild(ctx, seed)
 	} else {
@@ -340,7 +342,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		if len(base) == 0 {
 			base = []policy.Named{{Name: p.Name, Spec: policy.Spec{Mode: "shadow"}}}
 		}
-		if bdata, err = r.Build(ctx, seed, base); err != nil {
+		if bdata, err = buildBaseline(ctx, seed, base); err != nil {
 			return nil, fmt.Errorf("building the baseline bundle: %w", err)
 		}
 		basePub = pub
