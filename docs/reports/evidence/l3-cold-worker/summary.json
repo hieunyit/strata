@@ -1,0 +1,18 @@
+{
+  "first": {
+    "requests": 11,
+    "engine_ns_min": 6748000,
+    "engine_ns_p50": 17102000,
+    "engine_ns_max": 28146000,
+    "budget_hits": 9,
+    "fail_open": 9
+  },
+  "warm": {
+    "requests": 220,
+    "engine_ns_min": 735000,
+    "engine_ns_p50": 990000,
+    "engine_ns_max": 6665000,
+    "budget_hits": 0,
+    "fail_open": 0
+  }
+}
