@@ -21,6 +21,13 @@ type Header struct {
 
 // Event represents a security event produced by proxy connectors and agent.
 type Event struct {
+	// Read-time overlay from PostgreSQL; never accepted from the data plane.
+	FalsePositive       bool       `json:"false_positive,omitempty"`
+	FalsePositiveReason string     `json:"false_positive_reason,omitempty"`
+	FalsePositiveBy     string     `json:"false_positive_by,omitempty"`
+	FalsePositiveAt     *time.Time `json:"false_positive_at,omitempty"`
+	AnnotationEtag      string     `json:"annotation_etag,omitempty"`
+
 	BlockID       string      `json:"block_id" ch:"block_id"`
 	Timestamp     time.Time   `json:"timestamp" ch:"timestamp"`
 	NodeID        string      `json:"node_id" ch:"node_id"`

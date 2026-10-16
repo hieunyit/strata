@@ -49,6 +49,50 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/events/{block_id}:markFalsePositive:
+    post:
+      summary: Mark an event as a false positive
+      description: Requires exceptions:write and durable PostgreSQL annotations. Creation uses an empty etag; editing requires the current annotation etag. request_id makes retries idempotent per authenticated subject. Classification does not change enforcement.
+      operationId: markFalsePositive
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
+                request_id: {type: string, maxLength: 128}
+                etag: {type: string}
+      responses:
+        '200':
+          description: Annotation and audit persisted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [block_id, false_positive, reason, marked_by, marked_at, etag]
+                properties:
+                  block_id: {type: string}
+                  false_positive: {type: boolean}
+                  reason: {type: string}
+                  marked_by: {type: string}
+                  marked_at: {type: string, format: date-time}
+                  etag: {type: string}
+        '400': {description: Invalid body or reused request_id with different content.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Event not found.}
+        '405': {description: POST required.}
+        '409': {description: Annotation etag changed.}
+        '503': {description: Durable store unavailable or not configured.}
   /v1/events:search:
     post:
       summary: Search Security Events
@@ -88,7 +132,7 @@ paths:
       summary: Overview Statistics
       description: 'Events of a window by time bucket and action, totals, top rules, top routes and, for callers who
         may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without
-        events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.'
+        events:read_sensitive. Event queries collapse retries with the same block_id and timestamp before counting.'
       operationId: getOverview
       parameters:
       - name: from
@@ -530,6 +574,11 @@ components:
           - full
           - partial
           - body_skipped
+        false_positive: {type: boolean, readOnly: true}
+        false_positive_reason: {type: string, readOnly: true}
+        false_positive_by: {type: string, readOnly: true}
+        false_positive_at: {type: string, format: date-time, readOnly: true}
+        annotation_etag: {type: string, readOnly: true}
     Header:
       type: object
       required:

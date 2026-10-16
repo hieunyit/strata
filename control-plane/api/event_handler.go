@@ -14,6 +14,8 @@ import (
 
 // EventHandler handles security event inspection and search HTTP endpoints.
 type EventHandler struct {
+	annotations EventAnnotationStore
+
 	store ingest.EventStore
 	rules *rulecat.Catalog
 }
@@ -114,6 +116,10 @@ func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.overlayAnnotations(r.Context(), []*ingest.Event{event}); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "annotations unavailable", blockID)
+		return
+	}
 	sanitized := sanitizeEvent(*event, auth.FromContext(r.Context()))
 
 	ids := append([]uint32(nil), sanitized.MatchedRules...)
@@ -186,6 +192,14 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		nextToken = EncodePageToken(offset + len(res.Events))
 	}
 
+	refs := make([]*ingest.Event, len(res.Events))
+	for i := range res.Events {
+		refs[i] = &res.Events[i]
+	}
+	if err := h.overlayAnnotations(r.Context(), refs); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "annotations unavailable", "")
+		return
+	}
 	caller := auth.FromContext(r.Context())
 	events := make([]ingest.Event, len(res.Events))
 	for i, e := range res.Events {

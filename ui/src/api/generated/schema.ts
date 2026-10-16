@@ -12,6 +12,13 @@ export interface paths {
      */
     get: operations["getEvent"];
   };
+  "/v1/events/{block_id}:markFalsePositive": {
+    /**
+     * Mark an event as a false positive
+     * @description Requires exceptions:write and durable PostgreSQL annotations. Creation uses an empty etag; editing requires the current annotation etag. request_id makes retries idempotent per authenticated subject. Classification does not change enforcement.
+     */
+    post: operations["markFalsePositive"];
+  };
   "/v1/events:search": {
     /**
      * Search Security Events
@@ -22,7 +29,7 @@ export interface paths {
   "/v1/stats/overview": {
     /**
      * Overview Statistics
-     * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.
+     * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Event queries collapse retries with the same block_id and timestamp before counting.
      */
     get: operations["getOverview"];
   };
@@ -187,6 +194,12 @@ export interface components {
        * @enum {string}
        */
       inspection?: "" | "full" | "partial" | "body_skipped";
+      false_positive?: boolean;
+      false_positive_reason?: string;
+      false_positive_by?: string;
+      /** Format: date-time */
+      false_positive_at?: string;
+      annotation_etag?: string;
     };
     Header: {
       name: string;
@@ -506,6 +519,64 @@ export interface operations {
     };
   };
   /**
+   * Mark an event as a false positive
+   * @description Requires exceptions:write and durable PostgreSQL annotations. Creation uses an empty etag; editing requires the current annotation etag. request_id makes retries idempotent per authenticated subject. Classification does not change enforcement.
+   */
+  markFalsePositive: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+          request_id?: string;
+          etag?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Annotation and audit persisted. */
+      200: {
+        content: {
+          "application/json": {
+            block_id: string;
+            false_positive: boolean;
+            reason: string;
+            marked_by: string;
+            /** Format: date-time */
+            marked_at: string;
+            etag: string;
+          };
+        };
+      };
+      /** @description Invalid body or reused request_id with different content. */
+      400: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Event not found. */
+      404: {
+        content: never;
+      };
+      /** @description POST required. */
+      405: {
+        content: never;
+      };
+      /** @description Annotation etag changed. */
+      409: {
+        content: never;
+      };
+      /** @description Durable store unavailable or not configured. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  /**
    * Search Security Events
    * @description Search and filter events across time, IP, action, policy, rules, and nodes.
    */
@@ -540,7 +611,7 @@ export interface operations {
   };
   /**
    * Overview Statistics
-   * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.
+   * @description Events of a window by time bucket and action, totals, top rules, top routes and, for callers who may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without events:read_sensitive. Event queries collapse retries with the same block_id and timestamp before counting.
    */
   getOverview: {
     parameters: {

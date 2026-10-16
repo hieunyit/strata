@@ -347,7 +347,12 @@ func main() {
 		log.Printf("[INFO] rule catalog: %d rules", catalog.Len())
 	}
 
+	var annotations api.EventAnnotationStore
+	if pg != nil {
+		annotations = pg
+	}
 	srv := api.NewServer(api.ServerConfig{
+		Annotations:  annotations,
 		Addr:         *addr,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

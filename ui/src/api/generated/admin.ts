@@ -270,6 +270,18 @@ export interface components {
       version?: number;
     };
     /**
+     * @description #98: when the CPU budget runs out on a request that already has
+     * findings (rules matched below the threshold), BLOCK answers as in fail
+     * mode closed (503 with the Event ID) whatever the connector's fail mode;
+     * PASS (and UNSPECIFIED) follows the fail mode. Enforce only. Modules
+     * from before the setting refuse bundles that set BLOCK: upgrade first.
+     *
+     *  - FAIL_ON_FINDINGS_UNSPECIFIED: pass
+     * @default FAIL_ON_FINDINGS_UNSPECIFIED
+     * @enum {string}
+     */
+    PolicySpecFailOnFindings: "FAIL_ON_FINDINGS_UNSPECIFIED" | "FAIL_ON_FINDINGS_PASS" | "FAIL_ON_FINDINGS_BLOCK";
+    /**
      * @default MODE_UNSPECIFIED
      * @enum {string}
      */
@@ -581,6 +593,7 @@ export interface components {
        * it: upgrade them first.
        */
       max_args?: number;
+      fail_on_findings?: components["schemas"]["PolicySpecFailOnFindings"];
     };
     v1PolicyVersion: {
       policy_id?: string;
