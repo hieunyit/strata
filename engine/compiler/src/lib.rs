@@ -12,6 +12,8 @@
 //! schema but not shipped yet: it belongs in events, not in the hot path.
 #![forbid(unsafe_code)]
 
+pub mod resolution;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
