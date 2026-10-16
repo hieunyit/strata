@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OverviewPage } from './pages/OverviewPage';
 import { EventsPage } from './pages/EventsPage';
@@ -11,11 +11,30 @@ import { AuditPage } from './pages/AuditPage';
 import { useRoute } from './router';
 import { useIdleTimeout } from './hooks/useIdleTimeout';
 import { IdleTimeoutModal } from './components/layout/IdleTimeoutModal';
+import { KeyboardHelpModal } from './components/layout/KeyboardHelpModal';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { apiClient } from './api/client';
 
 export const AppContent: React.FC = () => {
   const { status, roles, logout } = useAuth();
   const route = useRoute();
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useKeyboardShortcuts({
+    onSearchFocus: () => {
+      const input = document.getElementById('block-id-search');
+      if (input) {
+        input.focus();
+        (input as HTMLInputElement).select();
+      }
+    },
+    onEscape: () => {
+      setHelpOpen(false);
+    },
+    onHelpToggle: () => {
+      setHelpOpen((prev) => !prev);
+    },
+  });
 
   const { isWarningOpen, secondsRemaining, staySignedIn, signOutNow } = useIdleTimeout({
     enabled: status === 'authenticated',
@@ -53,6 +72,10 @@ export const AppContent: React.FC = () => {
         secondsRemaining={secondsRemaining}
         onStaySignedIn={staySignedIn}
         onSignOut={signOutNow}
+      />
+      <KeyboardHelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
       />
       {renderPage()}
     </>

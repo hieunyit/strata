@@ -129,8 +129,14 @@
       "httpMethod": "Phương thức",
       "allMethods": "Mọi phương thức",
       "apply": "Lọc",
-      "reset": "Xóa bộ lọc"
+      "reset": "Xóa bộ lọc",
+      "allPolicies": "Mọi policy",
+      "allNodes": "Mọi node"
     },
+    "pausedPage": "Tạm dừng (Trang {{page}})",
+    "pausedPageTooltip": "Cập nhật thời gian thực tạm dừng khi đang ở trang lịch sử",
+    "livePausedNotice": "Cập nhật thời gian thực tạm dừng khi xem các trang trước để tránh thay đổi dòng khi bạn đang điều tra.",
+    "returnToLive": "Về Trang 1 để xem thời gian thực →",
     "table": {
       "timestamp": "Thời điểm",
       "blockId": "Block ID",
@@ -149,10 +155,17 @@
       "prev": "Trước"
     }
   },
+  "shortcuts": {
+    "title": "Phím tắt",
+    "search": "Tìm kiếm theo Block ID",
+    "escape": "Đóng cửa sổ modal hoặc panel",
+    "help": "Bật/tắt bảng trợ giúp phím tắt này"
+  },
   "detail": {
     "back": "Sự kiện",
     "loading": "Đang tải decision trace…",
     "copyId": "Chép ID",
+    "copyCurl": "Chép lệnh cURL",
     "copyJson": "Chép JSON",
     "missingHelp": "Sự kiện có thể đã quá thời gian lưu (90 ngày), hoặc node chưa gửi tới. Kiểm lại ID người dùng đưa, rồi thử lại sau một phút.",
     "verdictTitle": "Vì sao",

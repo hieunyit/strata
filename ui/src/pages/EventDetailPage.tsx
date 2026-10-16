@@ -6,6 +6,7 @@ import { ErrorBanner, VerdictBadge, relativeTime } from '../components/ui';
 import { EventTrace, CopyButton } from '../components/events/EventTrace';
 import { apiClient, ApiError, GetEventResponse } from '../api/client';
 import { href } from '../router';
+import { buildCurlFromEvent } from '../lib/curl';
 
 type State =
   | { kind: 'loading' }
@@ -41,7 +42,17 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
 
   return (
     <AppShell active="event" wide>
-      <a href={href({ page: 'events' })} className="mb-3 inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink" data-testid="back-to-events">
+      <a
+        href={href({ page: 'events' })}
+        onClick={(e) => {
+          if (window.history.length > 1) {
+            e.preventDefault();
+            window.history.back();
+          }
+        }}
+        className="mb-3 inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink"
+        data-testid="back-to-events"
+      >
         <ChevronLeft className="w-4 h-4" />
         {t('detail.back')}
       </a>
@@ -51,6 +62,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
         </h1>
         {ev && <VerdictBadge action={ev.action} size="md" />}
         <CopyButton text={id} label={t('detail.copyId')} testId="copy-block-id" />
+        {ev && <CopyButton text={buildCurlFromEvent(ev)} label={t('detail.copyCurl', 'Copy as cURL')} testId="copy-curl-btn" />}
         {ev && <span className="text-[13px] text-muted">{relativeTime(ev.timestamp, i18n.language)}</span>}
       </div>
 

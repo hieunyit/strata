@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ShieldX, Eye, CheckCircle, AlertTriangle } from 'lucide-react';
 import { RangeKey } from '../lib/timeRange';
 
 // Small shared pieces of the console: verdict badges, the time range
@@ -14,22 +14,24 @@ export function verdictOf(action: string | undefined): Verdict {
 }
 
 const verdictClass: Record<Verdict, string> = {
-  block: 'text-block bg-block/10 border-block/30',
-  shadow: 'text-shadow bg-shadow/10 border-shadow/35',
-  pass: 'text-other bg-other/10 border-other/30',
+  block: 'text-block bg-block/10 border-block/40 border-solid',
+  shadow: 'text-shadow bg-shadow/10 border-shadow/40 border-dashed',
+  pass: 'text-other bg-other/10 border-other/30 border-dotted',
   error: 'text-muted bg-sunken border-line',
 };
 
-const verdictDot: Record<Verdict, string> = {
-  block: 'bg-block',
-  shadow: 'bg-shadow',
-  pass: 'bg-other',
-  error: 'bg-faint',
+const verdictIcon: Record<Verdict, React.ComponentType<{ className?: string }>> = {
+  block: ShieldX,
+  shadow: Eye,
+  pass: CheckCircle,
+  error: AlertTriangle,
 };
 
 export const VerdictBadge: React.FC<{ action?: string; size?: 'sm' | 'md' }> = ({ action, size = 'sm' }) => {
   const { t } = useTranslation();
   const v = verdictOf(action);
+  const Icon = verdictIcon[v];
+  const iconSize = size === 'md' ? 'w-3.5 h-3.5' : 'w-3 h-3';
   return (
     <span
       data-testid="verdict"
@@ -38,7 +40,7 @@ export const VerdictBadge: React.FC<{ action?: string; size?: 'sm' | 'md' }> = (
         size === 'md' ? 'px-2.5 py-1 text-[13px]' : 'px-1.5 py-0.5 text-xs'
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${verdictDot[v]}`} />
+      <Icon className={`${iconSize} shrink-0`} aria-hidden />
       {t(`verdict.${v}`)}
     </span>
   );

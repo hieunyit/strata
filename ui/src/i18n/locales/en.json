@@ -132,8 +132,14 @@
       "httpMethod": "Method",
       "allMethods": "Any method",
       "apply": "Apply filters",
-      "reset": "Clear filters"
+      "reset": "Clear filters",
+      "allPolicies": "All policies",
+      "allNodes": "All nodes"
     },
+    "pausedPage": "Paused (Page {{page}})",
+    "pausedPageTooltip": "Live updates paused on historical pages",
+    "livePausedNotice": "Live updates are paused on historical pages to prevent shifting rows under your inspection.",
+    "returnToLive": "Return to Page 1 for Live Stream →",
     "table": {
       "timestamp": "Time",
       "blockId": "Block ID",
@@ -153,10 +159,17 @@
       "prev": "Previous"
     }
   },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "search": "Focus Block ID search bar",
+    "escape": "Close open modal or drawer",
+    "help": "Toggle this keyboard shortcuts dialog"
+  },
   "detail": {
     "back": "Events",
     "loading": "Loading the decision trace…",
     "copyId": "Copy ID",
+    "copyCurl": "Copy as cURL",
     "copyJson": "Copy JSON",
     "missingHelp": "The event may be older than the retention period (90 days), or the node has not sent it yet. Check the ID the user gave you, then try again in a minute.",
     "verdictTitle": "Why",
