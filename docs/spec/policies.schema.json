@@ -56,6 +56,10 @@
             "minimum": 1,
             "maximum": 1020
           },
+          "fail_on_findings": {
+            "description": "#98: when the CPU budget runs out on a request that already has findings (rules matched below the blocking threshold), `block` answers as in fail mode closed (503 with the Event ID) whatever the connector's fail mode; `pass` (default) follows the fail mode. Enforce only: a shadow policy never blocks. Measure the share of such requests in shadow first (`strata-rules lifecycle`). Engines from before the setting refuse a bundle that sets block: upgrade the module on every node first.",
+            "enum": ["pass", "block"]
+          },
           "max_snippet_size": {
             "description": "Longest input snippet of a match in the policy's events, in bytes, masked before it is cut (P-01 §1b): 128 by default; 2048 or 4096 to investigate. Engines from before the setting refuse a bundle with 2048 or 4096: upgrade the module on every node first.",
             "enum": [128, 2048, 4096]

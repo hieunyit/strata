@@ -110,6 +110,8 @@ pub struct Tx {
     /// arguments were left out (rule 100021, #28)
     max_args: usize,
     args_left_out: bool,
+    /// #98: the policy fails closed when the budget runs out on findings
+    fail_on_findings: bool,
     /// W13-R-02: this transaction is sampled for the cost of each rule;
     /// the times of its evaluations, by rule index (None: the scans)
     cost_sampled: bool,
@@ -288,6 +290,7 @@ impl Tx {
             event_headers: Vec::new(),
             body_skipped: false,
             max_args: 0,
+            fail_on_findings: false,
             args_left_out: false,
             cost_sampled: !missing && crate::rulecost::should_sample(),
             costs: std::cell::RefCell::new(Vec::new()),
@@ -479,6 +482,7 @@ impl Tx {
             self.signatures = p.signatures;
             self.snippet_max = p.snippet.bytes();
             self.max_args = p.max_args;
+            self.fail_on_findings = p.fail_on_findings;
         } else {
             self.policy_index = None;
             self.canary = crate::event::CanaryGroup::None;
@@ -1194,6 +1198,14 @@ impl Tx {
         v.need_response = (self.error == OK || self.error == E_BUDGET) && self.wants_body();
         v.id = self.id;
         v.canary = self.canary;
+        // #98: the budget ran out on an enforced request that already has
+        // findings (score above 0: rules matched below the threshold; the
+        // signature pack in shadow and score-0 rules do not count)
+        v.fail_closed = self.fail_on_findings
+            && self.error == E_BUDGET
+            && !self.matched
+            && !self.shadow
+            && self.score > 0;
         v
     }
 

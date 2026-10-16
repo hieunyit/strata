@@ -48,6 +48,10 @@ pub struct Verdict {
     pub id: Option<[u8; ID_LEN]>,
     /// Canary group of the request's policy (W12-G2-01).
     pub canary: crate::event::CanaryGroup,
+    /// #98: the CPU budget ran out on a request with findings and the
+    /// policy says fail_on_findings: block: the connector fails closed
+    /// whatever its fail mode.
+    pub fail_closed: bool,
 }
 
 impl Verdict {
@@ -64,6 +68,7 @@ impl Verdict {
             rules: [0; MAX_RULES],
             id: None,
             canary: crate::event::CanaryGroup::None,
+            fail_closed: false,
         }
     }
 }

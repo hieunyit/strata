@@ -70,6 +70,9 @@ fn to_c(v: &Verdict) -> strata_verdict_t {
         libstrata::event::CanaryGroup::Enforce => out.flags |= STRATA_VF_CANARY,
         libstrata::event::CanaryGroup::Shadow => out.flags |= STRATA_VF_CANARY_SHADOW,
     }
+    if v.fail_closed {
+        out.flags |= STRATA_VF_FAIL_CLOSED;
+    }
     if let Some(id) = &v.id {
         write_c_str(&mut out.block_id, id);
     }

@@ -236,7 +236,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 /// A policy as the compiler reads it: (name, mode, oversize, response
 /// flags, canary share in basis points, signature pack, snippet size,
-/// max_args (0 = the engine's 1024)).
+/// max_args (0 = the engine's 1024), fail_on_findings (#98)).
 pub type PolicyFields = (
     String,
     Mode,
@@ -246,6 +246,7 @@ pub type PolicyFields = (
     Signatures,
     SnippetSize,
     usize,
+    bool,
 );
 
 #[derive(Debug)]
@@ -362,6 +363,16 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 }
             },
         };
+        // #98: the budget runs out on a request with findings: fail closed
+        let fail_on_findings = match p["fail_on_findings"].as_str() {
+            None | Some("pass") => false,
+            Some("block") => true,
+            Some(v) => {
+                return Err(format!(
+                    "policy {name:?}: fail_on_findings must be pass or block, got {v:?}"
+                ));
+            }
+        };
         let pv = &p["privacy"];
         let strings = |k: &str| -> Vec<String> {
             pv[k]
@@ -397,6 +408,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             signatures,
             snippet,
             max_args,
+            fail_on_findings,
         ));
     }
     let block_page = match doc.get("block_page") {
@@ -923,12 +935,13 @@ fn compile_unsigned_with(
         .policies
         .iter()
         .enumerate()
-        .map(|(i, (n, m, o, r, c, g, sn, a))| PolicySpec {
+        .map(|(i, (n, m, o, r, c, g, sn, a, f))| PolicySpec {
             response: *r,
             canary: *c,
             signatures: *g,
             snippet: *sn,
             max_args: *a,
+            fail_on_findings: *f,
             privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
             ..PolicySpec::new(n, *m, *o)
         })
