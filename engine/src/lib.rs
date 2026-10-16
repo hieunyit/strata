@@ -22,6 +22,7 @@ pub mod json;
 pub mod multipart;
 pub mod operators;
 pub mod privacy;
+pub mod rulecost;
 pub mod rules;
 pub mod transform;
 pub mod tx;

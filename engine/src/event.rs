@@ -626,6 +626,31 @@ pub fn encode_sample(
     out
 }
 
+/// One RuleCost message (W13-R-02) as field `field_number`.
+fn put_rule_cost(field_number: u32, c: &crate::rulecost::Cost, out: &mut Vec<u8>) {
+    let mut m = Vec::with_capacity(24);
+    put_uint32(1, c.0, &mut m);
+    put_uint64(2, c.1, &mut m);
+    put_uint64(3, c.2, &mut m);
+    put_uint64(4, c.3, &mut m);
+    put_tag(field_number, 2, out);
+    put_varint(m.len() as u64, out);
+    out.extend_from_slice(&m);
+}
+
+/// Appends the rule costs of a sampled transaction to its event
+/// (`Event.rule_costs`, field 23), as many as fit `max` bytes in all.
+pub fn append_rule_costs(costs: &[crate::rulecost::Cost], max: usize, out: &mut Vec<u8>) {
+    for c in costs {
+        let mut item = Vec::with_capacity(32);
+        put_rule_cost(23, c, &mut item);
+        if out.len() + item.len() > max {
+            break;
+        }
+        out.extend_from_slice(&item);
+    }
+}
+
 /// First bytes of a counters datagram on the event socket (RV-N-01,
 /// `crate::counters`).
 pub const COUNTERS_MAGIC: &[u8; 4] = b"\xffSC1";
@@ -640,6 +665,39 @@ pub fn encode_counters(
     entries: &[(&[u8], [u64; crate::counters::N])],
     max: usize,
 ) -> (Vec<u8>, usize) {
+    encode_counters_with(
+        time_unix_ms,
+        node_id,
+        bundle_version,
+        entries,
+        &RuleCostTake::default(),
+        max,
+    )
+    .0
+}
+
+/// Rule costs to send with the counters (W13-R-02): the rules, and the
+/// sampled transactions with their engine time.
+#[derive(Debug, Default)]
+pub struct RuleCostTake {
+    pub costs: Vec<crate::rulecost::Cost>,
+    pub requests: u64,
+    pub engine_ns: u64,
+}
+
+/// Rules a counters datagram carries at most; the others wait.
+pub const COUNTERS_RULES: usize = 64;
+
+/// As `encode_counters`, with the rule costs after the policies: returns
+/// the datagram, how many policies and how many rules it holds.
+pub fn encode_counters_with(
+    time_unix_ms: u64,
+    node_id: &str,
+    bundle_version: u64,
+    entries: &[(&[u8], [u64; crate::counters::N])],
+    costs: &RuleCostTake,
+    max: usize,
+) -> ((Vec<u8>, usize), usize) {
     let mut out = Vec::with_capacity(256);
     out.extend_from_slice(COUNTERS_MAGIC);
     put_uint64(1, time_unix_ms, &mut out);
@@ -662,7 +720,21 @@ pub fn encode_counters(
         out.extend_from_slice(&item);
         n += 1;
     }
-    (out, n)
+    let mut r = 0;
+    if costs.requests > 0 {
+        put_uint64(6, costs.requests, &mut out);
+        put_uint64(7, costs.engine_ns, &mut out);
+    }
+    for c in costs.costs.iter().take(COUNTERS_RULES) {
+        let mut item = Vec::with_capacity(32);
+        put_rule_cost(5, c, &mut item);
+        if out.len() + item.len() > max {
+            break;
+        }
+        out.extend_from_slice(&item);
+        r += 1;
+    }
+    ((out, n), r)
 }
 
 #[cfg(test)]
