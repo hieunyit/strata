@@ -915,6 +915,8 @@ impl Tx {
                 self.degraded,
                 self.signatures != crate::bundle::Signatures::Off,
                 &self.disabled,
+                self.policy_index
+                    .map(|index| (index, engine.exceptions(index))),
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -983,6 +985,8 @@ impl Tx {
             self.degraded,
             self.signatures != crate::bundle::Signatures::Off,
             &self.disabled,
+            self.policy_index
+                .map(|index| (index, engine.exceptions(index))),
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );

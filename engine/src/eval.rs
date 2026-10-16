@@ -1283,6 +1283,7 @@ struct Ctx<'t, 'b, 'a> {
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
     /// transformed values (owned) -> conditions matched by the scan
     scans_by_bytes: ContentScans,
+    active_exceptions: Vec<&'t crate::exceptions::Exception>,
     /// per scan group of the prefilter: the gates that hold, once computed
     groups: Vec<Option<Vec<u32>>>,
     /// #28: what the prefilter scanned, value by value
@@ -1650,6 +1651,7 @@ fn condition(
     ctx: &mut Ctx<'_, '_, '_>,
     d: &Data<'_>,
     ci: u32,
+    rule_id: u32,
     c: &CondView<'_>,
     prev: &Matched,
     mut collect: Option<&mut Matched>,
@@ -1706,7 +1708,7 @@ fn condition(
         // values of matched_vars are owned by the previous condition: their
         // addresses are not stable keys for the scan cache
         let from_prev = t.var == const { var("matched_vars") };
-        let vals = if from_prev {
+        let mut vals = if from_prev {
             TargetVals::Many(
                 prev.iter()
                     .map(|v| TargetVal {
@@ -1718,6 +1720,50 @@ fn condition(
         } else {
             values(d, &t, &excluded)
         };
+        let namespace =
+            if t.var == var("args") || t.var == var("args_get") || t.var == var("args_post") {
+                "ARGS"
+            } else if t.var == var("request_headers") {
+                "REQUEST_HEADERS"
+            } else {
+                ""
+            };
+        if !namespace.is_empty()
+            && ctx.active_exceptions.iter().any(|e| e.rule_id == rule_id)
+            && let TargetVals::Many(ref mut values) = vals
+        {
+            values.retain(|value| {
+                if ctx.budget_exceeded {
+                    return true;
+                }
+                if ctx
+                    .budget
+                    .as_mut()
+                    .is_some_and(|budget| budget.check_cheap().is_err())
+                {
+                    ctx.budget_exceeded = true;
+                    return true;
+                }
+                let Some(name) = value.name else { return true };
+                // Only decoder-owned names are aliases. A real parameter named
+                // "Name|base64" is a different field from decoded "Name".
+                let name = if namespace == "ARGS"
+                    && d.b64_args
+                        .iter()
+                        .any(|(key, _)| key.as_ptr() == name.as_ptr() && key.len() == name.len())
+                {
+                    crate::b64::base_name(name)
+                } else {
+                    name
+                };
+                !ctx.active_exceptions
+                    .iter()
+                    .any(|e| e.rule_id == rule_id && e.matches_field(namespace, name))
+            });
+        }
+        if ctx.budget_exceeded {
+            return Outcome::Match(false, None);
+        }
         if numeric && t.count {
             // a count always has a value
             if compare(op, vals.len() as i64, y) != neg {
@@ -2007,7 +2053,7 @@ fn rule_matches(
             });
         let mut kept = Matched::new();
         let collect = if next_reads { Some(&mut kept) } else { None };
-        match condition(ctx, d, ci, &c, &prev, collect) {
+        match condition(ctx, d, ci, r.id, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m, cand) => {
                 if ctx.budget_exceeded {
@@ -2082,6 +2128,7 @@ pub fn evaluate(
         true,
         &[],
         None,
+        None,
         report,
     );
 }
@@ -2117,6 +2164,7 @@ pub fn evaluate_with_budget(
     degraded: bool,
     signatures: bool,
     disabled: &[u32],
+    exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
     mut budget: Option<&mut crate::budget::TxBudget>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), crate::budget::BudgetExceeded> {
@@ -2271,6 +2319,30 @@ pub fn evaluate_with_budget(
             .map(|b| MappedDb::assume_valid_with_id(b.image, db.id() | BLOCK_DB_ID));
         (map, db, block)
     });
+    let active_exceptions = exception_policy.map_or_else(Vec::new, |(index, entries)| {
+        if entries.is_empty() {
+            return vec![];
+        }
+        let mut hosts = req
+            .headers
+            .iter()
+            .filter(|(name, _)| name.eq_ignore_ascii_case(b"Host"));
+        let Some((_, host)) = hosts.next() else {
+            return vec![];
+        };
+        if hosts.next().is_some() {
+            return vec![];
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .and_then(|d| u64::try_from(d.as_millis()).ok())
+            .unwrap_or(0);
+        entries
+            .iter()
+            .filter(|e| e.matches_scope(index, req.method, host, req.uri, now))
+            .collect()
+    });
     let mut ctx = Ctx {
         engine_id,
         tables,
@@ -2279,6 +2351,7 @@ pub fn evaluate_with_budget(
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
         scans_by_bytes: ContentScans::with_hasher(operators.content_hasher.clone()),
+        active_exceptions,
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
         pass: Pass::default(),
         budget,
