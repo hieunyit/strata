@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 6
+#define STRATA_ABI_VERSION_MINOR 7
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -369,6 +369,18 @@ strata_engine_t *strata_engine_map(const uint8_t *base,
                                    size_t len,
                                    const uint8_t *pubkey,
                                    strata_err_t *err);
+
+/**
+ * Prepares thread-local inspection caches on the calling worker thread.
+ * Call before accepting requests and before activating a newly mapped engine,
+ * outside the request path. Repeated calls are safe. No transaction or traffic
+ * counters are created. This primes common paths, not every possible input.
+ * Returns STRATA_E_INVALID for NULL, STRATA_E_INTERNAL on preparation failure.
+ *
+ * # Safety
+ * `e` must be NULL or a live engine handle for the duration of this call.
+ */
+strata_rc_t strata_engine_prepare_thread(const strata_engine_t *e);
 
 /**
  * Fills `out` with the signed header fields of the engine's bundle (version,

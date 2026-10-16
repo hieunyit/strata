@@ -876,16 +876,28 @@ impl Prefilter {
         v
     }
 
-    /// Conditions of the rules evaluated on every request (not gated):
-    /// their fallback regexes are needed by the first request already.
-    pub fn ungated_conditions<'t>(
+    /// Conditions needed without a selective input gate. A method-only
+    /// gate is common traffic too: GET must not compile its secondary
+    /// regexes on the first request after a worker starts.
+    pub fn startup_conditions<'t>(
         &'t self,
         tables: &'t Tables<'_>,
     ) -> impl Iterator<Item = u32> + 't {
-        self.stages
+        self.rule_gate
             .iter()
-            .flat_map(|(ungated, _)| ungated.iter())
-            .filter_map(|&ri| tables.rule(ri as usize))
+            .enumerate()
+            .filter(|(_, gate)| match gate {
+                Gate::None => true,
+                Gate::One(ci) => tables.cond(*ci).is_some_and(|c| {
+                    (c.target_first..c.target_first + c.target_count).all(|ti| {
+                        tables
+                            .target(ti)
+                            .is_some_and(|t| t.var == const { var("method") })
+                    })
+                }),
+                Gate::AnyOf => false,
+            })
+            .filter_map(|(ri, _)| tables.rule(ri))
             .flat_map(|r| r.cond_first..r.cond_first + r.cond_count)
     }
 

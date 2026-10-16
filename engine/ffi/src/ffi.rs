@@ -244,6 +244,28 @@ pub unsafe extern "C" fn strata_engine_map(
     handle
 }
 
+/// Prepares thread-local inspection caches on the calling worker thread.
+/// Call before accepting requests and before activating a newly mapped engine,
+/// outside the request path. Repeated calls are safe. No transaction or traffic
+/// counters are created. This primes common paths, not every possible input.
+/// Returns STRATA_E_INVALID for NULL, STRATA_E_INTERNAL on preparation failure.
+///
+/// # Safety
+/// `e` must be NULL or a live engine handle for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_engine_prepare_thread(e: *const EngineHandle) -> strata_rc_t {
+    guard(STRATA_E_INTERNAL, || {
+        if e.is_null() {
+            return STRATA_E_INVALID;
+        }
+        // SAFETY: the caller holds a live engine reference.
+        match unsafe { &*e.cast::<Engine>() }.prepare_thread() {
+            Ok(()) => STRATA_OK,
+            Err(_) => STRATA_E_INTERNAL,
+        }
+    })
+}
+
 /// Fills `out` with the signed header fields of the engine's bundle (version,
 /// creation time, rollback flag). With a NULL engine, `out` is zeroed.
 ///

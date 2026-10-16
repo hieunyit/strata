@@ -24,6 +24,11 @@ def metrics(path):
     # Metrics v1: header 64 bytes, worker slot 448 bytes, u64 counters.
     if len(raw) < 512:
         return None
+    header = struct.unpack_from('<8s4I', raw)
+    if header == (b'\0' * 8, 0, 0, 0, 0):
+        return None
+    if header != (b'STRMET1\0', 1, 1, 448, 50) or len(raw) != 512:
+        raise RuntimeError('unexpected metrics layout or worker count')
     return struct.unpack_from('<50Q', raw, 64)
 
 
@@ -49,15 +54,26 @@ def run(args):
     nginx, module, bundle, pub, mkbundle = [Path(p).resolve() for p in
         [args.nginx, args.module, args.bundle, args.pubkey, args.mkbundle]]
     version = struct.unpack_from('<Q', bundle.read_bytes(), 16)[0]
+    hot = Path(args.hot_bundle).resolve() if args.hot_bundle else None
+    hot_version = struct.unpack_from('<Q', hot.read_bytes(), 16)[0] if hot else None
+    if hot and hot_version <= version:
+        raise ValueError('hot bundle version must increase')
     metadata = {'scope': 'worker_first_transaction_and_reload_not_cold_host_cache',
                 'cpu_budget_us': 10000, 'fail_mode': 'open', 'workers': 1,
                 'reloads': args.reloads, 'warm_per_worker': args.warm,
+                'request_uri_sha256': hashlib.sha256(args.uri.encode('ascii')).hexdigest(),
+                'expected_status': args.expected_status,
+                'activation_mode': 'hot_bundle' if hot else 'worker_reload',
                 'cpu': args.cpu, 'bundle_version': version,
                 'hashes': {str(p): sha(p) for p in [nginx, module, bundle, pub, mkbundle, Path(__file__)]}}
+    if hot:
+        metadata.update(hot_bundle_sha256=sha(hot), hot_bundle_version=hot_version)
     with tempfile.TemporaryDirectory(prefix='cold-', dir=out) as directory:
         root = Path(directory)
         (root / 'bundles').mkdir()
         (root / 'bundles' / f'bundle-{version}.sbn').write_bytes(bundle.read_bytes())
+        if hot:
+            (root / 'bundles' / f'bundle-{hot_version}.sbn').write_bytes(hot.read_bytes())
         subprocess.run([str(mkbundle), 'control', '--out', str(root / 'control'),
                         '--generation', '2', '--version', str(version), '--name',
                         f'bundle-{version}.sbn', '--bundle', str(bundle)], check=True, capture_output=True)
@@ -127,20 +143,30 @@ http {{
             try:
                 old_pid = 0
                 for cycle in range(args.reloads + 1):
+                    expected_version = hot_version if hot and cycle else version
                     if cycle:
-                        process.send_signal(signal.SIGHUP)
+                        if hot:
+                            subprocess.run([str(mkbundle), 'control', '--in-place', '--out', str(root / 'control'),
+                                            '--generation', '4', '--version', str(hot_version), '--name',
+                                            f'bundle-{hot_version}.sbn', '--bundle', str(hot)], check=True, capture_output=True)
+                        else:
+                            process.send_signal(signal.SIGHUP)
                     def ready():
                         if process.poll() is not None:
                             raise RuntimeError('NGINX exited; inspect process.log')
                         value = metrics(metric)
-                        return value if value and value[0] != old_pid and value[1] == version and not Path(f'/proc/{old_pid}').exists() else None
+                        if not value or value[1] != expected_version:
+                            return None
+                        if hot and cycle:
+                            return value if value[0] == old_pid else None
+                        return value if value[0] != old_pid and not Path(f'/proc/{old_pid}').exists() else None
                     current = until(ready)
                     worker_pid = current[0]
                     for index in range(args.warm + 1):
                         before = metrics(metric)
                         start = time.perf_counter_ns()
                         conn = http.client.HTTPConnection('127.0.0.1', front, timeout=5)
-                        conn.request('GET', '/probe?q=ordinary', headers={'Host': 'api.example.test', 'User-Agent': 'example-client/1', 'Connection': 'close'})
+                        conn.request('GET', args.uri, headers={'Host': 'api.example.test', 'User-Agent': 'example-client/1', 'Connection': 'close'})
                         response = conn.getresponse()
                         response.read()
                         wall_ns = time.perf_counter_ns() - start
@@ -152,9 +178,10 @@ http {{
                             value = metrics(metric)
                             return value if value and sum(value[2:6]) == sum(before[2:6]) + 1 and sum(value[12:21]) == sum(before[12:21]) + 1 else None
                         after = until(completed, 2)
-                        if after[0] != worker_pid or observed_pid != worker_pid or observed_bundle != version:
+                        if after[0] != worker_pid or observed_pid != worker_pid or observed_bundle != expected_version:
                             raise RuntimeError('request reached an unexpected/unready worker')
                         record = {'cycle': cycle, 'worker_pid': worker_pid,
+                                  'bundle_version': expected_version,
                                   'phase': 'first' if index == 0 else 'warm', 'index': index,
                                   'status': status, 'wall_ns': wall_ns,
                                   'engine_ns': after[11] - before[11],
@@ -163,8 +190,8 @@ http {{
                         records.append(record)
                         with (out / "requests.jsonl").open("a") as stream:
                             stream.write(json.dumps(record) + "\n")
-                        if status != 200:
-                            raise RuntimeError('benign request did not pass')
+                        if status != args.expected_status:
+                            raise RuntimeError(f'unexpected response: {status}, expected {args.expected_status}')
                     old_pid = worker_pid
             finally:
                 process.send_signal(signal.SIGQUIT) if process.poll() is None else None
@@ -202,7 +229,14 @@ if __name__ == '__main__':
     parser.add_argument('--reloads', type=int, default=10)
     parser.add_argument('--warm', type=int, default=20)
     parser.add_argument('--cpu', type=int, default=6)
+    parser.add_argument('--uri', default='/probe?q=ordinary')
+    parser.add_argument('--expected-status', type=int, choices=[200, 403], default=200)
+    parser.add_argument('--hot-bundle', help='with --reloads 1, activate a newer signed bundle without restarting the worker')
     options = parser.parse_args()
     if not 1 <= options.reloads <= 100 or not 1 <= options.warm <= 100 or not 0 <= options.cpu <= 1023:
         parser.error('bounded reload/warm/cpu values required')
+    if not options.uri.startswith('/') or len(options.uri) > 4096 or not all(33 <= ord(c) <= 126 for c in options.uri):
+        parser.error('URI must be a bounded ASCII origin-form path without spaces/control bytes')
+    if options.hot_bundle and options.reloads != 1:
+        parser.error('hot bundle mode requires --reloads 1')
     run(options)

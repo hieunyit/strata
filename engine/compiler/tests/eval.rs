@@ -681,6 +681,79 @@ rules:
     }
 
     #[test]
+    fn method_gate_fallback_is_compiled_before_first_request() {
+        let ir = r#"
+ir_version: 1
+ruleset: { name: p, version: "1" }
+rules:
+  - { id: 800604, name: method-rx, layer: managed, stage: request_headers, score: 100, severity: critical,
+      match: { all: [
+        { targets: [ { var: method } ], operator: { type: streq, value: "GET" } },
+        { targets: [ { var: args } ], operator: { type: pm, value: [xy, zz] } } ] },
+      metadata: { source: organization, license: Apache-2.0 } }
+"#;
+        let doc = from_yaml(ir).unwrap();
+        let b = compile(
+            &rules_from_ir(&doc).unwrap(),
+            &policies_from(
+                &from_yaml("policies: [{ name: example-api, mode: enforce }]").unwrap(),
+                std::path::Path::new("."),
+            )
+            .unwrap(),
+            &Build {
+                version: 1,
+                created_at_ms: 0,
+                rollback: false,
+            },
+            &SEED,
+        )
+        .unwrap();
+        let e = Arc::new(
+            Engine::map(
+                Box::new(strata_hs::AlignedBuf::from_bytes(&b)),
+                &public_key(&SEED),
+            )
+            .unwrap(),
+        );
+        assert_eq!(e.regexes().len(), 1);
+        assert_eq!(
+            e.regexes().compiled_count(),
+            1,
+            "common method gate must not defer compilation to traffic"
+        );
+        assert_eq!(
+            rules(&super::run(
+                &e,
+                "GET",
+                "/?q=xy",
+                &[("Host", "api.example.test")],
+                "192.0.2.1"
+            )),
+            [800604]
+        );
+        assert_eq!(
+            rules(&super::run(
+                &e,
+                "POST",
+                "/?q=xy",
+                &[("Host", "api.example.test")],
+                "192.0.2.1"
+            )),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            rules(&super::run(
+                &e,
+                "GET",
+                "/?q=ordinary",
+                &[("Host", "api.example.test")],
+                "192.0.2.1"
+            )),
+            Vec::<u32>::new()
+        );
+    }
+
+    #[test]
     fn too_large_for_hyperscan_still_matches() {
         let e = engine_932230();
         assert_eq!(

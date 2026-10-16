@@ -362,13 +362,13 @@ impl Engine {
             .map(|h| MappedDb::assume_valid_with_id(h.image, self.id | crate::eval::BLOCK_DB_ID))
     }
 
-    /// Compiles the fallback regexes the first request needs (those of the
-    /// rules evaluated on every request); `map` calls it (#49). Returns how
-    /// many. The others stay lazy.
+    /// Compiles fallback regexes without a selective input gate, including
+    /// method-only gates; `map` calls it (#49), outside request evaluation.
+    /// Returns how many. Selectively gated rules stay lazy.
     pub fn precompile_hot_regexes(&self) -> usize {
         let tables = self.tables();
         self.prefilter
-            .ungated_conditions(&tables)
+            .startup_conditions(&tables)
             .filter_map(|ci| self.regexes.get(ci))
             .filter(|fb| fb.compiled().is_some())
             .count()
@@ -382,6 +382,32 @@ impl Engine {
         if let Some(db) = self.hyperscan_block() {
             let _ = db.warm_block();
         }
+    }
+
+    /// Prepare caches on the connector's worker thread before it accepts
+    /// requests or publishes a new bundle. Does not create a transaction,
+    /// record traffic, or change detection/budget policy.
+    pub fn prepare_thread(&self) -> Result<(), String> {
+        if let Some(db) = self.hyperscan() {
+            db.warm_thread()
+                .map_err(|e| format!("stream scratch: {e:?}"))?;
+        }
+        if let Some(db) = self.hyperscan_block() {
+            db.warm_block()
+                .map_err(|e| format!("block scratch: {e:?}"))?;
+        }
+        let tables = self.tables();
+        for ci in self.prefilter.startup_conditions(&tables) {
+            if let Some((re, _)) = self.regexes.get(ci).and_then(|fb| fb.compiled()) {
+                // A bounded nonempty search primes the regex library's
+                // worker-local pool; compiling on the loader thread alone
+                // does not populate the calling worker's cache.
+                let _ = re.is_match(
+                    b"ordinary request cache preparation ordinary request cache preparation",
+                );
+            }
+        }
+        Ok(())
     }
 
     pub fn tables(&self) -> Tables<'_> {

@@ -70,7 +70,10 @@ pub unsafe fn profile_warm_request(tx: *mut TxHandle) {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(args.len(), 3, "bundle.sbn public.key");
+    assert!(
+        args.len() == 3 || (args.len() == 4 && args[3] == "--prepare"),
+        "bundle.sbn public.key [--prepare]"
+    );
     let bundle = strata_hs::AlignedBuf::from_bytes(&std::fs::read(&args[1]).unwrap());
     let public = std::fs::read(&args[2]).unwrap();
     assert_eq!(public.len(), 32);
@@ -87,6 +90,14 @@ fn main() {
         )
     };
     assert!(!engine.is_null(), "map {}", err.code);
+    if args.len() == 4 {
+        let start = Instant::now();
+        assert_eq!(unsafe { strata_engine_prepare_thread(engine) }, STRATA_OK);
+        println!(
+            "{}",
+            serde_json::json!({"kind":"prepare_thread","elapsed_ns":start.elapsed().as_nanos(),"scope":"offline_C_ABI_not_forked_NGINX"})
+        );
+    }
     libstrata::rulecost::set_sample_every(1);
     for first in [true, false] {
         let conn = strata_conn_t {

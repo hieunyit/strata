@@ -224,6 +224,8 @@ Trong decision trace và sự kiện, vị trí vi phạm được ghi theo đư
 
 Module chỉ gọi `libstrata` qua một C ABI nhỏ, ổn định, có version; mọi con trỏ đầu vào chỉ được mượn trong thời gian gọi hàm, và không panic nào được phép vượt qua ranh giới.
 
+Cache worker (ABI 1.7, remediation #49): bundle map biên dịch sớm fallback regex của rule không có gate chọn lọc, gồm gate chỉ theo method. Connector gọi `strata_engine_prepare_thread` trên chính thread worker sau fork và trước khi publish bundle mới: cấp scratch/stream Hyperscan và prime cache regex cho đường thông dụng bằng input cố định hữu hạn. Không tạo transaction, không tăng traffic/rule-cost counters, không thay budget/fail mode. Không bảo đảm warm mọi pattern/input; fallback dưới gate theo dữ liệu vẫn lazy. Nếu chuẩn bị lỗi, module ghi warning và giữ cơ chế inspection/fail mode hiện có khi request đến. Hot activation có thêm thời gian chuẩn bị đồng bộ trên event loop, cần đo độ trễ activation và traffic dưới tải trước khi triển khai.
+
 **API chính (`strata.h`)**
 
 ```c
@@ -236,6 +238,9 @@ strata_engine_t *strata_engine_map(const uint8_t *base, size_t len,
                                    const uint8_t *pubkey, strata_err_t *err);
 void strata_engine_retain(strata_engine_t *e);
 void strata_engine_release(strata_engine_t *e);   /* bản cuối: module munmap */
+
+/* ABI 1.7: chuẩn bị cache trên thread worker, trước request/activate bundle */
+strata_rc_t strata_engine_prepare_thread(const strata_engine_t *e);
 
 /* Transaction: một request, chỉ dùng trên một thread */
 strata_tx_t *strata_tx_new(strata_engine_t *e, strata_str_t policy,

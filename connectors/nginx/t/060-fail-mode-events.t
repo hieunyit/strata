@@ -371,7 +371,7 @@ subtest "metrics file layout" => sub {
     like($m->{nginx}, qr/^1\.\d+\.\d+$/, "NGINX version in the header");
     like(`nginx -v 2>&1`, qr/\Q$m->{nginx}\E/, "the running NGINX");
     is($m->{module}, "0.1.0", "module version");
-    is($m->{abi}, (1 << 16) | 6, "ABI version");
+    is($m->{abi}, (1 << 16) | 7, "ABI version");
 };
 
 subtest "clean request: no event, counted as allow" => sub {
