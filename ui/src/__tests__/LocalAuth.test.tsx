@@ -191,6 +191,25 @@ describe('Users page', () => {
     render(<StaticAuthProvider roles={['admin']}><UsersPage /></StaticAuthProvider>);
     expect(await screen.findByText(/not enabled on this control plane/)).toBeInTheDocument();
   });
+
+  it('switches to service accounts tab and displays service accounts list', async () => {
+    server({
+      'GET /v1/users': () => json({ users: [] }),
+      'GET /v1/service-accounts': () => json({ service_accounts: [
+        { id: 'sa-bot', name: 'Deploy Bot', description: 'CI automation', roles: ['operator'], created_at: '2026-10-15T10:00:00Z', created_by: 'admin', token_count: 2 },
+      ] }),
+    });
+    render(
+      <StaticAuthProvider roles={['admin']} username="admin" isLocal methods={{ local: true, oidc: false }}><UsersPage /></StaticAuthProvider>,
+    );
+    expect(screen.getByTestId('tab-users')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-service-accounts')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('tab-service-accounts'));
+    expect(await screen.findByTestId('sa-table')).toBeInTheDocument();
+    expect(screen.getByText('Deploy Bot')).toBeInTheDocument();
+    expect(screen.getByText('CI automation')).toBeInTheDocument();
+  });
 });
 
 describe('Users route', () => {

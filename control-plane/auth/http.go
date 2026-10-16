@@ -50,15 +50,21 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // Dispatch sends a bearer token to the authenticator that issued it:
+// tokens starting with ServiceAccountPrefix to ServiceAccount,
 // tokens starting with LocalPrefix to Local (the control plane's own
 // sessions), the others to OIDC. Either may be nil when not configured.
 type Dispatch struct {
-	LocalPrefix string
-	Local       Authenticator
-	OIDC        Authenticator
+	LocalPrefix          string
+	Local                Authenticator
+	OIDC                 Authenticator
+	ServiceAccountPrefix string
+	ServiceAccount       Authenticator
 }
 
 func (d Dispatch) Authenticate(ctx context.Context, raw string) (*Principal, error) {
+	if d.ServiceAccount != nil && d.ServiceAccountPrefix != "" && strings.HasPrefix(raw, d.ServiceAccountPrefix) {
+		return d.ServiceAccount.Authenticate(ctx, raw)
+	}
 	if d.Local != nil && d.LocalPrefix != "" && strings.HasPrefix(raw, d.LocalPrefix) {
 		return d.Local.Authenticate(ctx, raw)
 	}

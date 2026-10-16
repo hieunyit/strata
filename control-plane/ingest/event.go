@@ -50,6 +50,14 @@ type Event struct {
 	// RV-N-01: full, partial (CPU budget ran out), body_skipped; empty for
 	// modules from before the field.
 	Inspection string `json:"inspection,omitempty" ch:"inspection"`
+
+	// W16-G2-01: GeoIP resolution (country, city, lat, lon, ASN, AS org)
+	CountryISO string  `json:"country_iso,omitempty" ch:"country_iso"`
+	City       string  `json:"city,omitempty" ch:"city"`
+	Lat        float32 `json:"lat,omitempty" ch:"lat"`
+	Lon        float32 `json:"lon,omitempty" ch:"lon"`
+	ASN        uint32  `json:"asn,omitempty" ch:"asn"`
+	ASOrg      string  `json:"as_org,omitempty" ch:"as_org"`
 }
 
 // EventBatch models a batch of events sent by an agent with a monotonic sequence number.

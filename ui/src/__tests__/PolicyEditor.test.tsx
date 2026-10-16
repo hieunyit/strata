@@ -189,4 +189,30 @@ describe('policy editor (W11-F-01)', () => {
     fireEvent.change(yamlBox(), { target: { value: 'mode: block\n' } });
     expect(screen.getByTestId('editor-yaml-error')).toHaveTextContent('Dòng 1: mode là shadow hoặc enforce');
   });
+
+  it('navigates through all 9 policy blocks via tabs', async () => {
+    setup();
+    await openEditor();
+
+    // Default view shows all blocks
+    expect(screen.getByTestId('block-general')).toBeInTheDocument();
+    expect(screen.getByTestId('block-template')).toBeInTheDocument();
+    expect(screen.getByTestId('block-response')).toBeInTheDocument();
+
+    // Switch to Template block
+    fireEvent.click(screen.getByTestId('block-tab-template'));
+    expect(screen.getByTestId('block-template')).toBeInTheDocument();
+    expect(screen.queryByTestId('block-general')).toBeNull();
+
+    // Switch to Response block
+    fireEvent.click(screen.getByTestId('block-tab-response'));
+    expect(screen.getByTestId('block-response')).toBeInTheDocument();
+    expect(screen.queryByTestId('block-template')).toBeNull();
+
+    // Switch back to All
+    fireEvent.click(screen.getByTestId('block-tab-all'));
+    expect(screen.getByTestId('block-general')).toBeInTheDocument();
+    expect(screen.getByTestId('block-template')).toBeInTheDocument();
+    expect(screen.getByTestId('block-response')).toBeInTheDocument();
+  });
 });
