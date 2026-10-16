@@ -122,3 +122,38 @@ func TestCompilerSnapshotRejectsInvalidInputs(t *testing.T) {
 		t.Fatal("oversize input accepted")
 	}
 }
+
+func TestCompilerSnapshotPreservesRuleParser(t *testing.T) {
+	dir := t.TempDir()
+	digests := map[string]string{}
+	for _, suffix := range []string{".json", ".yaml", ".yml", ""} {
+		source := filepath.Join(dir, "rule"+suffix)
+		if err := os.WriteFile(source, []byte(`{}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		c := Compiler{Binary: "/bin/sh", Rules: []string{source}}
+		p, err := c.Prepare(t.Context(), []Named{{Name: "example-api", Spec: Spec{Mode: "shadow"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := suffix
+		if want == "" {
+			want = ".json"
+		}
+		if got := filepath.Ext(p.compiler.Rules[0]); got != want {
+			t.Errorf("%q input: copied suffix %q, want %q", suffix, got, want)
+		}
+		content, err := os.ReadFile(p.compiler.Rules[0])
+		if err != nil || string(content) != `{}` {
+			t.Fatalf("snapshot bytes: %q %v", content, err)
+		}
+		digests[suffix] = p.Digest
+		p.Close()
+	}
+	if digests[".json"] == digests[".yaml"] {
+		t.Fatal("parser selection not bound to replay digest")
+	}
+	if digests[".yaml"] != digests[".yml"] || digests[".json"] != digests[""] {
+		t.Fatal("equivalent parsers changed the input digest")
+	}
+}

@@ -28,10 +28,16 @@ func (p *Prepared) Build(ctx context.Context, version uint64) ([]byte, error) {
 	return p.compiler.Build(ctx, version, p.policies)
 }
 func (p *Prepared) ReplayBuild(ctx context.Context, key string) ([]byte, error) {
+	return p.ReplayBuildPolicies(ctx, key, p.policies)
+}
+
+// ReplayBuildPolicies reuses the captured executable/rule inputs when no bundle
+// has been deployed and replay must build its initial baseline policy set.
+func (p *Prepared) ReplayBuildPolicies(ctx context.Context, key string, policies []Named) ([]byte, error) {
 	c := p.compiler
 	c.Signer = nil
 	c.KeyFile = key
-	return c.Build(ctx, 1, p.policies)
+	return c.Build(ctx, 1, policies)
 }
 
 // Prepare snapshots compiler binary, ordered rule files, block page, policies
@@ -62,13 +68,14 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 		Format         int
 		Compiler       string
 		Rules          []string
+		RuleFormats    []string
 		BlockPage      string
 		Policies       []Named
 		SupportContact string
 		CostBudget     uint64
 		IdentityKey    string
 	}
-	m := manifest{Format: 1, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
+	m := manifest{Format: 2, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
 	remaining := int64(512 << 20)
 	snapshot := func(src, label string, mode os.FileMode) (string, string, error) {
 		in, err := os.Open(src)
@@ -141,12 +148,17 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 	}
 	p.compiler.Rules = nil
 	for i, r := range c.Rules {
-		file, sum, e := snapshot(r, "rules-"+strconv.Itoa(i), 0600)
+		format, suffix := "json", ".json"
+		if ext := filepath.Ext(r); ext == ".yaml" || ext == ".yml" {
+			format, suffix = "yaml", ext
+		}
+		file, sum, e := snapshot(r, "rules-"+strconv.Itoa(i)+suffix, 0600)
 		if e != nil {
 			return nil, e
 		}
 		p.compiler.Rules = append(p.compiler.Rules, file)
 		m.Rules = append(m.Rules, sum)
+		m.RuleFormats = append(m.RuleFormats, format)
 	}
 	if c.BlockPage != "" {
 		p.compiler.BlockPage, m.BlockPage, err = snapshot(c.BlockPage, "block-page", 0600)

@@ -45,6 +45,7 @@ func TestRealReplay(t *testing.T) {
 			return []store.Policy{{ID: "example-api", Name: "example-api", CurrentVersion: 1, Spec: json.RawMessage(`{"mode":"shadow"}`)}}, nil
 		},
 		Build:    ReplayBuilder(c),
+		Prepare:  c.Prepare,
 		Baseline: func(context.Context) ([]byte, uint64, error) { return nil, 0, store.ErrNotFound },
 		Corpus:   corpus,
 		Binary:   bin,
@@ -55,6 +56,19 @@ func TestRealReplay(t *testing.T) {
 	var rep Report
 	if err := json.Unmarshal([]byte(ops.finished["op-real"]), &rep); err != nil {
 		t.Fatalf("%v: %s", err, ops.finished["op-real"])
+	}
+	for name, digest := range map[string]string{"inputs": rep.InputDigest, "draft": rep.DraftSHA256, "baseline": rep.BaselineSHA256, "replay": rep.ReplaySHA256} {
+		if len(digest) != 64 {
+			t.Fatalf("missing real snapshot digest %s: %q", name, digest)
+		}
+	}
+	if len(rep.SampleSHA256) == 0 {
+		t.Fatal("missing corpus digest")
+	}
+	for _, digest := range rep.SampleSHA256 {
+		if len(digest) != 64 {
+			t.Fatal("invalid corpus digest")
+		}
 	}
 	rt := rep.Corpus
 	if rep.Samples() != 4300 || rep.Traffic != nil || rt == nil || rt.NewlyBlocked == 0 || rt.NewlyAllowed != 0 || len(rt.NewlyBlockedRules) == 0 {
