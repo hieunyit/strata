@@ -16,7 +16,19 @@ import (
 // retry returns the original result even after later policy edits. Reuse with a
 // different command is rejected. The caller must validate the spec and permissions.
 func (s *Store) UpdatePolicyOnce(ctx context.Context, id, etag string, spec json.RawMessage, a Audit) (Policy, error) {
-	if id == "" || etag == "" || a.Subject == "" || a.RequestID == "" || len(a.RequestID) > 128 || len(spec) > 256*1024 || !json.Valid(spec) {
+	if len(spec) > 256*1024 || !json.Valid(spec) {
+		return Policy{}, fmt.Errorf("store: invalid policy spec")
+	}
+	spec = append(json.RawMessage(nil), spec...)
+	return s.EditPolicyOnce(ctx, id, etag, spec, a, func(Policy) (json.RawMessage, error) { return spec, nil })
+}
+
+// EditPolicyOnce derives a draft from the locked current policy only on the
+// first successful execution. Bind command to client input, not generated IDs
+// or expiry timestamps. The callback must perform no external I/O.
+func (s *Store) EditPolicyOnce(ctx context.Context, id, etag string, commandInput json.RawMessage, a Audit, edit func(Policy) (json.RawMessage, error)) (Policy, error) {
+
+	if id == "" || etag == "" || a.Subject == "" || a.RequestID == "" || len(a.RequestID) > 128 || len(commandInput) > 256*1024 || !json.Valid(commandInput) || edit == nil {
 		return Policy{}, fmt.Errorf("store: invalid idempotent policy edit")
 	}
 	command, err := json.Marshal(struct {
@@ -25,7 +37,7 @@ func (s *Store) UpdatePolicyOnce(ctx context.Context, id, etag string, spec json
 		Spec     json.RawMessage
 		Action   string
 		Resource string
-	}{id, etag, spec, a.Action, a.Resource})
+	}{id, etag, commandInput, a.Action, a.Resource})
 	if err != nil {
 		return Policy{}, fmt.Errorf("store: encode policy edit: %w", err)
 	}
@@ -50,6 +62,23 @@ func (s *Store) UpdatePolicyOnce(ctx context.Context, id, etag string, spec json
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
+		}
+		before, err := scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id=$1 FOR UPDATE OF p`, id))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read policy for edit: %w", err)
+		}
+		if before.Etag != etag {
+			return ErrEtagMismatch
+		}
+		spec, err := edit(before)
+		if err != nil {
+			return fmt.Errorf("derive policy draft: %w", err)
+		}
+		if len(spec) > 256*1024 || !json.Valid(spec) {
+			return fmt.Errorf("invalid derived policy spec")
 		}
 		next, err := newEtag()
 		if err != nil {
