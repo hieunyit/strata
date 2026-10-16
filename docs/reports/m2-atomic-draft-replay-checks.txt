@@ -1,0 +1,11 @@
+=== RUN   TestDerivedPolicyDraftRunsOnceInPostgres
+--- PASS: TestDerivedPolicyDraftRunsOnceInPostgres (0.61s)
+=== RUN   TestPolicyDraftAndReplayAtomicInPostgres
+--- PASS: TestPolicyDraftAndReplayAtomicInPostgres (0.64s)
+=== RUN   TestPolicyEditRequestInPostgres
+--- PASS: TestPolicyEditRequestInPostgres (0.53s)
+=== RUN   TestPolicyEditRequestRejectsInvalidInputBeforeIO
+--- PASS: TestPolicyEditRequestRejectsInvalidInputBeforeIO (0.01s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	2.866s
+0 issues.

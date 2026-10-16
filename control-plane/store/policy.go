@@ -135,6 +135,19 @@ func (s *Store) GetPolicy(ctx context.Context, id string) (Policy, error) {
 	return p, nil
 }
 
+// GetPolicyByName resolves the unique bundle policy name recorded in events.
+// Event PolicyID is this name, which may differ from the database resource ID.
+func (s *Store) GetPolicyByName(ctx context.Context, name string) (Policy, error) {
+	p, err := scanPolicy(s.pool.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.name=$1`, name))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Policy{}, ErrNotFound
+	}
+	if err != nil {
+		return Policy{}, fmt.Errorf("store: get policy by name: %w", err)
+	}
+	return p, nil
+}
+
 // ListPolicies returns every policy by name.
 func (s *Store) ListPolicies(ctx context.Context) ([]Policy, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+policyCols+policyFrom+` ORDER BY p.name`)
