@@ -82,18 +82,23 @@ Theo quyết định phê duyệt tại `docs/decisions/map-tiles.md`:
 
 ---
 
-## 4. Kết quả Đánh giá Sâu 3 Lượt (3-Round Deep Review) & Cải tiến Đã Triển khai
+## 4. Kết quả Đánh giá Sâu 3 Lượt (3-Round Deep Security & Logic Audit)
 
 1. **Lượt 1 · Logic & Schema / Data Flow**:
-   - **Phát hiện & Khắc phục**: Cột `as_org` ban đầu thiếu trong bảng ClickHouse `events_geo_minute`. Đã bổ sung `as_org LowCardinality(String)` vào schema và materialized view `events_geo_minute_mv`, quét `any(as_org)` trong truy vấn `GeoStats`. Thông tin nhà mạng/tổ chức ASN (Viettel, VNPT, Amazon, Singtel...) được truyền đầy đủ lên UI.
+   - **Bổ sung cột `as_org`**: Cột `as_org` ban đầu thiếu trong bảng ClickHouse `events_geo_minute`. Đã bổ sung `as_org LowCardinality(String)` vào schema và materialized view `events_geo_minute_mv`, quét `any(as_org)` trong truy vấn `GeoStats`. Thông tin nhà mạng/tổ chức ASN (Viettel, VNPT, Amazon, Singtel...) được truyền đầy đủ lên UI.
    - **Xử lý lỗi ClickHouse**: Đóng kết nối `rows` ngay sau khi quét dữ liệu và bọc lỗi chi tiết `fmt.Errorf("querying ...: %w", err)` thay vì nuốt lỗi.
+   - **Bộ linter rule CRS PL2**: Pass 100% qua `strata-rules lint` mà không có bất kỳ cảnh báo ReDoS hay sai lệch schema nào.
 
-2. **Lượt 2 · Edge Cases, Security & Input Boundaries**:
-   - **Bảo mật Tile Server**: Ngăn chặn triệt để tấn công Path Traversal trên endpoint `/v1/maps/tiles/*` bằng cách kiểm tra chuỗi `..`, chuẩn hóa `filepath.Clean` và xác thực tiền tố thư mục cho phép. Từ chối các HTTP method không hợp lệ bằng 405 Method Not Allowed.
-   - **Chống DoS luồng tải GeoIP**: Áp dụng giới hạn trên `io.LimitReader(resp.Body, 256MB)` trong `GeoIPUpdater`, bảo vệ RAM hệ thống. Bổ sung cơ chế `ResetCache()` trên `GeoIPEnricher` để nạp dữ liệu sạch khi cập nhật `.mmdb` mới.
-   - **Validation tham số thời gian & phân trang**: Kiểm tra `from.After(to)` trả về 400 Bad Request; phân tích và áp dụng đúng tham số `limit` khi truy vấn.
+2. **Lượt 2 · Tư duy Hacker: Lỗ hổng Bảo mật & Biên giới Hệ thống**:
+   - **Triệt tiêu Host Header Poisoning trên Tile Server**: Chuyển đổi URL tile trong `style.json` sang URL tương đối `/v1/maps/tiles/{z}/{x}/{y}.pbf`. Kẻ tấn công gửi `Host: rogue-cdn.com` hay ký tự điều khiển hoàn toàn không thể làm chuyển hướng tile map của trình duyệt.
+   - **Bảo mật tuyệt đối chống Path Traversal**: Không chỉ kiểm tra chuỗi `..`, hệ thống xác thực chặt chẽ tọa độ `{z}/{x}/{y}{ext}` thành các số nguyên dương hợp lệ (`z` từ 0-24, `x >= 0`, `y >= 0`) và đuôi tệp `.pbf`/`.mvt`. Việc này triệt tiêu hoàn toàn khả năng can thiệp đường dẫn tệp trên ổ đĩa.
+   - **Phòng chống SSRF trên `GeoIPUpdater`**: Kiểm tra nghiêm ngặt scheme chỉ cho phép `http` và `https` kèm host hợp lệ, ngăn chặn việc khai thác đọc file cục bộ (`file://`) hoặc dịch vụ metadata đám mây.
+   - **Chống DoS luồng tải GeoIP**: Áp dụng giới hạn trên `io.LimitReader(resp.Body, 256MB)` trong `GeoIPUpdater`, bảo vệ RAM hệ thống. Tự động kích hoạt `ResetCache()` trên `GeoIPEnricher` để nạp dữ liệu sạch khi cập nhật `.mmdb` mới.
+   - **Tối ưu hóa Cache chống Flood IP & Ephemeral Ports**: Chuẩn hóa tách port trước khi tra cứu cache trong `GeoIPEnricher.Resolve`. Hàng ngàn kết nối từ cùng một IP với port ngẫu nhiên sẽ dùng chung 1 slot cache, triệt tiêu nguy cơ cạn kiệt cache (cache thrashing).
+   - **Hỗ trợ đầy đủ phương thức WebDAV**: Mở rộng pattern method trong `plugin_exclusions.json` thành `^[A-Z]{3,16}$` hỗ trợ phương thức 8 ký tự như `PROPFIND`, `MKCOL`.
 
-3. **Lượt 3 · Trải nghiệm Người dùng (UX) & Thẩm định Chủ quyền**:
+3. **Lượt 3 · Trải nghiệm Người dùng (UX), Rò rỉ Bộ nhớ & Thẩm định Chủ quyền**:
+   - **Chống rò rỉ bộ nhớ React khi Unmount**: Bổ sung cờ `isMounted` trong hook `useEffect` của `GeoMap.tsx`, ngăn chặn cập nhật state khi component đã hủy hoặc khi người dùng chuyển đổi tab nhanh.
    - **Tương tác 2 chiều mượt mà**: Hỗ trợ toggle bật/tắt chọn quốc gia khi click lặp lại hoặc click nút `Clear ({Country})` trên thanh tiêu đề Top Countries.
-   - **Tuân thủ pháp lý toàn vẹn**: Xác nhận đầy đủ các node Hoàng Sa (VN) và Trường Sa (VN) trong cả component render và bộ test Vitest.
+   - **Tuân thủ pháp lý toàn vẹn**: Xác nhận đầy đủ các node Hoàng Sa (VN) và Trường Sa (VN) trong cả component render và bộ test Vitest theo Nghị định 18/2020/NĐ-CP.
 

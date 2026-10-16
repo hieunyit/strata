@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -70,12 +71,9 @@ func RegisterMapTileRoutes(mux *http.ServeMux, tilePath string) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=86400")
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		host := r.Host
-		tileURL := scheme + "://" + host + "/v1/maps/tiles/{z}/{x}/{y}.pbf"
+
+		// Use relative tile URL to prevent Host header poisoning and support air-gapped proxies
+		tileURL := "/v1/maps/tiles/{z}/{x}/{y}.pbf"
 		_ = json.NewEncoder(w).Encode(MapStyle(tileURL))
 	})
 
@@ -94,15 +92,31 @@ func RegisterMapTileRoutes(mux *http.ServeMux, tilePath string) {
 		}
 
 		parts := strings.Split(path, "/")
-		if len(parts) < 3 {
+		if len(parts) != 3 {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		// If a physical vector tile directory exists, safely serve from it
+		ext := filepath.Ext(parts[2])
+		if ext != ".pbf" && ext != ".mvt" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// Strictly validate that z, x, y are valid geographic tile coordinates
+		z, errZ := strconv.Atoi(parts[0])
+		x, errX := strconv.Atoi(parts[1])
+		yStr := strings.TrimSuffix(parts[2], ext)
+		y, errY := strconv.Atoi(yStr)
+		if errZ != nil || errX != nil || errY != nil || z < 0 || z > 24 || x < 0 || y < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// If a physical vector tile directory exists, safely serve from integer coordinates
 		if tilePath != "" {
 			cleanTilePath := filepath.Clean(tilePath)
-			targetFile := filepath.Clean(filepath.Join(cleanTilePath, path))
+			targetFile := filepath.Join(cleanTilePath, strconv.Itoa(z), strconv.Itoa(x), strconv.Itoa(y)+ext)
 			if !strings.HasPrefix(targetFile, cleanTilePath+string(filepath.Separator)) {
 				w.WriteHeader(http.StatusBadRequest)
 				return

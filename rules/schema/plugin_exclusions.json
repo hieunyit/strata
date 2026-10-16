@@ -42,7 +42,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^[A-Z]{3,7}$"
+              "pattern": "^[A-Z]{3,16}$"
             }
           },
           "rule_ids": {

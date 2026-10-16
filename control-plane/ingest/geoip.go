@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -81,14 +82,18 @@ func (e *GeoIPEnricher) Enrich(evt *Event) {
 
 // Resolve looks up the IP, handling private IPs, caching, and reader lookup.
 func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
-	cache := e.getCache()
-	if val, ok := cache.Load(rawIP); ok {
-		return val.(*GeoIPLocation)
+	if rawIP == "" {
+		return nil
 	}
 
-	host := rawIP
-	if h, _, err := net.SplitHostPort(rawIP); err == nil {
+	host := strings.TrimSpace(rawIP)
+	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
+	}
+
+	cache := e.getCache()
+	if val, ok := cache.Load(host); ok {
+		return val.(*GeoIPLocation)
 	}
 
 	parsed := net.ParseIP(host)
@@ -102,7 +107,7 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 			CountryISO: "INTERNAL",
 			City:       "Internal Network",
 		}
-		e.storeCache(rawIP, loc)
+		e.storeCache(host, loc)
 		return loc
 	}
 
@@ -115,7 +120,7 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 		return nil
 	}
 
-	e.storeCache(rawIP, loc)
+	e.storeCache(host, loc)
 	return loc
 }
 

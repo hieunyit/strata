@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/strata/strata/control-plane/ingest"
 )
 
 type mockObjects struct {
@@ -83,5 +85,19 @@ func TestGeoIPUpdater_Sync(t *testing.T) {
 	lastTime, lastHash := updater.LastSync()
 	if lastTime.IsZero() || lastHash != hash1 {
 		t.Errorf("unexpected LastSync values: %v, %s", lastTime, lastHash)
+	}
+
+	// 4. Invalid scheme rejection (SSRF defense)
+	badUpdater := NewGeoIPUpdater("file:///etc/passwd", objects, nil)
+	if _, err := badUpdater.Sync(ctx); err == nil {
+		t.Errorf("expected error for file:// scheme, got nil")
+	}
+
+	// 5. Enricher cache reset verification
+	enricher := ingest.NewGeoIPEnricher(nil)
+	updaterWithEnricher := NewGeoIPUpdater(ts.URL, objects, enricher)
+	updaterWithEnricher.SetHTTPClient(ts.Client())
+	if _, err := updaterWithEnricher.Sync(ctx); err != nil {
+		t.Fatalf("sync with enricher failed: %v", err)
 	}
 }

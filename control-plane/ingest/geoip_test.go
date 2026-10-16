@@ -90,6 +90,21 @@ func TestGeoIP_PublicIPResolutionAndCaching(t *testing.T) {
 	if evtCached.CountryISO != "VN" {
 		t.Errorf("expected cached VN result even when reader data is cleared, got %q", evtCached.CountryISO)
 	}
+
+	// 4. Client with ephemeral port hits the same cached IP without calling reader
+	evtPort := &Event{ClientIP: "203.0.113.195:49152"}
+	enricher.Enrich(evtPort)
+	if evtPort.CountryISO != "VN" || evtPort.City != "Ho Chi Minh City" {
+		t.Errorf("expected cached VN result for IP with ephemeral port, got %+v", evtPort)
+	}
+
+	// 5. Test ResetCache
+	enricher.ResetCache()
+	evtAfterReset := &Event{ClientIP: "203.0.113.195"}
+	enricher.Enrich(evtAfterReset)
+	if evtAfterReset.CountryISO != "" {
+		t.Errorf("expected empty CountryISO after ResetCache when reader is nil, got %q", evtAfterReset.CountryISO)
+	}
 }
 
 func TestGeoIP_IngestServiceIntegration(t *testing.T) {

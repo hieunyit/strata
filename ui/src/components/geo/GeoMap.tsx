@@ -16,7 +16,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
   const [groupBy, setGroupBy] = useState<'all' | 'country' | 'city' | 'asn'>('all');
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isMounted = { current: true }) => {
     setLoading(true);
     setError(null);
     try {
@@ -28,16 +28,26 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
         groupBy,
         policy_id: policyId,
       });
-      setData(res);
+      if (isMounted.current) {
+        setData(res);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch geo statistics');
+      if (isMounted.current) {
+        setError(e instanceof Error ? e.message : 'Failed to fetch geo statistics');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }, [windowDays, groupBy, policyId]);
 
   useEffect(() => {
-    void fetchData();
+    const isMounted = { current: true };
+    void fetchData(isMounted);
+    return () => {
+      isMounted.current = false;
+    };
   }, [fetchData]);
 
   const handleCountryClick = (iso: string) => {

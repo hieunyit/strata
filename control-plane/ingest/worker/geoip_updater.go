@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -50,6 +51,11 @@ func (u *GeoIPUpdater) Sync(ctx context.Context) (string, error) {
 
 	if u.sourceURL == "" {
 		return "", errors.New("source URL is empty")
+	}
+
+	uParsed, err := url.Parse(u.sourceURL)
+	if err != nil || (uParsed.Scheme != "http" && uParsed.Scheme != "https") || uParsed.Host == "" {
+		return "", fmt.Errorf("invalid source URL %q: only http and https with a valid host are permitted", u.sourceURL)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.sourceURL, nil)

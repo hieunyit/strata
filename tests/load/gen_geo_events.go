@@ -281,6 +281,7 @@ func runBenchmark(ctx context.Context, conn driver.Conn) {
 		var maxDur time.Duration
 		var rowCount int
 
+		successIter := 0
 		for iter := 0; iter < 5; iter++ {
 			t0 := time.Now()
 			rows, err := conn.Query(ctx, bm.query, bm.args...)
@@ -300,9 +301,13 @@ func runBenchmark(ctx context.Context, conn driver.Conn) {
 			if dur > maxDur {
 				maxDur = dur
 			}
+			successIter++
 		}
 
-		avgDur := totalDur / 5
+		if successIter == 0 {
+			continue
+		}
+		avgDur := totalDur / time.Duration(successIter)
 		status := "PASS"
 		if maxDur > bm.slaTarget {
 			status = "SLA BREACH"
