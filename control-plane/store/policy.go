@@ -153,31 +153,42 @@ func (s *Store) UpdatePolicy(ctx context.Context, id, etag string, spec json.Raw
 	}
 	var p Policy
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		before, err := scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id = $1 FOR UPDATE OF p`, id))
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("store: update policy: %w", err)
-		}
-		if before.Etag != etag {
-			return ErrEtagMismatch
-		}
-		v := before.CurrentVersion + 1
-		if _, err := tx.Exec(ctx, `INSERT INTO policy_versions (policy_id, version, spec, created_by, created_subject) VALUES ($1, $2, $3, $4, $5)`,
-			id, v, []byte(spec), a.Actor, a.Subject); err != nil {
-			return fmt.Errorf("store: policy version: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `UPDATE policies SET current_version = $2, etag = $3, updated_at = now() WHERE id = $1`, id, v, next); err != nil {
-			return fmt.Errorf("store: update policy: %w", err)
-		}
-		if p, err = scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id = $1`, id)); err != nil {
-			return fmt.Errorf("store: read policy: %w", err)
-		}
-		a.Before, a.After = before, p
-		return writeAudit(ctx, tx, a)
+		var err error
+		p, err = updatePolicyTx(ctx, tx, id, etag, spec, next, a)
+		return err
 	})
 	return p, err
+}
+
+// updatePolicyTx saves an immutable draft version and audit under the policy lock.
+func updatePolicyTx(ctx context.Context, tx pgx.Tx, id, etag string, spec json.RawMessage, next string, a Audit) (Policy, error) {
+	before, err := scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id = $1 FOR UPDATE OF p`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Policy{}, ErrNotFound
+	}
+	if err != nil {
+		return Policy{}, fmt.Errorf("store: update policy: %w", err)
+	}
+	if before.Etag != etag {
+		return Policy{}, ErrEtagMismatch
+	}
+	v := before.CurrentVersion + 1
+	if _, err := tx.Exec(ctx, `INSERT INTO policy_versions (policy_id, version, spec, created_by, created_subject) VALUES ($1, $2, $3, $4, $5)`,
+		id, v, []byte(spec), a.Actor, a.Subject); err != nil {
+		return Policy{}, fmt.Errorf("store: policy version: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE policies SET current_version = $2, etag = $3, updated_at = now() WHERE id = $1`, id, v, next); err != nil {
+		return Policy{}, fmt.Errorf("store: update policy: %w", err)
+	}
+	p, err := scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id = $1`, id))
+	if err != nil {
+		return Policy{}, fmt.Errorf("store: read policy: %w", err)
+	}
+	a.Before, a.After = before, p
+	if err := writeAudit(ctx, tx, a); err != nil {
+		return Policy{}, err
+	}
+	return p, nil
 }
 
 // ListPolicyVersions returns a policy's versions, newest first.
