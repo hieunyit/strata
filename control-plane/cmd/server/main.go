@@ -302,6 +302,7 @@ func main() {
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
+				d.VerifyReplay = (replay.Gate{Store: pg}).Check
 				runner := &replay.Runner{Prepare: d.Builder.(*policy.Compiler).Prepare, Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
 					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
 					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
