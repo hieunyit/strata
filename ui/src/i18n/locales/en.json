@@ -374,12 +374,16 @@
     "mode": "Mode",
     "oversize": "Request body larger than inspected",
     "response": "Response layer",
+      "advanced": "Other security settings",
     "allowedCodes": "Check the response status against the allowed codes",
     "dbErrors": "Find database error messages in the body",
     "guard": {
       "cccd": "Mask citizen ID numbers (CCCD)",
-      "jwt": "Mask JSON Web Tokens"
+      "jwt": "Mask JSON Web Tokens",
+      "pan": "Mask payment card numbers"
     },
+    "advanced": "Other security settings",
+    "advancedNote": "These settings are preserved when editing the basic form or YAML. Exception changes require a new policy draft, replay and approval.",
     "yaml": "YAML",
     "yamlError": "Line {{line}}: {{message}}",
     "cancel": "Cancel",
@@ -404,8 +408,8 @@
       "oversize": "oversize is pass or block",
       "responseNext": "the keys of response go on the next lines",
       "bool": "expected true or false, got \"{{value}}\"",
-      "list": "expected a list: [cccd, jwt]",
-      "guard": "data_guard accepts cccd and jwt, got \"{{value}}\"",
+      "list": "expected a list: [cccd, jwt, pan]",
+      "guard": "data_guard accepts cccd, jwt and pan, got \"{{value}}\"",
       "guardTwice": "data_guard lists a value twice",
       "unknown": "unknown key \"{{key}}\"",
       "modeRequired": "mode is required",
@@ -437,7 +441,8 @@
       "allowed_codes_check": "Check response status codes",
       "db_errors": "Database errors in the body",
       "data_guard": "Mask sensitive data",
-      "canary_percent": "Canary (%)"
+      "canary_percent": "Canary (%)",
+      "advanced": "Exceptions, privacy and limits"
     }
   }
 }
