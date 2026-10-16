@@ -78,11 +78,20 @@ groups:
           description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataNodeErrorsJump
-        expr: increase(strata_agent_fallback_alerts_total[10m]) > 0
+        expr: increase(strata_agent_fallback_alerts_total{reason!="source_limit"}[10m]) > 0
         labels: { severity: warning, component: agent }
         annotations:
           summary: "{{ $labels.instance }}: engine errors or budget overruns jumped ({{ $labels.reason }}); policies left as they are"
           description: "The node fallback saw a jump it does not act on (#65): shadow does not change the fail mode. Requests go through the fail mode: open lets them pass uninspected, closed answers 503."
+          runbook_url: docs/runbook/README.md#node-tự-về-shadow
+      - alert: StrataFallbackSourcesSaturated
+        expr: |
+          increase(strata_agent_fallback_alerts_total{reason="source_limit"}[10m]) > 0
+          or increase(strata_cp_canary_source_saturations_total[10m]) > 0
+        labels: { severity: warning, component: fallback }
+        annotations:
+          summary: "{{ $labels.instance }}: fallback source tracking exceeded its capacity"
+          description: "Block-rate fallback and baseline learning pause while source counts are incomplete. WAF enforcement remains active; independent error and latency signals still apply."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataNodeFallbackHeld
         expr: strata_agent_fallback_active == 1

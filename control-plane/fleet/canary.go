@@ -79,7 +79,7 @@ type CanaryOptions struct {
 	BlockFloor  float64       // 1%
 	PValue      float64       // Poisson tail a block count must be under, 1e-6 (#74)
 	SourceCap   uint64        // blocks of one client address counted per window, 3 (#74)
-	MaxSources  int           // addresses tracked per group and interval, 4096; each further one counts once
+	MaxSources  int           // addresses per group and interval, 4096; overflow suspends block-rate decisions and learning
 	Renew       time.Duration // 12 h
 	Hold        time.Duration // ForceShadow duration, 24 h (the most a command takes)
 }
@@ -199,9 +199,9 @@ type canaryDelta struct {
 // sourceBucket: one interval's blocks and would-be blocks by client
 // address (#74): [canary blocks, canary would, shadow would].
 type sourceBucket struct {
-	at   time.Time
-	n    map[string]*[3]uint64
-	over [3]uint64 // addresses past MaxSources, one each
+	at        time.Time
+	n         map[string]*[3]uint64
+	saturated bool // an untracked address arrived after MaxSources
 }
 
 type groupState struct {
@@ -223,6 +223,9 @@ type CanaryMonitor struct {
 	nodes  map[string]nodeSample
 	groups map[string]*groupState
 	trips  map[string]uint64 // by reason, since start
+
+	// Source buckets that overflowed, since start.
+	sourceSaturations uint64
 }
 
 // NewCanaryMonitor returns a monitor; call Run.
@@ -309,7 +312,11 @@ func (m *CanaryMonitor) ObserveEvent(node string, ev *eventv1.Event, at time.Tim
 	c, ok := b.n[k]
 	if !ok {
 		if len(b.n) >= m.o.MaxSources {
-			b.over[i]++
+			if !b.saturated {
+				m.sourceSaturations++
+				log.Printf("[WARN] fleet: canary source limit reached in group %s; block-rate decisions and learning suspended for the window", ns.group)
+			}
+			b.saturated = true
 			return
 		}
 		c = new([3]uint64)
@@ -321,7 +328,7 @@ func (m *CanaryMonitor) ObserveEvent(node string, ev *eventv1.Event, at time.Tim
 // bySource sums the buckets of the window, each address counted at most
 // SourceCap times: canary blocks, would-be blocks of both sides (blocks
 // included).
-func (m *CanaryMonitor) bySource(st *groupState) (blocked, would uint64) {
+func (m *CanaryMonitor) bySource(st *groupState) (blocked, would uint64, saturated bool) {
 	sum := map[string][3]uint64{}
 	for _, b := range st.buckets {
 		for k, c := range b.n {
@@ -331,14 +338,21 @@ func (m *CanaryMonitor) bySource(st *groupState) (blocked, would uint64) {
 			}
 			sum[k] = s
 		}
-		blocked += b.over[0]
-		would += b.over[0] + b.over[1] + b.over[2]
+		saturated = saturated || b.saturated
 	}
 	for _, c := range sum {
 		blocked += min(c[0], m.o.SourceCap)
 		would += min(c[0]+c[1]+c[2], m.o.SourceCap)
 	}
-	return blocked, would
+	return blocked, would, saturated
+}
+
+// SourceSaturations counts overflowed source buckets, not requests. A bucket
+// remains unreliable until it leaves the sliding window.
+func (m *CanaryMonitor) SourceSaturations() uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sourceSaturations
 }
 
 // Forget drops a node (revoked, or disconnected for good).
@@ -384,12 +398,12 @@ type canaryVerdict struct {
 	enough               bool
 }
 
-func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts, srcBlocked, srcWould uint64) canaryVerdict {
+func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts, srcBlocked, srcWould uint64, saturated bool) canaryVerdict {
 	v := canaryVerdict{srcBlocked: srcBlocked, srcWould: srcWould}
 	if c.req < m.o.MinRequests || s.req < m.o.MinRequests {
 		return v
 	}
-	v.enough = true
+	v.enough = !saturated // incomplete source counts cannot train the reference
 	rate := func(a, n uint64) float64 { return float64(a) / float64(n) }
 	v.would = rate(srcWould, c.req+s.req)
 	c5, s5 := rate(c.x5, c.req), rate(s.x5, s.req)
@@ -406,7 +420,7 @@ func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts, srcBlocked, srcW
 		v.reason = Trip5xx
 	case cp >= 1.5*sp && cp-sp >= 0.050:
 		v.reason = TripLatency
-	case st.learnt >= m.o.Warmup && float64(srcBlocked) > m.o.BlockFactor*lambda && pv < m.o.PValue:
+	case !saturated && st.learnt >= m.o.Warmup && float64(srcBlocked) > m.o.BlockFactor*lambda && pv < m.o.PValue:
 		v.reason = TripBlockRate
 	}
 	return v
@@ -456,8 +470,8 @@ func (m *CanaryMonitor) Tick(ctx context.Context) error {
 			c.add(d.c)
 			s.add(d.s)
 		}
-		sb, sw := m.bySource(st)
-		v := m.judge(st, c, s, sb, sw)
+		sb, sw, saturated := m.bySource(st)
+		v := m.judge(st, c, s, sb, sw, saturated)
 		switch {
 		case v.reason != "":
 			trips = append(trips, trip{g, v})
