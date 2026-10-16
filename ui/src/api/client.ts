@@ -14,6 +14,9 @@ export type Group = admin['schemas']['v1Group'];
 export type FleetNode = admin['schemas']['v1Node'];
 export type Rollout = admin['schemas']['v1Rollout'];
 export type RolloutNode = admin['schemas']['v1RolloutNode'];
+export type Operation = admin['schemas']['v1Operation'];
+export type ReplayComparison = admin['schemas']['v1ReplayComparison'];
+export type ReplayExample = admin['schemas']['v1ReplayExample'];
 export type ErrorResponse = components['schemas']['ErrorResponse'];
 export type Overview = components['schemas']['OverviewResponse'];
 export type OverviewBucket = components['schemas']['OverviewBucket'];
@@ -72,7 +75,9 @@ async function call<T>(path: string, init: RequestInit, fallback: string): Promi
       // use default error
     }
     if (res.status === 401) handlers.unauthorized();
-    throw new ApiError(errPayload.error || fallback, res.status, errPayload.block_id);
+    // the admin API (grpc-gateway) answers {code, message}, the REST API {error}
+    const message = errPayload.error || (errPayload as { message?: string }).message;
+    throw new ApiError(message || fallback, res.status, errPayload.block_id);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -201,6 +206,53 @@ export const apiClient = {
     const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
       `/policies/${encodeURIComponent(policyId)}/versions`, { method: 'GET' }, 'Failed to list versions');
     return r.versions ?? [];
+  },
+
+  /** GET /v1/policies/-/versions?state=: versions of every policy in a state (the review queue: SUBMITTED) */
+  async listVersionsByState(state: string): Promise<PolicyVersion[]> {
+    const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
+      `/policies/-/versions?state=${encodeURIComponent(state)}`, { method: 'GET' }, 'Failed to list versions');
+    return r.versions ?? [];
+  },
+
+  /** POST /v1/policies/{id}:submit: a DRAFT or REJECTED version up for review (W13-G2-02) */
+  async submitPolicy(policyId: string, version: number): Promise<PolicyVersion> {
+    const r = await call<admin['schemas']['v1SubmitPolicyResponse']>(
+      `/policies/${encodeURIComponent(policyId)}:submit`, json('POST', { version }), 'Failed to submit the version');
+    return r.version ?? {};
+  },
+
+  /** POST /v1/policies/{id}:approve: someone other than its author; needs a DONE replay */
+  async approvePolicy(policyId: string, version: number, comment: string): Promise<PolicyVersion> {
+    const r = await call<admin['schemas']['v1ApprovePolicyResponse']>(
+      `/policies/${encodeURIComponent(policyId)}:approve`, json('POST', { version, comment }), 'Failed to approve the version');
+    return r.version ?? {};
+  },
+
+  /** POST /v1/policies/{id}:reject: with the reason */
+  async rejectPolicy(policyId: string, version: number, comment: string): Promise<PolicyVersion> {
+    const r = await call<admin['schemas']['v1RejectPolicyResponse']>(
+      `/policies/${encodeURIComponent(policyId)}:reject`, json('POST', { version, comment }), 'Failed to reject the version');
+    return r.version ?? {};
+  },
+
+  /** GET /v1/policies/{id}/versions/{v}/replay: the newest replay of a version (W13-G2-01); undefined when none */
+  async getVersionReplay(policyId: string, version: number): Promise<Operation | undefined> {
+    try {
+      const r = await call<admin['schemas']['v1GetPolicyVersionReplayResponse']>(
+        `/policies/${encodeURIComponent(policyId)}/versions/${version}/replay`, { method: 'GET' }, 'Failed to read the replay');
+      return r.operation;
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 404) return undefined;
+      throw e;
+    }
+  },
+
+  /** POST /v1/policies/{id}:replay: replays a version again */
+  async replayPolicy(policyId: string, version: number): Promise<Operation | undefined> {
+    const r = await call<admin['schemas']['v1ReplayPolicyResponse']>(
+      `/policies/${encodeURIComponent(policyId)}:replay`, json('POST', { version }), 'Failed to start the replay');
+    return r.operation;
   },
 
   /** GET /v1/groups */

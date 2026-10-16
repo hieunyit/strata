@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 //   #/overview?range=7d
 //   #/events?range=24h&action=block&rule_id=942100
 //   #/events/STR-XXXX-...          the decision trace of one event
-//   #/policies   #/fleet   #/users
-export type Page = 'overview' | 'events' | 'event' | 'policies' | 'fleet' | 'users';
+//   #/policies   #/reviews   #/fleet   #/users
+export type Page = 'overview' | 'events' | 'event' | 'policies' | 'reviews' | 'fleet' | 'users';
 
 export interface Route {
   page: Page;
@@ -14,7 +14,7 @@ export interface Route {
   query?: Record<string, string>;
 }
 
-const simple: Page[] = ['overview', 'events', 'policies', 'fleet', 'users'];
+const simple: Page[] = ['overview', 'events', 'policies', 'reviews', 'fleet', 'users'];
 
 export function parseRoute(hash: string): Route {
   const raw = hash.replace(/^#\/?/, '');

@@ -25,7 +25,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W13-G1-01 | Nâng cấp agent không mất sự kiện (socket activation) | Claude Code (phiên W10) | W10-N-01 | ✅ `test-upgrade.sh` PASS trên deb và rpm: 0 sự kiện mất, bundle không đổi; sửa lỗi gói cũ dừng và tắt agent khi nâng cấp (`docs/reports/w13-g1-01.md`) |
 | W13-G2-01 | Replay service (`:replay`, long-running operation) | Claude Code (strata-59) | W12-R-01 | ✅ bản nháp → replay tự chạy → kết quả qua API (`TestPolicyDraftReplay`; chuỗi thật `TestRealReplay`: corpus 4.300 mẫu, 1.700 bị chặn mới khi shadow → enforce); `docs/reports/w13-g2-01.md` |
 | W13-G2-02 | Luồng duyệt 4 mắt | Claude Code (strata-59) | — | ✅ API `:submit`/`:approve`/`:reject`, tự duyệt bị từ chối, deploy bản chưa duyệt bị từ chối, deploy lấy bản duyệt mới nhất (`TestFourEyes`, `TestFourEyesInPostgres`); script lab/staging duyệt bằng `lab-approver`; `docs/reports/w13-g2-02.md` |
-| W13-F-01 | Hàng chờ duyệt | Claude Code (strata-59) | W13-G2-01, W13-G2-02 | ⏳ |
+| W13-F-01 | Hàng chờ duyệt | Claude Code (strata-59) | W13-G2-01, W13-G2-02 | ✅ trang `#/reviews`: version chờ duyệt kèm replay và diff, duyệt (khi replay DONE, không duyệt bản của mình) / từ chối (cần lý do); nút gửi duyệt trong Policies; `docs/reports/w13-f-01.md` |
 | W13-R-02 | Đo chi phí từng rule | Claude Code (phiên engine) | — | ⏳ |
 | W13-N-01, vận hành 5%/25% | Sửa lỗi từ canary, lên 5% và 25% | Người | Gate A, canary 1% | ⛔ Gate A chưa đạt |
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, GitCompare, Pencil } from 'lucide-react';
+import { Download, GitCompare, Pencil, Send } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
@@ -18,9 +18,10 @@ const modeClass: Record<string, string> = {
 };
 
 // Policies and their versions; operators and admins edit a policy with the
-// editor (W11-F-01), which saves a draft version; anyone who can read
-// policies compares two versions block by block (W12-F-01). Deploy from
-// the UI comes later.
+// editor (W11-F-01), which saves a draft version, and submit the newest
+// draft for review (W13-F-01, the review queue approves it); anyone who
+// can read policies compares two versions block by block (W12-F-01).
+// Deploy from the UI comes later.
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { roles } = useAuth();
@@ -32,18 +33,34 @@ export const PoliciesPage: React.FC = () => {
   const [saved, setSaved] = useState<number | undefined>();
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
   const [versionsError, setVersionsError] = useState<string | undefined>();
+  const [submitted, setSubmitted] = useState<number | undefined>();
+  const [submitError, setSubmitError] = useState<string | undefined>();
 
   const open = async (p: Policy) => {
     setSelected(p);
     setEditing(false);
     setComparing(false);
     setSaved(undefined);
+    setSubmitted(undefined);
+    setSubmitError(undefined);
     setVersions([]);
     setVersionsError(undefined);
     try {
       setVersions(await apiClient.listPolicyVersions(p.id ?? ''));
     } catch (e) {
       setVersionsError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const submit = async (v: PolicyVersion) => {
+    if (!selected) return;
+    setSubmitError(undefined);
+    try {
+      await apiClient.submitPolicy(selected.id ?? '', v.version ?? 0);
+      setVersions(await apiClient.listPolicyVersions(selected.id ?? ''));
+      setSubmitted(v.version);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -74,6 +91,15 @@ export const PoliciesPage: React.FC = () => {
         }
       />
       <ErrorBanner message={error && t('common.refreshError', { error })} />
+      {submitted !== undefined && (
+        <p className="mb-3 text-[13px] text-ok" role="status" data-testid="policy-submitted">
+          {t('policies.submitted', { version: submitted })}{' '}
+          <a className="text-accent hover:underline" href={href({ page: 'reviews' })}>
+            {t('policies.openReviews')}
+          </a>
+        </p>
+      )}
+      <ErrorBanner message={submitError && t('policies.submitError', { error: submitError })} testId="policy-submit-error" />
       {saved !== undefined && (
         <p className="mb-3 text-[13px] text-ok" role="status" data-testid="editor-saved">
           {t('editor.saved', { version: saved })}
@@ -172,12 +198,18 @@ export const PoliciesPage: React.FC = () => {
                 <ErrorBanner message={versionsError && t('common.refreshError', { error: versionsError })} />
               </div>
               <ol className="divide-y divide-line px-4 pb-2 text-[13px]">
-                {versions.map((v) => (
+                {versions.map((v, i) => (
                   <li key={v.version} data-testid="policy-version-row" className="flex items-center gap-3 py-2">
                     <span className="w-10 tabular-nums font-medium">v{v.version}</span>
                     {mode(v.spec?.mode)}
                     {v.state && (
                       <span className="text-xs text-muted" data-testid="policy-version-state">{t(`editor.state.${v.state}`, { defaultValue: v.state })}</span>
+                    )}
+                    {canEdit && i === 0 && (v.state === 'DRAFT' || v.state === 'REJECTED') && (
+                      <button type="button" className="btn" onClick={() => void submit(v)} data-testid="policy-submit">
+                        <Send className="w-3.5 h-3.5" />
+                        {t('policies.submit')}
+                      </button>
                     )}
                     <span className="ml-auto text-right text-xs text-muted">
                       {formatTime(v.create_time, i18n.language, t('common.never'))}
