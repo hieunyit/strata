@@ -17,11 +17,13 @@ import (
 
 type decidingStore struct {
 	admin.PolicyStore
-	decided int
+	decided     int
+	replayProof string
 }
 
-func (d *decidingStore) DecidePolicyVersion(_ context.Context, id string, v int, approve bool, _ string, _ store.Audit) (store.PolicyVersion, error) {
+func (d *decidingStore) DecidePolicyVersion(_ context.Context, id string, v int, approve bool, _ string, a store.Audit) (store.PolicyVersion, error) {
 	d.decided++
+	d.replayProof = a.ReplayOperation
 	state := store.VersionRejected
 	if approve {
 		state = store.VersionApproved
@@ -88,5 +90,8 @@ func TestApproveNeedsADoneReplay(t *testing.T) {
 	ops.op, ops.err = store.Operation{ID: "op-1", State: store.OpDone}, nil
 	if c, body := call("approve", `{"version":2}`); c != http.StatusOK || !strings.Contains(body, "APPROVED") {
 		t.Fatalf("approve after a done replay: %d %s", c, body)
+	}
+	if ps.replayProof != "op-1" {
+		t.Fatalf("approval did not bind replay: %q", ps.replayProof)
 	}
 }

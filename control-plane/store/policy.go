@@ -49,6 +49,8 @@ type Policy struct {
 
 // PolicyVersion is one saved edit.
 type PolicyVersion struct {
+	ApprovedReplayID string `json:"approved_replay_id,omitempty"`
+
 	PolicyID  string          `json:"policy_id"`
 	Version   int             `json:"version"`
 	Spec      json.RawMessage `json:"spec"`
@@ -64,12 +66,12 @@ type PolicyVersion struct {
 }
 
 const versionCols = `policy_id, version, spec, state, created_by, created_at,
-	coalesce(submitted_by, ''), submitted_at, coalesce(decided_by, ''), decided_at, decision_comment`
+	coalesce(submitted_by, ''), submitted_at, coalesce(decided_by, ''), decided_at, decision_comment, coalesce(approved_replay_id, '')`
 
 func scanVersion(r pgx.Row) (PolicyVersion, error) {
 	var v PolicyVersion
 	err := r.Scan(&v.PolicyID, &v.Version, &v.Spec, &v.State, &v.CreatedBy, &v.CreatedAt,
-		&v.SubmittedBy, &v.SubmittedAt, &v.DecidedBy, &v.DecidedAt, &v.DecisionComment)
+		&v.SubmittedBy, &v.SubmittedAt, &v.DecidedBy, &v.DecidedAt, &v.DecisionComment, &v.ApprovedReplayID)
 	return v, err
 }
 
@@ -223,7 +225,7 @@ func lockVersion(ctx context.Context, tx pgx.Tx, id string, version int) (v Poli
 		coalesce((SELECT max(x.version) FROM policy_versions x WHERE x.policy_id = $1 AND x.state IN ('APPROVED', 'DEPLOYED')), 0)
 		FROM policy_versions WHERE policy_id = $1 AND version = $2 FOR UPDATE`, id, version).
 		Scan(&v.PolicyID, &v.Version, &v.Spec, &v.State, &v.CreatedBy, &v.CreatedAt,
-			&v.SubmittedBy, &v.SubmittedAt, &v.DecidedBy, &v.DecidedAt, &v.DecisionComment, &created, &submitted, &approved)
+			&v.SubmittedBy, &v.SubmittedAt, &v.DecidedBy, &v.DecidedAt, &v.DecisionComment, &v.ApprovedReplayID, &created, &submitted, &approved)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	} else if err != nil {
@@ -247,7 +249,7 @@ func (s *Store) SubmitPolicyVersion(ctx context.Context, id string, version int,
 			return &StateError{fmt.Sprintf("version %d is older than version %d, already approved", version, approved)}
 		}
 		if out, err = scanVersion(tx.QueryRow(ctx, `UPDATE policy_versions SET state = $3, submitted_by = $4, submitted_subject = $5,
-			submitted_at = now(), decided_by = NULL, decided_subject = NULL, decided_at = NULL, decision_comment = ''
+			submitted_at = now(), decided_by = NULL, decided_subject = NULL, decided_at = NULL, decision_comment = '', approved_replay_id = NULL
 			WHERE policy_id = $1 AND version = $2 RETURNING `+versionCols, id, version, VersionSubmitted, a.Actor, a.Subject)); err != nil {
 			return fmt.Errorf("store: submit: %w", err)
 		}
@@ -279,11 +281,20 @@ func (s *Store) DecidePolicyVersion(ctx context.Context, id string, version int,
 			if version < approved {
 				return &StateError{fmt.Sprintf("version %d is older than version %d, already approved", version, approved)}
 			}
+			if a.ReplayOperation != "" {
+				var valid bool
+				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM operations WHERE id=$1 AND kind='REPLAY' AND policy_id=$2 AND version=$3 AND state='DONE')`, a.ReplayOperation, id, version).Scan(&valid); err != nil {
+					return err
+				}
+				if !valid {
+					return &StateError{Msg: "approved replay must be a DONE operation of this policy version"}
+				}
+			}
 			state, approvedBy = VersionApproved, a.Actor
 		}
 		if out, err = scanVersion(tx.QueryRow(ctx, `UPDATE policy_versions SET state = $3, decided_by = $4, decided_subject = $5,
-			decided_at = now(), decision_comment = $6, approved_by = $7
-			WHERE policy_id = $1 AND version = $2 RETURNING `+versionCols, id, version, state, a.Actor, a.Subject, comment, approvedBy)); err != nil {
+			decided_at = now(), decision_comment = $6, approved_by = $7, approved_replay_id = nullif($8, '')
+			WHERE policy_id = $1 AND version = $2 RETURNING `+versionCols, id, version, state, a.Actor, a.Subject, comment, approvedBy, a.ReplayOperation)); err != nil {
 			return fmt.Errorf("store: decide: %w", err)
 		}
 		a.Before, a.After = v, out
@@ -309,6 +320,8 @@ func (s *Store) DeployablePolicies(ctx context.Context) ([]Policy, error) {
 
 // Bundle is a row of bundles.
 type Bundle struct {
+	InputDigest string `json:"input_digest,omitempty"`
+
 	Version   uint64         `json:"version"`
 	SHA256    []byte         `json:"sha256"`
 	ObjectKey string         `json:"object_key"`
@@ -348,9 +361,9 @@ func (s *Store) RecordBundle(ctx context.Context, b Bundle, a Audit) (Bundle, er
 		return Bundle{}, err
 	}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`,
-			int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents).Scan(&b.CreatedAt); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents, input_digest)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at`,
+			int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents, b.InputDigest).Scan(&b.CreatedAt); err != nil {
 			return fmt.Errorf("store: record bundle: %w", err)
 		}
 		b.CreatedBy = a.Actor
@@ -372,8 +385,8 @@ func (s *Store) LatestBundle(ctx context.Context) (Bundle, error) {
 	var b Bundle
 	var contents []byte
 	var v int64
-	err := s.pool.QueryRow(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at
-		FROM bundles ORDER BY version DESC LIMIT 1`).Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt)
+	err := s.pool.QueryRow(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest
+		FROM bundles ORDER BY version DESC LIMIT 1`).Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Bundle{}, ErrNotFound
 	}
@@ -387,7 +400,7 @@ func (s *Store) LatestBundle(ctx context.Context) (Bundle, error) {
 
 // ListBundles returns the newest bundles first.
 func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
-	rows, err := s.pool.Query(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at
+	rows, err := s.pool.Query(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest
 		FROM bundles ORDER BY version DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: list bundles: %w", err)
@@ -396,7 +409,7 @@ func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
 		var b Bundle
 		var v int64
 		var contents []byte
-		err := r.Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt)
+		err := r.Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest)
 		b.Version = uint64(v)
 		_ = json.Unmarshal(contents, &b.Contents)
 		return b, err
