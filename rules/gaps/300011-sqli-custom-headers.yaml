@@ -1,0 +1,59 @@
+# Extend the vetted 942100 libinjection/lexical guard to headers outside its
+# explicit User-Agent/Referer targets. Cookie is covered by cookie targets;
+# Host is governed by protocol validation. No arbitrary SQL-keyword-only rule.
+rule:
+  id: 300011
+  name: SQL injection in custom request headers
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        exclude: [Host, User-Agent, Referer, Cookie]
+      transforms: [utf8_to_unicode, url_decode_uni, remove_nulls, base64_decode]
+      multi_match: true
+      operator: { type: detect_sqli }
+    - targets: [ { var: matched_vars } ]
+      operator:
+        type: rx
+        value: (?i)^(?:[^#-]|-[^#-])*-?(?:[\x27"\x60()=;]|\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b(?:[^#-]|-[^#-])*-?\b(?:(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)|[0-9]+)\b|\b[0-9]+\b(?:[^#-]|-[^#-])*-?\b(?:select|union|insert|update|delete|drop|from|where|and|or|not|xor|like|sleep|benchmark|waitfor|exec|execute|cast|convert|char|concat|having|order|group|limit|null|true|false|information_schema)\b)
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    author: Strata rules team; libinjection guard adapted from Strata CRS 942100
+    upstream_id: "942100"
+    upstream_version: "4.25.2"
+    owner: rules-team
+    review_by: "2027-01-16"
+    attack_type: sql-injection
+    accuracy: high
+    tags: [issue-108, custom-header]
+tests:
+  match:
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "-1 UNION SELECT 'STRATA_SQL_ORACLE'--" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, x-example-filter: "-1%20UNION%20SELECT%20%27STRATA_SQL_ORACLE%27--" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "1 OR 1=1--" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "1/**/UNION/**/SELECT/**/NULL--" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "LTEgVU5JT04gU0VMRUNUICdTVFJBVEFfU1FMX09SQUNMRSctLQ==" }
+  no_match:
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: "select the best union membership plan" }
+  - uri: /metadata
+    headers: { Host: api.example.test, Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJleGFtcGxlIn0.signature" }
+  - uri: /metadata
+    headers: { Host: api.example.test, If-None-Match: 'W/"example-v1"', Accept-Language: 'en-US,en;q=0.8', Sec-CH-UA: '"Chromium";v="122"' }
+  - uri: /metadata
+    headers: { Host: api.example.test, traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01', Forwarded: 'for=192.0.2.4;proto=https;host=api.example.test' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'foo-bar_baz-0123456789abcdef' }
+  - uri: /metadata
+    headers: { Host: api.example.test, user-agent: "-1 UNION SELECT NULL--", REFERER: "-1 UNION SELECT NULL--", Cookie: "filter=-1 UNION SELECT NULL--" }
