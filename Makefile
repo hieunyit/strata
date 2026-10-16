@@ -271,9 +271,12 @@ SIG       := tools/strata-import-signatures
 SIG_LOCK   = sed -n 's/^$(1)_version=//p' $(SIG)/sources.lock
 signatures-import:
 	cd $(SIG) && go build -o ../../build/strata-import-signatures .
-	build/strata-import-signatures sigma --src "$$($(SIG)/fetch.sh sigma)" --version "$$($(call SIG_LOCK,sigma))"
-	build/strata-import-signatures et --src "$$($(SIG)/fetch.sh et)" --version "$$($(call SIG_LOCK,et))"
-	build/strata-import-signatures bots --src "$$($(SIG)/fetch.sh bots)" --version "$$($(call SIG_LOCK,bots))"
+	@set -e; src="$$($(SIG)/fetch.sh sigma)"; \
+		build/strata-import-signatures sigma --src "$$src" --version "$$($(call SIG_LOCK,sigma))"
+	@set -e; src="$$($(SIG)/fetch.sh et)"; \
+		build/strata-import-signatures et --src "$$src" --version "$$($(call SIG_LOCK,et))"
+	@set -e; src="$$($(SIG)/fetch.sh bots)"; \
+		build/strata-import-signatures bots --src "$$src" --version "$$($(call SIG_LOCK,bots))"
 
 # their test requests through libstrata, each rule alone: all must pass
 test-signatures: rules-tools

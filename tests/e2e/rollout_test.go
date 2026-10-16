@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -26,11 +27,67 @@ import (
 	"github.com/strata/strata/control-plane/store"
 )
 
+// pausedBundleObjects pauses a selected object after a bounded prefix. It makes
+// kill/restart tests independent of loopback throughput and polling timing.
+type pausedBundleObjects struct {
+	source  fleet.BundleObjects
+	mu      sync.Mutex
+	key     string
+	after   int64
+	release chan struct{}
+}
+
+func (p *pausedBundleObjects) pause(key string, after int64) func() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.key, p.after, p.release = key, after, make(chan struct{})
+	ch := p.release
+	var once sync.Once
+	return func() { once.Do(func() { close(ch) }) }
+}
+func (p *pausedBundleObjects) Open(ctx context.Context, key string, offset int64) (io.ReadCloser, error) {
+	r, err := p.source.Open(ctx, key, offset)
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if key != p.key || p.release == nil {
+		return r, nil
+	}
+	return &pausedBundleReader{ReadCloser: r, ctx: ctx, left: p.after - offset, release: p.release}, nil
+}
+
+type pausedBundleReader struct {
+	io.ReadCloser
+	ctx     context.Context
+	left    int64
+	release <-chan struct{}
+}
+
+func (r *pausedBundleReader) Read(b []byte) (int, error) {
+	if r.left <= 0 {
+		select {
+		case <-r.release:
+			return r.ReadCloser.Read(b)
+		case <-r.ctx.Done():
+			return 0, r.ctx.Err()
+		}
+	}
+	if int64(len(b)) > r.left {
+		b = b[:r.left]
+	}
+	n, err := r.ReadCloser.Read(b)
+	r.left -= int64(n)
+	return n, err
+}
+
 // platform is a control plane with everything: PostgreSQL, MinIO, fleet
 // with enrollment and bundle distribution, rollouts, the admin REST API.
 type platform struct {
 	*fleetEnv
-	pub ed25519.PublicKey
+	pub       ed25519.PublicKey
+	downloads *pausedBundleObjects
 }
 
 func startPlatform(t *testing.T) *platform {
@@ -70,9 +127,10 @@ func startPlatform(t *testing.T) *platform {
 	go rollouts.Run(ctx)
 	svc := ingest.NewIngestService(ingest.NewMockEventStore(), ingest.DefaultBatcherConfig(), time.Hour)
 	t.Cleanup(func() { _ = svc.Close(context.Background()) })
+	downloads := &pausedBundleObjects{source: objects}
 	gs := fleet.NewGRPCServer(tlsCfg, fleet.NewServer(fleet.Config{
 		Ingest: svc, Registry: st, CA: ca, TrustBundle: trust, BundlePubKey: pub, Presence: presence,
-		Objects: objects, Rollouts: rollouts,
+		Objects: downloads, Rollouts: rollouts,
 	}))
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -96,7 +154,7 @@ func startPlatform(t *testing.T) *platform {
 	}
 	t.Cleanup(adm.Close)
 	rest := api.NewServer(api.ServerConfig{Auth: v, Admin: adm.Gateway}, ingest.NewMockEventStore()).Handler()
-	return &platform{fleetEnv: &fleetEnv{st: st, addr: ln.Addr().String(), rest: rest, issuer: is, caFile: caFile, presence: presence}, pub: pub}
+	return &platform{fleetEnv: &fleetEnv{st: st, addr: ln.Addr().String(), rest: rest, issuer: is, caFile: caFile, presence: presence}, pub: pub, downloads: downloads}
 }
 
 type node struct {
@@ -355,15 +413,25 @@ func TestRolloutToRealAgents(t *testing.T) {
 	// broken on disk, the control file still names bundle 1; after a
 	// restart the download resumes and the node runs bundle 3.
 	t.Setenv("FAKECOMPILE_SIZE", fmt.Sprint(64<<20))
+	const prefix = int64(1 << 20)
+	release := p.downloads.pause(policy.ObjectKey(3), prefix)
+	t.Cleanup(release)
 	r3 := p.deploy(t, "MODE_SHADOW")
 	partial := filepath.Join(nodes[0].bundles, ".partial-3")
 	waitFor(t, "download started", 30*time.Second, func() bool {
 		st, err := os.Stat(partial)
-		return err == nil && st.Size() > 0
+		return err == nil && st.Size() == prefix
 	})
 	_ = nodes[0].proc.cmd.Process.Kill()
 	<-nodes[0].proc.done
-	st, _ := os.Stat(partial)
+	st, err := os.Stat(partial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Size() != prefix {
+		t.Fatalf("download escaped deterministic pause: %d", st.Size())
+	}
+	release()
 	if v := nodes[0].controlVersion(); v != 1 {
 		t.Fatalf("control file names %d after kill -9", v)
 	}
