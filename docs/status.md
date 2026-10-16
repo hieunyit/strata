@@ -1,10 +1,12 @@
 # Trạng thái thật của tính năng
 
-Cập nhật: 14/10/2026 (tuần 12 mở sớm, `docs/reports/w12-report.md`); trước đó cuối tuần 10. Nhiệm vụ RV-Q-01 (`docs/plan/review-response.md`).
+Đối chiếu lại: 16/10/2026. Baseline main là `991c4bb7a662765d038606a3ceb3a284cef2e270`; bảng tuần dưới đây có bằng chứng lịch sử, không phải trạng thái deployment hiện thời. Các bản sửa đang review nằm trong [remediation tracker](reports/remediation-tracker.md), có base/PR riêng và chưa merge. Không suy ra một tính năng đã có trên main từ file trong nhánh prototype hoặc từ một PR khác.
+
+Con trỏ tuần trong AGENTS.md vẫn là tuần 8, trong khi có bảng mở sớm tuần 11–13; PO quản lý con trỏ này. Tài liệu này không tự nâng tuần hoặc đánh dấu nhiệm vụ tương lai đã hoàn thành.
 
 Ký hiệu:
 
-- **Có**: đã làm và có test tự động hoặc báo cáo đo đạc (cột Bằng chứng).
+- **Có**: có implementation và bằng chứng test/báo cáo được dẫn. Không đồng nghĩa đã triển khai trên route thật hoặc đạt mọi SLO; xem phạm vi SHA/lab của từng báo cáo.
 - **Một phần**: làm được một phần; cột Ghi chú nói phần nào còn thiếu.
 - **Thiết kế**: mới có trong tài liệu thiết kế hoặc kế hoạch, chưa có code.
 
@@ -31,7 +33,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Time-based signature staging | 2 | **Một phần** | Mỗi gói mới chạy 7 ngày trên staging (`docs/reports/w09-s-01.md` §5). Chưa có cơ chế theo từng rule ("rule mới chỉ ghi log N ngày") |
 | Semantic detectors | 2 | **Một phần** | SQLi và XSS: port libinjection (`engine/src/detectors/injection`, `make libinjection-diff`). CMDi, path traversal: qua rule CRS, không phải detector ngữ nghĩa. SSRF, template injection: chưa có |
 | Response: allowed codes, response signatures | 2 | **Có** | Rule 600001 (mã trả về ngoài danh sách, cố định trong v0), lỗi DB trong response; `t/050-response.t`, `t/051-response-layer.t`, `docs/reports/w06-response-path.md`. Danh sách mã theo policy: chưa có |
-| Data guard | 2 | **Một phần** | Che CCCD, JWT trong response và trong snippet sự kiện (`engine/src/detectors/response`). Số thẻ (PAN), pattern tùy chỉnh theo policy: đang làm trong RV-G2-01 (chưa merge) |
+| Data guard | 2 | **Một phần** | Che CCCD, JWT trong response và trong snippet sự kiện (`engine/src/detectors/response`). PAN và pattern che dữ liệu theo policy đã có trong main (`control-plane/policy/spec.go`, `engine/src/detectors/response/pan.rs`, `engine/src/event.rs`); không đồng nghĩa xác minh chữ ký JWT |
 | Cookie integrity | 2 | **Thiết kế** | — |
 | JWT protection | 2 | **Thiết kế** | Hiện chỉ phát hiện và che JWT trong response; chưa kiểm thuật toán, chữ ký, claim |
 | GraphQL protection | 3 | **Thiết kế** | — |
@@ -46,8 +48,8 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Năng lực | Trạng thái | Bằng chứng / ghi chú |
 | --- | --- | --- |
 | Module NGINX: request, body (đồng bộ/bất đồng bộ), response, HTTP/2, HTTP/3 | **Có** | Test::Nginx 553 test trên NGINX 1.30.5 và 1.31.6, ASan cả hai bản (`docs/reports/w08-n-01.md`, `docs/reports/w10-n-01.md`) |
-| Hot reload bundle, không rớt request | **Có** | `t/004-reload.t`; soak 24 giờ + 1.000 lần đổi bundle đang chạy, verdict khoảng 14/10 10:35 UTC (`docs/reports/w09-q-02.md`) |
-| Fail mode open/closed, CPU budget hợp tác | **Có** | `t/060-fail-mode-events.t`, `docs/reports/w07-cpu-budget.md`. Gói đầy đủ thường vượt budget 2 ms: #28, #49, `docs/reports/w10-g2-01.md` §4 |
+| Hot reload bundle, không rớt request | **Có** | `t/004-reload.t`; bằng chứng soak trong `docs/reports/w09-q-02.md` là của lượt/phiên bản được ghi tại đó. Không lấy lịch dự kiến 14/10 làm bằng chứng một tiến trình hiện còn chạy hoặc đã hoàn tất |
+| Fail mode open/closed, CPU budget hợp tác | **Có** | `t/060-fail-mode-events.t`, `docs/reports/w07-cpu-budget.md`. Mặc định hiện là 10 ms; số cũ 2 ms ở `docs/reports/w10-g2-01.md` §4 là lịch sử. Body lớn vẫn PARTIAL ở 10 ms (`reports/h2-current-pack.md`, PR #134); không đổi chính sách chỉ để đạt số đo |
 | Cô lập lỗi engine (`catch_unwind`) | **Một phần** | Mọi hàm `extern "C"` bọc `catch_unwind`: panic thành lỗi engine, worker sống (`engine/ffi/tests/panic_isolation.rs`). **Không** bắt được abort, OOM, stack overflow hay lỗi bộ nhớ trong code `unsafe` (`engine/ffi/`) và trong khoảng 2.600 dòng C. Breaker cấp worker: có (W11-N-01, `t/090-breaker.t`), chế độ giảm cấp chỉ lớp protocol và `ip_match` |
 | Sự kiện (socket → agent → control plane → ClickHouse) | **Có** | `tests/e2e/lab-chain.sh`, smoke. Sự kiện shadow chỉ về ClickHouse từ PR #55 (#47). Từ RV-G2-01 (#68) và #57: `would_block` tách shadow (lẽ ra chặn) với `pass` (rule khớp dưới ngưỡng); module cũ vẫn ghi mọi sự kiện `EVT-` có rule là shadow |
 | Agent: enroll, mTLS, gia hạn chứng chỉ, bundle, spool, ForceShadow | **Có** | `agent/` test, `tests/e2e/agent_resilience_test.go`, `docs/reports/w07-g1-01.md`, `w08-g2-01.md` (toxiproxy) |
@@ -88,3 +90,16 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
   policy** trên trang Tổng quan, mẫu số từ bộ đếm của libstrata (bảng ClickHouse
   `policy_requests`, `nginx-module.md` › Sự kiện); theo route chỉ có số tuyệt đối. Có số
   từ bản module và agent có RV-N-01 (staging sau 20/10).
+
+## 4. Phân biệt main, prototype và bản sửa đang review
+
+- Main baseline nêu trên có API replay/four-eyes; UI approval queue ở nhánh remote `W13-G2-02-replay-gate` có merge #115 không chứng minh main có UI đó. Chưa đóng W13-F-01 chỉ từ nhánh khác.
+- `RV-R-03-ratelimit` là prototype; chưa có đường request/shared-memory theo node, chưa có benchmark proxy đạt <2%. Không quảng bá brute-force protection đã hoạt động.
+- `W14-G2-01-exceptions-api` và `W14-G2-02-rule-health` là prototype; RAM exception/health không phải policy artifact/runtime hoặc durable quarantine. H3/M1 đã có replacement PR #122/#123, không nhập nguyên prototype để lấy endpoint.
+- H4 có bản sửa dispatch local `codex/h4-health-route`, SHA `3f2e4e7`; chưa nhập health prototype vào main và chưa chứng minh pipeline tự về staging. M4 vẫn chưa hoàn tất.
+- M5 snapshot/proof/gate/API đang ở các PR #124/#126/#128–#130. “Replay DONE” cũ trên main không có cùng bảo đảm provenance với chuỗi PR này. Dùng report của đúng SHA để đánh giá.
+- Rule header 300011–300013 là candidate trong PR #133/#136: Header SQLi 8/8, XSS 54/56, benign 47/47 trên tập đã chọn; chưa phát hành pack production, cần review nội dung và chi phí.
+- H5 PR #127 sửa cache integrity, resume test và C line budget; archive ET Open nguyên bản còn thiếu. Không ghi pipeline Rules tái lập thành công khi chưa có artifact đúng checksum.
+- Benchmark/HTTP trong remediation có hash executable/bundle và đơn vị rõ. `engine_serial_rps` không phải TPS NGINX; 1052,62 ms tương đương khoảng 1,053 giây. Campaign redteam cũ và game day chưa được xác nhận lại bởi các phép thử paired HTTP mới.
+
+Không có bằng chứng rollout staging/production mới trong đợt remediation này. Theo yêu cầu người dùng, chạy kiểm chứng local, không chờ hosted CI; trạng thái CI cũ không được ghi thành PASS. Các điều kiện vận hành/Gate còn thiếu giữ nguyên.
