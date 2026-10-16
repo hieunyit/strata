@@ -20,13 +20,13 @@ Phạm vi là 24 phát hiện của review toàn repo/nhánh/issue đã được
 | 14 | M1 FP durability | PR #122/#123: PostgreSQL annotation, etag, request_id, audit transaction và overlay. |
 | 15 | M2 exception durability | Chưa xong: scope/TTL/audit/etag/idempotency qua policy version. |
 | 16 | M2 exception runtime | Chưa xong: compiler/bundle/engine và replay/four-eyes. |
-| 17 | H4 health router | Chưa xong: cần route chính xác, không che emergencyDisable. |
+| 17 | H4 health router | Đã sửa local trên prototype: codex/h4-health-route / 3f2e4e7, test fail trước/pass sau, race/lint sạch. Chờ tích hợp M4; chưa đưa health prototype vào main. |
 | 18 | M4 quarantine thực | Chưa xong: durable pipeline và shadow behavior, không chỉ cờ RAM. |
 | 19 | M4 bounded counters/callback | Chưa xong: time buckets hữu hạn, callback ngoài lock và kiểm tra race. |
 | 20 | L1 virtual patch | PR #131: runbook/API/schema đúng, fixture release/verify/test thật; chưa chứng minh SLA vận hành 24 giờ. |
 | 21 | H6 game day | Chưa xong: cần fault injection lab thực và bằng chứng continuity/metrics. |
 | 22 | H6 redteam evidence | Harness paired HTTP + SQL oracle, 10 cặp/20 attempt; báo cáo h6-http-evidence.md. Chưa tái chạy campaign cũ. |
 | 23 | H5 local checks | PR #127: cache xác minh hash, make lỗi đúng, resume đồng bộ, line budget. ET archive gốc còn thiếu; không thay checksum để bỏ qua. |
-| 24 | L4 trạng thái/nhánh/docs | Tracker này phân biệt PR/prototype/deploy; cần đối chiếu nốt trạng thái tính năng/issue. |
+| 24 | L4 trạng thái/nhánh/docs | docs/status.md đối chiếu main 991c4bb với các prototype/PR và sửa mô tả cũ về budget/privacy/soak. Không tự đổi tuần PO, không đóng issue thiếu deployment proof. |
 
 Đính chính measurement H2 cũ: bundle cache có 9.054 rule, thiếu 300001–300010 trong `rules/gaps/`; không phải full pack hiện tại 9.064 rule. Không dùng kết quả đó làm coverage của pack hiện tại. Các prototype chưa merge không được coi là tính năng production. Không xóa nhánh hoặc thay đổi checkout đang có sửa của phiên khác.
