@@ -87,20 +87,21 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 	defer os.RemoveAll(dir)
 
 	type item struct {
-		Name     string    `json:"name"`
-		Mode     string    `json:"mode"`
-		Oversize string    `json:"oversize,omitempty"`
-		Response *Response `json:"response,omitempty"`
-		Snippet  int       `json:"max_snippet_size,omitempty"`
-		Privacy  *Privacy  `json:"privacy,omitempty"`
-		Canary   float64   `json:"canary_percent,omitempty"`
-		MaxArgs  int       `json:"max_args,omitempty"`
-		FailOn   string    `json:"fail_on_findings,omitempty"`
+		Exceptions []Exception `json:"exceptions,omitempty"`
+		Name       string      `json:"name"`
+		Mode       string      `json:"mode"`
+		Oversize   string      `json:"oversize,omitempty"`
+		Response   *Response   `json:"response,omitempty"`
+		Snippet    int         `json:"max_snippet_size,omitempty"`
+		Privacy    *Privacy    `json:"privacy,omitempty"`
+		Canary     float64     `json:"canary_percent,omitempty"`
+		MaxArgs    int         `json:"max_args,omitempty"`
+		FailOn     string      `json:"fail_on_findings,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
-		items = append(items, item{Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
+		items = append(items, item{Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
 			Canary: p.Spec.CanaryPercent, MaxArgs: p.Spec.MaxArgs, FailOn: p.Spec.FailOnFindings})
 	}
 	doc["policies"] = items

@@ -563,6 +563,24 @@ export interface components {
       /** Format: int64 */
       deployed_version?: number;
     };
+    v1PolicyException: {
+      /** @description exc- followed by 32 lowercase hex digits, unique within a policy. */
+      id?: string;
+      /** Format: int64 */
+      rule_id?: number;
+      method?: string;
+      host?: string;
+      path?: string;
+      /** @description ARGS:<case-sensitive name> or REQUEST_HEADERS:<ASCII token>. */
+      field?: string;
+      /**
+       * Format: int64
+       * @description Absolute expiry in Unix milliseconds, mandatory and positive.
+       */
+      expires_unix_ms?: string;
+      reason?: string;
+      source_block_id?: string;
+    };
     /**
      * @description PolicySpec is what the bundle carries for the policy
      * (docs/spec/policies.schema.json).
@@ -595,6 +613,12 @@ export interface components {
        */
       max_args?: number;
       fail_on_findings?: components["schemas"]["PolicySpecFailOnFindings"];
+      /**
+       * @description Exact, expiring managed-rule field exclusions; at most 128 per policy.
+       * Must follow the normal draft/replay/four-eyes/deploy flow. Old engines
+       * refuse the required policy flag: upgrade them before using exceptions.
+       */
+      exceptions?: components["schemas"]["v1PolicyException"][];
     };
     v1PolicyVersion: {
       policy_id?: string;

@@ -165,7 +165,7 @@ done
 	page := filepath.Join(dir, "block.html")
 	_ = os.WriteFile(page, []byte("<p>{{block_id}}</p>"), 0o644)
 	c := &Compiler{Binary: script, KeyFile: "/keys/seed", Rules: []string{"a.yaml", "b.yaml"}, BlockPage: page, SupportContact: "ops@example.test"}
-	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block"}}})
+	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", Exceptions: []Exception{exampleException()}}}})
 	if err != nil || string(out) != "bundle" {
 		t.Fatalf("%q %v", out, err)
 	}
@@ -186,6 +186,15 @@ done
 	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" || doc.Policies[0]["canary_percent"] != 5.0 || doc.Policies[0]["max_args"] != 200.0 || doc.Policies[0]["fail_on_findings"] != "block" ||
 		doc.BlockPage["html"] != "<p>{{block_id}}</p>" || doc.BlockPage["support_contact"] != "ops@example.test" {
 		t.Fatalf("policies file %s", pol)
+	}
+
+	var entries []Exception
+	rawEntries, err := json.Marshal(doc.Policies[0]["exceptions"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(rawEntries, &entries); err != nil || len(entries) != 1 || entries[0] != exampleException() {
+		t.Fatalf("compiler dropped/changed exception: %s %v", rawEntries, err)
 	}
 
 	failing := filepath.Join(dir, "failing")
