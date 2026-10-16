@@ -103,3 +103,21 @@ func TestLoadRulesAndPins(t *testing.T) {
 		t.Fatalf("pins %+v", pins)
 	}
 }
+
+// #98: the share of requests that fail_on_findings: block would answer 503.
+func TestBudgetFindings(t *testing.T) {
+	st := Stats{Requests: map[string]uint64{"pilot-upload": 4000}, BudgetFindings: map[string]uint64{"pilot-upload": 2, "pilot-verify": 1}}
+	r := Classify(rules(), st, now, Options{})
+	var b bytes.Buffer
+	Markdown(&b, r)
+	for _, want := range []string{"## Budget out after a finding (#98)", "| pilot-upload | 2 | 4000 | 0.050% |", "| pilot-verify | 1 | unknown | - |"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("report misses %q:\n%s", want, b.String())
+		}
+	}
+	b.Reset()
+	Markdown(&b, Classify(rules(), Stats{}, now, Options{}))
+	if !strings.Contains(b.String(), "would answer no 503") {
+		t.Error("empty case")
+	}
+}

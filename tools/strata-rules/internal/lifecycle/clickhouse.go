@@ -46,6 +46,19 @@ WHERE timestamp >= now64(3) - toIntervalSecond({old_s:UInt32})
 GROUP BY rule_id
 FORMAT JSONEachRow`
 
+// BudgetFindingsSQL (#98): per policy, requests whose CPU budget ran out
+// after some rule matched (error events, inspection partial, with a rule
+// other than the limit rules 100020-100022): what fail_on_findings: block
+// would answer 503.
+const BudgetFindingsSQL = `SELECT policy_id, uniqExact(block_id) AS events
+FROM events
+WHERE action = 'error' AND inspection = 'partial'
+  AND timestamp >= now64(3) - toIntervalSecond({since_s:UInt32})
+  AND (empty({policies:Array(String)}) OR has({policies:Array(String)}, policy_id))
+  AND length(arrayFilter(r -> r NOT IN (100020, 100021, 100022), matched_rules)) > 0
+GROUP BY policy_id
+FORMAT JSONEachRow`
+
 // SinceSQL: how far back the event store goes.
 const SinceSQL = `SELECT toUnixTimestamp(min(timestamp)) AS since, count() AS n FROM events FORMAT JSONEachRow`
 
@@ -89,6 +102,14 @@ func Query(ctx context.Context, ch fpreport.Options, opt Options) (Stats, error)
 	})
 	if err != nil {
 		return st, fmt.Errorf("matches: %w", err)
+	}
+	st.BudgetFindings = map[string]uint64{}
+	err = run(ctx, ch, BudgetFindingsSQL, params, func(r map[string]any) {
+		pol, _ := r["policy_id"].(string)
+		st.BudgetFindings[pol] = u64(r["events"])
+	})
+	if err != nil {
+		return st, fmt.Errorf("budget out with findings: %w", err)
 	}
 	err = run(ctx, ch, SinceSQL, params, func(r map[string]any) {
 		if u64(r["n"]) > 0 {
