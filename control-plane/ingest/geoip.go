@@ -3,7 +3,11 @@ package ingest
 import (
 	"net"
 	"sync"
+	"sync/atomic"
 )
+
+// MaxGeoIPCacheEntries prevents unbounded memory consumption under IP flood attacks.
+const MaxGeoIPCacheEntries = 50000
 
 // GeoIPLocation encapsulates resolved geographical and network metadata for an IP.
 type GeoIPLocation struct {
@@ -22,8 +26,9 @@ type GeoIPReader interface {
 
 // GeoIPEnricher enriches incoming security events with GeoIP and ASN metadata.
 type GeoIPEnricher struct {
-	reader GeoIPReader
-	cache  sync.Map // string (IP) -> *GeoIPLocation
+	reader        GeoIPReader
+	cache         sync.Map // string (IP) -> *GeoIPLocation
+	cachedEntries atomic.Int64
 }
 
 // NewGeoIPEnricher creates a GeoIPEnricher with the given reader.
@@ -54,7 +59,12 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 		return val.(*GeoIPLocation)
 	}
 
-	parsed := net.ParseIP(rawIP)
+	host := rawIP
+	if h, _, err := net.SplitHostPort(rawIP); err == nil {
+		host = h
+	}
+
+	parsed := net.ParseIP(host)
 	if parsed == nil {
 		return nil
 	}
@@ -65,7 +75,7 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 			CountryISO: "INTERNAL",
 			City:       "Internal Network",
 		}
-		e.cache.Store(rawIP, loc)
+		e.storeCache(rawIP, loc)
 		return loc
 	}
 
@@ -78,8 +88,18 @@ func (e *GeoIPEnricher) Resolve(rawIP string) *GeoIPLocation {
 		return nil
 	}
 
-	e.cache.Store(rawIP, loc)
+	e.storeCache(rawIP, loc)
 	return loc
+}
+
+func (e *GeoIPEnricher) storeCache(rawIP string, loc *GeoIPLocation) {
+	if e.cachedEntries.Load() >= MaxGeoIPCacheEntries {
+		e.cache = sync.Map{}
+		e.cachedEntries.Store(0)
+	}
+	if _, loaded := e.cache.LoadOrStore(rawIP, loc); !loaded {
+		e.cachedEntries.Add(1)
+	}
 }
 
 func isPrivateOrInternal(ip net.IP) bool {

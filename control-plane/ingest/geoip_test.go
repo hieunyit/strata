@@ -12,10 +12,13 @@ func TestGeoIP_PrivateAndInternalIPs(t *testing.T) {
 	privateIPs := []string{
 		"127.0.0.1",
 		"10.0.1.42",
+		"10.0.1.42:54321", // IP with port
 		"192.168.1.100",
+		"192.168.1.100:8080", // IP with port
 		"172.16.5.20",
 		"172.31.255.255",
 		"::1",
+		"[::1]:8443", // IPv6 with port
 	}
 
 	for _, ip := range privateIPs {
@@ -31,6 +34,13 @@ func TestGeoIP_PrivateAndInternalIPs(t *testing.T) {
 		if evt.City != "Internal Network" {
 			t.Errorf("for IP %s, expected City 'Internal Network', got %q", ip, evt.City)
 		}
+	}
+
+	// Negative test: invalid IP should not panic or set location
+	badEvt := &Event{ClientIP: "invalid-ip-format"}
+	enricher.Enrich(badEvt)
+	if badEvt.CountryISO != "" {
+		t.Errorf("expected empty CountryISO for invalid IP, got %q", badEvt.CountryISO)
 	}
 }
 

@@ -262,7 +262,8 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			client_ip, identity, request_id, http_method, http_host, http_path,
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-			received_at, user_agent, referer, headers.name, headers.value, inspection
+			received_at, user_agent, referer, headers.name, headers.value, inspection,
+			country_iso, city, lat, lon, asn, as_org
 		FROM %s 
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
@@ -309,6 +310,12 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		&hNames,
 		&hValues,
 		&e.Inspection,
+		&e.CountryISO,
+		&e.City,
+		&e.Lat,
+		&e.Lon,
+		&e.ASN,
+		&e.ASOrg,
 	)
 	if err != nil {
 		// Any other error, ClickHouse exceptions included, is a real failure.

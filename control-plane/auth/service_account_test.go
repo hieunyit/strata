@@ -103,3 +103,44 @@ func TestDispatchWithServiceAccount(t *testing.T) {
 		t.Errorf("expected subject sa:sa-test, got %q", p.Subject)
 	}
 }
+
+func TestServiceAccount_ScopeCeilingAdminRole(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryServiceAccountStore()
+	authn := NewServiceAccountAuthenticator(store)
+
+	// SA has RoleAdmin (which allows everything)
+	sa := ServiceAccount{
+		ID:    "sa-admin-bot",
+		Name:  "Admin Bot",
+		Roles: []Role{RoleAdmin},
+	}
+	_ = store.CreateServiceAccount(ctx, sa)
+
+	// Issue token with ONLY PermPoliciesRead
+	rawTok, tok, err := GenerateToken(sa.ID, []Permission{PermPoliciesRead}, 1*time.Hour)
+	if err != nil {
+		t.Fatalf("generate token failed: %v", err)
+	}
+	_ = store.CreateToken(ctx, tok)
+
+	p, err := authn.Authenticate(ctx, rawTok)
+	if err != nil {
+		t.Fatalf("auth failed: %v", err)
+	}
+
+	// PermPoliciesRead is allowed (both by scope and by admin role)
+	if !p.Can(PermPoliciesRead) {
+		t.Errorf("expected Can(PermPoliciesRead) to be true")
+	}
+
+	// PermPoliciesWrite MUST BE DENIED despite RoleAdmin, because it's not in scopes!
+	if p.Can(PermPoliciesWrite) {
+		t.Errorf("SECURITY FLAW: Can(PermPoliciesWrite) should be false when not in token scopes, even if role is admin")
+	}
+
+	// PermAuditRead MUST BE DENIED
+	if p.Can(PermAuditRead) {
+		t.Errorf("SECURITY FLAW: Can(PermAuditRead) should be false when not in token scopes")
+	}
+}

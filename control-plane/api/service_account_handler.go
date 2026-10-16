@@ -60,18 +60,26 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 					writeSAError(w, http.StatusBadRequest, "invalid request body")
 					return
 				}
-				if strings.TrimSpace(req.ID) == "" || strings.TrimSpace(req.Name) == "" {
-					writeSAError(w, http.StatusBadRequest, "id and name are required")
+				if strings.TrimSpace(req.Name) == "" {
+					writeSAError(w, http.StatusBadRequest, "name is required")
 					return
 				}
+				saID := strings.TrimSpace(req.ID)
+				if saID == "" {
+					saID = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(req.Name), " ", "-"))
+				}
 				caller := auth.FromContext(r.Context())
+				createdBy := "system"
+				if caller != nil && caller.Name != "" {
+					createdBy = caller.Name
+				}
 				created := auth.ServiceAccount{
-					ID:          req.ID,
+					ID:          saID,
 					Name:        req.Name,
 					Description: req.Description,
 					Roles:       req.Roles,
 					CreatedAt:   time.Now().UTC(),
-					CreatedBy:   caller.Name,
+					CreatedBy:   createdBy,
 				}
 				if err := store.CreateServiceAccount(r.Context(), created); err != nil {
 					writeSAError(w, http.StatusConflict, err.Error())
@@ -180,6 +188,22 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, store auth.ServiceAccountS
 				// /v1/service-accounts/{id}/tokens/{token_id}
 				tokenID := parts[2]
 				auth.RequireHTTP(auth.PermServiceAccountsWrite, func(w http.ResponseWriter, r *http.Request) {
+					tokens, err := store.ListTokens(r.Context(), saID)
+					if err != nil {
+						writeSAError(w, http.StatusInternalServerError, err.Error())
+						return
+					}
+					found := false
+					for _, tok := range tokens {
+						if tok.ID == tokenID {
+							found = true
+							break
+						}
+					}
+					if !found {
+						writeSAError(w, http.StatusNotFound, "token not found for this service account")
+						return
+					}
 					if err := store.RevokeToken(r.Context(), tokenID); err != nil {
 						writeSAError(w, http.StatusNotFound, "token not found")
 						return
