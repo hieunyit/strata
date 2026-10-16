@@ -16,6 +16,18 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 17** (khối C1 · GeoIP và nền bản đồ · kế hoạch `docs/plan/w17-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W17-G2-01 | Gắn GeoIP và bảng tổng hợp ClickHouse | Antigravity | W16-G2-01 | ✅ Done (`control-plane/ingest/geoviews.go`, `control-plane/ingest/worker/geoip_updater.go`, `GET /v1/stats/geo`) |
+| W17-F-01 | Nền bản đồ tự host & Thẩm định chủ quyền | Antigravity | W17-G2-01 | ✅ Done (`ui/src/components/geo/GeoMap.tsx`, `control-plane/api/tiles_handler.go`, `docs/decisions/map-tiles.md`) |
+| W17-Q-01 | Test tải và benchmark truy vấn tổng hợp | Antigravity | W17-G2-01 | ✅ Done (`tests/load/gen_geo_events.go`, `TestClickHouseGeoPerf`: 24h < 1s, 30d < 3s) |
+| W17-S-01 | CRS PL2 và Plugin Exclusions | Antigravity | — | ✅ Done (`rules/crs/pl2/`, `rules/schema/plugin_exclusions.json`, `rules/exclusions/`) |
+| W17-R-01 | Mở rộng Semantic Detector (CMDi, SSTI) | Claude Code | — | ⏳ Chưa bắt đầu |
+| RV-N-02 | Fingerprint TLS JA4 trên NGINX Module | Claude Code | — | ⏳ Chưa bắt đầu |
+| W17-N-01 | Đánh giá Ring Buffer Shared Memory | Claude Code | — | ⏳ Chưa bắt đầu |
+
 **Nhiệm vụ tuần 15 & 16** (khối B2 · Enforce 100% & Ổn định enforce · Gate B; kế hoạch `docs/plan/plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |

@@ -34,7 +34,8 @@ fill() { # count from-seconds-ago span-seconds
 INSERT INTO events (block_id, timestamp, node_id, connector_type, policy_id, policy_version,
     client_ip, identity, request_id, http_method, http_host, http_path, status_code, action,
     score_protocol, score_sqli, score_xss, score_anomaly, matched_rules,
-    violations.rule_id, violations.layer, violations.field, violations.snippet, received_at)
+    violations.rule_id, violations.layer, violations.field, violations.snippet, received_at,
+    country_iso, city, lat, lon, asn, as_org)
 WITH
     toUInt64(toUnixTimestamp64Milli(now64(3))) - $2 * 1000 + (cityHash64(number, 1) % ($3 * 1000)) AS ms,
     cityHash64(number, 2) AS h,
@@ -56,7 +57,13 @@ SELECT
     toInt32(h % 50), toInt32(if(has(mr, 942100), 100, 0)), toInt32(if(has(mr, 941100), 100, 0)), toInt32(100 + h % 100),
     mr, mr, arrayMap(r -> if(r < 200000, 'protocol', 'managed'), mr),
     arrayMap(r -> 'ARGS:q', mr), arrayMap(r -> 'x', mr),
-    fromUnixTimestamp64Milli(toInt64(ms + 50))
+    fromUnixTimestamp64Milli(toInt64(ms + 50)),
+    ['VN', 'US', 'SG', 'DE', 'JP', 'INTERNAL'][1 + h % 6],
+    ['Hanoi', 'Ashburn', 'Singapore', 'Frankfurt', 'Tokyo', ''][1 + h % 6],
+    toFloat32([21.0285, 39.0438, 1.3521, 50.1109, 35.6762, 0.0][1 + h % 6]),
+    toFloat32([105.8542, -77.4874, 103.8198, 8.6821, 139.6503, 0.0][1 + h % 6]),
+    toUInt32([7552, 14618, 45102, 3320, 2516, 0][1 + h % 6]),
+    ['Viettel Group', 'Amazon.com', 'Singtel', 'Deutsche Telekom', 'KDDI', ''][1 + h % 6]
 FROM numbers($1)"
 }
 start=$(date +%s)
@@ -67,4 +74,5 @@ echo "filled in $(( $(date +%s) - start )) s: $(q --query 'SELECT count(), forma
 # the dev image, on the host network to reach the published port
 STRATA_DEV_DOCKER_ARGS="${STRATA_DEV_DOCKER_ARGS:-} --network host ${cpus[*]}" \
     "$root/deploy/dev/run.sh" env CLICKHOUSE_PERF_ADDR=127.0.0.1:39000 CLICKHOUSE_PERF_PASSWORD="$pw" \
-    sh -c "cd control-plane && go test -count=1 -v -run 'TestClickHouseAPIPerf' ./api/ && go test -count=1 -v -run 'TestClickHouse(Perf|TTL)' ./ingest/" </dev/null
+    sh -c "cd control-plane && go test -count=1 -v -run 'TestClickHouseAPIPerf' ./api/ && go test -count=1 -v -run 'TestClickHouse(Perf|TTL|GeoPerf)' ./ingest/" </dev/null
+

@@ -298,7 +298,60 @@ export const apiClient = {
   async revokeServiceAccountToken(saId: string, tokenId: string): Promise<void> {
     await call<void>(`/service-accounts/${encodeURIComponent(saId)}/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' }, 'Failed to revoke token');
   },
+
+  /** GET /v1/stats/geo */
+  async getGeoStats(filter?: GeoStatsFilter): Promise<GeoStatsResponse> {
+    const q = new URLSearchParams();
+    if (filter?.from) q.set('from', filter.from);
+    if (filter?.to) q.set('to', filter.to);
+    if (filter?.groupBy) q.set('groupBy', filter.groupBy);
+    if (filter?.policy_id) q.set('policy_id', filter.policy_id);
+    if (filter?.action) q.set('action', filter.action);
+    const qs = q.toString();
+    return call<GeoStatsResponse>(`/stats/geo${qs ? '?' + qs : ''}`, { method: 'GET' }, 'Failed to fetch geo statistics');
+  },
 };
+
+export interface GeoCountryStat {
+  country_iso: string;
+  events: number;
+  blocked: number;
+  top_attack_type: string;
+}
+
+export interface GeoASNStat {
+  asn: number;
+  as_org: string;
+  events: number;
+  blocked: number;
+}
+
+export interface GeoGridStat {
+  geohash: string;
+  lat: number;
+  lon: number;
+  city: string;
+  country_iso: string;
+  events: number;
+  blocked: number;
+  top_attack_type: string;
+}
+
+export interface GeoStatsResponse {
+  from: string;
+  to: string;
+  countries?: GeoCountryStat[];
+  asns?: GeoASNStat[];
+  grid?: GeoGridStat[];
+}
+
+export interface GeoStatsFilter {
+  from?: string;
+  to?: string;
+  groupBy?: string;
+  policy_id?: string;
+  action?: string;
+}
 
 export interface ServiceAccount {
   id: string;

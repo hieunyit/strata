@@ -81,3 +81,57 @@ func (h *EventHandler) HandleOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, OverviewResponse{Overview: *o, Rules: h.rules.For(ids)})
 }
+
+// HandleGeoStats handles GET /v1/stats/geo?from=&to=&groupBy=country|city|asn&policy_id=&action=&limit=.
+func (h *EventHandler) HandleGeoStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+		return
+	}
+	geoStore, ok := h.store.(ingest.GeoStatsStore)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "geo statistics are not available with this event store", "")
+		return
+	}
+	q := r.URL.Query()
+	to := time.Now().UTC()
+	from := to.Add(-24 * time.Hour)
+	var err error
+	if v := q.Get("to"); v != "" {
+		if to, err = time.Parse(time.RFC3339, v); err != nil {
+			writeError(w, http.StatusBadRequest, "to: "+err.Error(), "")
+			return
+		}
+		if q.Get("from") == "" {
+			from = to.Add(-24 * time.Hour)
+		}
+	}
+	if v := q.Get("from"); v != "" {
+		if from, err = time.Parse(time.RFC3339, v); err != nil {
+			writeError(w, http.StatusBadRequest, "from: "+err.Error(), "")
+			return
+		}
+	}
+
+	filter := ingest.GeoStatsFilter{
+		From:     from,
+		To:       to,
+		GroupBy:  q.Get("groupBy"),
+		PolicyID: q.Get("policy_id"),
+		Action:   q.Get("action"),
+	}
+
+	res, err := geoStore.GeoStats(r.Context(), filter)
+	if err != nil {
+		if errors.Is(err, r.Context().Err()) && r.Context().Err() != nil {
+			writeError(w, http.StatusGatewayTimeout, "geo statistics query timed out", "")
+			return
+		}
+		log.Printf("[ERROR] geo statistics: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal server error", "")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+

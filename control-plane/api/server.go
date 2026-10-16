@@ -45,6 +45,8 @@ type ServerConfig struct {
 	Audit AuditStore
 	// ServiceAccounts manages machine accounts and tokens; nil leaves it out.
 	ServiceAccounts auth.ServiceAccountStore
+	// MapTilesPath is the filesystem path containing offline vector tiles.
+	MapTilesPath string
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
 }
@@ -128,6 +130,7 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	v1.HandleFunc("/v1/stats/geo", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleGeoStats))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
 		roles := make([]string, len(p.Roles))
@@ -189,6 +192,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/auth/methods", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, AuthMethods{Local: s.cfg.Local != nil, OIDC: s.cfg.OIDC})
 	})
+	RegisterMapTileRoutes(s.mux, s.cfg.MapTilesPath)
 
 	// Liveness for the container healthcheck; it reveals nothing.
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

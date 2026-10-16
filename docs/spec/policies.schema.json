@@ -78,6 +78,23 @@
                 "uniqueItems": true
               }
             }
+          },
+          "plugin_exclusions": {
+            "description": "Ruleset exclusions for CMS and frameworks (WordPress, Drupal, Nextcloud, Magento) matching specific paths and rule IDs.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["framework"],
+              "properties": {
+                "framework": { "enum": ["wordpress", "drupal", "nextcloud", "magento", "cpanel", "generic"] },
+                "enabled": { "type": "boolean", "default": true },
+                "custom_paths": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
           }
         }
       }

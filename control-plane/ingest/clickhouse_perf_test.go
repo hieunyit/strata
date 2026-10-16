@@ -229,3 +229,68 @@ func TestClickHouseTTL(t *testing.T) {
 		t.Errorf("EnsureTTL with the same TTL altered the table again (%d -> %d mutations)", before, after)
 	}
 }
+
+// W17-Q-01: SLA benchmark validation for GeoIP materialized views
+// 24h queries must complete in < 1s, 30d queries in < 3s.
+func TestClickHouseGeoPerf(t *testing.T) {
+	s := perfStore(t, "events")
+	ctx := context.Background()
+
+	if err := s.EnsureGeoViews(ctx); err != nil {
+		t.Fatalf("EnsureGeoViews: %v", err)
+	}
+
+	to := time.Now().UTC()
+	from24h := to.Add(-24 * time.Hour)
+	from7d := to.Add(-7 * 24 * time.Hour)
+	from30d := to.Add(-30 * 24 * time.Hour)
+
+	// 1. Top Countries Aggregation (24h) - SLA < 1.0s (Target < 200ms)
+	start := time.Now()
+	stats24h, err := s.GeoStats(ctx, GeoStatsFilter{From: from24h, To: to, GroupBy: "country"})
+	dur24h := time.Since(start)
+	if err != nil {
+		t.Fatalf("GeoStats 24h country: %v", err)
+	}
+	t.Logf("GeoStats 24h country: %v (found %d countries)", dur24h, len(stats24h.Countries))
+	if dur24h > time.Second {
+		t.Errorf("24-hour country stats took %v (SLA target < 1s)", dur24h)
+	}
+
+	// 2. Global Summary (30d) - SLA < 3.0s (Target < 800ms)
+	start = time.Now()
+	stats30d, err := s.GeoStats(ctx, GeoStatsFilter{From: from30d, To: to, GroupBy: "all"})
+	dur30d := time.Since(start)
+	if err != nil {
+		t.Fatalf("GeoStats 30d: %v", err)
+	}
+	t.Logf("GeoStats 30d: %v (countries: %d, asns: %d, grid: %d)", dur30d, len(stats30d.Countries), len(stats30d.ASNs), len(stats30d.Grid))
+	if dur30d > 3*time.Second {
+		t.Errorf("30-day geo stats took %v (SLA target < 3s)", dur30d)
+	}
+
+	// 3. City Geohash Grid (24h) - SLA < 1.0s (Target < 300ms)
+	start = time.Now()
+	grid24h, err := s.GeoStats(ctx, GeoStatsFilter{From: from24h, To: to, GroupBy: "city"})
+	durGrid := time.Since(start)
+	if err != nil {
+		t.Fatalf("GeoStats 24h grid: %v", err)
+	}
+	t.Logf("GeoStats 24h grid: %v (clusters: %d)", durGrid, len(grid24h.Grid))
+	if durGrid > time.Second {
+		t.Errorf("24-hour grid stats took %v (SLA target < 1s)", durGrid)
+	}
+
+	// 4. Top ASN (7d) - SLA < 2.0s (Target < 500ms)
+	start = time.Now()
+	asn7d, err := s.GeoStats(ctx, GeoStatsFilter{From: from7d, To: to, GroupBy: "asn"})
+	durASN := time.Since(start)
+	if err != nil {
+		t.Fatalf("GeoStats 7d ASN: %v", err)
+	}
+	t.Logf("GeoStats 7d ASN: %v (asns: %d)", durASN, len(asn7d.ASNs))
+	if durASN > 2*time.Second {
+		t.Errorf("7-day ASN stats took %v (SLA target < 2s)", durASN)
+	}
+}
+
