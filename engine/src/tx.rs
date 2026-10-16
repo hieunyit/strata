@@ -1277,6 +1277,17 @@ impl Tx {
         }
     }
 
+    /// Inspection completeness, using the same classification as emitted events.
+    pub fn inspection(&self) -> crate::event::Inspection {
+        if self.error == E_BUDGET || self.args_left_out {
+            crate::event::Inspection::Partial
+        } else if self.body_skipped || self.error == E_INCOMPLETE {
+            crate::event::Inspection::BodySkipped
+        } else {
+            crate::event::Inspection::Full
+        }
+    }
+
     /// Why this request was not fully inspected, if it was not (RV-N-01): the
     /// same classes as the event's `inspection`, plus other engine errors.
     fn gap(&self) -> crate::counters::Gap {
@@ -1454,13 +1465,7 @@ impl Tx {
             .unwrap_or_else(|| identity_str.to_string());
         let ctx_headers: Vec<(&[u8], &[u8])> =
             ctx.headers.iter().map(|(k, v)| (&k[..], &v[..])).collect();
-        let inspection = if self.error == E_BUDGET || self.args_left_out {
-            crate::event::Inspection::Partial
-        } else if self.body_skipped || self.error == E_INCOMPLETE {
-            crate::event::Inspection::BodySkipped
-        } else {
-            crate::event::Inspection::Full
-        };
+        let inspection = self.inspection();
 
         let ev = crate::event::EventData {
             block_id: block_id_str,
