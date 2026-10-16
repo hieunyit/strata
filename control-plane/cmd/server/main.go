@@ -415,6 +415,9 @@ func main() {
 			fcfg.Objects = objects
 			// replay samples from the nodes, as sample files (W12-N-01)
 			samples := replay.NewCollector(&replay.Store{Objects: objects})
+			if pg != nil {
+				samples.Authorize = pg.ReplaySampleScope
+			}
 			fcfg.Samples = samples
 			go samples.Run(ctx)
 		}

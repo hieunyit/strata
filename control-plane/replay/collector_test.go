@@ -13,6 +13,9 @@ func TestCollectorWritesSampleFiles(t *testing.T) {
 	objs := &memObjects{m: map[string][]byte{}}
 	c := NewCollector(&Store{Objects: objs})
 	c.MaxRows = 3
+	c.Authorize = func(context.Context, string) (string, map[string]bool, error) {
+		return "k1", map[string]bool{"example-api": true, "example-web": true}, nil
+	}
 	s := func(policy string, canary eventv1.CanaryGroup) *eventv1.ReplaySample {
 		return &eventv1.ReplaySample{AnonKeyId: "k1", TsMs: 1791939600000, Policy: []byte(policy), Method: []byte("POST"),
 			RawUri: []byte("/v1/x?q=1"), Client: []byte("~h:0011223344556677:s12"), Headers: []byte(`[["Host","api.example.test"]]`),
