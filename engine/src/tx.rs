@@ -624,7 +624,10 @@ impl Tx {
             // end: 100020 already says so
             return;
         }
-        if v.rule == protocol::ARGS_OVER_LIMIT || v.rule == protocol::BODY_UNPARSED {
+        if v.rule == protocol::ARGS_OVER_LIMIT
+            || v.rule == protocol::BODY_UNPARSED
+            || v.rule == protocol::BODY_ENCODED
+        {
             // like a body over the limit (100020): the policy's oversize
             v.block_alone = self.oversize_block;
             self.args_left_out = true;

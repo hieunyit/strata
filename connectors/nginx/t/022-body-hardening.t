@@ -176,3 +176,44 @@ $::Redirect . q{
 --- error_code: 503
 --- response_headers_like eval
 "X-Strata-Block-Id: EVT-[0-9A-Z-]{19}"
+
+
+
+=== TEST 9: encoded request body (Content-Encoding), oversize block: 403, rule 100023
+--- config
+    location /t {
+        strata on;
+        strata_policy example-api;
+        add_header X-Rules $strata_rules always;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- more_headers
+Content-Type: application/json
+Content-Encoding: gzip
+--- request
+POST /t
+not-really-gzip-but-opaque-to-the-engine
+--- error_code: 403
+--- response_headers_like eval
+["X-Rules: .*100023", "X-Strata-Block-Id: $::ID"]
+
+
+
+=== TEST 10: Content-Encoding identity is inspected normally (no rule 100023)
+--- config
+    location /t {
+        strata on;
+        strata_policy example-api;
+        add_header X-Rules $strata_rules always;
+        add_header X-Action $strata_action always;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- more_headers
+Content-Type: application/json
+Content-Encoding: identity
+--- request
+POST /t
+{"a":1,"b":"ok"}
+--- response_headers
+X-Rules:
+X-Action: allow
