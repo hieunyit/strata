@@ -1,0 +1,11 @@
+{
+  "1305": "Files=20, Tests=595, 155 wallclock secs ( 0.37 usr  0.15 sys + 56.85 cusr 34.33 csys = 91.70 CPU)\nResult: PASS\nno sanitizer reports",
+  "1316": "Files=20, Tests=595, 155 wallclock secs ( 0.39 usr  0.14 sys + 56.76 cusr 34.18 csys = 91.47 CPU)\nResult: PASS\nno sanitizer reports",
+  "rust_totals": [
+    386,
+    0,
+    9
+  ],
+  "runtime_commit": "4861c58",
+  "harness_sha256": "5caac3a2d93c07bf1c8023ee8cfcedeaeee8e098e3b465bfcd2a4cbd8ac778b1"
+}
