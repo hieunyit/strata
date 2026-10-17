@@ -33,7 +33,8 @@ func TestBotIPSyncer(t *testing.T) {
 				{"ipv4Prefix": "66.249.64.0/19"},
 				{"ipv4Prefix": "66.249.96.0/20"},
 				{"ipv6Prefix": "2001:4860:4801::/48"},
-				{"ipv4Prefix": "invalid-cidr"}, // Should be ignored gracefully
+				{"ipv4Prefix": "66.249.64.0/19"}, // Duplicate entry, should be deduplicated
+				{"ipv4Prefix": "invalid-cidr"},   // Should be ignored gracefully
 			},
 		})
 	})

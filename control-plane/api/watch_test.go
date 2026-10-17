@@ -104,4 +104,28 @@ func TestWatchGeoSSE(t *testing.T) {
 	if postResp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for POST, got %d", postResp.StatusCode)
 	}
+
+	// 4. GET /v1/stats/geo:watch with ?token=viewer (without Authorization header) succeeds
+	queryAuthCtx, queryCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer queryCancel()
+	queryAuthReq, _ := http.NewRequestWithContext(queryAuthCtx, http.MethodGet, ts.URL+"/v1/stats/geo:watch?token=viewer", nil)
+	queryAuthResp, err := client.Do(queryAuthReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer queryAuthResp.Body.Close()
+	if queryAuthResp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK with query token, got %d", queryAuthResp.StatusCode)
+	}
+
+	// 5. GET /v1/stats/geo:watch without any token returns 401 Unauthorized
+	noAuthReq, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/stats/geo:watch", nil)
+	noAuthResp, err := client.Do(noAuthReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer noAuthResp.Body.Close()
+	if noAuthResp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized without token, got %d", noAuthResp.StatusCode)
+	}
 }

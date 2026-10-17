@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -127,7 +126,7 @@ func (s *ClickHouseStore) Timeline(ctx context.Context, f TimelineFilter) (*Time
 	}
 	defer rows.Close()
 
-	bucketMap := make(map[time.Time]*TimelineBucket)
+	bucketMap := make(map[int64]*TimelineBucket)
 	for rows.Next() {
 		var (
 			bucketTime time.Time
@@ -142,31 +141,30 @@ func (s *ClickHouseStore) Timeline(ctx context.Context, f TimelineFilter) (*Time
 			return nil, fmt.Errorf("scanning timeline row: %w", err)
 		}
 
-		b, exists := bucketMap[bucketTime]
+		bucketTime = bucketTime.UTC()
+		k := bucketTime.Unix()
+		b, exists := bucketMap[k]
 		if !exists {
 			b = &TimelineBucket{
 				Timestamp:   bucketTime,
 				AttackTypes: make(map[string]uint64),
 			}
-			bucketMap[bucketTime] = b
+			bucketMap[k] = b
 		}
 		b.Total += total
 		b.Blocked += blocked
 		b.Monitored += monitored
 		b.Passed += passed
 		b.Challenged += challenged
-		if attackType != "" && attackType != "anomaly" {
+		if attackType != "" {
 			b.AttackTypes[attackType] += total
 		}
 	}
-
-	buckets := make([]TimelineBucket, 0, len(bucketMap))
-	for _, b := range bucketMap {
-		buckets = append(buckets, *b)
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reading timeline rows: %w", err)
 	}
-	sort.Slice(buckets, func(i, j int) bool {
-		return buckets[i].Timestamp.Before(buckets[j].Timestamp)
-	})
+
+	buckets := fillTimelineBuckets(f.From, f.To, f.Step, bucketMap)
 
 	return &TimelineResponse{
 		From:    f.From,
@@ -174,6 +172,28 @@ func (s *ClickHouseStore) Timeline(ctx context.Context, f TimelineFilter) (*Time
 		Step:    f.Step.String(),
 		Buckets: buckets,
 	}, nil
+}
+
+// fillTimelineBuckets creates uniform, contiguous time interval buckets.
+func fillTimelineBuckets(from, to time.Time, step time.Duration, bucketMap map[int64]*TimelineBucket) []TimelineBucket {
+	var out []TimelineBucket
+	start := from.UTC().Truncate(step)
+	for t := start; t.Before(to); t = t.Add(step) {
+		k := t.Unix()
+		b, ok := bucketMap[k]
+		if !ok {
+			out = append(out, TimelineBucket{
+				Timestamp:   t,
+				AttackTypes: make(map[string]uint64),
+			})
+		} else {
+			if b.AttackTypes == nil {
+				b.AttackTypes = make(map[string]uint64)
+			}
+			out = append(out, *b)
+		}
+	}
+	return out
 }
 
 // Timeline aggregates in-memory events on MockEventStore for tests.
@@ -191,7 +211,7 @@ func (m *MockEventStore) Timeline(_ context.Context, f TimelineFilter) (*Timelin
 		f.Step = DefaultTimelineStep(f.To.Sub(f.From))
 	}
 
-	bucketMap := make(map[time.Time]*TimelineBucket)
+	bucketMap := make(map[int64]*TimelineBucket)
 
 	for _, e := range m.eventsList {
 		if !f.From.IsZero() && e.Timestamp.Before(f.From) {
@@ -213,15 +233,16 @@ func (m *MockEventStore) Timeline(_ context.Context, f TimelineFilter) (*Timelin
 			continue
 		}
 
-		// Floor timestamp to step
-		bucketTime := e.Timestamp.Truncate(f.Step)
-		b, exists := bucketMap[bucketTime]
+		// Floor timestamp to step in UTC
+		bucketTime := e.Timestamp.UTC().Truncate(f.Step)
+		k := bucketTime.Unix()
+		b, exists := bucketMap[k]
 		if !exists {
 			b = &TimelineBucket{
 				Timestamp:   bucketTime,
 				AttackTypes: make(map[string]uint64),
 			}
-			bucketMap[bucketTime] = b
+			bucketMap[k] = b
 		}
 		b.Total++
 		switch e.Action {
@@ -249,13 +270,7 @@ func (m *MockEventStore) Timeline(_ context.Context, f TimelineFilter) (*Timelin
 		}
 	}
 
-	buckets := make([]TimelineBucket, 0, len(bucketMap))
-	for _, b := range bucketMap {
-		buckets = append(buckets, *b)
-	}
-	sort.Slice(buckets, func(i, j int) bool {
-		return buckets[i].Timestamp.Before(buckets[j].Timestamp)
-	})
+	buckets := fillTimelineBuckets(f.From, f.To, f.Step, bucketMap)
 
 	return &TimelineResponse{
 		From:    f.From,

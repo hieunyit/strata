@@ -47,6 +47,10 @@ func (h *EventHandler) HandleTimelineStats(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "'from' timestamp must be before or equal to 'to' timestamp", "")
 		return
 	}
+	if to.Sub(from) > 90*24*time.Hour {
+		writeError(w, http.StatusBadRequest, "time window cannot exceed 90 days", "")
+		return
+	}
 
 	var step time.Duration
 	if v := q.Get("step"); v != "" {
@@ -56,6 +60,13 @@ func (h *EventHandler) HandleTimelineStats(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		step = d
+	} else {
+		step = ingest.DefaultTimelineStep(to.Sub(from))
+	}
+
+	if step > 0 && int64(to.Sub(from)/step) > 2000 {
+		writeError(w, http.StatusBadRequest, "requested time range and step produces too many data points (maximum 2000)", "")
+		return
 	}
 
 	var asn uint32

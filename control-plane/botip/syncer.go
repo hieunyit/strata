@@ -155,7 +155,8 @@ func (s *Syncer) FetchFeed(ctx context.Context, feed CrawlerFeed) ([]string, err
 		return nil, fmt.Errorf("unknown feed format %q for %s", feed.Format, feed.Name)
 	}
 
-	// Validate and canonicalize CIDRs
+	// Validate, canonicalize, and deduplicate CIDRs
+	seen := make(map[string]bool)
 	validated := make([]string, 0, len(rawCIDRs))
 	for _, cidr := range rawCIDRs {
 		prefix, err := netip.ParsePrefix(cidr)
@@ -163,7 +164,11 @@ func (s *Syncer) FetchFeed(ctx context.Context, feed CrawlerFeed) ([]string, err
 			// Skip or warn invalid prefix
 			continue
 		}
-		validated = append(validated, prefix.Masked().String())
+		canonical := prefix.Masked().String()
+		if !seen[canonical] {
+			seen[canonical] = true
+			validated = append(validated, canonical)
+		}
 	}
 
 	return validated, nil

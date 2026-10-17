@@ -163,4 +163,41 @@ func TestTimelineEndpoint(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for POST, got %d", rec.Code)
 	}
+
+	// 6. Window exceeding 90 days returns 400
+	qOver90d := url.Values{}
+	qOver90d.Set("from", base.Add(-95*24*time.Hour).Format(time.RFC3339))
+	qOver90d.Set("to", base.Format(time.RFC3339))
+	req = httptest.NewRequest(http.MethodGet, "/v1/stats/timeline?"+qOver90d.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer viewer")
+	rec = httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for window > 90 days, got %d", rec.Code)
+	}
+
+	// 7. Buckets exceeding 2000 points returns 400 (DoS prevention)
+	qTooManyBuckets := url.Values{}
+	qTooManyBuckets.Set("from", base.Add(-72*time.Hour).Format(time.RFC3339)) // 72h = 4320 minutes
+	qTooManyBuckets.Set("to", base.Format(time.RFC3339))
+	qTooManyBuckets.Set("step", "1m") // 4320 buckets > 2000
+	req = httptest.NewRequest(http.MethodGet, "/v1/stats/timeline?"+qTooManyBuckets.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer viewer")
+	rec = httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bucket count > 2000, got %d", rec.Code)
+	}
+
+	// 8. Verify continuous zero-filling
+	if len(resp.Buckets) != 24 {
+		t.Errorf("expected exactly 24 contiguous 5m buckets for 2h window, got %d", len(resp.Buckets))
+	}
+	for i := 1; i < len(resp.Buckets); i++ {
+		expectedTime := resp.Buckets[i-1].Timestamp.Add(5 * time.Minute)
+		if !resp.Buckets[i].Timestamp.Equal(expectedTime) {
+			t.Errorf("bucket %d timestamp %v does not follow bucket %d (%v) by 5m",
+				i, resp.Buckets[i].Timestamp, i-1, resp.Buckets[i-1].Timestamp)
+		}
+	}
 }

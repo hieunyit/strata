@@ -66,7 +66,9 @@ func (h *EventHandler) HandleWatchGeo(w http.ResponseWriter, r *http.Request) {
 	initSnap, err := geoStore.GeoStats(r.Context(), initFilter)
 	if err == nil && initSnap != nil {
 		if data, err := json.Marshal(initSnap); err == nil {
-			fmt.Fprintf(w, "event: geo_snapshot\ndata: %s\n\n", data)
+			if _, err := fmt.Fprintf(w, "event: geo_snapshot\ndata: %s\n\n", data); err != nil {
+				return
+			}
 			flusher.Flush()
 		}
 	}
@@ -89,6 +91,11 @@ func (h *EventHandler) HandleWatchGeo(w http.ResponseWriter, r *http.Request) {
 			}
 			res, err := geoStore.GeoStats(r.Context(), deltaFilter)
 			if err != nil {
+				// Send keepalive comment to prevent reverse proxy timeouts and detect client disconnect
+				if _, err := fmt.Fprintf(w, ": ping\n\n"); err != nil {
+					return
+				}
+				flusher.Flush()
 				continue
 			}
 

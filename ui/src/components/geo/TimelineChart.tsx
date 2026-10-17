@@ -54,6 +54,13 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
 
     const timestamps = buckets.map((b) => {
       const d = new Date(b.timestamp);
+      if (step === '24h' || step === '6h') {
+        return d.toLocaleDateString(undefined, {
+          month: 'numeric',
+          day: 'numeric',
+          ...(step === '6h' ? { hour: '2-digit' } : {}),
+        });
+      }
       return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     });
 

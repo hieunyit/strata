@@ -14,12 +14,22 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, raw string) (*Principal, error)
 }
 
+// TokenFromRequest extracts the authentication token from either the
+// "Authorization: Bearer <token>" header or the "token" query parameter
+// (used for EventSource SSE connections that cannot set custom headers).
+func TokenFromRequest(r *http.Request) string {
+	if tok := BearerToken(r.Header.Get("Authorization")); tok != "" {
+		return tok
+	}
+	return r.URL.Query().Get("token")
+}
+
 // Middleware authenticates every request: without a valid bearer token it
 // answers 401. Authorization is left to the routes (RequireHTTP) and to
 // the gRPC interceptors behind the gateway.
 func Middleware(a Authenticator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := a.Authenticate(r.Context(), BearerToken(r.Header.Get("Authorization")))
+		p, err := a.Authenticate(r.Context(), TokenFromRequest(r))
 		if err != nil {
 			if !errors.Is(err, ErrUnauthenticated) {
 				log.Printf("[ERROR] auth: %v", err)
