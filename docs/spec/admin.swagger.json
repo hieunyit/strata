@@ -2114,6 +2114,10 @@
             "$ref": "#/definitions/v1PolicyException"
           },
           "description": "Exact, expiring managed-rule field exclusions; at most 128 per policy.\nMust follow the normal draft/replay/four-eyes/deploy flow. Old engines\nrefuse the required policy flag: upgrade them before using exceptions."
+        },
+        "auto_staging": {
+          "$ref": "#/definitions/v1RuleAutoStaging",
+          "description": "Explicit delegation to reduce listed rules to log-only after FP evidence.\nDefault off; changes require replay and four-eyes approval. Never authorizes\nautomatic re-enforcement. Effective staged rule state is not an API input."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
@@ -2521,6 +2525,43 @@
           "format": "date-time"
         }
       }
+    },
+    "v1RuleAutoStaging": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "rule_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "description": "1–16 distinct existing managed Rule IDs; compiler/runtime verify membership."
+        },
+        "window_seconds": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Decision and initial report windows in seconds, 60–86400."
+        },
+        "min_matches": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Minimum matched security events, 1–1000000000."
+        },
+        "min_reports": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Initial unambiguous FP reports, 1–min_matches; exact deployed bundle."
+        },
+        "fp_threshold_bps": {
+          "type": "integer",
+          "format": "int64",
+          "description": "FP report share over matched security events, basis points, 1–10000."
+        }
+      },
+      "description": "Control-plane authorization metadata; not runtime policy parameters."
     },
     "v1SetReplaySamplingResponse": {
       "type": "object",

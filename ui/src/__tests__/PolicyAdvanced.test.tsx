@@ -9,7 +9,8 @@ import i18n from '../i18n';
 const exception = { id: 'exc-0123456789abcdef0123456789abcdef', rule_id: 700011,
   method: 'GET', host: 'api.example.test', path: '/search', field: 'ARGS:Name',
   expires_unix_ms: '4000000000000', reason: 'legitimate query' };
-const spec: PolicySpec = { mode: 'MODE_SHADOW', exceptions: [exception],
+const spec: PolicySpec = { mode: 'MODE_SHADOW', auto_staging: { enabled: false,
+  rule_ids: [942100], window_seconds: 300, min_matches: 100, min_reports: 5, fp_threshold_bps: 500 }, exceptions: [exception],
   privacy: { sensitive_fields: ['X-Customer-Id'], identity: 'hmac' }, max_args: 200,
   max_snippet_size: 2048, fail_on_findings: 'FAIL_ON_FINDINGS_BLOCK', response: { data_guard: ['pan'] } };
 
@@ -40,4 +41,13 @@ describe('policy settings outside the basic form', () => {
     expect(advanced?.fields[0].to).toContain('/search');
     expect(diffSpecs(spec, { ...spec, exceptions: [] }).find((b) => b.block === 'advanced')?.changed).toBe(1);
   });
+  it('preserves opt-in metadata and exposes threshold changes to approval diff', () => {
+    const a: PolicySpec = { mode: 'MODE_ENFORCE', auto_staging: { enabled: true,
+      rule_ids: [942100], window_seconds: 300, min_matches: 100, min_reports: 5, fp_threshold_bps: 500 } };
+    expect(normalizeSpec(a)).toEqual(a);
+    const d = diffSpecs(a, { ...a, auto_staging: { ...a.auto_staging, enabled: false } });
+    expect(d.find((b) => b.block === 'advanced')?.changed).toBe(1);
+    expect(d.find((b) => b.block === 'advanced')?.fields[0].from).toContain('942100');
+  });
+
 });

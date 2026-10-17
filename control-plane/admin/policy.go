@@ -68,6 +68,9 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 		}
 		s.Exceptions = append(s.Exceptions, policy.Exception{ID: e.GetId(), RuleID: e.GetRuleId(), Method: e.GetMethod(), Host: e.GetHost(), Path: e.GetPath(), Field: e.GetField(), ExpiresUnixMS: e.GetExpiresUnixMs(), Reason: e.GetReason(), SourceBlockID: e.GetSourceBlockId()})
 	}
+	if v := pb.GetAutoStaging(); v != nil {
+		s.AutoStaging = &policy.AutoStaging{Enabled: v.GetEnabled(), RuleIDs: append([]uint32(nil), v.GetRuleIds()...), WindowSeconds: v.GetWindowSeconds(), MinMatches: v.GetMinMatches(), MinReports: v.GetMinReports(), FPThresholdBPS: v.GetFpThresholdBps()}
+	}
 	if s.MaxSnippetSize == 128 {
 		s.MaxSnippetSize = 0 // the default, stored as absent
 	}
@@ -94,6 +97,9 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings]}
 	for _, e := range s.Exceptions {
 		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
+	}
+	if v := s.AutoStaging; v != nil {
+		out.AutoStaging = &adminv1.RuleAutoStaging{Enabled: v.Enabled, RuleIds: append([]uint32(nil), v.RuleIDs...), WindowSeconds: v.WindowSeconds, MinMatches: v.MinMatches, MinReports: v.MinReports, FpThresholdBps: v.FPThresholdBPS}
 	}
 	if s.Privacy != nil {
 		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
