@@ -83,6 +83,9 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
             aria-invalid={!!error}
             aria-describedby={error ? 'block-id-error' : undefined}
           />
+          <kbd className="absolute right-16 hidden sm:inline-flex items-center h-5 px-1.5 text-[10px] font-mono font-medium text-faint bg-sunken rounded border border-line pointer-events-none">
+            /
+          </kbd>
           <button
             type="submit"
             data-testid="block-id-search-btn"
@@ -98,6 +101,14 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
           </div>
         )}
       </form>
+
+      <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono shadow-xs">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span className="font-semibold tracking-wider text-[11px] uppercase">Enforcing</span>
+      </div>
 
       <div className="ml-auto flex items-center gap-1.5">
         {version && (

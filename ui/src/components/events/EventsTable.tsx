@@ -93,7 +93,7 @@ export const EventsTable: React.FC<EventsTableProps> = ({
                             onSelectEvent(evt);
                           }
                         }}
-                        className="font-mono font-medium text-accent hover:underline tracking-tight"
+                        className="font-mono font-bold text-cyan-400 hover:text-cyan-300 hover:underline tracking-tight"
                       >
                         {evt.block_id}
                       </a>
@@ -118,7 +118,7 @@ export const EventsTable: React.FC<EventsTableProps> = ({
                         )}
                       </div>
                     </td>
-                    <td className="td font-mono whitespace-nowrap" data-testid="table-client-ip">
+                    <td className="td font-mono whitespace-nowrap text-xs" data-testid="table-client-ip">
                       {maskIp(evt.client_ip)}
                     </td>
                     <td className="td whitespace-nowrap">
@@ -140,18 +140,18 @@ export const EventsTable: React.FC<EventsTableProps> = ({
                     <td className="td text-right tabular-nums">
                       {evt.score_anomaly && evt.score_anomaly > 0 ? (
                         <span
-                          className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${
+                          className={`inline-block px-2 py-0.5 rounded-full font-mono text-xs font-bold border ${
                             evt.score_anomaly >= 20
-                              ? 'text-block bg-block/15'
+                              ? 'text-rose-400 bg-rose-500/15 border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
                               : evt.score_anomaly >= 10
-                              ? 'text-shadow bg-shadow/15'
-                              : 'text-ink bg-sunken'
+                              ? 'text-amber-400 bg-amber-500/15 border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                              : 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30'
                           }`}
                         >
                           {evt.score_anomaly}
                         </span>
                       ) : (
-                        <span className="text-faint">0</span>
+                        <span className="font-mono text-faint">0</span>
                       )}
                     </td>
                   </tr>

@@ -46,12 +46,15 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
   return (
     <nav aria-label={t('nav.main')} className="flex h-full flex-col bg-rail text-rail-ink select-none border-r border-rail-hover/30">
       <div className={`flex h-14 items-center gap-2.5 border-b border-rail-hover/40 ${collapsed ? 'justify-center' : 'px-4'}`}>
-        <div className="p-1 rounded-lg bg-rail-hover/50">
+        <div className="p-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.25)]">
           <StrataMark />
         </div>
         {!collapsed && (
           <div className="leading-tight">
-            <div className="text-[15px] font-bold text-white tracking-tight">Strata</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[15px] font-bold text-white tracking-tight">Strata</span>
+              <span className="text-[9px] font-mono font-bold uppercase px-1 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded">WAF</span>
+            </div>
             <div className="text-[10px] font-medium tracking-wide text-rail-ink/70 uppercase">{t('app.subtitle')}</div>
           </div>
         )}
@@ -74,9 +77,9 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
                   } ${collapsed ? 'justify-center' : ''}`}
                 >
                   {on && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent shadow-[0_0_8px_rgba(14,124,123,0.8)]" />
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.9)]" />
                   )}
-                  <Icon className={`w-[18px] h-[18px] shrink-0 transition-transform ${on ? 'text-white' : 'text-rail-ink/70 group-hover:text-white group-hover:scale-105'}`} />
+                  <Icon className={`w-[18px] h-[18px] shrink-0 transition-transform ${on ? 'text-cyan-400' : 'text-rail-ink/70 group-hover:text-white group-hover:scale-105'}`} />
                   {!collapsed && <span>{t(`nav.${page}`)}</span>}
                 </a>
               </li>

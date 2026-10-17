@@ -4,6 +4,7 @@ import { Pause, Play, RefreshCw, Activity, ShieldAlert, Eye, AlertTriangle, Glob
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
+import { GeoMap } from '../components/geo/GeoMap';
 import { apiClient, Overview, FleetNode, Rollout, Policy } from '../api/client';
 import { RangeKey, overviewRanges, isRange, windowOf } from '../lib/timeRange';
 import { Route, href, replaceQuery } from '../router';
@@ -35,11 +36,11 @@ const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / who
 const SplitBar: React.FC<{ block: number; shadow: number; error?: number; total: number; max: number }> = ({ block, shadow, error = 0, total, max }) => {
   const w = (n: number) => `${max > 0 ? (n / max) * 100 : 0}%`;
   return (
-    <div className="flex h-2 w-full overflow-hidden rounded-full bg-sunken/80 shadow-inner" aria-hidden>
-      <div className="bg-block transition-all" style={{ width: w(block) }} />
-      <div className="bg-shadow transition-all" style={{ width: w(shadow) }} />
-      <div className="bg-unchecked transition-all" style={{ width: w(error) }} />
-      <div className="bg-other/50 transition-all" style={{ width: w(Math.max(0, total - block - shadow - error)) }} />
+    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-sunken border border-line/60" aria-hidden>
+      <div className="bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)] transition-all" style={{ width: w(block) }} />
+      <div className="bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)] transition-all" style={{ width: w(shadow) }} />
+      <div className="bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.7)] transition-all" style={{ width: w(error) }} />
+      <div className="bg-slate-600/50 transition-all" style={{ width: w(Math.max(0, total - block - shadow - error)) }} />
     </div>
   );
 };
@@ -53,31 +54,31 @@ const Kpi: React.FC<{
   icon: React.ComponentType<{ className?: string }>;
 }> = ({ label, value, note, tone, testId, icon: Icon }) => {
   const toneColors = {
-    block: 'text-block bg-block/10 border-block/25',
-    shadow: 'text-shadow bg-shadow/10 border-shadow/25',
-    unchecked: 'text-unchecked bg-unchecked/10 border-unchecked/25',
+    block: 'text-rose-400 bg-rose-500/15 border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.15)]',
+    shadow: 'text-amber-400 bg-amber-500/15 border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]',
+    unchecked: 'text-purple-400 bg-purple-500/15 border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]',
   };
-  const toneIconClass = tone ? toneColors[tone] : 'text-muted bg-sunken/80 border-line';
+  const toneIconClass = tone ? toneColors[tone] : 'text-cyan-400 bg-cyan-500/10 border-cyan-500/25 shadow-[0_0_12px_rgba(6,182,212,0.15)]';
   return (
     <div
       data-testid={testId}
-      className="min-w-0 p-4 rounded-lg bg-surface border border-line shadow-xs hover:shadow transition-all flex flex-col justify-between"
+      className="relative overflow-hidden min-w-0 p-4 rounded-xl bg-surface border border-line shadow-sm hover:border-accent/40 transition-all flex flex-col justify-between"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted truncate">{label}</span>
-        <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${toneIconClass}`}>
+        <span className="text-[11px] font-bold text-muted uppercase tracking-wider truncate">{label}</span>
+        <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${toneIconClass}`}>
           <Icon className="w-3.5 h-3.5" />
         </div>
       </div>
       <div className="mt-3">
         <div
-          className={`text-[26px] leading-tight font-bold tabular-nums tracking-tight ${
-            tone ? { block: 'text-block', shadow: 'text-shadow', unchecked: 'text-unchecked' }[tone] : 'text-ink'
+          className={`font-mono text-[26px] leading-tight font-extrabold tabular-nums tracking-tight ${
+            tone ? { block: 'text-rose-400', shadow: 'text-amber-400', unchecked: 'text-purple-400' }[tone] : 'text-ink'
           }`}
         >
           {value}
         </div>
-        {note && <div className="mt-1 text-xs text-muted truncate font-normal">{note}</div>}
+        {note && <div className="mt-1.5 text-xs text-muted truncate">{note}</div>}
       </div>
     </div>
   );
@@ -232,6 +233,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             <Empty testId="overview-empty">{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
           )}
         </div>
+      </section>
+
+      <section className="mb-6">
+        <GeoMap
+          policyId={policy}
+          onSelectCountry={(iso) => {
+            if (iso) replaceQuery({ page: 'events', query: { range, client_ip: iso } });
+          }}
+        />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">

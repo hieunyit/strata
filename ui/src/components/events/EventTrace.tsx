@@ -43,11 +43,20 @@ const severityClass: Record<string, string> = {
 
 const ScoreBar: React.FC<{ label: string; value: number; max: number; strong?: boolean }> = ({ label, value, max, strong }) => (
   <div className="grid grid-cols-[8rem_1fr_3rem] items-center gap-3 text-[13px]">
-    <span className={strong ? 'font-medium text-ink' : 'text-muted'}>{label}</span>
-    <div className="h-2 rounded-full bg-sunken overflow-hidden" aria-hidden>
-      <div className={`h-full rounded-full ${strong ? 'bg-ink' : value > 0 ? 'bg-block/80' : ''}`} style={{ width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%` }} />
+    <span className={strong ? 'font-semibold text-ink' : 'text-muted'}>{label}</span>
+    <div className="h-2 rounded-full bg-sunken overflow-hidden border border-line/40" aria-hidden>
+      <div
+        className={`h-full rounded-full transition-all ${
+          strong
+            ? 'bg-gradient-to-r from-cyan-500 to-sky-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]'
+            : value > 0
+            ? 'bg-gradient-to-r from-rose-500 to-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.6)]'
+            : 'bg-transparent'
+        }`}
+        style={{ width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%` }}
+      />
     </div>
-    <span className={`text-right tabular-nums ${strong ? 'font-semibold' : ''}`}>{value}</span>
+    <span className={`text-right tabular-nums font-mono ${strong ? 'font-bold text-cyan-400' : 'text-muted'}`}>{value}</span>
   </div>
 );
 
@@ -115,15 +124,15 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
           <SectionTitle>{t('detail.verdictTitle')}</SectionTitle>
           <div className="px-5 py-4 space-y-4">
             <div
-              className={`p-3.5 rounded-lg border ${
+              className={`p-4 rounded-xl border ${
                 verdict === 'block'
-                  ? 'border-block/30 bg-block/5 text-ink'
+                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-200 shadow-[0_0_16px_rgba(244,63,94,0.1)]'
                   : verdict === 'shadow'
-                  ? 'border-shadow/30 bg-shadow/5 text-ink'
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 shadow-[0_0_16px_rgba(245,158,11,0.1)]'
                   : 'border-line bg-sunken/40 text-ink'
               }`}
             >
-              <p className="text-[14px] leading-relaxed font-medium max-w-[72ch]" data-testid="verdict-summary">
+              <p className="text-[14px] leading-relaxed font-semibold max-w-[72ch]" data-testid="verdict-summary">
                 {t(`detail.summary.${verdict}`, {
                   policy: event.policy_id || '—',
                   version: event.policy_version ?? 0,

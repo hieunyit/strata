@@ -15,44 +15,44 @@
  * Values are RGB triplets so Tailwind can apply opacity.
  */
 :root {
-  --paper: 243 245 247;
+  --paper: 248 250 252;
   --surface: 255 255 255;
-  --sunken: 236 240 243;
-  --line: 221 226 232;
-  --ink: 27 36 48;
-  --muted: 95 107 122;
-  --faint: 140 151 164;
-  --accent: 14 124 123;
+  --sunken: 241 245 249;
+  --line: 226 232 240;
+  --ink: 15 23 42;
+  --muted: 71 85 105;
+  --faint: 148 163 184;
+  --accent: 8 145 178;
   --accent-ink: 255 255 255;
-  --rail: 32 48 63;
-  --rail-ink: 214 223 231;
-  --rail-hover: 44 63 81;
-  --block: 184 58 46;
-  --shadow: 199 134 26;
-  --other: 122 139 153;
-  --unchecked: 107 91 149;
-  --ok: 46 125 84;
+  --rail: 11 15 25;
+  --rail-ink: 226 232 240;
+  --rail-hover: 23 32 51;
+  --block: 225 29 72;
+  --shadow: 217 119 6;
+  --other: 100 116 139;
+  --unchecked: 147 51 234;
+  --ok: 5 150 105;
   color-scheme: light;
 }
 
 .dark {
-  --paper: 23 32 42;
-  --surface: 30 41 53;
-  --sunken: 26 36 47;
-  --line: 48 62 77;
-  --ink: 228 233 238;
-  --muted: 156 168 181;
-  --faint: 116 130 145;
-  --accent: 45 170 166;
-  --accent-ink: 12 30 32;
-  --rail: 19 27 36;
-  --rail-ink: 196 207 217;
-  --rail-hover: 36 50 64;
-  --block: 222 99 84;
-  --shadow: 224 166 64;
-  --other: 133 150 166;
-  --unchecked: 160 144 206;
-  --ok: 88 178 127;
+  --paper: 11 15 25;
+  --surface: 17 24 39;
+  --sunken: 8 12 20;
+  --line: 30 41 59;
+  --ink: 248 250 252;
+  --muted: 148 163 184;
+  --faint: 100 116 139;
+  --accent: 6 182 212;
+  --accent-ink: 11 15 25;
+  --rail: 7 10 18;
+  --rail-ink: 226 232 240;
+  --rail-hover: 20 28 46;
+  --block: 244 63 94;
+  --shadow: 245 158 11;
+  --other: 100 116 139;
+  --unchecked: 168 85 247;
+  --ok: 16 185 129;
   color-scheme: dark;
 }
 
@@ -85,28 +85,28 @@ code, kbd, pre, .font-mono {
 
 @layer components {
   .panel {
-    @apply bg-surface border border-line rounded-lg shadow-sm transition-shadow;
+    @apply bg-surface border border-line rounded-xl shadow-sm transition-all;
   }
   .panel-elevated {
-    @apply bg-surface border border-line rounded-lg shadow-sm hover:shadow transition-all;
+    @apply bg-surface border border-line/90 rounded-xl shadow-md hover:border-accent/40 transition-all;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-[13px] font-medium border border-line bg-surface text-ink hover:bg-sunken hover:border-muted/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 transition-all;
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium border border-line bg-surface text-ink hover:bg-sunken hover:border-accent/50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-[13px] font-medium bg-accent text-accent-ink hover:opacity-95 hover:shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 transition-all;
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3.5 rounded-lg text-[13px] font-semibold bg-gradient-to-r from-cyan-500 to-sky-600 text-slate-950 hover:from-cyan-400 hover:to-sky-500 shadow-sm hover:shadow-cyan-500/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all;
   }
   .field {
-    @apply h-8 w-full px-2.5 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all;
+    @apply h-8 w-full px-3 rounded-lg border border-line bg-sunken text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all;
   }
   .label {
-    @apply block text-xs font-medium text-muted mb-1;
+    @apply block text-xs font-semibold text-muted mb-1 tracking-wide;
   }
   .th {
-    @apply px-4 py-2.5 text-left text-[11px] font-semibold text-muted uppercase tracking-wider whitespace-nowrap;
+    @apply px-4 py-2.5 text-left text-[11px] font-bold text-muted uppercase tracking-wider whitespace-nowrap border-b border-line bg-sunken/40;
   }
   .td {
-    @apply px-4 py-2.5 align-middle;
+    @apply px-4 py-3 align-middle border-b border-line/50;
   }
 }
 

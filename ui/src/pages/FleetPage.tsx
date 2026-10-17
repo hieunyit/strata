@@ -160,9 +160,17 @@ export const FleetPage: React.FC = () => {
           )
         }
       />
-      <p className="mb-5 text-[13px]" data-testid="fleet-summary">
-        {t('fleet.summary', { online, total: nodes.length, groups: groups.length })}
-      </p>
+      <div className="mb-5 flex flex-wrap items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface border border-line shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${online > 0 ? 'bg-emerald-400' : 'bg-slate-400'} opacity-75`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${online > 0 ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
+          </span>
+          <span className="font-mono text-xs font-semibold text-ink" data-testid="fleet-summary">
+            {t('fleet.summary', { online, total: nodes.length, groups: groups.length })}
+          </span>
+        </div>
+      </div>
       <ErrorBanner message={error && t('common.refreshError', { error })} />
       {!loading && <RolloutPanel rollout={data?.rollout} names={names} />}
       {loading && <p className="text-[13px] text-muted">{t('fleet.loading')}</p>}

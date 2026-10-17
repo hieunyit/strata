@@ -14,17 +14,17 @@ export function verdictOf(action: string | undefined): Verdict {
 }
 
 const verdictClass: Record<Verdict, string> = {
-  block: 'text-block bg-block/10 border-block/30',
-  shadow: 'text-shadow bg-shadow/10 border-shadow/35',
-  pass: 'text-other bg-other/10 border-other/30',
-  error: 'text-muted bg-sunken border-line',
+  block: 'text-rose-400 bg-rose-500/15 border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.15)]',
+  shadow: 'text-amber-400 bg-amber-500/15 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.15)]',
+  pass: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)]',
+  error: 'text-slate-400 bg-slate-500/15 border-slate-500/40',
 };
 
 const verdictDot: Record<Verdict, string> = {
-  block: 'bg-block',
-  shadow: 'bg-shadow',
-  pass: 'bg-other',
-  error: 'bg-faint',
+  block: 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.9)]',
+  shadow: 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.9)]',
+  pass: 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]',
+  error: 'bg-slate-400',
 };
 
 export const VerdictBadge: React.FC<{ action?: string; size?: 'sm' | 'md' }> = ({ action, size = 'sm' }) => {
@@ -34,7 +34,7 @@ export const VerdictBadge: React.FC<{ action?: string; size?: 'sm' | 'md' }> = (
     <span
       data-testid="verdict"
       data-verdict={v}
-      className={`inline-flex items-center gap-1.5 rounded-full border font-medium whitespace-nowrap shadow-xs ${verdictClass[v]} ${
+      className={`inline-flex items-center gap-1.5 rounded-full border font-mono font-semibold whitespace-nowrap ${verdictClass[v]} ${
         size === 'md' ? 'px-3 py-1 text-[13px]' : 'px-2 py-0.5 text-xs'
       }`}
     >
@@ -70,7 +70,7 @@ export const RangeSwitch: React.FC<{
 }> = ({ value, options, onChange, testId = 'range-switch' }) => {
   const { t } = useTranslation();
   return (
-    <div role="radiogroup" aria-label={t('range.label')} data-testid={testId} className="inline-flex rounded-lg border border-line bg-surface p-0.5 shadow-xs">
+    <div role="radiogroup" aria-label={t('range.label')} data-testid={testId} className="inline-flex rounded-lg border border-line bg-sunken/80 p-0.5 shadow-xs">
       {options.map((o) => (
         <button
           key={o}
@@ -79,8 +79,8 @@ export const RangeSwitch: React.FC<{
           aria-checked={o === value}
           data-testid={`range-${o}`}
           onClick={() => onChange(o)}
-          className={`h-7 px-3 rounded-md text-[13px] transition-all ${
-            o === value ? 'bg-ink text-paper font-medium shadow-xs' : 'text-muted hover:text-ink hover:bg-sunken/60'
+          className={`h-7 px-3 rounded-md text-[12px] font-semibold transition-all ${
+            o === value ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-muted hover:text-ink hover:bg-surface/60'
           }`}
         >
           {t(`range.${o}`)}

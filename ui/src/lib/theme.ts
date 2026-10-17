@@ -6,11 +6,7 @@ export type Theme = 'light' | 'dark';
 function initial(): Theme {
   const saved = readPref('theme');
   if (saved === 'light' || saved === 'dark') return saved;
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+  return 'dark';
 }
 
 function apply(theme: Theme): void {

@@ -199,11 +199,11 @@ export const AuditPage: React.FC = () => {
                   {e.actor}
                 </td>
                 <td className="td whitespace-nowrap">
-                  <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-sunken border border-line text-muted">
+                  <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
                     {e.channel}
                   </span>
                 </td>
-                <td className="td whitespace-nowrap font-mono text-xs text-ink" data-testid="audit-action">
+                <td className="td whitespace-nowrap font-mono text-xs font-semibold text-ink" data-testid="audit-action">
                   {actionName(e.action)}
                 </td>
                 <td className="td font-mono text-xs text-muted max-w-xs truncate" title={e.resource}>
