@@ -186,6 +186,7 @@ func ValidateEvent(evt *Event, now time.Time) error {
 	}
 
 	// 6. Defaults
+	evt.RuleCosts = validRuleCosts(evt.RuleCosts)
 	if evt.ReceivedAt.IsZero() {
 		evt.ReceivedAt = now
 	}
