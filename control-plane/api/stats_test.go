@@ -105,6 +105,13 @@ func TestOverview_CountsTopsAndSeries(t *testing.T) {
 	if len(o.TopClients) == 0 || o.TopClients[0].ClientIP != "198.51.100.1" || o.TopClients[0].Events != 2 {
 		t.Errorf("top clients = %+v, want 198.51.100.1 first", o.TopClients)
 	}
+	// W20-F-01: Engine Latency is populated in the overview response
+	if o.Latency == nil {
+		t.Fatal("expected Latency to be populated in OverviewResponse")
+	}
+	if o.Latency.P50Micros == 0 || o.Latency.P99Micros == 0 {
+		t.Errorf("expected non-zero latency percentiles, got %+v", o.Latency)
+	}
 }
 
 func TestOverview_ViewerGetsNoClients(t *testing.T) {

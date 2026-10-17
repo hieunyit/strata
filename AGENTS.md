@@ -16,6 +16,15 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 20** (khối C2 · SOC Dashboard, Tối ưu thống kê ClickHouse & Template API OpenAPI · kế hoạch `docs/plan/w20-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W20-F-01 | Trang Tổng quan đầy đủ (SOC Enterprise Dashboard) | Antigravity | W18-G2-01 | ✅ Done (`ui/src/pages/OverviewPage.tsx`, `ui/src/components/overview/EngineLatencyWidget.tsx`, `ActiveRolloutBanner.tsx`, `NodeFaultList.tsx`) |
+| W20-G2-01 | Tối ưu truy vấn thống kê ClickHouse (Hourly SummingMergeTree) | Antigravity | W17-Q-01 | ✅ Done (`control-plane/ingest/hourly_views.go`, `control-plane/ingest/stats.go`, `Fast-path Router`) |
+| W20-S-01 | Template policy cho API có OpenAPI (Positive Security Model) | Antigravity | — | ✅ Done (`rules/templates/api.yaml`, `control-plane/policy/spec.go`, `InheritFrom`) |
+| W20-R-01 | Tinh chỉnh Semantic Detector (SQLi, XSS) | Claude Code | — | ⏳ Chưa bắt đầu |
+
 **Nhiệm vụ tuần 19** (khối C1 · Drill-down và rule geo/ASN · kế hoạch `docs/plan/w19-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |

@@ -254,3 +254,62 @@ func Parse(raw json.RawMessage) (Spec, error) {
 
 // ErrNoPolicies: a bundle needs at least one policy.
 var ErrNoPolicies = errors.New("policy: no policies to build")
+
+// Template represents a policy template (W20-S-01).
+type Template struct {
+	Name        string `json:"name" yaml:"name"`
+	Description string `json:"description" yaml:"description"`
+	Version     string `json:"version" yaml:"version"`
+	Spec        Spec   `json:"spec" yaml:"spec"`
+}
+
+// InheritFrom applies the template's defaults onto a policy spec
+// without overwriting explicitly set fields in s (W20-S-01).
+func (s *Spec) InheritFrom(t *Template) {
+	if t == nil {
+		return
+	}
+	ts := t.Spec
+	if s.Mode == "" {
+		s.Mode = ts.Mode
+	}
+	if s.Oversize == "" {
+		s.Oversize = ts.Oversize
+	}
+	if s.FailOnFindings == "" {
+		s.FailOnFindings = ts.FailOnFindings
+	}
+	if s.MaxArgs == 0 {
+		s.MaxArgs = ts.MaxArgs
+	}
+	if s.MaxSnippetSize == 0 {
+		s.MaxSnippetSize = ts.MaxSnippetSize
+	}
+	if s.Privacy == nil && ts.Privacy != nil {
+		s.Privacy = &Privacy{
+			SensitiveFields: append([]string(nil), ts.Privacy.SensitiveFields...),
+			MaskPatterns:    append([]string(nil), ts.Privacy.MaskPatterns...),
+			Identity:        ts.Privacy.Identity,
+		}
+	}
+	if s.Response == nil && ts.Response != nil {
+		s.Response = &Response{
+			AllowedCodesCheck: ts.Response.AllowedCodesCheck,
+			DBErrors:          ts.Response.DBErrors,
+			DataGuard:         append([]string(nil), ts.Response.DataGuard...),
+		}
+	}
+	if s.GeoRestrictions == nil && ts.GeoRestrictions != nil {
+		enabled := ts.GeoRestrictions.IsEnabled()
+		s.GeoRestrictions = &GeoRestrictions{
+			Enabled:             &enabled,
+			DefaultAction:       ts.GeoRestrictions.DefaultAction,
+			BlockedCountries:    append([]string(nil), ts.GeoRestrictions.BlockedCountries...),
+			ChallengedCountries: append([]string(nil), ts.GeoRestrictions.ChallengedCountries...),
+			BlockedASNs:         append([]uint32(nil), ts.GeoRestrictions.BlockedASNs...),
+			ChallengedASNs:      append([]uint32(nil), ts.GeoRestrictions.ChallengedASNs...),
+			ExemptIPs:           append([]string(nil), ts.GeoRestrictions.ExemptIPs...),
+		}
+	}
+}
+

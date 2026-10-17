@@ -1,0 +1,46 @@
+# Strata Policy Template: RESTful API Protection
+# Positive Security Model with Strict Schema & Protocol Enforcement (W20-S-01)
+name: api
+description: "RESTful API protection template enforcing a positive security model for microservices with OpenAPI specifications."
+version: 1.0.0
+
+spec:
+  mode: enforce
+  oversize: block
+  fail_on_findings: block
+  max_args: 256
+  max_snippet_size: 2048
+
+  privacy:
+    sensitive_fields:
+      - password
+      - token
+      - access_token
+      - refresh_token
+      - secret
+      - authorization
+      - api_key
+      - apikey
+      - client_secret
+      - private_key
+    mask_patterns:
+      - "ey[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9._-]{10,}"
+    identity: plain
+
+  response:
+    allowed_codes_check: true
+    db_errors: true
+    data_guard:
+      - cccd
+      - jwt
+      - pan
+
+  geo_restrictions:
+    enabled: true
+    default_action: pass
+    exempt_ips:
+      - "127.0.0.1"
+      - "::1"
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"

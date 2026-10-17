@@ -25,7 +25,16 @@ export type FleetNode = admin['schemas']['v1Node'];
 export type Rollout = admin['schemas']['v1Rollout'];
 export type RolloutNode = admin['schemas']['v1RolloutNode'];
 export type ErrorResponse = components['schemas']['ErrorResponse'];
-export type Overview = components['schemas']['OverviewResponse'];
+export interface EngineLatency {
+  p50_micros: number;
+  p90_micros: number;
+  p99_micros: number;
+  sample_count: number;
+}
+
+export type Overview = components['schemas']['OverviewResponse'] & {
+  latency?: EngineLatency;
+};
 export type OverviewBucket = components['schemas']['OverviewBucket'];
 export type RuleInfo = components['schemas']['RuleInfo'];
 export type AuthMethods = components['schemas']['AuthMethods'];

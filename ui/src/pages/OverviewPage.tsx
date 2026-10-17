@@ -4,6 +4,9 @@ import { Pause, Play, RefreshCw, Activity, ShieldAlert, Eye, AlertTriangle, Glob
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime, VerdictBadge } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
+import { EngineLatencyWidget } from '../components/overview/EngineLatencyWidget';
+import { ActiveRolloutBanner } from '../components/overview/ActiveRolloutBanner';
+import { NodeFaultList } from '../components/overview/NodeFaultList';
 import { GeoMap } from '../components/geo/GeoMap';
 import { FilterChips, FilterState } from '../components/geo/FilterChips';
 import { TimelineChart } from '../components/geo/TimelineChart';
@@ -184,13 +187,13 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   }, [fetchDrillEvents]);
 
   useEffect(() => {
-    if (!liveStreaming) return;
+    if (!live || !liveStreaming) return;
     const unsub = apiClient.openGeoWatchStream((_update) => {
       setUpdated(new Date().toISOString());
       void fetchDrillEvents();
     });
     return unsub;
-  }, [liveStreaming, fetchDrillEvents]);
+  }, [live, liveStreaming, fetchDrillEvents]);
 
   const refresh = useCallback(async () => {
     try {
@@ -292,8 +295,31 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       />
       <ErrorBanner message={error && t('common.refreshError', { error })} />
 
+      {!live && (
+        <div
+          data-testid="pause-investigation-banner"
+          className="mb-4 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-300 shadow-sm"
+        >
+          <span className="flex items-center gap-2 font-semibold">
+            <Pause className="w-4 h-4 text-amber-400" />
+            <span>CHẾ ĐỘ TẠM DỪNG ĐIỀU TRA: Tự động làm mới và luồng trực tiếp đang tạm ngắt để cố định khung nhìn.</span>
+          </span>
+          <button
+            type="button"
+            data-testid="resume-investigation-btn"
+            onClick={() => setLive(true)}
+            className="btn btn-sm text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40"
+          >
+            Tiếp tục trực tiếp ▶
+          </button>
+        </div>
+      )}
+
+      <ActiveRolloutBanner rollout={data?.rollout} />
+      <NodeFaultList nodes={nodes} locale={locale} />
+
       <section className="mb-6" aria-label={t('overview.totals')}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-3.5">
           <Kpi testId="kpi-events" icon={Activity} label={t('overview.kpi.events')} value={loading && !o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
           <Kpi
             testId="kpi-blocked"
@@ -327,6 +353,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             value={nodes ? `${online}/${enrolled}` : '—'}
             note={nodes ? (offline.length ? t('overview.kpi.offline', { count: offline.length }) : t('overview.kpi.allOnline')) : t('overview.kpi.noFleet')}
           />
+          <EngineLatencyWidget latency={o?.latency} />
         </div>
       </section>
 
