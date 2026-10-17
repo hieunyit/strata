@@ -37,6 +37,7 @@ pub struct Engine {
     /// per policy index: its privacy settings (P-01 §1)
     privacy: Vec<Option<crate::privacy::Privacy>>,
     exceptions: Vec<Vec<crate::exceptions::Exception>>,
+    staging: Vec<Vec<u32>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -134,6 +135,42 @@ impl Engine {
                 exceptions[e.policy_index as usize].push(e);
             }
         }
+        let staged_policies: Vec<_> = bundle::policies(bytes, &info)
+            .filter(|p| p.staging)
+            .map(|p| p.index)
+            .collect();
+        let staged = crate::staging::parse(
+            info.section(bytes, bundle::kind::STAGING),
+            info.n_policies,
+            &staged_policies,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut staging = vec![vec![]; info.n_policies as usize];
+        if !staged.is_empty() {
+            let managed = crate::rules::code(crate::rules::LAYERS, "managed");
+            let headers = crate::rules::code(crate::rules::STAGES, "request_headers");
+            let body = crate::rules::code(crate::rules::STAGES, "request_body");
+            let mut ids = std::collections::HashMap::new();
+            for r in (0..tables.n_rules()).filter_map(|i| tables.rule(i)) {
+                let valid = Some(r.layer) == managed
+                    && (Some(r.stage) == headers || Some(r.stage) == body)
+                    && (0..=1000).contains(&r.score);
+                // IDs must resolve unambiguously, including records in other
+                // layers. Dropping a negative score could increase blocking.
+                ids.entry(r.id)
+                    .and_modify(|ok| *ok = false)
+                    .or_insert(valid);
+            }
+            for entry in staged {
+                if ids.get(&entry.rule_id) != Some(&true) {
+                    return Err((
+                        E_BUNDLE,
+                        "staging requires one managed request rule with score 0..1000",
+                    ));
+                }
+                staging[entry.policy_index as usize].push(entry.rule_id);
+            }
+        }
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -207,6 +244,7 @@ impl Engine {
             prefilter_on: true,
             privacy,
             exceptions,
+            staging,
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
@@ -234,6 +272,13 @@ impl Engine {
         self.exceptions
             .get(index as usize)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// Immutable, signed, bounded per-policy log-only overlay.
+    pub fn is_staged(&self, index: u32, rule: u32) -> bool {
+        self.staging
+            .get(index as usize)
+            .is_some_and(|ids| ids.binary_search(&rule).is_ok())
     }
 
     pub fn privacy(&self, index: u32) -> Option<&crate::privacy::Privacy> {

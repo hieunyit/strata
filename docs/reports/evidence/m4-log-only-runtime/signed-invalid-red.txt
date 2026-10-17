@@ -1,0 +1,23 @@
+   Compiling strata-hs v0.1.0 (/src/engine/ffi/hyperscan)
+   Compiling libstrata v0.1.0 (/src/engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.64s
+     Running tests/policy_staging.rs (target/debug/deps/policy_staging-0dd734df87830e6e)
+
+running 1 test
+test invalid_staging_membership_and_flag_pairs_reject_bundle ... FAILED
+
+failures:
+
+---- invalid_staging_membership_and_flag_pairs_reject_bundle stdout ----
+
+thread 'invalid_staging_membership_and_flag_pairs_reject_bundle' (456) panicked at engine/tests/policy_staging.rs:141:9:
+ambiguous or invalid rule accepted for staging
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    invalid_staging_membership_and_flag_pairs_reject_bundle
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p libstrata --test policy_staging`
