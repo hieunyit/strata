@@ -1,0 +1,10 @@
+PASS rejected ('9.9.9', 'build/unused') exit 2
+PASS rejected ('1.30.5', '../outside') exit 2
+PASS rejected ('1.30.5', 'build/../outside') exit 2
+PASS rejected ('1.30.5', 'build/bad name') exit 2
+Shell syntax: PASS; invalid-input cases: 4/4 PASS
+PASS rejected evidence: zero-tests
+PASS rejected evidence: skipped-suite
+PASS rejected evidence: wrong-file-count
+PASS rejected evidence: sanitizer-report
+Evidence negative controls: 4/4 PASS
