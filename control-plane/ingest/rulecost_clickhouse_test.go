@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -78,7 +79,8 @@ func TestRuleCosts_ClickHouseMigrationAndRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := Event{BlockID: "STR-BBBB-BBBB-BBBB-BBBB", Timestamp: now, ReceivedAt: now, NodeID: "example-node", PolicyID: "example-api", Action: "block",
-		RuleCosts: []RuleCost{{RuleID: 0, Samples: 1, TotalNS: 100, MaxNS: 100}, {RuleID: 942100, Samples: 2, TotalNS: 700, MaxNS: 500}}}
+		MatchedRules: []uint32{942100, 942100},
+		RuleCosts:    []RuleCost{{RuleID: 0, Samples: 1, TotalNS: 100, MaxNS: 100}, {RuleID: 942100, Samples: 2, TotalNS: 700, MaxNS: 500}}}
 	for range 2 {
 		if err := ch.SaveEvents(ctx, []Event{e}); err != nil {
 			t.Fatal(err)
@@ -97,5 +99,35 @@ func TestRuleCosts_ClickHouseMigrationAndRetry(t *testing.T) {
 	}
 	if samples != 2 || total != 700 {
 		t.Fatalf("retry double counted: samples=%d ns=%d", samples, total)
+	}
+	// A rule evaluation need not be a match; keep its cost in the aggregate.
+	e.BlockID, e.MatchedRules = "STR-CCCC-CCCC-CCCC-CCCC", nil
+	e.RuleCosts = []RuleCost{{RuleID: 942100, Samples: 1, TotalNS: 300, MaxNS: 300}}
+	if err := ch.SaveEvents(ctx, []Event{e}); err != nil {
+		t.Fatal(err)
+	}
+	tm, err := ch.RuleTelemetry(ctx, 942100, "example-api", now, now.Add(time.Second))
+	if err != nil || tm.MatchedEvents != 1 || tm.CostSamples != "3" || tm.CostTotalNS != "1000" || tm.CostMeanNS == nil || math.Abs(*tm.CostMeanNS-1000.0/3) > 0.001 {
+		t.Fatalf("wrong deduplicated telemetry: %+v %v", tm, err)
+	}
+	if other, err := ch.RuleTelemetry(ctx, 942100, "different-policy", now, now.Add(time.Second)); err != nil || other.MatchedEvents != 0 || other.CostSamples != "0" || other.CostMeanNS != nil {
+		t.Fatalf("policy scope lost: %+v %v", other, err)
+	}
+	for _, policy := range []string{"", "example-api"} {
+		tm, err := ch.RuleTelemetry(ctx, 942100, policy, now.Add(-time.Second), now)
+		if err != nil || tm.MatchedEvents != 0 || tm.CostSamples != "0" || tm.CostMeanNS != nil {
+			t.Fatalf("exclusive end counted event: %+v %v", tm, err)
+		}
+	}
+	e.RuleCosts = []RuleCost{{RuleID: 942101, Samples: ^uint64(0), TotalNS: ^uint64(0), MaxNS: 1}}
+	for _, id := range []string{"STR-DDDD-DDDD-DDDD-DDDD", "STR-EEEE-EEEE-EEEE-EEEE"} {
+		e.BlockID = id
+		if err := ch.SaveEvents(ctx, []Event{e}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tm, err = ch.RuleTelemetry(ctx, 942101, "", now, now.Add(time.Second))
+	if err != nil || tm.CostSamples != "36893488147419103230" || tm.CostTotalNS != tm.CostSamples || tm.CostMeanNS == nil || *tm.CostMeanNS != 1 {
+		t.Fatalf("UInt64 sum overflow: %+v %v", tm, err)
 	}
 }
