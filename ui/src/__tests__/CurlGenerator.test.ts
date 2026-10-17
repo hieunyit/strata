@@ -26,7 +26,7 @@ describe('buildCurlFromEvent', () => {
     };
 
     const cmd = buildCurlFromEvent(event);
-    expect(cmd).toContain("curl -i -X GET 'https://api.example.com/v1/users'");
+    expect(cmd).toContain("curl -i -X 'GET' 'https://api.example.com/v1/users'");
     expect(cmd).toContain("-H 'Host: api.example.com'");
     expect(cmd).toContain("-H 'User-Agent: curl/8.0.1'");
     expect(cmd).toContain("-H 'X-Forwarded-For: 192.0.2.1'");
@@ -63,7 +63,7 @@ describe('buildCurlFromEvent', () => {
     };
 
     const cmd = buildCurlFromEvent(event);
-    expect(cmd).toContain("curl -i -X POST 'https://shop.example.test/search?q=' OR '1'='1'");
+    expect(cmd).toContain(String.raw`curl -i -X 'POST' 'https://shop.example.test/search?q='\'' OR '\''1'\''='\''1'`);
     expect(cmd).toContain("-H 'User-Agent: Mozilla/5.0 (compatible; Hacker'\\''s Tool/1.0)'");
     expect(cmd).toContain("-H 'Referer: https://shop.example.test/referral'\\''test'");
     expect(cmd).toContain("--data-raw 'username='\\''admin'\\''--'");
