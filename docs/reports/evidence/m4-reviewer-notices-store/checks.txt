@@ -1,0 +1,2 @@
+ok  	github.com/strata/strata/control-plane/store	16.752s
+0 issues.
