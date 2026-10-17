@@ -552,7 +552,7 @@ func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer
 	log.Printf("[INFO] Deploys: %s, %d rule files", bin, len(ruleFiles))
 	return &policy.Deployer{
 		Store: pg,
-		Builder: &policy.Compiler{Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
+		Builder: &policy.Compiler{StagingStore: pg, Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
 			SupportContact: contact, CostBudget: budget,
 			// P-01 §1: from a secret manager, or kept by the control plane
 			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key},

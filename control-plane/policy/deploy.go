@@ -85,7 +85,7 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			if err != nil {
 				return fmt.Errorf("policy %s version %d: %w", p.ID, p.CurrentVersion, err)
 			}
-			named = append(named, Named{Name: p.Name, Spec: spec})
+			named = append(named, Named{ResourceID: p.ID, Version: p.CurrentVersion, Name: p.Name, Spec: spec})
 			contents[p.ID] = p.CurrentVersion
 		}
 		var data []byte
