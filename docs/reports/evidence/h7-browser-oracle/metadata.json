@@ -1,0 +1,19 @@
+{
+  "source_sha256": {
+    "tests/security/header_xss_browser_probe.py": "781b470d57038adf3ae18f7148d3ce95e038c3dda7eb5a95df50537b2341383a",
+    "tests/security/header_xss_browser_probe.mjs": "644a3b09f2bba96eec86fb3e1d76abb08cdc5900c3a12525c9ff83b663f68def",
+    "tests/security/test_header_probe.py": "972d51a4e18f49d99959adad33368de3168eb6944af4447a8937fe3ce984ccb1",
+    "tests/security/header_probe.py": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21"
+  },
+  "candidate_origin": "existing signed 9067-rule H7 candidate, hash pinned; not rebuilt from immutable upstream sources",
+  "budget_us": 10000,
+  "fail_mode": "open",
+  "source_base_commit": "c3e5078",
+  "native_sources_unchanged": true,
+  "limits": [
+    "synthetic local reflector; no actual application sanitizer/CSP",
+    "release and sanitizer outcomes are separate; sanitizer browser suite fails on inspection budget",
+    "single node, two workers, serial traffic, not performance SLO",
+    "rule release approval and ET archive reproducibility remain open"
+  ]
+}
