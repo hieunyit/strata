@@ -549,5 +549,46 @@
       "forbidden": "Bạn không còn quyền tạo exception.",
       "uncertain": "Chưa xác nhận được kết quả. Hãy thử lại cùng yêu cầu; form được giữ nguyên để tránh tạo trùng."
     }
+  },
+  "replay": {
+    "title": "Báo cáo replay",
+    "missing": "Version này chưa có replay được xếp hàng.",
+    "unavailable": "Không tải được replay. Hãy tải lại trước khi quyết định.",
+    "failed": "Replay thất bại. Người vận hành có thể chạy lại.",
+    "waiting": "Replay đang chờ hoặc đang chạy. Kết quả tự cập nhật khi version này đang mở.",
+    "incomplete": "Report rỗng hoặc thiếu bằng chứng artifact. Chưa thể duyệt; cần chạy lại replay.",
+    "invalidCount": "Số đếm không hợp lệ",
+    "topTen": "Hiển thị 10 mục đứng đầu.",
+    "traffic": "Traffic lấy mẫu",
+    "corpus": "Corpus kiểm thử",
+    "noSamples": "Nhóm này không có mẫu.",
+    "samples": "Số mẫu",
+    "newly_blocked": "Mới bị chặn",
+    "newly_allowed": "Mới được cho qua",
+    "draftActions": "Verdict bản nháp",
+    "baselineActions": "Verdict bản đối chiếu",
+    "blockedRules": "Rule trong mẫu mới bị chặn",
+    "allowedRules": "Rule trong mẫu mới được cho qua",
+    "blockedPaths": "Đường dẫn trong mẫu mới bị chặn",
+    "blockedSampled": "Action ghi nhận của mẫu mới bị chặn",
+    "allowedSampled": "Action ghi nhận của mẫu mới được cho qua",
+    "examples_blocked": "Ví dụ mới bị chặn",
+    "examples_allowed": "Ví dụ mới được cho qua",
+    "rules": "Rule",
+    "total": "{{samples}} mẫu · {{ms}} ms",
+    "baseline": "Bundle đối chiếu: {{bundle}} (0 là dựng từ policy).",
+    "truncated": "Đã chạm giới hạn mẫu traffic. Báo cáo chỉ bao phủ một phần traffic.",
+    "candidates": "Các thay đổi verdict là ca cần điều tra, chưa xác nhận là chặn nhầm hoặc bỏ lọt.",
+    "provenance": "Bằng chứng artifact được so sánh",
+    "input_digest": "Digest đầu vào",
+    "draft_sha256": "SHA-256 bản nháp",
+    "baseline_sha256": "SHA-256 bản đối chiếu",
+    "replay_sha256": "SHA-256 chương trình replay",
+    "state": {
+      "PENDING": "Đang chờ",
+      "RUNNING": "Đang chạy",
+      "DONE": "Hoàn tất",
+      "FAILED": "Thất bại"
+    }
   }
 }
