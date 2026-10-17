@@ -13,10 +13,24 @@ import (
 	"strconv"
 )
 
+type snapshotManifest struct {
+	StagedRules    map[string][]uint32 `json:",omitempty"`
+	Format         int
+	Compiler       string
+	Rules          []string
+	RuleFormats    []string
+	BlockPage      string
+	Policies       []Named
+	SupportContact string
+	CostBudget     uint64
+	IdentityKey    string
+}
+
 // Prepared compiles from private copies of the exact inputs committed by Digest.
 // The caller must Close it. Signing keys and the bundle version are deliberately
 // excluded: replay uses its own signing key and the deploy's version is allocated later.
 type Prepared struct {
+	manifest snapshotManifest
 	Digest   string
 	compiler Compiler
 	policies []Named
@@ -69,19 +83,8 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 		return nil, err
 	}
 	p.compiler.StagedRules = staged
-	type manifest struct {
-		StagedRules    map[string][]uint32 `json:",omitempty"`
-		Format         int
-		Compiler       string
-		Rules          []string
-		RuleFormats    []string
-		BlockPage      string
-		Policies       []Named
-		SupportContact string
-		CostBudget     uint64
-		IdentityKey    string
-	}
-	m := manifest{StagedRules: staged, Format: 2, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
+
+	m := snapshotManifest{StagedRules: staged, Format: 2, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
 	remaining := int64(512 << 20)
 	snapshot := func(src, label string, mode os.FileMode) (string, string, error) {
 		in, err := os.Open(src)
@@ -185,11 +188,19 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 		m.IdentityKey = hex.EncodeToString(sum[:])
 		p.compiler.IdentityKey = func(context.Context) ([]byte, error) { return append([]byte(nil), key...), nil }
 	}
-	raw, err = json.Marshal(m)
+	p.manifest = m
+	p.Digest, err = snapshotDigest(m)
 	if err != nil {
 		return nil, err
 	}
-	digest := sha256.Sum256(raw)
-	p.Digest = hex.EncodeToString(digest[:])
 	return p, nil
+}
+
+func snapshotDigest(m snapshotManifest) (string, error) {
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }
