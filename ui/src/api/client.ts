@@ -9,6 +9,10 @@ export type GetEventResponse = components['schemas']['GetEventResponse'];
 export type GetVersionResponse = admin['schemas']['v1GetVersionResponse'];
 export type Policy = admin['schemas']['v1Policy'];
 export type PolicyVersion = admin['schemas']['v1PolicyVersion'];
+export type Operation = admin['schemas']['v1Operation'];
+export type ReplayReport = admin['schemas']['v1ReplayReport'];
+export type ReplayComparison = admin['schemas']['v1ReplayComparison'];
+export type ReplayExample = admin['schemas']['v1ReplayExample'];
 export type PolicySpec = admin['schemas']['v1PolicySpec'];
 export type Group = admin['schemas']['v1Group'];
 export type FleetNode = admin['schemas']['v1Node'];
@@ -88,6 +92,25 @@ const json = (method: string, body: unknown): RequestInit => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
+
+// Version 0 means "latest" on some RPCs. Review actions must never fall back
+// to a different version from the one the user inspected.
+function validVersion(version: unknown): version is number {
+  return typeof version === 'number' && Number.isInteger(version) && version >= 1 && version <= 0xffffffff;
+}
+function explicitVersion(version: number): void {
+  if (!validVersion(version)) throw new ApiError('An explicit policy version is required', 400);
+}
+function versionReceipt(value: PolicyVersion | undefined, id: string, version: number, state: string): PolicyVersion {
+  if (!value || value.policy_id !== id || value.version !== version || value.state !== state) throw new ApiError('Invalid policy version receipt; reload before retrying', 502);
+  return value;
+}
+function operationReceipt(value: Operation | undefined, id: string, version: number): Operation {
+  if (!value?.id || value.kind !== 'REPLAY' || value.policy_id !== id || value.version !== version ||
+      !['PENDING', 'RUNNING', 'DONE', 'FAILED'].includes(value.state ?? '') ||
+      (value.state === 'DONE' && (!value.done || !value.replay))) throw new ApiError('Invalid replay operation', 502);
+  return value;
+}
 
 // The sign-in methods, asked before there is any session. An older control
 // plane without the route only knows OIDC.
@@ -215,6 +238,51 @@ export const apiClient = {
     const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
       `/policies/${encodeURIComponent(policyId)}/versions`, { method: 'GET' }, 'Failed to list versions');
     return r.versions ?? [];
+  },
+
+  async listSubmittedPolicyVersions(signal?: AbortSignal): Promise<PolicyVersion[]> {
+    const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
+      '/policies/-/versions?state=SUBMITTED', { method: 'GET', signal }, 'Failed to read review queue');
+    const rows = r.versions ?? [];
+    if (!Array.isArray(rows) || rows.some((v) => !v || typeof v.policy_id !== 'string' || !v.policy_id || !validVersion(v.version) || v.state !== 'SUBMITTED')) throw new ApiError('Invalid review queue', 502);
+    return rows;
+  },
+
+  async submitPolicy(id: string, version: number): Promise<PolicyVersion> {
+    explicitVersion(version);
+    const r = await call<admin['schemas']['v1SubmitPolicyResponse']>(
+      `/policies/${encodeURIComponent(id)}:submit`, json('POST', { version }), 'Failed to submit version');
+    return versionReceipt(r.version, id, version, 'SUBMITTED');
+  },
+  async approvePolicy(id: string, version: number, comment = ''): Promise<PolicyVersion> {
+    explicitVersion(version);
+    const r = await call<admin['schemas']['v1ApprovePolicyResponse']>(
+      `/policies/${encodeURIComponent(id)}:approve`, json('POST', { version, comment }), 'Failed to approve version');
+    return versionReceipt(r.version, id, version, 'APPROVED');
+  },
+  async rejectPolicy(id: string, version: number, comment: string): Promise<PolicyVersion> {
+    explicitVersion(version);
+    if (!comment.trim()) throw new ApiError('A rejection reason is required', 400);
+    const r = await call<admin['schemas']['v1RejectPolicyResponse']>(
+      `/policies/${encodeURIComponent(id)}:reject`, json('POST', { version, comment }), 'Failed to reject version');
+    return versionReceipt(r.version, id, version, 'REJECTED');
+  },
+  async getVersionReplay(id: string, version: number, signal?: AbortSignal): Promise<Operation | undefined> {
+    explicitVersion(version);
+    try {
+      const r = await call<admin['schemas']['v1GetPolicyVersionReplayResponse']>(
+        `/policies/${encodeURIComponent(id)}/versions/${version}/replay`, { method: 'GET', signal }, 'Failed to read replay');
+      return operationReceipt(r.operation, id, version);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 404) return undefined;
+      throw e;
+    }
+  },
+  async replayPolicy(id: string, version: number): Promise<Operation> {
+    explicitVersion(version);
+    const r = await call<admin['schemas']['v1ReplayPolicyResponse']>(
+      `/policies/${encodeURIComponent(id)}:replay`, json('POST', { version }), 'Failed to start replay');
+    return operationReceipt(r.operation, id, version);
   },
 
   /** GET /v1/groups */
