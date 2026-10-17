@@ -361,16 +361,39 @@ const lockBundles = 0x5354524154410002
 // WithBundleLock runs build with the next bundle version while holding a
 // database-wide lock, so versions increase strictly even with several
 // control planes deploying at once.
-func (s *Store) WithBundleLock(ctx context.Context, build func(next uint64) error) error {
+func (s *Store) WithBundleLock(ctx context.Context, build func(next uint64) error) (outErr error) {
 	conn, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("store: %w", err)
 	}
 	defer conn.Release()
+	locked := false
+	defer func() {
+		if locked {
+			cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			var released bool
+			err := conn.QueryRow(cleanup, "SELECT pg_advisory_unlock($1)", int64(lockBundles)).Scan(&released)
+			cancel()
+			if err == nil && released {
+				return
+			}
+			if err == nil {
+				err = errors.New("session did not hold the bundle lock")
+			}
+			outErr = errors.Join(outErr, fmt.Errorf("store: bundle unlock: %w", err))
+		}
+		// Acquisition may have reached the server before cancellation; an
+		// uncertain session must never return to the pool carrying this lock.
+		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := conn.Hijack().Close(closeCtx); err != nil {
+			outErr = errors.Join(outErr, fmt.Errorf("store: discard bundle lock session: %w", err))
+		}
+	}()
 	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", int64(lockBundles)); err != nil {
 		return fmt.Errorf("store: bundle lock: %w", err)
 	}
-	defer func() { _, _ = conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", int64(lockBundles)) }()
+	locked = true
 	var last int64
 	if err := conn.QueryRow(ctx, "SELECT coalesce(max(version), 0) FROM bundles").Scan(&last); err != nil {
 		return fmt.Errorf("store: bundle version: %w", err)

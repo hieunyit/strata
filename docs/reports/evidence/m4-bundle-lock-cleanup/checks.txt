@@ -1,0 +1,18 @@
+Parent source with new regression test:
+=== RUN   TestBundleLockCleanupAfterCancellationAndSessionFailure
+    bundle_lock_test.go:39: failed unlock silently reported success
+--- FAIL: TestBundleLockCleanupAfterCancellationAndSessionFailure (0.56s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/store	0.713s
+FAIL
+
+Fixed source with same regression test:
+=== RUN   TestBundleLockCleanupAfterCancellationAndSessionFailure
+--- PASS: TestBundleLockCleanupAfterCancellationAndSessionFailure (0.52s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	1.659s
+
+Full fixed-source suites (private PostgreSQL and actual compiler enabled):
+ok  	github.com/strata/strata/control-plane/store	16.948s
+ok  	github.com/strata/strata/control-plane/policy	23.127s
+0 issues.
