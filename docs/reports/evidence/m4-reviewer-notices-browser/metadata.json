@@ -1,0 +1,24 @@
+{
+  "ui_source_commit": "66e45dff769322cbf0f6add63ea5d2326fd442ca",
+  "source_sha256": {
+    "control-plane/api/staging_notices_browser_test.go": "4f87598ac33ae24127bc7f3587ed1367d70f7a885cbfdbbec84dd2f3dea13540",
+    "control-plane/api/staging_notices_postgres_test.go": "c8a05924cd74f53745f88934da1ea3588bb2ebcb711b3cde8de9376cbc736e4b",
+    "ui/playwright.notices.config.ts": "12a1ca57b0f40051560557676e4207038dd431f7cd2f6975104fc441952255b8",
+    "ui/tests-lab/staging-notices.spec.ts": "00c8996dce1cb2674fd2440941ed77924c4e2ad492cfd9c7a8fdce894d2d453b",
+    "ui/src/components/layout/RuleStagingNotifications.tsx": "9f9403fa4874711f25d29b086273795c41220a7d207db6f7849db25016d36e05",
+    "ui/src/api/client.ts": "4a5a99b62691f4589bfbd29fd0e28d4e40c71f980c127cff25f8fd08d901c754",
+    "ui/src/api/generated/schema.ts": "0c3e19e263f257a4b0701032b196f0e08fea467e802bcafce618e7dd1bb21286",
+    "ui/src/components/layout/Header.tsx": "24dd8ee26e2e0b061ae42ba44c0071bf8a22d4e4dca7796af8d53f9433aab438",
+    "ui/src/i18n/locales/en.json": "f1bc16deee1366f95579ab70c1d12bc095fd251a364307349f07de0cfab9f8f4",
+    "ui/src/i18n/locales/vi.json": "ebe15bb67af1c97bd69c9cc109cdaa236a1533001fdb88fe68efa3797110618a"
+  },
+  "screenshots_sha256": {
+    "reviewer-mobile.png": "1b0a325d1b0871d57d82d2b27ba1e14017aa5b8a8d85961ff38361e66d4d0b00",
+    "reviewer-en.png": "2c0393621bc31e21defe7894a7109bac59d61aeabd0f797504ed6e2231647984",
+    "reviewer-vi.png": "87d0723837ede16681b36205aae89d52be1c3772989185cfae4644f03b5ca0db"
+  },
+  "scope": "real local-auth and reviewer/viewer HTTP API against private PostgreSQL; seeded historical notice metadata; no automatic activation claim",
+  "browser": "mcr.microsoft.com/playwright:v1.64.0-noble",
+  "external_page_requests": 0,
+  "trace": "disabled to avoid persisting session/password traffic"
+}
