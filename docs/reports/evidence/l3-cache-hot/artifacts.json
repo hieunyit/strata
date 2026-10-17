@@ -1,0 +1,12 @@
+{
+  "runtime_commit": "4861c58",
+  "rebuild_identical": true,
+  "hashes": {
+    "build/l3-prepare-rules.json": "c67e206d5c4e4e9b80e69ec551c3c3c25e38c223cb45cbde746399a71193f880",
+    "build/l3-prepare-policies.yaml": "c3705bb5dd01353dc3fc3c9ffddd6e20ca03996829b12dd386352af4158216c4",
+    "build/l3-prepare-v2.sbn": "fceddaddef1922548ed588a87baa211e7471a5d3857138b2da09186bfea6f915",
+    "build/l3-prepare-v2-rebuilt.sbn": "fceddaddef1922548ed588a87baa211e7471a5d3857138b2da09186bfea6f915",
+    "/home/hellc/strata/target/release/strata-compile": "a02537424f96062931ad695d6a7ea64b1a4a4a4a26ac7ba2dee725f31c0809fb",
+    "engine/ffi/examples/cold_profile.rs": "f0225233ca22223585528556dfe9d6bb6daa4a48e1c710aab9e39a7fcd96e8db"
+  }
+}
