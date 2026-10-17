@@ -520,5 +520,40 @@
       "DONE": "Completed",
       "ABORTED": "Aborted"
     }
+  },
+  "exception": {
+    "policyVersion": "Policy {{name}} · version {{version}}",
+    "title": "Create a scoped exception draft",
+    "open": "Create exception",
+    "scopeHelp": "Choose one recorded rule and field. The request route stays fixed.",
+    "route": "Request route",
+    "scope": "Rule and field",
+    "duration": "Duration",
+    "reason": "Reason",
+    "reasonLimit": "Please shorten the reason and remove unsupported characters.",
+    "loading": "Reading the current policy…",
+    "saving": "Creating draft…",
+    "create": "Create draft",
+    "retry": "Retry the same request",
+    "reload": "Reload policy",
+    "cancel": "Cancel",
+    "close": "Close",
+    "created": "Draft version {{version}} created; replay has been queued.",
+    "reviewRequired": "The exception takes effect only after replay, independent approval and deployment.",
+    "viewPolicies": "View policies",
+    "noScope": "This event has no unambiguous managed rule and field supported for an exception.",
+    "ttl": {
+      "3600": "1 hour",
+      "86400": "1 day",
+      "604800": "7 days",
+      "2592000": "30 days"
+    },
+    "errors": {
+      "load": "The current policy is unavailable. Reload before creating a draft.",
+      "conflict": "The policy or exception scope changed. Reload the policy and review before trying again.",
+      "invalid": "The request was rejected. Review the selected scope, duration and reason.",
+      "forbidden": "You no longer have permission to create an exception.",
+      "uncertain": "The outcome could not be confirmed. Retry with the same request; the form is held unchanged to prevent duplicates."
+    }
   }
 }
