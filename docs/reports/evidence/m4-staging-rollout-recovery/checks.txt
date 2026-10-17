@@ -1,0 +1,21 @@
+Initial new test compile:
+# github.com/strata/strata/control-plane/store_test [github.com/strata/strata/control-plane/store.test]
+store/staging_rollout_test.go:86:2: undefined: paused
+store/staging_rollout_test.go:87:19: undefined: paused
+store/staging_rollout_test.go:88:51: undefined: paused
+FAIL	github.com/strata/strata/control-plane/store [build failed]
+FAIL
+
+Intermediate run while source was being extended (superseded):
+ok  	github.com/strata/strata/control-plane/store	14.713s
+ok  	github.com/strata/strata/control-plane/fleet	28.782s
+control-plane/store/staging_rollout_test.go:8:2: could not import github.com/strata/strata/control-plane/fleet (Config.Importer.Import(github.com/strata/strata/control-plane/fleet) returned nil but no error) (typecheck)
+	"github.com/strata/strata/control-plane/fleet"
+	^
+1 issues:
+* typecheck: 1
+
+Final complete source, real PostgreSQL:
+ok  	github.com/strata/strata/control-plane/store	14.379s
+ok  	github.com/strata/strata/control-plane/fleet	29.317s
+0 issues.
