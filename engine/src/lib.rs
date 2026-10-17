@@ -25,6 +25,7 @@ pub mod operators;
 pub mod privacy;
 pub mod rulecost;
 pub mod rules;
+pub mod staging;
 pub mod transform;
 pub mod tx;
 pub mod verdict;
