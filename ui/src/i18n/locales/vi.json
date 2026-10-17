@@ -514,5 +514,40 @@
       "DONE": "Hoàn tất",
       "ABORTED": "Đã hủy"
     }
+  },
+  "exception": {
+    "policyVersion": "Policy {{name}} · phiên bản {{version}}",
+    "title": "Tạo bản nháp exception có phạm vi hẹp",
+    "open": "Tạo exception",
+    "scopeHelp": "Chọn một rule và field đã ghi nhận. Route của request được giữ cố định.",
+    "route": "Route của request",
+    "scope": "Rule và field",
+    "duration": "Thời hạn",
+    "reason": "Lý do",
+    "reasonLimit": "Vui lòng rút ngắn lý do và bỏ ký tự không hỗ trợ.",
+    "loading": "Đang đọc policy hiện tại…",
+    "saving": "Đang tạo bản nháp…",
+    "create": "Tạo bản nháp",
+    "retry": "Thử lại cùng yêu cầu",
+    "reload": "Tải lại policy",
+    "cancel": "Hủy",
+    "close": "Đóng",
+    "created": "Đã tạo bản nháp phiên bản {{version}} và đưa vào hàng chờ replay.",
+    "reviewRequired": "Exception chỉ có hiệu lực sau replay, người khác duyệt và triển khai.",
+    "viewPolicies": "Xem policy",
+    "noScope": "Sự kiện này không có rule managed và field rõ ràng được hỗ trợ để tạo exception.",
+    "ttl": {
+      "3600": "1 giờ",
+      "86400": "1 ngày",
+      "604800": "7 ngày",
+      "2592000": "30 ngày"
+    },
+    "errors": {
+      "load": "Chưa đọc được policy hiện tại. Hãy tải lại trước khi tạo bản nháp.",
+      "conflict": "Policy hoặc phạm vi exception đã thay đổi. Hãy tải lại và kiểm tra trước khi thử lại.",
+      "invalid": "Yêu cầu bị từ chối. Hãy kiểm tra phạm vi, thời hạn và lý do.",
+      "forbidden": "Bạn không còn quyền tạo exception.",
+      "uncertain": "Chưa xác nhận được kết quả. Hãy thử lại cùng yêu cầu; form được giữ nguyên để tránh tạo trùng."
+    }
   }
 }

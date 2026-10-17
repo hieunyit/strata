@@ -7,6 +7,7 @@ import { EventTrace, CopyButton } from '../components/events/EventTrace';
 import { apiClient, ApiError, GetEventResponse } from '../api/client';
 import { href } from '../router';
 import { buildCurlFromEvent } from '../lib/curl';
+import { ExceptionDraft } from '../components/events/ExceptionDraft';
 
 type State =
   | { kind: 'loading' }
@@ -75,6 +76,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
           <p className="mt-1 text-[13px] text-muted max-w-[60ch] mx-auto">{t('detail.missingHelp')}</p>
         </div>
       )}
+      {state.kind === 'found' && <ExceptionDraft key={state.data.event.block_id} event={state.data.event} rules={state.data.rules} />}
       {state.kind === 'found' && <EventTrace event={state.data.event} rules={state.data.rules} />}
     </AppShell>
   );
