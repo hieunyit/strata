@@ -27,6 +27,8 @@ export type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 
 export type ExceptionFromBlockRequest = components['schemas']['ExceptionFromBlockRequest'];
 export type ExceptionDraftResponse = components['schemas']['ExceptionDraftResponse'];
+export type RuleStagingNotice = components['schemas']['RuleStagingNotice'];
+export type RuleStagingNoticePage = components['schemas']['RuleStagingNoticePage'];
 
 export interface OverviewParams {
   from: string;
@@ -120,6 +122,12 @@ export async function localLogin(username: string, password: string): Promise<Lo
 }
 
 export const apiClient = {
+  async listRuleStagingNotices(cursor = '', signal?: AbortSignal): Promise<RuleStagingNoticePage> {
+    const query = new URLSearchParams({ limit: '20' });
+    if (cursor) query.set('cursor', cursor);
+    return call<RuleStagingNoticePage>(`/rules/staging-actions?${query}`, { method: 'GET', signal }, 'Failed to read staging notices');
+  },
+
   createExceptionFromBlock(request: ExceptionFromBlockRequest): Promise<ExceptionDraftResponse> {
     return call('/exceptions:fromBlockId', json('POST', request), 'Failed to create exception draft');
   },

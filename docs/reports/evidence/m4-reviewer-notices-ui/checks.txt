@@ -1,0 +1,242 @@
+Final product source:
+npm run lint
+npm test -- --cache=false
+npm run build -- --outDir ../build/m4-ui-reviewer-final-dist
+
+
+> strata-ui@1.0.0 lint
+> tsc --noEmit
+
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> strata-ui@1.0.0 test
+> vitest run --cache=false
+
+
+ RUN  v1.6.1 /src/ui
+
+stderr | src/__tests__/Pages.test.tsx > overview page (W10-F-01) > shows totals, top rules and routes with links to the events
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/__tests__/Pages.test.tsx > overview page (W10-F-01) > switches to 7 and 30 days, and filters by policy
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/__tests__/Pages.test.tsx > overview page (W10-F-01) > tells a viewer that client IPs are not shown
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/__tests__/Pages.test.tsx > fleet page > shows each node with its status and refreshes
+Warning: An update to FleetPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at FleetPage (/src/ui/src/pages/FleetPage.tsx:177:45)
+    at StaticAuthProvider (/src/ui/src/context/AuthContext.tsx:218:31)
+Warning: An update to FleetPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at FleetPage (/src/ui/src/pages/FleetPage.tsx:177:45)
+    at StaticAuthProvider (/src/ui/src/context/AuthContext.tsx:218:31)
+Warning: An update to FleetPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at FleetPage (/src/ui/src/pages/FleetPage.tsx:177:45)
+    at StaticAuthProvider (/src/ui/src/context/AuthContext.tsx:218:31)
+
+ ✓ src/__tests__/Pages.test.tsx  (11 tests) 2221ms
+ ✓ src/__tests__/LocalAuth.test.tsx  (10 tests) 1133ms
+ ✓ src/__tests__/Events.test.tsx  (14 tests) 1075ms
+stderr | src/__tests__/Events.test.tsx > header > refuses what is not a Block ID
+Warning: An update to Header inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Header (/src/ui/src/components/layout/Header.tsx:22:19)
+    at StaticAuthProvider (/src/ui/src/context/AuthContext.tsx:218:31)
+
+ ✓ src/__tests__/PolicyEditor.test.tsx  (12 tests) 1203ms
+ ✓ src/__tests__/RuleStagingNotifications.test.tsx  (7 tests) 612ms
+ ✓ src/__tests__/Auth.test.tsx  (7 tests) 405ms
+ ✓ src/__tests__/Trace.test.tsx  (6 tests) 316ms
+ ✓ src/__tests__/PolicyDiff.test.tsx  (5 tests) 436ms
+ ✓ src/__tests__/IdleTimeout.test.tsx  (3 tests) 131ms
+stderr | src/__tests__/IdleTimeout.test.tsx > IdleTimeout & Inactivity Lock (PCI-DSS v4.0) > triggers warning when idle threshold is reached, then logs out on expiry
+react-i18next:: You will need to pass in an i18next instance by using initReactI18next
+
+ ✓ src/__tests__/AuditPage.test.tsx  (2 tests) 669ms
+ ✓ src/__tests__/CurlGenerator.test.ts  (3 tests) 9ms
+ ✓ src/__tests__/PolicyAdvanced.test.tsx  (5 tests) 193ms
+ ✓ src/__tests__/KeyboardShortcuts.test.tsx  (3 tests) 115ms
+ ✓ src/__tests__/CurlShellSafety.test.ts  (7 tests) 205ms
+stderr | src/__tests__/DestructiveModal.test.tsx > DestructiveConfirmModal (Safeguards for Destructive Actions) > enforces typed confirmation matching and minimum reason length
+react-i18next:: You will need to pass in an i18next instance by using initReactI18next
+
+ ✓ src/__tests__/DestructiveModal.test.tsx  (1 test) 112ms
+ ✓ src/__tests__/Csv.test.ts  (3 tests) 12ms
+
+ Test Files  16 passed (16)
+      Tests  99 passed (99)
+   Start at  14:26:56
+   Duration  44.79s (transform 1.85s, setup 2.05s, collect 11.51s, tests 8.85s, environment 13.06s, prepare 3.42s)
+
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> strata-ui@1.0.0 build
+> tsc && vite build --outDir ../build/m4-ui-reviewer-final-dist
+
+vite v5.4.21 building for production...
+
+(!) outDir /src/build/m4-ui-reviewer-final-dist is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+transforming...
+✓ 2097 modules transformed.
+rendering chunks...
+computing gzip size...
+../build/m4-ui-reviewer-final-dist/index.html                                                     0.54 kB │ gzip:   0.32 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-vietnamese-500-normal-QhwQXayn.woff       5.58 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-vietnamese-400-normal-DLynVohM.woff       5.59 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-ext-500-normal-yqk7_qG0.woff     5.71 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-ext-400-normal-ZyMXPjaT.woff     5.75 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-vietnamese-400-normal-BFiUPp6R.woff2      5.82 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-vietnamese-500-normal-CevHOlzG.woff2      6.00 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-400-normal-BOQBPhLk.woff       6.40 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-600-normal-BdrKXORt.woff       6.60 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-500-normal-DIkdfYNE.woff       6.60 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-ext-500-normal-CmcxpzmF.woff2    6.89 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-ext-400-normal-B3hZxag_.woff2    6.92 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-400-normal-CJUKFyLa.woff         7.18 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-500-normal-N1TV9ACq.woff         7.18 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-400-normal-DG4YqDda.woff2      8.20 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-400-normal-DvQQgHTq.woff2        8.33 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-500-normal-e4dixQRQ.woff2      8.42 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-cyrillic-500-normal-BtGHVI3Q.woff2        8.44 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-vietnamese-600-normal-DpPYBSTl.woff2      8.46 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-400-normal-DRcTKgkU.woff            8.76 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-500-normal-C3gcVRmT.woff            9.16 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-600-normal-0cMsUeYr.woff            9.18 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-400-normal-_efipK4i.woff2           9.94 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-600-normal-DzTrcv_p.woff2          10.37 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-greek-500-normal-JMMifIXV.woff2          10.38 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-400-normal-Bz_DfCM7.woff    10.44 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-500-normal-orOpuDzJ.woff    10.65 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-600-normal-n8WFCy3e.woff    10.68 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-ext-400-normal-uwM7KshN.woff       11.72 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-ext-500-normal-BhDX_RLI.woff       11.73 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-400-normal-g30qAdWV.woff2   12.15 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-600-normal-DUMzJB7m.woff2   12.30 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-ext-500-normal-Cs5J6C77.woff2   12.31 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-400-normal-O6-GRVqx.woff           13.20 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-500-normal-zoSM89R3.woff           13.20 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-ext-400-normal-DxDDqVQb.woff2      13.27 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-ext-500-normal-Dn-cqWhb.woff2      13.42 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-400-normal-KciohO1a.woff        13.54 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-600-normal-BHECEgNJ.woff        13.91 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-500-normal-Dwk4USJY.woff        13.96 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-400-normal-DwPxiy7M.woff       14.36 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-500-normal-NNclZwdn.woff       14.78 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-400-normal-DZqxrq2p.woff2       14.80 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-400-normal-Dm_PoFIZ.woff2          14.81 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-600-normal-D2beu9pF.woff       14.84 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-mono-latin-500-normal-C_OblDzq.woff2          14.99 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-500-normal-CocWQlwt.woff2       15.00 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-cyrillic-600-normal-71GNu3SW.woff2       15.04 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-400-normal-C5H60-Va.woff2      15.98 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-600-normal-DOrvGEcy.woff2      16.45 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-ext-500-normal-DakdToA3.woff2      16.46 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-400-normal-rxDMosIx.woff           22.14 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-400-normal-CDDApCn2.woff2          22.59 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-600-normal-BnKggSt2.woff           23.94 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-500-normal-C-DuqEAe.woff           23.98 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-500-normal-6ng42L7E.woff2          24.18 kB
+../build/m4-ui-reviewer-final-dist/assets/ibm-plex-sans-latin-600-normal-CuJfVYMP.woff2          24.25 kB
+../build/m4-ui-reviewer-final-dist/assets/index-D2ys-Ian.css                                     40.14 kB │ gzip:   7.70 kB
+../build/m4-ui-reviewer-final-dist/assets/index-B4T3RMhT.js                                     436.51 kB │ gzip: 128.20 kB
+../build/m4-ui-reviewer-final-dist/assets/echarts-C4dzwmlb.js                                   463.80 kB │ gzip: 157.12 kB
+✓ built in 16.40s
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Initial cache failure (test assertions had passed):
+
+> strata-ui@1.0.0 lint
+> tsc --noEmit
+
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> strata-ui@1.0.0 test
+> vitest run src/__tests__/RuleStagingNotifications.test.tsx
+
+
+ RUN  v1.6.1 /src/ui
+
+ ✓ src/__tests__/RuleStagingNotifications.test.tsx  (6 tests) 597ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  14:22:54
+   Duration  4.54s (transform 469ms, setup 324ms, collect 1.17s, tests 597ms, environment 1.44s, prepare 440ms)
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: EACCES: permission denied, open '/src/ui/node_modules/.vite/vitest/results.json'
+ ❯ open node:internal/fs/promises:1345:25
+ ❯ Object.writeFile node:internal/fs/promises:1965:14
+ ❯ ResultsCache.writeToCache node_modules/vitest/dist/vendor/cli-api.OdDWuB7Y.js:9288:5
+ ❯ async file:/src/ui/node_modules/vitest/dist/vendor/cli-api.OdDWuB7Y.js:11234:7
+ ❯ Vitest.runFiles node_modules/vitest/dist/vendor/cli-api.OdDWuB7Y.js:11244:12
+ ❯ Vitest.start node_modules/vitest/dist/vendor/cli-api.OdDWuB7Y.js:11111:7
+ ❯ startVitest node_modules/vitest/dist/vendor/cli-api.OdDWuB7Y.js:18364:7
+ ❯ start node_modules/vitest/dist/vendor/cac.cdAtVkJZ.js:1415:17
+ ❯ CAC.run node_modules/vitest/dist/vendor/cac.cdAtVkJZ.js:1395:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -13, code: 'EACCES', syscall: 'open', path: '/src/ui/node_modules/.vite/vitest/results.json' }
+
+
+
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -491,5 +491,28 @@
       "canary_percent": "Canary (%)",
       "advanced": "Exception, quyền riêng tư và giới hạn"
     }
+  },
+  "stagingNotices": {
+    "title": "Rule tự chuyển staging",
+    "unread": "Có thông báo staging mới",
+    "refresh": "Làm mới thông báo staging",
+    "explanation": "Các lần chuyển staging đã ghi nhận và tiến độ rollout. Thông báo không xác nhận mức bảo vệ hiện tại của node.",
+    "unavailable": "Không tải được thông báo staging. Hãy thử làm mới.",
+    "empty": "Chưa có lần chuyển staging nào được ghi nhận.",
+    "rule": "Rule {{rule}}",
+    "rollout": "Rollout: {{state}}",
+    "evidence": "{{reports}} báo FP / {{matches}} sự kiện bảo mật đã lưu có rule khớp",
+    "viewEvents": "Xem xét sự kiện",
+    "markRead": "Đánh dấu đã đọc trên trình duyệt này",
+    "latest": "Mới nhất",
+    "older": "Cũ hơn",
+    "states": {
+      "PENDING": "Chờ bắt đầu",
+      "RUNNING": "Đang chạy",
+      "PAUSED": "Tạm dừng",
+      "FAILED": "Thất bại",
+      "DONE": "Hoàn tất",
+      "ABORTED": "Đã hủy"
+    }
   }
 }
