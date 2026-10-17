@@ -25,6 +25,7 @@ type ServerConfig struct {
 	Annotations EventAnnotationStore
 	Exceptions  ExceptionPolicyStore
 	ReplayKick  func()
+	Health      HealthReader // nil leaves the optional rule health route out
 
 	Addr         string
 	ReadTimeout  time.Duration
@@ -136,6 +137,19 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	if s.cfg.Health != nil {
+		v1.HandleFunc("/v1/rules/", func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := healthPath(r.URL.Path); ok {
+				auth.RequireHTTP(auth.PermEventsRead, s.handleRuleHealth)(w, r)
+				return
+			}
+			if s.cfg.Admin != nil {
+				s.cfg.Admin.ServeHTTP(w, r)
+				return
+			}
+			http.NotFound(w, r)
+		})
+	}
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
 		roles := make([]string, len(p.Roles))

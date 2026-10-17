@@ -5,6 +5,13 @@
 
 
 export interface paths {
+  "/v1/rules/{rule_id}/health": {
+    /**
+     * Read observed rule telemetry
+     * @description Requires events:read and both ClickHouse and PostgreSQL. Read-only; no quarantine or enforcement changes. Counts deduplicated events containing the rule and human-reported FP events containing it, which does not attribute blame to an individual rule. Cost covers only top-eight timings received in sampled security events, not all traffic. Unknown/empty telemetry is insufficient, not healthy. Each replica permits four concurrent queries with a shared five-second deadline. Query string at most 2048 bytes; unknown/repeated parameters and malformed URL encoding are rejected.
+     */
+    get: operations["getRuleHealth"];
+  };
   "/v1/exceptions:fromBlockId": {
     /**
      * Create a policy exception draft from a blocked event
@@ -115,6 +122,34 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    RuleHealth: {
+      /** Format: int64 */
+      rule_id: number;
+      policy_id?: string;
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** @enum {string} */
+      status: "observing" | "insufficient_telemetry" | "inconsistent_snapshot";
+      /** Format: int64 */
+      matched_events: number;
+      /**
+       * Format: int64
+       * @description Annotated FP events containing this rule; multi-rule events do not prove this rule caused the FP. Legacy annotations lacking source snapshots are not counted.
+       */
+      reported_fp_events: number;
+      /** @description Reported FP events divided by matched events; null for no matches or inconsistent snapshots. Not a ground-truth FP rate. */
+      reported_fp_share: number | null;
+      /** @enum {string} */
+      cost_source: "sampled_security_events_top8";
+      /** @description Exact observed sample sum as a decimal string. */
+      cost_samples: string;
+      /** @description Exact observed nanosecond sum as a decimal string. */
+      cost_total_ns: string;
+      /** @description Approximate mean in the received top-eight event samples; null when no samples were received. */
+      cost_mean_ns: number | null;
+    };
     ExceptionFromBlockRequest: {
       block_id: string;
       /** Format: int64 */
@@ -518,6 +553,51 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /**
+   * Read observed rule telemetry
+   * @description Requires events:read and both ClickHouse and PostgreSQL. Read-only; no quarantine or enforcement changes. Counts deduplicated events containing the rule and human-reported FP events containing it, which does not attribute blame to an individual rule. Cost covers only top-eight timings received in sampled security events, not all traffic. Unknown/empty telemetry is insufficient, not healthy. Each replica permits four concurrent queries with a shared five-second deadline. Query string at most 2048 bytes; unknown/repeated parameters and malformed URL encoding are rejected.
+   */
+  getRuleHealth: {
+    parameters: {
+      query?: {
+        /** @description Empty or omitted means all policies. */
+        policy_id?: string;
+        /** @description Inclusive RFC3339 boundary; default five minutes before to. Window must be positive and at most 24 hours. */
+        from?: string;
+        /** @description Exclusive RFC3339 boundary; default now. */
+        to?: string;
+      };
+      path: {
+        rule_id: number;
+      };
+    };
+    responses: {
+      /** @description Observations returned with Cache-Control no-store; status describes data consistency, not protection health. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleHealth"];
+        };
+      };
+      /** @description Invalid rule ID */
+      400: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Optional telemetry service is not configured. */
+      404: {
+        content: never;
+      };
+      /** @description GET required. */
+      405: {
+        content: never;
+      };
+      /** @description Telemetry source unavailable or query capacity reached; busy responses include Retry-After 1. Errors are not returned as zero counts. */
+      503: {
+        content: never;
+      };
+    };
+  };
   /**
    * Create a policy exception draft from a blocked event
    * @description Requires exceptions:write. Select the exact recorded Rule ID and field; method, Host, path and policy are derived from the stored event. Only managed rules and unambiguous ARGS or REQUEST_HEADERS fields are accepted. TTL is mandatory. Draft, audit, idempotent response and replay queue commit together. Creation does not activate the exception; use the returned policy version in the normal submit/four-eyes/deploy flow. Retry with identical request_id and body returns the original draft even after event retention. Duplicate active scope and decoder alias fields are rejected.

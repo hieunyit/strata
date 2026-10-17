@@ -7,6 +7,41 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login.'
 paths:
+  /v1/rules/{rule_id}/health:
+    get:
+      operationId: getRuleHealth
+      summary: Read observed rule telemetry
+      description: Requires events:read and both ClickHouse and PostgreSQL. Read-only; no quarantine or enforcement changes. Counts deduplicated events containing the rule and human-reported FP events containing it, which does not attribute blame to an individual rule. Cost covers only top-eight timings received in sampled security events, not all traffic. Unknown/empty telemetry is insufficient, not healthy. Each replica permits four concurrent queries with a shared five-second deadline. Query string at most 2048 bytes; unknown/repeated parameters and malformed URL encoding are rejected.
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+      - name: policy_id
+        in: query
+        description: Empty or omitted means all policies.
+        schema: {type: string, maxLength: 55, pattern: '^[a-z0-9._-]{0,55}$'}
+      - name: from
+        in: query
+        description: Inclusive RFC3339 boundary; default five minutes before to. Window must be positive and at most 24 hours.
+        schema: {type: string, format: date-time}
+      - name: to
+        in: query
+        description: Exclusive RFC3339 boundary; default now.
+        schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Observations returned with Cache-Control no-store; status describes data consistency, not protection health.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleHealth'}
+        '400': {description: Invalid rule ID, timestamp, window or query parameters.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Optional telemetry service is not configured.}
+        '405': {description: GET required.}
+        '503':
+          description: Telemetry source unavailable or query capacity reached; busy responses include Retry-After 1. Errors are not returned as zero counts.
   /v1/exceptions:fromBlockId:
     post:
       operationId: createExceptionFromBlock
@@ -455,6 +490,31 @@ paths:
           $ref: '#/components/responses/Forbidden'
 components:
   schemas:
+    RuleHealth:
+      type: object
+      required: [rule_id, from, to, status, matched_events, reported_fp_events, reported_fp_share, cost_source, cost_samples, cost_total_ns, cost_mean_ns]
+      properties:
+        rule_id: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+        policy_id: {type: string}
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        status: {type: string, enum: [observing, insufficient_telemetry, inconsistent_snapshot]}
+        matched_events: {type: integer, format: int64, minimum: 0}
+        reported_fp_events:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Annotated FP events containing this rule; multi-rule events do not prove this rule caused the FP. Legacy annotations lacking source snapshots are not counted.
+        reported_fp_share:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Reported FP events divided by matched events; null for no matches or inconsistent snapshots. Not a ground-truth FP rate.
+        cost_source: {type: string, enum: [sampled_security_events_top8]}
+        cost_samples: {type: string, pattern: '^[0-9]+$', description: Exact observed sample sum as a decimal string.}
+        cost_total_ns: {type: string, pattern: '^[0-9]+$', description: Exact observed nanosecond sum as a decimal string.}
+        cost_mean_ns: {type: number, nullable: true, minimum: 0, description: Approximate mean in the received top-eight event samples; null when no samples were received.}
     ExceptionFromBlockRequest:
       type: object
       additionalProperties: false

@@ -351,6 +351,7 @@ func main() {
 
 	var annotations api.EventAnnotationStore
 	var exceptions api.ExceptionPolicyStore
+	var health api.HealthReader
 	if pg != nil {
 		annotations = pg
 		exceptions = pg
@@ -359,10 +360,14 @@ func main() {
 			contextAge = time.Duration(*ttlDays) * 24 * time.Hour
 		}
 		go (rulehealth.ContextRetention{Store: pg, MaxAge: contextAge}).Run(ctx)
+		if source, ok := store.(rulehealth.EventReader); ok {
+			health = rulehealth.NewService(source, pg)
+		}
 	}
 	srv := api.NewServer(api.ServerConfig{
 		Annotations:  annotations,
 		Exceptions:   exceptions,
+		Health:       health,
 		ReplayKick:   deps.ReplayKick,
 		Addr:         *addr,
 		ReadTimeout:  10 * time.Second,
