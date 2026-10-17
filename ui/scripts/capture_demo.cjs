@@ -99,6 +99,28 @@ const mockApi = {
     ],
     inspection: []
   },
+  '/v1/stats/geo': {
+    from: '2026-10-15T08:00:00Z',
+    to: '2026-10-16T16:00:00Z',
+    countries: [
+      { country_iso: 'VN', events: 48200, blocked: 120, top_attack_type: 'SQLi probe' },
+      { country_iso: 'US', events: 32100, blocked: 1420, top_attack_type: 'XSS Script Tag' },
+      { country_iso: 'SG', events: 18400, blocked: 310, top_attack_type: 'Path Traversal' },
+      { country_iso: 'DE', events: 9200, blocked: 840, top_attack_type: 'RCE Webhook' },
+      { country_iso: 'JP', events: 6400, blocked: 210, top_attack_type: 'Scanner Bot' },
+      { country_iso: 'CN', events: 5100, blocked: 450, top_attack_type: 'Credential Stuffing' }
+    ],
+    asns: [
+      { asn: 7552, as_org: 'Viettel Group', events: 24500, blocked: 60 },
+      { asn: 13335, as_org: 'Cloudflare Inc.', events: 18200, blocked: 450 },
+      { asn: 16509, as_org: 'Amazon.com Inc.', events: 14100, blocked: 890 },
+      { asn: 15169, as_org: 'Google LLC', events: 11300, blocked: 110 }
+    ],
+    grid: [
+      { geohash: 'w4g', lat: 10.8231, lon: 106.6297, city: 'Ho Chi Minh City', country_iso: 'VN', events: 28400, blocked: 80, top_attack_type: 'SQLi' },
+      { geohash: 'w7e', lat: 21.0285, lon: 105.8542, city: 'Hanoi', country_iso: 'VN', events: 19800, blocked: 40, top_attack_type: 'XSS' }
+    ]
+  },
   '/v1/events:search': {
     events: [
       {
@@ -317,10 +339,18 @@ server.listen(5173, async () => {
     page.on('requestfailed', (req) => console.log('REQ_FAIL:', req.url(), req.failure()?.errorText));
 
     // 1. Overview Page
-    console.log('Capturing 01_overview.png...');
+    console.log('Capturing 01_overview.png and map captures...');
     await page.goto('http://127.0.0.1:5173/#/overview');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2500);
+    // Viewport screenshot (contains Bento KPIs + Threat Intelligence Map above the fold)
     await page.screenshot({ path: path.join(OUTPUT_DIR, '01_overview.png') });
+    // Full page screenshot (entire dashboard top to bottom)
+    await page.screenshot({ fullPage: true, path: path.join(OUTPUT_DIR, '01_overview_full.png') });
+    // Dedicated Threat Intelligence Map screenshot
+    const mapLocator = page.locator('[data-testid="geomap-container"]');
+    if (await mapLocator.isVisible()) {
+      await mapLocator.screenshot({ path: path.join(OUTPUT_DIR, '01_threat_intelligence_map.png') });
+    }
 
     // 2. Events Page
     console.log('Capturing 02_events_list.png...');

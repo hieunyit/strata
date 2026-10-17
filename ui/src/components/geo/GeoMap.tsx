@@ -135,9 +135,32 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
               className="w-full h-full object-contain"
               data-testid="world-map-svg"
             >
+              <defs>
+                <filter id="cyber-glow-red" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#f43f5e" floodOpacity="0.8" />
+                </filter>
+                <filter id="cyber-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#06b6d4" floodOpacity="0.8" />
+                </filter>
+                <pattern id="cyber-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" strokeWidth="0.5" strokeOpacity="0.4" />
+                </pattern>
+              </defs>
               {/* Minimalist World Outline Polygons for offline rendering */}
-              <rect width="800" height="400" fill="#0B0F19" />
-              <g fill="#1E293B" stroke="#334155" strokeWidth="0.75">
+              <rect width="800" height="400" fill="#080c14" />
+              <rect width="800" height="400" fill="url(#cyber-grid)" />
+
+              {/* Latitude and Longitude Graticules */}
+              <g stroke="#1e293b" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.6">
+                <line x1="0" y1="100" x2="800" y2="100" />
+                <line x1="0" y1="200" x2="800" y2="200" />
+                <line x1="0" y1="300" x2="800" y2="300" />
+                <line x1="200" y1="0" x2="200" y2="400" />
+                <line x1="400" y1="0" x2="400" y2="400" />
+                <line x1="600" y1="0" x2="600" y2="400" />
+              </g>
+
+              <g fill="#111827" stroke="#1e293b" strokeWidth="0.85">
                 {/* North America */}
                 <path d="M120 70 L250 50 L270 120 L220 180 L180 160 L140 180 L100 120 Z" />
                 {/* South America */}
@@ -157,12 +180,14 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
               {/* Vietnam Sovereignty Markers: Hoàng Sa & Trường Sa Islands */}
               <g data-testid="vietnam-islands" className="cursor-pointer">
                 {/* Hoàng Sa (Paracel Islands): ~ 16°32'N, 111°36'E -> Projected roughly at x=642, y=198 */}
-                <circle cx="642" cy="198" r="3.5" fill="#38BDF8" stroke="#0B0F19" strokeWidth="1" />
-                <text x="648" y="196" fill="#38BDF8" fontSize="8" fontWeight="600">Hoàng Sa (VN)</text>
+                <circle cx="642" cy="198" r="8" fill="none" stroke="#06b6d4" strokeWidth="0.75" opacity="0.5" />
+                <circle cx="642" cy="198" r="3.5" fill="#06b6d4" stroke="#080c14" strokeWidth="1" filter="url(#cyber-glow-cyan)" />
+                <text x="648" y="196" fill="#22d3ee" fontSize="8.5" fontWeight="700" letterSpacing="0.2">Hoàng Sa (VN)</text>
 
                 {/* Trường Sa (Spratly Islands): ~ 8°38'N, 111°55'E -> Projected roughly at x=644, y=225 */}
-                <circle cx="644" cy="225" r="3.5" fill="#38BDF8" stroke="#0B0F19" strokeWidth="1" />
-                <text x="650" y="228" fill="#38BDF8" fontSize="8" fontWeight="600">Trường Sa (VN)</text>
+                <circle cx="644" cy="225" r="8" fill="none" stroke="#06b6d4" strokeWidth="0.75" opacity="0.5" />
+                <circle cx="644" cy="225" r="3.5" fill="#06b6d4" stroke="#080c14" strokeWidth="1" filter="url(#cyber-glow-cyan)" />
+                <text x="650" y="228" fill="#22d3ee" fontSize="8.5" fontWeight="700" letterSpacing="0.2">Trường Sa (VN)</text>
               </g>
 
               {/* Dynamic Threat Density Points based on Country data */}
@@ -191,10 +216,11 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                       cx={cx}
                       cy={cy}
                       r={radius}
-                      fill={c.blocked > 0 ? '#EF4444' : '#38BDF8'}
-                      fillOpacity={isSelected ? 0.9 : 0.6}
-                      stroke={isSelected ? '#FFFFFF' : '#0B0F19'}
+                      fill={c.blocked > 0 ? '#f43f5e' : '#06b6d4'}
+                      fillOpacity={isSelected ? 0.95 : 0.75}
+                      stroke={isSelected ? '#ffffff' : '#080c14'}
                       strokeWidth={isSelected ? 2 : 1}
+                      filter={c.blocked > 0 ? 'url(#cyber-glow-red)' : 'url(#cyber-glow-cyan)'}
                     />
                     <title>
                       {`${c.country_iso}: ${c.events} events (${c.blocked} blocked) - Top: ${c.top_attack_type}`}

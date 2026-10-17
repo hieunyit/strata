@@ -211,6 +211,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
         </div>
       </section>
 
+      <section className="mb-6">
+        <GeoMap
+          policyId={policy}
+          onSelectCountry={(iso) => {
+            if (iso) replaceQuery({ page: 'events', query: { range, client_ip: iso } });
+          }}
+        />
+      </section>
+
       <section className="panel mb-5" data-testid="overview-series">
         <SectionTitle
           aside={
@@ -233,15 +242,6 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             <Empty testId="overview-empty">{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
           )}
         </div>
-      </section>
-
-      <section className="mb-6">
-        <GeoMap
-          policyId={policy}
-          onSelectCountry={(iso) => {
-            if (iso) replaceQuery({ page: 'events', query: { range, client_ip: iso } });
-          }}
-        />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
