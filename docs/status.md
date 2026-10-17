@@ -1,6 +1,6 @@
 # Trạng thái thật của tính năng
 
-Đối chiếu lại: 16/10/2026. Baseline main là `991c4bb7a662765d038606a3ceb3a284cef2e270`; bảng tuần dưới đây có bằng chứng lịch sử, không phải trạng thái deployment hiện thời. Các bản sửa đang review nằm trong [remediation tracker](reports/remediation-tracker.md), có base/PR riêng và chưa merge. Không suy ra một tính năng đã có trên main từ file trong nhánh prototype hoặc từ một PR khác.
+Đối chiếu lại: 17/10/2026. Baseline main là `e93dc0b4da55ec93ccf3c0a9421cdf8ed0f51719` (đã có PR #141 UI/audit); bảng tuần dưới đây có bằng chứng lịch sử, không phải trạng thái deployment hiện thời. Các bản sửa đang review nằm trong [remediation tracker](reports/remediation-tracker.md), có base/PR riêng và chưa merge. Không suy ra một tính năng đã có trên main từ file trong nhánh prototype hoặc từ một PR khác.
 
 Con trỏ tuần trong AGENTS.md vẫn là tuần 8, trong khi có bảng mở sớm tuần 11–13; PO quản lý con trỏ này. Tài liệu này không tự nâng tuần hoặc đánh dấu nhiệm vụ tương lai đã hoàn thành.
 
@@ -101,6 +101,9 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 - Rule header 300011–300013 là candidate trong PR #133/#136: Header SQLi 8/8, XSS 54/56, benign 47/47 trên tập đã chọn; chưa phát hành pack production, cần review nội dung và chi phí.
 - H5 PR #127 sửa cache integrity, resume test và C line budget; archive ET Open nguyên bản còn thiếu. Không ghi pipeline Rules tái lập thành công khi chưa có artifact đúng checksum.
 - Benchmark/HTTP trong remediation có hash executable/bundle và đơn vị rõ. `engine_serial_rps` không phải TPS NGINX; 1052,62 ms tương đương khoảng 1,053 giây. Campaign redteam cũ và game day chưa được xác nhận lại bởi các phép thử paired HTTP mới.
+- L3 PR #159–#165 đã đo worker NGINX cold/reload/hot bundle và sửa cache preparation: 714 request hữu hạn không budget/fail-mode, 595 sanitizer test trên mỗi bản NGINX 1.30.5/1.31.6. Không suy ra mọi request đầu tiên luôn dưới budget, không ghi đã đạt p99 overhead <1 ms; xem [báo cáo](reports/l3-worker-cache-preparation.md).
+- M6 PR #167 đã đo 20 triệu row ClickHouse: API Block ID p99 97,673 ms, tìm kiếm 24 giờ cao nhất 1,927 s, TTL PASS; giữ FINAL và fallback lệch giờ. Đây là truy vấn tuần tự trên fixture đã OPTIMIZE, chưa chứng minh tải production/multi-replica; xem [báo cáo](reports/m6-query-performance.md).
+- Copy as cURL từ main PR #141 có lỗi quote shell cần thao tác dán/chạy lệnh của người vận hành; H8 PR #166 sửa và có test red/green, toàn UI 91 test + lint/build PASS. Không gọi đây là RCE tự động trong trình duyệt; xem [báo cáo](reports/h8-curl-shell-safety.md).
 
 Không có bằng chứng rollout staging/production mới trong đợt remediation này. Theo yêu cầu người dùng, chạy kiểm chứng local, không chờ hosted CI; trạng thái CI cũ không được ghi thành PASS. Các điều kiện vận hành/Gate còn thiếu giữ nguyên.
 
