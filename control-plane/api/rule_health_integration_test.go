@@ -12,6 +12,7 @@ import (
 
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth/localauthtest"
+	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulehealth"
 	"github.com/strata/strata/control-plane/store"
 )
@@ -70,7 +71,7 @@ func TestRuleHealthDurableSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Second).Add(250 * time.Millisecond)
-	e := ingest.Event{BlockID: "STR-8F3K-Q2VD-7XNM-A1PC", Timestamp: now, ReceivedAt: now, NodeID: "example-node", PolicyID: "example-api", Action: "block", HTTPMethod: "GET",
+	e := ingest.Event{BlockID: "STR-8F3K-Q2VD-7XNM-A1PC", Timestamp: now, ReceivedAt: now, NodeID: "example-node", PolicyVersion: 7, PolicyID: "example-api", Action: "block", HTTPMethod: "GET",
 		MatchedRules: []uint32{942100}, RuleCosts: []ingest.RuleCost{{RuleID: 942100, Samples: 2, TotalNS: 700, MaxNS: 500}}}
 	for range 2 {
 		if err := ch.SaveEvents(ctx, []ingest.Event{e}); err != nil {
@@ -97,6 +98,23 @@ func TestRuleHealthDurableSources(t *testing.T) {
 		t.Fatalf("mark FP: %d %v", code, body)
 	}
 	check(1)
+	// Staging evaluation must use the same exact deployed bundle in both
+	// stores. Retry rows remain unmerged, but only one event/report counts.
+	spec := policy.Spec{Mode: "enforce", AutoStaging: &policy.AutoStaging{Enabled: true, RuleIDs: []uint32{942100}, WindowSeconds: 300, MinMatches: 1, MinReports: 1, FPThresholdBPS: 10000}}
+	evaluator := rulehealth.NewService(ch, store.New(p))
+	for _, bundle := range []uint64{7, 8} {
+		out, err := evaluator.Evaluate(ctx, spec, 942100, e.PolicyID, bundle, time.Now().Add(time.Second))
+		want := uint64(0)
+		if bundle == 7 {
+			want = 1
+		}
+		if err != nil || out.ThresholdMet != (bundle == 7) || out.MatchedEvents != want || out.FPReports != want {
+			t.Fatalf("cross-store evaluation bundle %d: %+v %v", bundle, out, err)
+		}
+	}
+	if n, err := ch.RuleMatchCount(ctx, 942100, e.PolicyID, 7, now.Add(time.Nanosecond), now.Add(time.Second)); err != nil || n != 0 {
+		t.Fatalf("fractional evaluation window: %d %v", n, err)
+	}
 	s = server() // new API/reader/store instances, same durable data
 	check(1)
 	query.Set("from", now.Add(time.Nanosecond).Format(time.RFC3339Nano))

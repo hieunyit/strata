@@ -38,8 +38,8 @@ type Health struct {
 	CostMeanNS       *float64  `json:"cost_mean_ns"`
 }
 
-// Service reads durable telemetry. It never evaluates quarantine policy or
-// writes state. Four in-flight queries per replica bound this expensive path.
+// Service reads durable telemetry and optional staging thresholds. It never
+// approves, deploys or writes state. Four in-flight queries per replica bound this expensive path.
 type Service struct {
 	events      EventReader
 	annotations FPReader

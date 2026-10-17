@@ -1,0 +1,5 @@
+Isolated SQL fixtures ready: strata-health-1792225730-955553
+=== RUN   TestRuleHealthDurableSources
+--- PASS: TestRuleHealthDurableSources (0.99s)
+PASS
+ok  	github.com/strata/strata/control-plane/api	2.135s
