@@ -1,0 +1,4 @@
+=== RUN   TestLookup_ClickHouseSkewAndUnmergedRetry
+--- PASS: TestLookup_ClickHouseSkewAndUnmergedRetry (0.39s)
+PASS
+ok  	github.com/strata/strata/control-plane/ingest	1.486s
