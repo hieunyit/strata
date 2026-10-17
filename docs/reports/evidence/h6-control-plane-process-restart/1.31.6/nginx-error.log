@@ -1,0 +1,21 @@
+2026/10/17 21:35:14 [notice] 290#290: using the "epoll" event method
+2026/10/17 21:35:14 [notice] 290#290: nginx/1.31.6
+2026/10/17 21:35:14 [notice] 290#290: built by gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+2026/10/17 21:35:14 [notice] 290#290: OS: Linux 6.8.0-85-generic
+2026/10/17 21:35:14 [notice] 290#290: getrlimit(RLIMIT_NOFILE): 1024:524288
+2026/10/17 21:35:14 [notice] 290#290: start worker processes
+2026/10/17 21:35:14 [notice] 290#290: start worker process 292
+2026/10/17 21:35:14 [notice] 290#290: start worker process 298
+2026/10/17 21:35:27 [notice] 290#290: signal 3 (SIGQUIT) received from 60, shutting down
+2026/10/17 21:35:27 [notice] 292#292: gracefully shutting down
+2026/10/17 21:35:27 [notice] 298#298: gracefully shutting down
+2026/10/17 21:35:27 [notice] 292#292: exiting
+2026/10/17 21:35:27 [notice] 298#298: exiting
+2026/10/17 21:35:27 [notice] 292#292: exit
+2026/10/17 21:35:27 [notice] 298#298: exit
+2026/10/17 21:35:27 [notice] 290#290: signal 17 (SIGCHLD) received from 292
+2026/10/17 21:35:27 [notice] 290#290: worker process 292 exited with code 0
+2026/10/17 21:35:27 [notice] 290#290: signal 29 (SIGIO) received
+2026/10/17 21:35:27 [notice] 290#290: signal 17 (SIGCHLD) received from 298
+2026/10/17 21:35:27 [notice] 290#290: worker process 298 exited with code 0
+2026/10/17 21:35:27 [notice] 290#290: exit

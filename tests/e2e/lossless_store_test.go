@@ -18,6 +18,13 @@ import (
 // the lab at fixed ports: restart tests must not erase somebody else's events.
 func losslessClickHouse(t *testing.T) (*ingest.ClickHouseStore, string) {
 	t.Helper()
+	s, cfg := losslessClickHouseConfig(t)
+	return s, cfg.Addr
+}
+
+// The config is only passed to owned child processes; never log its password.
+func losslessClickHouseConfig(t *testing.T) (*ingest.ClickHouseStore, ingest.ClickHouseConfig) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
 	var secret [16]byte
@@ -60,7 +67,8 @@ func losslessClickHouse(t *testing.T) (*ingest.ClickHouseStore, string) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	s, err := ingest.NewClickHouseStore(ctx, ingest.ClickHouseConfig{Addr: addr, Database: "default", Username: "strata", Password: password})
+	cfg := ingest.ClickHouseConfig{Addr: addr, Database: "default", Username: "strata", Password: password}
+	s, err := ingest.NewClickHouseStore(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +77,7 @@ func losslessClickHouse(t *testing.T) (*ingest.ClickHouseStore, string) {
 			t.Error(err)
 		}
 	})
-	return s, addr
+	return s, cfg
 }
 
 func TestLosslessFixtureIgnoresLegacyAddresses(t *testing.T) {
