@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,12 +12,13 @@ import (
 // EventRuleContext binds a human FP annotation to the event snapshot. An FP
 // event containing a rule is not proof that this individual rule caused the FP.
 type EventRuleContext struct {
-	PolicyID  string    `json:"policy_id"`
-	EventTime time.Time `json:"event_time"`
-	RuleIDs   []uint32  `json:"rule_ids"`
+	BundleVersion uint64    `json:"bundle_version"`
+	PolicyID      string    `json:"policy_id"`
+	EventTime     time.Time `json:"event_time"`
+	RuleIDs       []uint32  `json:"rule_ids"`
 }
 
-func writeRuleAnnotationContext(ctx context.Context, tx pgx.Tx, block string, c *EventRuleContext) error {
+func writeRuleAnnotationContext(ctx context.Context, tx pgx.Tx, block string, c *EventRuleContext, first bool, reported time.Time) error {
 	if c.EventTime.IsZero() || len(c.PolicyID) > 55 || len(c.RuleIDs) > 64 {
 		return fmt.Errorf("store: invalid rule annotation context")
 	}
@@ -29,9 +31,17 @@ func writeRuleAnnotationContext(ctx context.Context, tx pgx.Tx, block string, c 
 		seen[id] = true
 		ids = append(ids, int64(id))
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO rule_annotation_context(block_id,policy_id,event_at,rule_ids)
- VALUES($1,$2,$3,$4) ON CONFLICT(block_id) DO UPDATE SET
- policy_id=excluded.policy_id,event_at=excluded.event_at,rule_ids=excluded.rule_ids`, block, c.PolicyID, c.EventTime, ids)
+	// Only a newly created annotation supplies automation evidence. Editing a
+	// legacy/pruned annotation cannot promote it to a new report. Conflicts keep
+	// these five original fields even if the diagnostic snapshot later changes.
+	var reportAt, reportPolicy, reportEvent, reportIDs, reportBundle any
+	if first {
+		reportAt, reportPolicy, reportEvent, reportIDs, reportBundle = reported, c.PolicyID, c.EventTime, ids, strconv.FormatUint(c.BundleVersion, 10)
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO rule_annotation_context(block_id,policy_id,event_at,rule_ids,
+ first_reported_at,report_policy_id,report_event_at,report_rule_ids,report_bundle_version)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::numeric) ON CONFLICT(block_id) DO UPDATE SET
+ policy_id=excluded.policy_id,event_at=excluded.event_at,rule_ids=excluded.rule_ids`, block, c.PolicyID, c.EventTime, ids, reportAt, reportPolicy, reportEvent, reportIDs, reportBundle)
 	if err != nil {
 		return fmt.Errorf("store: save rule annotation context: %w", err)
 	}
