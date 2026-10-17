@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -66,6 +67,13 @@ func writeAudit(ctx context.Context, tx pgx.Tx, a Audit) error {
 	_, err = tx.Exec(ctx, `INSERT INTO audit_log (actor, channel, action, resource, request_id, before, after)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`, a.Actor, a.Channel, a.Action, a.Resource, a.RequestID, before, after)
 	return err
+}
+
+// RecordAudit logs a standalone audit event (e.g. from API handlers).
+func (s *Store) RecordAudit(ctx context.Context, a Audit) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return writeAudit(ctx, tx, a)
+	})
 }
 
 func (s *Store) inTx(ctx context.Context, f func(pgx.Tx) error) error {
@@ -305,10 +313,55 @@ func (s *Store) RevokeNode(ctx context.Context, id string, at time.Time, a Audit
 	return n, err
 }
 
-// AuditEntries returns the newest audit rows (for tests and GET /v1/audit).
-func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
-	rows, err := s.pool.Query(ctx, `SELECT at, actor, channel, action, resource, request_id, before, after
-		FROM audit_log ORDER BY id DESC LIMIT $1`, limit)
+// AuditFilter allows querying audit entries by actor, channel, action, and resource.
+type AuditFilter struct {
+	Actor    string
+	Channel  string
+	Action   string
+	Resource string
+	Limit    int
+}
+
+// SearchAudit queries audit logs with optional filters.
+func (s *Store) SearchAudit(ctx context.Context, f AuditFilter) ([]Audit, error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	where := []string{"1=1"}
+	args := []any{}
+	argIdx := 1
+
+	if f.Actor != "" {
+		where = append(where, fmt.Sprintf("actor = $%d", argIdx))
+		args = append(args, f.Actor)
+		argIdx++
+	}
+	if f.Channel != "" {
+		where = append(where, fmt.Sprintf("channel = $%d", argIdx))
+		args = append(args, f.Channel)
+		argIdx++
+	}
+	if f.Action != "" {
+		where = append(where, fmt.Sprintf("action ILIKE $%d", argIdx))
+		args = append(args, "%"+f.Action+"%")
+		argIdx++
+	}
+	if f.Resource != "" {
+		where = append(where, fmt.Sprintf("resource ILIKE $%d", argIdx))
+		args = append(args, "%"+f.Resource+"%")
+		argIdx++
+	}
+
+	query := fmt.Sprintf(`SELECT at, actor, channel, action, resource, request_id, before, after
+		FROM audit_log WHERE %s ORDER BY id DESC LIMIT $%d`, strings.Join(where, " AND "), argIdx)
+	args = append(args, limit)
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: audit: %w", err)
 	}
@@ -324,4 +377,9 @@ func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
 		}
 		return a, err
 	})
+}
+
+// AuditEntries returns the newest audit rows (for tests and GET /v1/audit).
+func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
+	return s.SearchAudit(ctx, AuditFilter{Limit: limit})
 }

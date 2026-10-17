@@ -1,0 +1,23 @@
+{
+  "framework": "nextcloud",
+  "version": "1.0.0",
+  "description": "Ruleset exclusions for Nextcloud WebDAV endpoints, OCS API and synchronization clients.",
+  "exclusions": [
+    {
+      "id": "nextcloud-webdav-sync",
+      "description": "Nextcloud WebDAV file sync and chunked uploads",
+      "path_prefix": "/remote.php/dav/files",
+      "methods": ["PUT", "PROPFIND", "MKCOL", "MOVE"],
+      "rule_ids": [920170, 921110, 930120],
+      "reason": "WebDAV protocol uses non-standard HTTP methods and arbitrary binary file bodies."
+    },
+    {
+      "id": "nextcloud-ocs-api",
+      "description": "Nextcloud Open Collaboration Services (OCS) mobile & desktop API",
+      "path_prefix": "/ocs/v2.php",
+      "methods": ["GET", "POST"],
+      "rule_ids": [941100],
+      "reason": "OCS endpoints serialize XML/JSON metadata with user profile data."
+    }
+  ]
+}

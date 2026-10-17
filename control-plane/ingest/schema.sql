@@ -46,10 +46,20 @@ CREATE TABLE IF NOT EXISTS events (
     ),
     inspection       LowCardinality(String),
 
+    -- W16-G2-01: GeoIP and network metadata
+    country_iso      LowCardinality(String) CODEC(ZSTD(1)),
+    city             LowCardinality(String) CODEC(ZSTD(1)),
+    lat              Float32 CODEC(DoubleDelta, ZSTD(1)),
+    lon              Float32 CODEC(DoubleDelta, ZSTD(1)),
+    asn              UInt32 CODEC(T64, ZSTD(1)),
+    as_org           String CODEC(ZSTD(1)),
+
     INDEX idx_ts timestamp TYPE minmax GRANULARITY 1,
     INDEX idx_policy policy_id TYPE set(100) GRANULARITY 2,
     INDEX idx_action action TYPE set(10) GRANULARITY 1,
-    INDEX idx_rules matched_rules TYPE set(100) GRANULARITY 2
+    INDEX idx_rules matched_rules TYPE set(100) GRANULARITY 2,
+    INDEX idx_country country_iso TYPE set(250) GRANULARITY 2,
+    INDEX idx_asn asn TYPE minmax GRANULARITY 2
 )
 ENGINE = ReplacingMergeTree(received_at)
 PARTITION BY toYYYYMMDD(timestamp)

@@ -1,0 +1,25 @@
+{
+  "framework": "drupal",
+  "version": "1.0.0",
+  "description": "Ruleset exclusions for Drupal administrative backend, form API and Twig engine.",
+  "exclusions": [
+    {
+      "id": "drupal-admin-views",
+      "description": "Drupal Views UI query configuration and custom SQL filters",
+      "path_prefix": "/admin/structure/views",
+      "methods": ["POST", "GET"],
+      "rule_ids": [942100, 942140],
+      "target_vars": ["args:query", "args:filters"],
+      "reason": "Views administrator interface allows configuring raw SQL queries and filter expressions."
+    },
+    {
+      "id": "drupal-node-edit",
+      "description": "Drupal Rich Text format (CKEditor) content submission",
+      "path_regex": "^/node/\\d+/edit",
+      "methods": ["POST"],
+      "rule_ids": [941100, 941160],
+      "target_vars": ["args:body[0][value]"],
+      "reason": "Authorized content editors submitting formatted articles with inline styles and embeds."
+    }
+  ]
+}

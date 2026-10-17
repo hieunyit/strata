@@ -1,0 +1,44 @@
+# OWASP CRS 4.25.2, REQUEST-932-APPLICATION-ATTACK-RCE.conf (PL2)
+# Paranoia Level 2 Remote Command Execution Detection
+rule:
+  id: 932161
+  name: "Remote Command Execution: Unix/Windows command shell functions (PL2)"
+  layer: managed
+  stage: request_body
+  match:
+    all:
+      - operator:
+          type: rx
+          value: '(?i)(?:[;|`$]\s*(?:cat|nc|wget|curl|chmod|chown|kill|uname|whoami|id|bash|sh|cmd\.exe|powershell)\b|\b(?:powershell(?:\.exe)?|cmd(?:\.exe)?)\s+(?:-[a-z]+|\/c)\b)'
+        targets:
+          - var: args
+          - var: args_names
+          - var: request_headers
+            key: User-Agent
+        transforms:
+          - lowercase
+          - url_decode_uni
+  score: 100
+  action_mode: score
+  severity: critical
+  paranoia_level: 2
+  metadata:
+    source: crs
+    license: Apache-2.0
+    author: OWASP CRS project
+    upstream_id: "932161"
+    upstream_version: "4.25.2"
+    attack_type: rce
+    accuracy: high
+    tags: [crs-pl2, rce]
+tests:
+  match:
+    - uri: /v1/run?cmd=test;cat+/etc/passwd
+      headers: { Host: api.example.test, Accept: application/json }
+    - uri: /v1/ping?ip=127.0.0.1%7cwhoami
+      headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+    - uri: /v1/catalog?item=concatenation-operator
+      headers: { Host: api.example.test, Accept: application/json }
+    - uri: /v1/search?term=category
+      headers: { Host: api.example.test, Accept: application/json }

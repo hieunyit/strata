@@ -16,6 +16,31 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 17** (khối C1 · GeoIP và nền bản đồ · kế hoạch `docs/plan/w17-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W17-G2-01 | Gắn GeoIP và bảng tổng hợp ClickHouse | Antigravity | W16-G2-01 | ✅ Done (`control-plane/ingest/geoviews.go`, `control-plane/ingest/worker/geoip_updater.go`, `GET /v1/stats/geo`) |
+| W17-F-01 | Nền bản đồ tự host & Thẩm định chủ quyền | Antigravity | W17-G2-01 | ✅ Done (`ui/src/components/geo/GeoMap.tsx`, `control-plane/api/tiles_handler.go`, `docs/decisions/map-tiles.md`) |
+| W17-Q-01 | Test tải và benchmark truy vấn tổng hợp | Antigravity | W17-G2-01 | ✅ Done (`tests/load/gen_geo_events.go`, `TestClickHouseGeoPerf`: 24h < 1s, 30d < 3s) |
+| W17-S-01 | CRS PL2 và Plugin Exclusions | Antigravity | — | ✅ Done (`rules/crs/pl2/`, `rules/schema/plugin_exclusions.json`, `rules/exclusions/`) |
+| W17-R-01 | Mở rộng Semantic Detector (CMDi, SSTI) | Claude Code | — | ⏳ Chưa bắt đầu |
+| RV-N-02 | Fingerprint TLS JA4 trên NGINX Module | Claude Code | — | ⏳ Chưa bắt đầu |
+| W17-N-01 | Đánh giá Ring Buffer Shared Memory | Claude Code | — | ⏳ Chưa bắt đầu |
+
+**Nhiệm vụ tuần 15 & 16** (khối B2 · Enforce 100% & Ổn định enforce · Gate B; kế hoạch `docs/plan/plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W15-G2-01 | Audit, role binding, service account (M2M scoped token, TTL) | Antigravity | W14-G2-01 | ✅ Done (`control-plane/auth/service_account.go`, `control-plane/api/service_account_handler.go`) |
+| W15-F-01 | Hoàn thiện policy editor (9 khối) và Audit / Service Account UI | Antigravity | W15-G2-01 | ✅ Done (`ui/src/components/policy/PolicyEditor.tsx`, `ui/src/pages/UsersPage.tsx`) |
+| W15-N-01 | Chốt tài liệu cấu hình NGINX module | Antigravity | — | ✅ Done (`connectors/nginx/README.md`) |
+| W15-Q-01 | Benchmark chống bypass (GoTestWAF TP 84,2% / TN 100%) | Antigravity | W13-S-01 | ✅ Done (`docs/reports/w15-q-01.md`) |
+| W16-S-01 | Báo cáo chất lượng sau enforce 14 ngày (FP 0,012%) | Antigravity | W15-S-01 | ✅ Done (`docs/reports/w16-s-01.md`) |
+| W16-G2-01 | Chuẩn bị GeoIP (.mmdb, ClickHouse schema, private IP fast-path) | Antigravity | — | ✅ Done (`control-plane/ingest/geoip.go`, `docs/reports/w16-g2-01.md`) |
+| W16-ALL-01| Retrospective và quyết định fail-closed locations | Antigravity | — | ✅ Done (`docs/reports/w16-all-01.md`) |
+| Gate B | Đánh giá & phê duyệt Gate B Enforce 100% | Antigravity / PO | W16-S-01 | ✅ Done (`docs/reports/gate-b.md`) |
+
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |

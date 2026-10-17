@@ -1,0 +1,33 @@
+{
+  "framework": "wordpress",
+  "version": "1.0.0",
+  "description": "Ruleset exclusions for WordPress core, Gutenberg editor, XML-RPC and admin portal.",
+  "exclusions": [
+    {
+      "id": "wp-login",
+      "description": "WordPress login endpoint parameter handling",
+      "path_prefix": "/wp-login.php",
+      "methods": ["POST", "GET"],
+      "rule_ids": [942100, 941100],
+      "target_vars": ["args:pwd", "args:log"],
+      "reason": "Login passwords and redirect parameters may contain special characters triggering generic SQLi/XSS signatures."
+    },
+    {
+      "id": "wp-admin-posts",
+      "description": "Gutenberg editor saving HTML drafts and custom CSS/blocks",
+      "path_prefix": "/wp-admin/post.php",
+      "methods": ["POST"],
+      "rule_ids": [941100, 941110, 941160],
+      "target_vars": ["args:content", "args:excerpt"],
+      "reason": "WYSIWYG post editor natively submits raw HTML and script tags."
+    },
+    {
+      "id": "wp-xmlrpc",
+      "description": "WordPress XML-RPC pingback and remote publishing API",
+      "path_prefix": "/xmlrpc.php",
+      "methods": ["POST"],
+      "rule_ids": [920170, 920420],
+      "reason": "Legacy XML-RPC clients omit standard browser headers."
+    }
+  ]
+}
