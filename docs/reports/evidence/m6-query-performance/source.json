@@ -1,0 +1,16 @@
+{
+  "runtime_commit": "dd40b70d91c6b8c1ad56cf5323c8691995eea2c9",
+  "baseline_commit": "eb809c07903f831210314e02ab1f9049901a03c2",
+  "sha256": {
+    "control-plane/ingest/store.go": "d80bb0d945137ef78126aee648fc7ece80c1e9a83edb53bff6f7ddd90ddcbfb9",
+    "control-plane/ingest/lookup_clickhouse_test.go": "c954d592687f1eb65ae81ed055556f0066ebe856295da3fe1ed5cac4109aa61d",
+    "control-plane/ingest/schema.sql": "7e8c9c9559e08cb49ede982085e6d87e5092ee0a19347cc28bfeae03f60fef76",
+    "tests/perf/clickhouse.sh": "6e8b5736fadeb89a48b4d3389e2add0e3f71d4659b4a6f478594c88c8c0582e8",
+    "control-plane/api/clickhouse_perf_test.go": "b6fbc78b42037ac2495d88de60993f454c7e5494c778a7ca737287a7999425bd",
+    "control-plane/ingest/clickhouse_perf_test.go": "fa8d3be5f009bc25c8797fdcdc56b5053a0c18a74b46a98880b13a7ab4f18c4f"
+  },
+  "cpuset": "6-10",
+  "recent_rows": 10000000,
+  "older_rows": 10000000,
+  "cache": "not reset; finalized parts; sequential query workload"
+}

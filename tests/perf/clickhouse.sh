@@ -12,21 +12,27 @@
 # PERF_CPUS: pin ClickHouse and the tests to these CPUs (docker --cpuset-cpus).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-name=strata-ch-perf
+name="strata-ch-perf-$(date +%s)-$$"
 recent="${RECENT:-10000000}"
 older="${OLDER:-10000000}"
 pw=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
-docker rm -f "$name" >/dev/null 2>&1 || true
 cpus=()
 [ -z "${PERF_CPUS:-}" ] || cpus=(--cpuset-cpus "$PERF_CPUS")
-docker run -d --name "$name" "${cpus[@]}" -p 127.0.0.1:39000:9000 \
+container_id=$(docker run -d --name "$name" "${cpus[@]}" -p 127.0.0.1::9000 \
     -e CLICKHOUSE_USER=strata -e CLICKHOUSE_PASSWORD="$pw" -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
     --ulimit nofile=262144:262144 \
     -v "$root/control-plane/ingest/schema.sql:/docker-entrypoint-initdb.d/10-events.sql:ro" \
-    clickhouse/clickhouse-server:25.8.33 >/dev/null
-[ "${1:-}" = keep ] || trap 'docker rm -f "$name" >/dev/null' EXIT
-q() { docker exec -i "$name" clickhouse-client --user strata --password "$pw" "$@"; }
-for _ in $(seq 120); do q --query "EXISTS TABLE events" 2>/dev/null | grep -q 1 && break; sleep 1; done
+    clickhouse/clickhouse-server:25.8.33)
+[ "${1:-}" = keep ] || trap 'docker rm -fv "$container_id" >/dev/null' EXIT
+native_addr=$(docker port "$container_id" 9000/tcp)
+echo "ClickHouse fixture: $name at $native_addr"
+q() { docker exec -i "$container_id" clickhouse-client --user strata --password "$pw" "$@"; }
+ready=0
+for _ in $(seq 120); do
+    if q --query "EXISTS TABLE events" 2>/dev/null | grep -q '^1$'; then ready=1; break; fi
+    sleep 1
+done
+if [ "$ready" != 1 ]; then echo "ClickHouse fixture did not become ready" >&2; exit 1; fi
 
 # one INSERT ... SELECT per range; ts in ms
 fill() { # count from-seconds-ago span-seconds
@@ -62,9 +68,12 @@ FROM numbers($1)"
 start=$(date +%s)
 fill "$recent" 86400 86400
 fill "$older" $((30 * 86400)) $((29 * 86400))
-q --query "OPTIMIZE TABLE events FINAL" || true
-echo "filled in $(( $(date +%s) - start )) s: $(q --query 'SELECT count(), formatReadableSize(sum(bytes_on_disk)) FROM system.parts WHERE table = '"'"'events'"'"' AND active' 2>/dev/null)"
+q --query "OPTIMIZE TABLE events FINAL"
+rows=$(q --query 'SELECT count() FROM events')
+disk=$(q --query "SELECT formatReadableSize(sum(bytes_on_disk)) FROM system.parts WHERE database = currentDatabase() AND table = 'events' AND active")
+if [ "$rows" -ne "$((recent + older))" ]; then echo "unexpected fixture row count: $rows" >&2; exit 1; fi
+echo "filled in $(( $(date +%s) - start )) s: $rows rows, $disk active disk"
 # the dev image, on the host network to reach the published port
 STRATA_DEV_DOCKER_ARGS="${STRATA_DEV_DOCKER_ARGS:-} --network host ${cpus[*]}" \
-    "$root/deploy/dev/run.sh" env CLICKHOUSE_PERF_ADDR=127.0.0.1:39000 CLICKHOUSE_PERF_PASSWORD="$pw" \
+    "$root/deploy/dev/run.sh" env CLICKHOUSE_PERF_ADDR="$native_addr" CLICKHOUSE_PERF_PASSWORD="$pw" \
     sh -c "cd control-plane && go test -count=1 -v -run 'TestClickHouseAPIPerf' ./api/ && go test -count=1 -v -run 'TestClickHouse(Perf|TTL)' ./ingest/" </dev/null

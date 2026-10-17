@@ -234,9 +234,14 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 // is still found by the lookup over every partition that follows a miss.
 func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event, error) {
 	if t, ok := BlockIDTime(blockID); ok {
-		e, err := s.getEvent(ctx, blockID, "AND timestamp BETWEEN ? AND ?", t.Add(-24*time.Hour), t.Add(24*time.Hour))
-		if !errors.Is(err, ErrEventNotFound) {
-			return e, err
+		// Normal events are timestamped near their ID's creation. Start with
+		// one narrow partition range; the wider probe and global fallback
+		// still cover long requests, clock skew and older producers.
+		for _, radius := range []time.Duration{time.Second, 24 * time.Hour} {
+			e, err := s.getEvent(ctx, blockID, "AND timestamp BETWEEN ? AND ?", t.Add(-radius), t.Add(radius))
+			if !errors.Is(err, ErrEventNotFound) {
+				return e, err
+			}
 		}
 	}
 	return s.getEvent(ctx, blockID, "")
