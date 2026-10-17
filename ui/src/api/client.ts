@@ -221,8 +221,8 @@ export const apiClient = {
   },
 
   /** GET /v1/policies */
-  async listPolicies(): Promise<Policy[]> {
-    const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET' }, 'Failed to list policies');
+  async listPolicies(signal?: AbortSignal): Promise<Policy[]> {
+    const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET', signal }, 'Failed to list policies');
     return r.policies ?? [];
   },
 
@@ -234,9 +234,9 @@ export const apiClient = {
   },
 
   /** GET /v1/policies/{id}/versions, newest first */
-  async listPolicyVersions(policyId: string): Promise<PolicyVersion[]> {
+  async listPolicyVersions(policyId: string, signal?: AbortSignal): Promise<PolicyVersion[]> {
     const r = await call<admin['schemas']['v1ListPolicyVersionsResponse']>(
-      `/policies/${encodeURIComponent(policyId)}/versions`, { method: 'GET' }, 'Failed to list versions');
+      `/policies/${encodeURIComponent(policyId)}/versions`, { method: 'GET', signal }, 'Failed to list versions');
     return r.versions ?? [];
   },
 

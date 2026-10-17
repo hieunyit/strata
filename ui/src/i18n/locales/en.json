@@ -555,5 +555,46 @@
       "forbidden": "You no longer have permission to create an exception.",
       "uncertain": "The outcome could not be confirmed. Retry with the same request; the form is held unchanged to prevent duplicates."
     }
+  },
+  "replay": {
+    "title": "Replay report",
+    "missing": "No replay has been queued for this version.",
+    "unavailable": "Replay could not be loaded. Refresh before making a decision.",
+    "failed": "Replay failed. An operator can run it again.",
+    "waiting": "Replay is queued or running. Results refresh while this version is open.",
+    "incomplete": "Report is empty or missing artifact proof. Approval is unavailable; run replay again.",
+    "invalidCount": "Invalid count",
+    "topTen": "Showing the top 10 entries.",
+    "traffic": "Sampled traffic",
+    "corpus": "Test corpus",
+    "noSamples": "No samples in this group.",
+    "samples": "Samples",
+    "newly_blocked": "Newly blocked",
+    "newly_allowed": "Newly allowed",
+    "draftActions": "Draft verdicts",
+    "baselineActions": "Baseline verdicts",
+    "blockedRules": "Rules in newly blocked samples",
+    "allowedRules": "Rules in newly allowed samples",
+    "blockedPaths": "Paths in newly blocked samples",
+    "blockedSampled": "Recorded actions of newly blocked samples",
+    "allowedSampled": "Recorded actions of newly allowed samples",
+    "examples_blocked": "Newly blocked examples",
+    "examples_allowed": "Newly allowed examples",
+    "rules": "Rules",
+    "total": "{{samples}} samples · {{ms}} ms",
+    "baseline": "Baseline bundle: {{bundle}} (0 means built from policies).",
+    "truncated": "Traffic sample limit reached. This report covers only part of the traffic.",
+    "candidates": "Verdict changes are candidates for investigation, not confirmed false positives or false negatives.",
+    "provenance": "Compared artifact proof",
+    "input_digest": "Input digest",
+    "draft_sha256": "Draft SHA-256",
+    "baseline_sha256": "Baseline SHA-256",
+    "replay_sha256": "Replay binary SHA-256",
+    "state": {
+      "PENDING": "Pending",
+      "RUNNING": "Running",
+      "DONE": "Done",
+      "FAILED": "Failed"
+    }
   }
 }
