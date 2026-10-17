@@ -1,0 +1,27 @@
+{
+  "nginx": "1.30.5",
+  "hashes": {
+    "target/release/libstrata.a": "47f545c2783d5e513fcac882d54ead5f59764d98a2a51f751a04b76f06c61cda",
+    "target/release/mkbundle": "3d5abe4d30034db29adb7a8548c5ac3661bd96130289b338502f214e20c73d8c",
+    "target/release/strata-compile": "adce22e1532a10fe71e5141eb700ed792ab7a9a9ee17c14a97e96a4a2e4d058a",
+    "build/nginx-1.30.5-asan/objs/nginx": "4708c7c5929190cbb3345e3e4bdda9eddb719438f3a472447127409bca724a0e",
+    "build/nginx-1.30.5-asan/objs/ngx_http_strata_module.so": "3cd0516563c166681aeed8875efac0670cb1eecfe2c385b0022dd709673eb77d",
+    "engine/ffi/src/ffi.rs": "7953448841c98afa0c11dbad61aa17420416727650a4fbdc271f6e5358abb2d5",
+    "engine/src/tx.rs": "8221abe8c02c00033010aa79b911a16e74c35ecac85d74ca080131532a45b8e6",
+    "connectors/nginx/src/ngx_http_strata_breaker.c": "5306443729157ad76203767c1eef1187d6555655fe5051057ae559afbb9c436e",
+    "connectors/nginx/src/ngx_http_strata_bundle.c": "6f8bc66686edf22e0d57d5e2e951d7ed798c179c720f176c9e4582afabf68f9c",
+    "tests/security/run-native-faults.sh": "a258de265cf7c90378e3cd31142b9ce6734db4f8ca1d7618e2f4e17f521588ac",
+    "connectors/nginx/t/004-reload.t": "fd46e8a40a06a7681205b654804f46353df39e0692f42d8d98f97ed2f525f040",
+    "connectors/nginx/t/060-fail-mode-events.t": "c8e35fc631309cad8f6de56e55e1724348f970f626c51cccd04ef607c5ac0499",
+    "connectors/nginx/t/090-breaker.t": "b42eaeb7fd3fbab7aa3d59724063bdae1ae56b0548293c54578f9e5a61c62eb8"
+  },
+  "scope": "existing native panic/fail-mode/breaker and signed-bundle rejection tests; no real agent/ClickHouse in this suite",
+  "test_hooks": true,
+  "sanitizer_reports": [],
+  "leak_sanitizer": false,
+  "limits": [
+    "not production binary or traffic",
+    "not CPU-budget performance SLO",
+    "not a complete staging game day"
+  ]
+}

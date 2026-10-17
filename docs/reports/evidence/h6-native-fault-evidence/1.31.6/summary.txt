@@ -1,0 +1,4 @@
+ok
+All tests successful.
+Files=3, Tests=70, 73 wallclock secs ( 0.14 usr  0.03 sys + 39.04 cusr  6.11 csys = 45.32 CPU)
+Result: PASS
