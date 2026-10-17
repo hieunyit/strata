@@ -385,23 +385,43 @@ func (s *Store) RecordBundle(ctx context.Context, b Bundle, a Audit) (Bundle, er
 		return Bundle{}, err
 	}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents, input_digest)
-			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at`,
-			int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents, b.InputDigest).Scan(&b.CreatedAt); err != nil {
-			return fmt.Errorf("store: record bundle: %w", err)
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", int64(lockBundleRecords)); err != nil {
+			return fmt.Errorf("store: bundle record lock: %w", err)
 		}
-		b.CreatedBy = a.Actor
-		// the approved versions the bundle took are deployed now
-		for id, v := range b.Contents {
-			if _, err := tx.Exec(ctx, `UPDATE policy_versions SET state = $3 WHERE policy_id = $1 AND version = $2 AND state = $4`,
-				id, v, VersionDeployed, VersionApproved); err != nil {
-				return fmt.Errorf("store: deployed versions: %w", err)
-			}
-		}
-		a.After = b
-		return writeAudit(ctx, tx, a)
+		var e error
+		b, e = recordBundleJSON(ctx, tx, b, a, contents, true)
+		return e
 	})
 	return b, err
+}
+
+// recordBundle shares the transaction with an automatic staging action.
+func recordBundle(ctx context.Context, tx pgx.Tx, b Bundle, a Audit, ordinary bool) (Bundle, error) {
+	contents, err := json.Marshal(b.Contents)
+	if err != nil {
+		return Bundle{}, err
+	}
+	return recordBundleJSON(ctx, tx, b, a, contents, ordinary)
+}
+
+func recordBundleJSON(ctx context.Context, tx pgx.Tx, b Bundle, a Audit, contents []byte, ordinary bool) (Bundle, error) {
+	if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents, input_digest)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at`,
+		int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents, b.InputDigest).Scan(&b.CreatedAt); err != nil {
+		return Bundle{}, fmt.Errorf("store: record bundle: %w", err)
+	}
+	b.CreatedBy = a.Actor
+	// the approved versions the bundle took are deployed now
+	for id, v := range b.Contents {
+		if _, err := tx.Exec(ctx, `UPDATE policy_versions SET state = $3 WHERE policy_id = $1 AND version = $2 AND state = $4`,
+			id, v, VersionDeployed, VersionApproved); err != nil {
+			return Bundle{}, fmt.Errorf("store: deployed versions: %w", err)
+		}
+	}
+	if ordinary {
+		a.After = b
+	}
+	return b, writeAudit(ctx, tx, a)
 }
 
 // LatestBundle returns the newest bundle.
