@@ -170,6 +170,8 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		RuleID:     req.RuleID,
 		NodeID:     req.NodeID,
 		HTTPMethod: req.HTTPMethod,
+		CountryISO: req.CountryISO,
+		ASN:        req.ASN,
 		Limit:      pageSize,
 		Offset:     offset,
 	}

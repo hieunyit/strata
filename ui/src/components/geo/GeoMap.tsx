@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Globe, RefreshCw, Radio } from 'lucide-react';
+import { Globe, RefreshCw, Radio, Zap } from 'lucide-react';
 import { apiClient, GeoStatsResponse } from '../../api/client';
 import { WORLD_COUNTRIES, GEO_CENTERS } from './worldData';
 
 export interface GeoMapProps {
   onSelectCountry?: (countryIso: string) => void;
   onSelectASN?: (asn: number) => void;
+  onQuickAction?: (type: 'geo' | 'asn', target: string, action?: 'block' | 'challenge') => void;
   policyId?: string;
   selectedCountry?: string | null;
   selectedASN?: number | null;
@@ -26,6 +27,7 @@ function getLogChoropleth(events: number): string {
 export const GeoMap: React.FC<GeoMapProps> = ({
   onSelectCountry,
   onSelectASN,
+  onQuickAction,
   policyId,
   selectedCountry: externalSelectedCountry,
   selectedASN: externalSelectedASN,
@@ -492,9 +494,25 @@ export const GeoMap: React.FC<GeoMapProps> = ({
                             {fullName}
                           </span>
                         </div>
-                        <span className="font-mono text-muted text-[11px]">
-                          {c.events.toLocaleString()} reqs
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-muted text-[11px]">
+                            {c.events.toLocaleString()} reqs
+                          </span>
+                          {onQuickAction && (
+                            <button
+                              type="button"
+                              data-testid={`quick-rule-country-${c.country_iso}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickAction('geo', c.country_iso, 'block');
+                              }}
+                              title={`Tạo rule chặn quốc gia ${c.country_iso}`}
+                              className="p-1 rounded bg-rose-500/15 text-rose-400 hover:bg-rose-500/30 transition-colors"
+                            >
+                              <Zap className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-muted font-mono">
                         <span>Top: <span className="text-rose-400 font-semibold">{c.top_attack_type}</span></span>
@@ -546,9 +564,25 @@ export const GeoMap: React.FC<GeoMapProps> = ({
                         <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 text-[10px]">
                           AS{a.asn}
                         </span>
-                        <span className="font-mono text-muted text-[11px]">
-                          {a.events.toLocaleString()} reqs
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-muted text-[11px]">
+                            {a.events.toLocaleString()} reqs
+                          </span>
+                          {onQuickAction && (
+                            <button
+                              type="button"
+                              data-testid={`quick-rule-asn-${a.asn}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickAction('asn', String(a.asn), 'block');
+                              }}
+                              title={`Tạo rule chặn ASN ${a.asn}`}
+                              className="p-1 rounded bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors"
+                            >
+                              <Zap className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px] font-mono">
                         <span className="text-slate-300 truncate max-w-[130px]" title={a.as_org}>

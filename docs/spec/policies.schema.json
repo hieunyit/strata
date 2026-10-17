@@ -95,6 +95,40 @@
                 }
               }
             }
+          },
+          "geo_restrictions": {
+            "description": "Geographic and ASN access control and threat mitigation (W19-G2-01). Enforces block or challenge actions on requests matching designated countries or Autonomous System Numbers.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean", "default": true },
+              "default_action": { "enum": ["pass", "monitor"] },
+              "blocked_countries": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[A-Z]{2}$" }
+              },
+              "challenged_countries": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[A-Z]{2}$" }
+              },
+              "blocked_asns": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "integer", "minimum": 1 }
+              },
+              "challenged_asns": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "integer", "minimum": 1 }
+              },
+              "exempt_ips": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string" }
+              }
+            }
           }
         }
       }

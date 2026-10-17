@@ -34,6 +34,16 @@ export function specToYaml(spec: PolicySpec): string {
     if (r.db_errors) lines.push('  db_errors: true');
     if (guards.length) lines.push(`  data_guard: [${guards.join(', ')}]`);
   }
+  const g = (spec as any).geo_restrictions;
+  if (g) {
+    lines.push('geo_restrictions:');
+    if (g.default_action) lines.push(`  default_action: ${g.default_action}`);
+    if (g.blocked_countries?.length) lines.push(`  blocked_countries: [${g.blocked_countries.join(', ')}]`);
+    if (g.challenged_countries?.length) lines.push(`  challenged_countries: [${g.challenged_countries.join(', ')}]`);
+    if (g.blocked_asns?.length) lines.push(`  blocked_asns: [${g.blocked_asns.join(', ')}]`);
+    if (g.challenged_asns?.length) lines.push(`  challenged_asns: [${g.challenged_asns.join(', ')}]`);
+    if (g.exempt_ips?.length) lines.push(`  exempt_ips: [${g.exempt_ips.join(', ')}]`);
+  }
   return lines.join('\n') + '\n';
 }
 
@@ -180,6 +190,34 @@ export function yamlToSpec(text: string): ParseResult {
         spec.response = resp;
         break;
       }
+      case 'geo_restrictions': {
+        const geo: any = {};
+        while (i < lines.length && lines[i].indent !== 0) {
+          const c = lines[i];
+          if (c.indent < 0) return fail(c.n, 'tab');
+          const cm = /^([a-z_]+):(.*)$/.exec(c.text);
+          if (!cm) return fail(c.n, 'keyValue');
+          const [, ck, cv] = cm;
+          i++;
+          if (ck === 'default_action') {
+            geo.default_action = scalar(cv);
+          } else if (ck === 'enabled') {
+            const b = bool(cv, c.n);
+            if (isErr(b)) return { error: b };
+            geo.enabled = b;
+          } else if (['blocked_countries', 'challenged_countries', 'exempt_ips'].includes(ck)) {
+            const list = flowList(cv, c.n);
+            if (isErr(list)) return { error: list };
+            geo[ck] = list;
+          } else if (['blocked_asns', 'challenged_asns'].includes(ck)) {
+            const list = flowList(cv, c.n);
+            if (isErr(list)) return { error: list };
+            geo[ck] = list.map((x) => Number(x)).filter((n) => !isNaN(n) && n > 0);
+          }
+        }
+        (spec as any).geo_restrictions = geo;
+        break;
+      }
       default:
         return fail(l.n, 'unknown', { key });
     }
@@ -203,6 +241,9 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
     if (r.allowed_codes_check) out.response.allowed_codes_check = true;
     if (r.db_errors) out.response.db_errors = true;
     if (guards.length) out.response.data_guard = guards;
+  }
+  if ((spec as any).geo_restrictions) {
+    (out as any).geo_restrictions = (spec as any).geo_restrictions;
   }
   return out;
 }

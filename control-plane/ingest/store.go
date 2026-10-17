@@ -27,6 +27,8 @@ type SearchFilter struct {
 	RuleID     uint32
 	NodeID     string
 	HTTPMethod string
+	CountryISO string
+	ASN        uint32
 	Limit      int
 	Offset     int
 }
@@ -381,6 +383,14 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 		whereClauses = append(whereClauses, "http_method = ?")
 		args = append(args, filter.HTTPMethod)
 	}
+	if filter.CountryISO != "" {
+		whereClauses = append(whereClauses, "country_iso = ?")
+		args = append(args, filter.CountryISO)
+	}
+	if filter.ASN > 0 {
+		whereClauses = append(whereClauses, "asn = ?")
+		args = append(args, filter.ASN)
+	}
 
 	limit := filter.Limit
 	if limit <= 0 {
@@ -653,6 +663,12 @@ func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) 
 			continue
 		}
 		if filter.NodeID != "" && e.NodeID != filter.NodeID {
+			continue
+		}
+		if filter.CountryISO != "" && e.CountryISO != filter.CountryISO {
+			continue
+		}
+		if filter.ASN > 0 && e.ASN != filter.ASN {
 			continue
 		}
 		if filter.RuleID > 0 {

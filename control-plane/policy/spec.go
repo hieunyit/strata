@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/netip"
 	"regexp"
 )
 
@@ -33,6 +34,8 @@ type Spec struct {
 	// FailOnFindings: "pass" (default) or "block": the CPU budget runs out
 	// on a request that already has findings, block fails closed (#98).
 	FailOnFindings string `json:"fail_on_findings,omitempty"`
+	// GeoRestrictions: geographical and ASN access control (W19-G2-01).
+	GeoRestrictions *GeoRestrictions `json:"geo_restrictions,omitempty"`
 }
 
 // CanaryBasisPoints of the spec's canary (0: none).
@@ -49,7 +52,29 @@ type Privacy struct {
 	Identity string `json:"identity,omitempty"`
 }
 
-var fieldPattern = regexp.MustCompile(`^[!-~]{1,64}$`)
+var (
+	fieldPattern   = regexp.MustCompile(`^[!-~]{1,64}$`)
+	countryPattern = regexp.MustCompile(`^[A-Z]{2}$`)
+)
+
+// GeoRestrictions configures geographical and ASN-based access controls (W19-G2-01).
+type GeoRestrictions struct {
+	Enabled             *bool    `json:"enabled,omitempty"`
+	DefaultAction       string   `json:"default_action,omitempty"`
+	BlockedCountries    []string `json:"blocked_countries,omitempty"`
+	ChallengedCountries []string `json:"challenged_countries,omitempty"`
+	BlockedASNs         []uint32 `json:"blocked_asns,omitempty"`
+	ChallengedASNs      []uint32 `json:"challenged_asns,omitempty"`
+	ExemptIPs           []string `json:"exempt_ips,omitempty"`
+}
+
+// IsEnabled reports whether geo restrictions are active (default true when struct is present).
+func (g *GeoRestrictions) IsEnabled() bool {
+	if g == nil {
+		return false
+	}
+	return g.Enabled == nil || *g.Enabled
+}
 
 // Response is the policy's response layer.
 type Response struct {
@@ -136,6 +161,80 @@ func (s Spec) Validate() error {
 				return fmt.Errorf("data_guard lists %q twice", g)
 			}
 			seen[g] = true
+		}
+	}
+	if g := s.GeoRestrictions; g != nil {
+		switch g.DefaultAction {
+		case "", "pass", "monitor":
+		default:
+			return fmt.Errorf("geo_restrictions: default_action must be pass or monitor, got %q", g.DefaultAction)
+		}
+		if len(g.BlockedCountries)+len(g.ChallengedCountries) > 256 {
+			return errors.New("geo_restrictions: too many countries specified (max 256)")
+		}
+		if len(g.BlockedASNs)+len(g.ChallengedASNs) > 1000 {
+			return errors.New("geo_restrictions: too many asns specified (max 1000)")
+		}
+		if len(g.ExemptIPs) > 256 {
+			return errors.New("geo_restrictions: too many exempt_ips (max 256)")
+		}
+
+		blockedCountries := make(map[string]bool, len(g.BlockedCountries))
+		for _, c := range g.BlockedCountries {
+			if !countryPattern.MatchString(c) {
+				return fmt.Errorf("geo_restrictions: invalid country code %q (must be 2 uppercase ISO letters)", c)
+			}
+			if blockedCountries[c] {
+				return fmt.Errorf("geo_restrictions: duplicate country code %q in blocked_countries", c)
+			}
+			blockedCountries[c] = true
+		}
+
+		for _, c := range g.ChallengedCountries {
+			if !countryPattern.MatchString(c) {
+				return fmt.Errorf("geo_restrictions: invalid country code %q (must be 2 uppercase ISO letters)", c)
+			}
+			if blockedCountries[c] {
+				return fmt.Errorf("geo_restrictions: country %q cannot be in both blocked_countries and challenged_countries", c)
+			}
+		}
+
+		blockedASNs := make(map[uint32]bool, len(g.BlockedASNs))
+		for _, a := range g.BlockedASNs {
+			if a == 0 {
+				return errors.New("geo_restrictions: ASN must be greater than 0")
+			}
+			if blockedASNs[a] {
+				return fmt.Errorf("geo_restrictions: duplicate ASN %d in blocked_asns", a)
+			}
+			blockedASNs[a] = true
+		}
+
+		challengedASNs := make(map[uint32]bool, len(g.ChallengedASNs))
+		for _, a := range g.ChallengedASNs {
+			if a == 0 {
+				return errors.New("geo_restrictions: ASN must be greater than 0")
+			}
+			if challengedASNs[a] {
+				return fmt.Errorf("geo_restrictions: duplicate ASN %d in challenged_asns", a)
+			}
+			if blockedASNs[a] {
+				return fmt.Errorf("geo_restrictions: ASN %d cannot be in both blocked_asns and challenged_asns", a)
+			}
+			challengedASNs[a] = true
+		}
+
+		seenIPs := make(map[string]bool, len(g.ExemptIPs))
+		for _, ipStr := range g.ExemptIPs {
+			if seenIPs[ipStr] {
+				return fmt.Errorf("geo_restrictions: duplicate exempt IP/CIDR %q", ipStr)
+			}
+			seenIPs[ipStr] = true
+			if _, err := netip.ParseAddr(ipStr); err != nil {
+				if _, err2 := netip.ParsePrefix(ipStr); err2 != nil {
+					return fmt.Errorf("geo_restrictions: invalid exempt IP or CIDR %q", ipStr)
+				}
+			}
 		}
 	}
 	return nil

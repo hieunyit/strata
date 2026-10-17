@@ -35,6 +35,8 @@ type SearchEventsRequest struct {
 	RuleID     uint32    `json:"rule_id,omitempty"`
 	NodeID     string    `json:"node_id,omitempty"`
 	HTTPMethod string    `json:"http_method,omitempty"`
+	CountryISO string    `json:"country_iso,omitempty"`
+	ASN        uint32    `json:"asn,omitempty"`
 	PageSize   int       `json:"page_size,omitempty"`
 	PageToken  string    `json:"page_token,omitempty"`
 }

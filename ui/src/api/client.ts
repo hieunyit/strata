@@ -1,9 +1,19 @@
 import { components } from './generated/schema';
 import { components as admin } from './generated/admin';
 
-export type Event = components['schemas']['Event'];
+export type Event = components['schemas']['Event'] & {
+  country_iso?: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+  asn?: number;
+  as_org?: string;
+};
 export type Violation = components['schemas']['Violation'];
-export type SearchEventsRequest = components['schemas']['SearchEventsRequest'];
+export type SearchEventsRequest = components['schemas']['SearchEventsRequest'] & {
+  country_iso?: string;
+  asn?: number;
+};
 export type SearchEventsResponse = components['schemas']['SearchEventsResponse'];
 export type GetEventResponse = components['schemas']['GetEventResponse'];
 export type GetVersionResponse = admin['schemas']['v1GetVersionResponse'];
@@ -194,6 +204,15 @@ export const apiClient = {
     const r = await call<admin['schemas']['v1UpdatePolicyResponse']>(
       `/policies/${encodeURIComponent(policyId)}`, json('PATCH', { etag, spec }), 'Failed to save the policy');
     return r.policy ?? {};
+  },
+
+  /** POST /v1/policies/{id}:quick-rule (W19-G2-01) */
+  async quickRule(policyId: string, req: QuickRuleRequest): Promise<QuickRuleResponse> {
+    return call<QuickRuleResponse>(
+      `/policies/${encodeURIComponent(policyId)}:quick-rule`,
+      json('POST', req),
+      'Failed to create quick rule'
+    );
   },
 
   /** GET /v1/policies/{id}/versions, newest first */
@@ -476,5 +495,19 @@ export interface AuditEntry {
 
 export interface ListAuditResponse {
   entries: AuditEntry[];
+}
+
+export interface QuickRuleRequest {
+  type: 'geo' | 'asn';
+  target: string;
+  action: 'block' | 'challenge';
+  reason?: string;
+}
+
+export interface QuickRuleResponse {
+  policy_id: string;
+  version: number;
+  etag: string;
+  message: string;
 }
 

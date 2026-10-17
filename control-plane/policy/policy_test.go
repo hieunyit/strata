@@ -26,7 +26,10 @@ func TestSpecValidate(t *testing.T) {
 		// #28: max_args 1..1020
 		{Mode: "enforce", MaxArgs: 1}, {Mode: "enforce", MaxArgs: 1020},
 		// #98: fail_on_findings
-		{Mode: "enforce", FailOnFindings: "pass"}, {Mode: "enforce", FailOnFindings: "block"}}
+		{Mode: "enforce", FailOnFindings: "pass"}, {Mode: "enforce", FailOnFindings: "block"},
+		// W19-G2-01: geo_restrictions
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{DefaultAction: "pass", BlockedCountries: []string{"CN", "RU"}, ChallengedCountries: []string{"US"}, BlockedASNs: []uint32{12345}, ChallengedASNs: []uint32{67890}, ExemptIPs: []string{"192.168.1.1", "10.0.0.0/8"}}},
+		{Mode: "shadow", GeoRestrictions: &GeoRestrictions{DefaultAction: "monitor", BlockedCountries: []string{"VN"}}}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -44,7 +47,17 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "shadow", CanaryPercent: 5}, {Mode: "enforce", CanaryPercent: 100}, {Mode: "enforce", CanaryPercent: -1},
 		{Mode: "enforce", CanaryPercent: 0.005}, {Mode: "enforce", CanaryPercent: 1.234},
 		{Mode: "enforce", MaxArgs: -1}, {Mode: "enforce", MaxArgs: 1021},
-		{Mode: "enforce", FailOnFindings: "maybe"}}
+		{Mode: "enforce", FailOnFindings: "maybe"},
+		// W19-G2-01: invalid geo_restrictions
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedCountries: []string{"vietnam"}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedCountries: []string{"vn"}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedCountries: []string{"VN", "VN"}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedCountries: []string{"VN"}, ChallengedCountries: []string{"VN"}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedASNs: []uint32{0}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedASNs: []uint32{123, 123}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{BlockedASNs: []uint32{123}, ChallengedASNs: []uint32{123}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{ExemptIPs: []string{"not-an-ip"}}},
+		{Mode: "enforce", GeoRestrictions: &GeoRestrictions{DefaultAction: "reject"}}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)

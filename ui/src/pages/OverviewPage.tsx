@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pause, Play, RefreshCw, Activity, ShieldAlert, Eye, AlertTriangle, Globe, Server } from 'lucide-react';
+import { Pause, Play, RefreshCw, Activity, ShieldAlert, Eye, AlertTriangle, Globe, Server, Zap, ArrowRight } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
-import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime } from '../components/ui';
+import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime, VerdictBadge } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
 import { GeoMap } from '../components/geo/GeoMap';
 import { FilterChips, FilterState } from '../components/geo/FilterChips';
 import { TimelineChart } from '../components/geo/TimelineChart';
-import { apiClient, Overview, FleetNode, Rollout, Policy, TimelineResponse } from '../api/client';
+import { QuickActionModal } from '../components/geo/QuickActionModal';
+import { DecisionTraceModal } from '../components/events/DecisionTraceModal';
+import { apiClient, Overview, FleetNode, Rollout, Policy, TimelineResponse, Event } from '../api/client';
 import { RangeKey, overviewRanges, isRange, windowOf } from '../lib/timeRange';
 import { Route, href, replaceQuery } from '../router';
 import { useAuth } from '../context/AuthContext';
@@ -91,6 +93,11 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const { t, i18n } = useTranslation();
   const { maskIp } = useAuth();
   const locale = i18n.language;
+  const initialCountry = route.query?.country_iso ?? null;
+  const initialASN = route.query?.asn ? Number(route.query.asn) : null;
+  const initialAction: 'all' | 'block' | 'monitor' =
+    route.query?.action === 'block' || route.query?.action === 'monitor' ? route.query.action : 'all';
+
   const [range, setRange] = useState<RangeKey>(isRange(route.query?.range, overviewRanges) ? (route.query!.range as RangeKey) : '24h');
   const [policy, setPolicy] = useState(route.query?.policy_id ?? '');
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -101,13 +108,32 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const [updated, setUpdated] = useState<string | undefined>();
   const [filterState, setFilterState] = useState<FilterState>({
     timeRange: (['1h', '24h', '7d', '30d'].includes(range) ? (range as any) : '24h'),
-    action: 'all',
+    action: initialAction,
     category: 'all',
-    selectedCountry: null,
-    selectedASN: null,
+    selectedCountry: initialCountry,
+    selectedASN: initialASN,
   });
   const [timelineData, setTimelineData] = useState<TimelineResponse | null>(null);
   const [liveStreaming, setLiveStreaming] = useState<boolean>(true);
+
+  // Drill-down attack events state
+  const [drillEvents, setDrillEvents] = useState<Event[]>([]);
+  const [drillTotal, setDrillTotal] = useState<number>(0);
+  const [drillLoading, setDrillLoading] = useState<boolean>(false);
+
+  // Modals state
+  const [quickModalOpen, setQuickModalOpen] = useState(false);
+  const [quickModalType, setQuickModalType] = useState<'geo' | 'asn'>('geo');
+  const [quickModalTarget, setQuickModalTarget] = useState<string>('');
+  const [quickModalAction, setQuickModalAction] = useState<'block' | 'challenge'>('block');
+  const [selectedEventForTrace, setSelectedEventForTrace] = useState<Event | null>(null);
+
+  const openQuickRule = (t: 'geo' | 'asn', target: string, act: 'block' | 'challenge' = 'block') => {
+    setQuickModalType(t);
+    setQuickModalTarget(target);
+    setQuickModalAction(act);
+    setQuickModalOpen(true);
+  };
 
   useEffect(() => {
     const fetchTimeline = async () => {
@@ -127,31 +153,70 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
     void fetchTimeline();
   }, [filterState, policy]);
 
+  const fetchDrillEvents = useCallback(async () => {
+    setDrillLoading(true);
+    try {
+      const res = await apiClient.searchEvents({
+        ...windowOf(range),
+        policy_id: policy || undefined,
+        country_iso: filterState.selectedCountry || undefined,
+        asn: filterState.selectedASN || undefined,
+        action: filterState.action !== 'all' ? (filterState.action as any) : undefined,
+        page_size: 10,
+      });
+      setDrillEvents(res.events || []);
+      setDrillTotal(res.total_matched || 0);
+    } catch {
+      setDrillEvents([]);
+      setDrillTotal(0);
+    } finally {
+      setDrillLoading(false);
+    }
+  }, [range, policy, filterState.selectedCountry, filterState.selectedASN, filterState.action]);
+
+  useEffect(() => {
+    void fetchDrillEvents();
+  }, [fetchDrillEvents]);
+
   useEffect(() => {
     if (!liveStreaming) return;
     const unsub = apiClient.openGeoWatchStream((_update) => {
       setUpdated(new Date().toISOString());
+      void fetchDrillEvents();
     });
     return unsub;
-  }, [liveStreaming]);
+  }, [liveStreaming, fetchDrillEvents]);
 
   const refresh = useCallback(async () => {
     try {
       setData(await load(range, policy));
       setError(undefined);
       setUpdated(new Date().toISOString());
+      void fetchDrillEvents();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [range, policy]);
+  }, [range, policy, fetchDrillEvents]);
 
   useEffect(() => {
     setLoading(true);
     void refresh();
-    replaceQuery({ page: 'overview', query: { range, policy_id: policy } });
   }, [refresh, range, policy]);
+
+  useEffect(() => {
+    replaceQuery({
+      page: 'overview',
+      query: {
+        range,
+        ...(policy ? { policy_id: policy } : {}),
+        ...(filterState.selectedCountry ? { country_iso: filterState.selectedCountry } : {}),
+        ...(filterState.selectedASN ? { asn: String(filterState.selectedASN) } : {}),
+        ...(filterState.action !== 'all' ? { action: filterState.action } : {}),
+      },
+    });
+  }, [range, policy, filterState.selectedCountry, filterState.selectedASN, filterState.action]);
 
   useEffect(() => {
     if (!live) return;
@@ -286,6 +351,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           onSelectASN={(asn) => {
             setFilterState((prev) => ({ ...prev, selectedASN: asn || null }));
           }}
+          onQuickAction={(t, tgt, act) => openQuickRule(t, tgt, act ?? 'block')}
         />
       </section>
 
@@ -304,6 +370,161 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           />
         </section>
       )}
+
+      {/* Drill-down Attack Events Section (W19-F-01) */}
+      <section className="panel mb-6" data-testid="drilldown-events-section">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-line bg-surface/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                <span>Recent Filtered Attacks</span>
+                {filterState.selectedCountry && (
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/35">
+                    Quốc gia: {filterState.selectedCountry}
+                  </span>
+                )}
+                {filterState.selectedASN && (
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/35">
+                    ASN: AS{filterState.selectedASN}
+                  </span>
+                )}
+              </h3>
+              <p className="text-[11px] text-muted">
+                {drillTotal} sự kiện phát hiện trong khung thời gian ({range})
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="open-quick-rule-btn"
+              onClick={() =>
+                openQuickRule(
+                  filterState.selectedCountry ? 'geo' : filterState.selectedASN ? 'asn' : 'geo',
+                  filterState.selectedCountry || (filterState.selectedASN ? String(filterState.selectedASN) : ''),
+                  'block'
+                )
+              }
+              className="btn bg-rose-600/90 hover:bg-rose-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
+              <span>⚡ Tạo Rule Chặn Geo/ASN</span>
+            </button>
+            <a
+              href={href({
+                page: 'events',
+                query: {
+                  range,
+                  ...(policy ? { policy_id: policy } : {}),
+                  ...(filterState.selectedCountry ? { country_iso: filterState.selectedCountry } : {}),
+                  ...(filterState.selectedASN ? { asn: String(filterState.selectedASN) } : {}),
+                  ...(filterState.action !== 'all' ? { action: filterState.action } : {}),
+                },
+              })}
+              className="btn btn-sm text-xs font-mono"
+            >
+              <span>Xem tất cả</span>
+              <ArrowRight className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {drillLoading && drillEvents.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted font-mono">{t('common.loading')}</div>
+          ) : drillEvents.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted font-mono">
+              Không có sự kiện tấn công nào khớp với bộ lọc hiện tại.
+            </div>
+          ) : (
+            <table className="w-full text-[13px]" data-testid="drilldown-events-table">
+              <thead>
+                <tr className="border-b border-line text-left text-muted text-xs bg-sunken/40">
+                  <th className="py-2.5 px-4">Thời gian</th>
+                  <th className="py-2.5 px-4">Hành vi</th>
+                  <th className="py-2.5 px-4">Nguồn (IP & Geo)</th>
+                  <th className="py-2.5 px-4">Mục tiêu (Route)</th>
+                  <th className="py-2.5 px-4">Rule vi phạm</th>
+                  <th className="py-2.5 px-4 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drillEvents.map((ev) => (
+                  <tr
+                    key={ev.block_id}
+                    data-testid={`drill-event-row-${ev.block_id}`}
+                    className="border-b border-line/50 last:border-0 hover:bg-sunken/60 transition-colors"
+                  >
+                    <td className="py-2.5 px-4 font-mono text-xs text-muted whitespace-nowrap">
+                      {new Date(ev.timestamp).toLocaleTimeString(locale)}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <VerdictBadge action={ev.action} />
+                    </td>
+                      <td className="py-2.5 px-4">
+                        <div className="font-mono text-xs font-semibold text-accent">
+                          {maskIp(ev.client_ip)}
+                        </div>
+                        <div className="text-[11px] text-muted flex items-center gap-1.5 mt-0.5">
+                          {ev.country_iso && (
+                            <span className="font-bold text-slate-300">{ev.country_iso}</span>
+                          )}
+                          {ev.city && <span>• {ev.city}</span>}
+                          {ev.asn && <span className="font-mono text-[10px] text-amber-400/90">AS{ev.asn}</span>}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="font-mono text-xs text-ink truncate max-w-[220px]" title={`${ev.http_method} ${ev.http_path}`}>
+                          <span className="text-accent font-semibold mr-1.5">{ev.http_method}</span>
+                          <span>{ev.http_path}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        {ev.violations && ev.violations.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {ev.violations.slice(0, 2).map((viol, idx) => (
+                              <span
+                                key={idx}
+                                className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20"
+                              >
+                                #{viol.rule_id} ({viol.layer})
+                              </span>
+                            ))}
+                            {ev.violations.length > 2 && (
+                              <span className="text-[10px] text-muted font-mono self-center">
+                                +{ev.violations.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        ) : ev.matched_rules && ev.matched_rules.length > 0 ? (
+                          <span className="font-mono text-[11px] text-muted">
+                            Rules: {ev.matched_rules.slice(0, 2).join(', ')}
+                          </span>
+                        ) : (
+                          <span className="text-muted text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        <button
+                          type="button"
+                          data-testid={`trace-btn-${ev.block_id}`}
+                          onClick={() => setSelectedEventForTrace(ev)}
+                          className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 font-medium text-xs transition-colors"
+                        >
+                          Decision Trace
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
 
       <section className="panel mb-5" data-testid="overview-series">
         <SectionTitle
@@ -526,6 +747,28 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           {live ? `, ${t('overview.autoRefresh')}` : ''}
         </p>
       )}
+
+      <QuickActionModal
+        isOpen={quickModalOpen}
+        onClose={() => setQuickModalOpen(false)}
+        initialType={quickModalType}
+        initialTarget={quickModalTarget}
+        initialAction={quickModalAction}
+        policies={policies}
+        currentPolicyId={policy}
+        onSuccess={() => {
+          void refresh();
+          void fetchDrillEvents();
+        }}
+      />
+
+      <DecisionTraceModal
+        event={selectedEventForTrace}
+        onClose={() => setSelectedEventForTrace(null)}
+        onQuickAction={(t, tgt, act) => {
+          openQuickRule(t, tgt, act ?? 'block');
+        }}
+      />
     </AppShell>
   );
 };

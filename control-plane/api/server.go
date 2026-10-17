@@ -45,6 +45,8 @@ type ServerConfig struct {
 	Audit AuditStore
 	// ServiceAccounts manages machine accounts and tokens; nil leaves it out.
 	ServiceAccounts auth.ServiceAccountStore
+	// Policies enables the quick-rule API (W19-G2-01); nil leaves it out.
+	Policies QuickRulePolicyStore
 	// MapTilesPath is the filesystem path containing offline vector tiles.
 	MapTilesPath string
 	// OIDC tells the UI whether single sign-on is configured.
@@ -187,6 +189,28 @@ func (s *Server) registerRoutes() {
 			auditRec = ar
 		}
 		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts, auditRec)
+	}
+	if s.cfg.Policies != nil {
+		quickHandler := NewQuickRuleHandler(s.cfg.Policies)
+		quickRule := auth.RequireHTTP(auth.PermPoliciesWrite, quickHandler.HandleQuickRule)
+		v1.HandleFunc("/v1/policies", func(w http.ResponseWriter, r *http.Request) {
+			if s.cfg.Admin != nil {
+				s.cfg.Admin.ServeHTTP(w, r)
+				return
+			}
+			http.NotFound(w, r)
+		})
+		v1.HandleFunc("/v1/policies/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, ":quick-rule") {
+				quickRule(w, r)
+				return
+			}
+			if s.cfg.Admin != nil {
+				s.cfg.Admin.ServeHTTP(w, r)
+				return
+			}
+			http.NotFound(w, r)
+		})
 	}
 	if s.cfg.Admin != nil {
 		v1.Handle("/v1/", s.cfg.Admin)

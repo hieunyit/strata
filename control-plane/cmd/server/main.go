@@ -356,6 +356,7 @@ func main() {
 		Rules:        catalog,
 		Local:        local,
 		Audit:        pg,
+		Policies:     pg,
 		OIDC:         dispatch.OIDC != nil,
 	}, store)
 

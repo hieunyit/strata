@@ -16,6 +16,15 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 19** (khối C1 · Drill-down và rule geo/ASN · kế hoạch `docs/plan/w19-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W19-G2-01 | Rule geo/ASN trong policy | Antigravity | W18-G2-01 | ✅ Done (`control-plane/policy/spec.go`, `control-plane/api/quick_rule_handler.go`, `POST /v1/policies/{id}:quick-rule`) |
+| W19-F-01 | Drill-down và hành động nhanh | Antigravity | W19-G2-01 | ✅ Done (`ui/src/pages/OverviewPage.tsx`, `ui/src/components/geo/QuickActionModal.tsx`, `ui/src/components/events/DecisionTraceModal.tsx`) |
+| W19-R-01 | Rule geo/ASN trong engine | Claude Code | — | ⏳ Chưa bắt đầu |
+| RV-G1-01 | Chế độ Lite cho cụm nhỏ | Claude Code | — | ⏳ Chưa bắt đầu |
+
 **Nhiệm vụ tuần 18** (khối C1 · API thống kê và lớp bản đồ · kế hoạch `docs/plan/w18-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
@@ -162,9 +171,9 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | 14 | Exception từ Block ID, sức khỏe rule, game day | B2 | ⏳ |
 | 15 | Enforce 100% | B2 | ⏳ |
 | 16 | Ổn định enforce · **Gate B** | B2 | ⏳ |
-| 17 | GeoIP và nền bản đồ, CRS PL2 | C1 | ⏳ |
-| 18 | API thống kê, lớp bản đồ, xác minh bot tốt | C1 | ⏳ |
-| 19 | Drill-down, rule geo/ASN, GitOps (1) | C1 | ⏳ |
+| 17 | GeoIP và nền bản đồ, CRS PL2 | C1 | ✅ Done |
+| 18 | API thống kê, lớp bản đồ, xác minh bot tốt | C1 | ✅ Done |
+| 19 | Drill-down, rule geo/ASN, GitOps (1) | C1 | 🔄 Đang làm |
 | 20 | Dashboard, GitOps (2) | C2 | ⏳ |
 | 21 | OpenAPI, danh mục rule, red team | C2 | ⏳ |
 | 22 | Phát hành v1 · **Gate C** | C2 | ⏳ |
