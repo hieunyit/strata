@@ -19,3 +19,5 @@ Hai bypass XSS còn lại là một payload ở URL/Base64Flat: `\\"autof<x>ocus
 Đo chi phí với cùng binary 25a6e9e (workload headers mới: JWT/ETag/filter/prose/trace), budget 10ms, sampling mặc định, 1000 mẫu mỗi lượt A/B/B/A. Mean µs: 915.16/1288.20/1173.00/1114.62; candidate trung bình 1230.60 so baseline 1014.89, tăng khoảng **21.3%**. Cả 4000/4000 FULL, 0 errors/budget_errors/block. Host còn dịch vụ khác và độ trôi lớn, nên không suy ra tỷ lệ chính xác cho production. Chi phí tăng là rủi ro cần profile/tune trước rollout; không tuyên bố đạt SLO hiệu năng.
 
 [Dữ liệu](h7-header-coverage/) giữ hash artifact, từng paired request, summary/bypass GoTestWAF, corpus và raw performance. Lệnh `tests/security/run-header-gotestwaf.sh BUNDLE build/OUT`; report đầy đủ ở build/h7-v4-final/headers.json. Không chờ hosted CI, không merge hay triển khai staging/production.
+
+Bổ sung tiếp theo: [oracle Chromium có cặp direct/proxy](h7-browser-oracle.md) đã xác định điều kiện thực thi của hai payload. Nhận xét “chưa có oracle trình duyệt” phía trên mô tả thời điểm phép đo cũ; vẫn chưa có context/sanitizer của ứng dụng thực. Không thay số đo GoTestWAF cũ bằng số đo fixture mới.

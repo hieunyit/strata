@@ -1,5 +1,6 @@
 import unittest
 from header_probe import MARKER, Oracle, classify, request
+from header_xss_browser_probe import Reflector
 from http.server import ThreadingHTTPServer
 import threading
 from urllib.parse import quote
@@ -32,6 +33,24 @@ class EvidenceTests(unittest.TestCase):
             result = request(server.server_port, '/header-sql', {'X-Example-Filter': MARKER})
             self.assertEqual(result['status'], 400)
             self.assertFalse(result['oracle'])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+
+class BrowserOracleInputTests(unittest.TestCase):
+    def test_rejects_invalid_decoding_context_and_oversized_input(self):
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Reflector)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for uri, value in [('/reflect?e=2', 'x'), ('/reflect?c=3', 'x'),
+                               ('/reflect?e=1', '!not-base64'), ('/reflect?e=1', '/w==')]:
+                with self.subTest(uri=uri, value=value):
+                    self.assertEqual(request(server.server_port, uri, {'X-Example-Text': value})['status'], 400)
+            self.assertEqual(request(server.server_port, '/reflect', {'X-Example-Text': 'x' * 8193})['status'], 413)
+            self.assertEqual(request(server.server_port, '/reflect?' + 'x' * 1025, {})['status'], 413)
         finally:
             server.shutdown()
             server.server_close()

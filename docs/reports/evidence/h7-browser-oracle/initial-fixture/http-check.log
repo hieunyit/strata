@@ -1,0 +1,18 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+'error' !== 'allow'
+
+    at file:///src/tests/security/header_xss_browser_probe.mjs:55:48 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'error',
+  expected: 'allow',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
