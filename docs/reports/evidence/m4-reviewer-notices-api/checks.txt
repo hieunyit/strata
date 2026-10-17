@@ -1,0 +1,122 @@
+Final API/server race suites (PostgreSQL enabled) + scoped lint:
+ok  	github.com/strata/strata/control-plane/api	8.667s
+ok  	github.com/strata/strata/control-plane/cmd/server	1.116s
+0 issues.
+
+OpenAPI generation:
+
+> strata-ui@1.0.0 generate:api
+> openapi-typescript ../docs/spec/openapi.yaml -o src/api/generated/schema.ts && swagger2openapi ../docs/spec/admin.swagger.json -o src/api/generated/admin.openapi.json && openapi-typescript src/api/generated/admin.openapi.json -o src/api/generated/admin.ts && rm src/api/generated/admin.openapi.json
+
+✨ openapi-typescript 6.7.6
+🚀 ../docs/spec/openapi.yaml → file:///src/ui/src/api/generated/schema.ts [114ms]
+✨ openapi-typescript 6.7.6
+🚀 src/api/generated/admin.openapi.json → file:///src/ui/src/api/generated/admin.ts [64ms]
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Initial UI output permission failure:
+
+> strata-ui@1.0.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2096 modules transformed.
+x Build failed in 14.95s
+error during build:
+EACCES, Permission denied: /src/ui/dist/assets '/src/ui/dist/assets'
+    at Object.rmSync (node:fs:1282:18)
+    at emptyDir (file:///src/ui/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:17082:19)
+    at prepareOutDir (file:///src/ui/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65746:7)
+    at build (file:///src/ui/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:65711:7)
+    at async CAC.<anonymous> (file:///src/ui/node_modules/vite/dist/node/cli.js:829:5)
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Build with private output directory:
+
+> strata-ui@1.0.0 build
+> tsc && vite build --outDir ../build/m4-ui-types-dist
+
+vite v5.4.21 building for production...
+
+(!) outDir /src/build/m4-ui-types-dist is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+transforming...
+✓ 2096 modules transformed.
+rendering chunks...
+computing gzip size...
+../build/m4-ui-types-dist/index.html                                                     0.54 kB │ gzip:   0.32 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-vietnamese-500-normal-QhwQXayn.woff       5.58 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-vietnamese-400-normal-DLynVohM.woff       5.59 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-ext-500-normal-yqk7_qG0.woff     5.71 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-ext-400-normal-ZyMXPjaT.woff     5.75 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-vietnamese-400-normal-BFiUPp6R.woff2      5.82 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-vietnamese-500-normal-CevHOlzG.woff2      6.00 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-400-normal-BOQBPhLk.woff       6.40 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-600-normal-BdrKXORt.woff       6.60 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-500-normal-DIkdfYNE.woff       6.60 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-ext-500-normal-CmcxpzmF.woff2    6.89 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-ext-400-normal-B3hZxag_.woff2    6.92 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-400-normal-CJUKFyLa.woff         7.18 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-500-normal-N1TV9ACq.woff         7.18 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-400-normal-DG4YqDda.woff2      8.20 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-400-normal-DvQQgHTq.woff2        8.33 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-500-normal-e4dixQRQ.woff2      8.42 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-cyrillic-500-normal-BtGHVI3Q.woff2        8.44 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-vietnamese-600-normal-DpPYBSTl.woff2      8.46 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-400-normal-DRcTKgkU.woff            8.76 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-500-normal-C3gcVRmT.woff            9.16 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-600-normal-0cMsUeYr.woff            9.18 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-400-normal-_efipK4i.woff2           9.94 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-600-normal-DzTrcv_p.woff2          10.37 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-greek-500-normal-JMMifIXV.woff2          10.38 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-400-normal-Bz_DfCM7.woff    10.44 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-500-normal-orOpuDzJ.woff    10.65 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-600-normal-n8WFCy3e.woff    10.68 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-ext-400-normal-uwM7KshN.woff       11.72 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-ext-500-normal-BhDX_RLI.woff       11.73 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-400-normal-g30qAdWV.woff2   12.15 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-600-normal-DUMzJB7m.woff2   12.30 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-ext-500-normal-Cs5J6C77.woff2   12.31 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-400-normal-O6-GRVqx.woff           13.20 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-500-normal-zoSM89R3.woff           13.20 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-ext-400-normal-DxDDqVQb.woff2      13.27 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-ext-500-normal-Dn-cqWhb.woff2      13.42 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-400-normal-KciohO1a.woff        13.54 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-600-normal-BHECEgNJ.woff        13.91 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-500-normal-Dwk4USJY.woff        13.96 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-400-normal-DwPxiy7M.woff       14.36 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-500-normal-NNclZwdn.woff       14.78 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-400-normal-DZqxrq2p.woff2       14.80 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-400-normal-Dm_PoFIZ.woff2          14.81 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-600-normal-D2beu9pF.woff       14.84 kB
+../build/m4-ui-types-dist/assets/ibm-plex-mono-latin-500-normal-C_OblDzq.woff2          14.99 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-500-normal-CocWQlwt.woff2       15.00 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-cyrillic-600-normal-71GNu3SW.woff2       15.04 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-400-normal-C5H60-Va.woff2      15.98 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-600-normal-DOrvGEcy.woff2      16.45 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-ext-500-normal-DakdToA3.woff2      16.46 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-400-normal-rxDMosIx.woff           22.14 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-400-normal-CDDApCn2.woff2          22.59 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-600-normal-BnKggSt2.woff           23.94 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-500-normal-C-DuqEAe.woff           23.98 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-500-normal-6ng42L7E.woff2          24.18 kB
+../build/m4-ui-types-dist/assets/ibm-plex-sans-latin-600-normal-CuJfVYMP.woff2          24.25 kB
+../build/m4-ui-types-dist/assets/index-6k40Yjk-.css                                     39.79 kB │ gzip:   7.61 kB
+../build/m4-ui-types-dist/assets/index-B23kfQwt.js                                     429.87 kB │ gzip: 126.34 kB
+../build/m4-ui-types-dist/assets/echarts-C4dzwmlb.js                                   463.80 kB │ gzip: 157.12 kB
+✓ built in 16.73s
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

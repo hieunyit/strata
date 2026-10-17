@@ -7,6 +7,30 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login.'
 paths:
+  /v1/rules/staging-actions:
+    get:
+      operationId: listRuleStagingNotices
+      summary: Read durable automatic staging notices for reviewers
+      description: Requires policies:approve (approver or admin). Historical signed-bundle intent and rollout state, not current runtime protection or proof of node activation. Read-only; no acknowledgment or re-enforcement. Decimal strings preserve 64-bit counts and versions. Keyset pagination is independent of audit traffic. Maximum 1024-byte query; unknown/repeated parameters rejected.
+      parameters:
+      - name: limit
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      - name: cursor
+        in: query
+        schema: {type: string, minLength: 1, maxLength: 512}
+      responses:
+        '200':
+          description: Durable notices with Cache-Control no-store.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleStagingNoticePage'}
+        '400': {description: Invalid cursor, limit or query parameters.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Optional durable store is not configured.}
+        '405': {description: GET required.}
+        '503': {description: Durable notices unavailable; no database details returned.}
   /v1/rules/{rule_id}/health:
     get:
       operationId: getRuleHealth
@@ -490,6 +514,36 @@ paths:
           $ref: '#/components/responses/Forbidden'
 components:
   schemas:
+    RuleStagingNoticePage:
+      type: object
+      required: [notices, next_cursor]
+      properties:
+        notices:
+          type: array
+          maxItems: 50
+          items: {$ref: '#/components/schemas/RuleStagingNotice'}
+        next_cursor: {type: string, description: Empty means end of history.}
+    RuleStagingNotice:
+      type: object
+      required: [id, policy_id, policy_name, policy_version, rule_id, source_bundle, bundle_version, matches, reports, window_from, window_to, created_at, rollout_id, rollout_state]
+      properties:
+        id: {type: string, maxLength: 128}
+        policy_id: {type: string}
+        policy_name: {type: string}
+        policy_version: {type: integer, minimum: 1}
+        rule_id: {type: integer, minimum: 1, maximum: 4294967295}
+        source_bundle: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        bundle_version: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        matches: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        reports: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        window_from: {type: string, format: date-time}
+        window_to: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        rollout_id: {type: string, description: Empty before rollout creation.}
+        rollout_state:
+          type: string
+          enum: [PENDING, RUNNING, PAUSED, FAILED, DONE, ABORTED]
+          description: Publication history only. DONE is not a claim of current runtime protection.
     RuleHealth:
       type: object
       required: [rule_id, from, to, status, matched_events, reported_fp_events, reported_fp_share, cost_source, cost_samples, cost_total_ns, cost_mean_ns]
