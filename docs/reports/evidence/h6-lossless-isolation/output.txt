@@ -1,0 +1,33 @@
+=== RUN   TestLosslessRestartUnderLoad
+    lossless_restart_test.go:224: Building strata-agent binary...
+    lossless_restart_test.go:250: 1. Starting strata-agent process 1 on socket /tmp/TestLosslessRestartUnderLoad4275004680/003/events.sock...
+[FleetIngestServer] PushEvents stream opened
+    lossless_restart_test.go:271: 2. Streaming 2000 events under continuous load...
+[FleetIngestServer] Received batch seq=1 with 500 events
+    lossless_restart_test.go:336: 3. Load reached 800 events. Terminating agent 1 via SIGTERM while load continues...
+[FleetIngestServer] PushEvents Recv error: rpc error: code = Canceled desc = context canceled
+    lossless_restart_test.go:342: Agent 1 cleanly stopped in 15.604678ms. Launching agent 2 on SAME spool: /tmp/TestLosslessRestartUnderLoad4275004680/003/spool...
+[FleetIngestServer] PushEvents stream opened
+[FleetIngestServer] Received batch seq=2 with 300 events
+[FleetIngestServer] Received batch seq=3 with 500 events
+[FleetIngestServer] Received batch seq=4 with 500 events
+    lossless_restart_test.go:353: Worker completed sending 2000 events in 2.29836613s
+    lossless_restart_test.go:364: retry-capable producer: 2000 datagrams, 7 retried writes, 870.14 datagrams/s over 2.298470167s; not NGINX throughput
+    lossless_restart_test.go:367: Spool directory /tmp/TestLosslessRestartUnderLoad4275004680/003/spool has 3 files
+    lossless_restart_test.go:370:   Spool file: seg-00000000000000000001.log (size: 439155 bytes)
+    lossless_restart_test.go:370:   Spool file: state (size: 16 bytes)
+    lossless_restart_test.go:370:   Spool file: state.tmp (size: 16 bytes)
+    lossless_restart_test.go:372: Server batches received: 4, accepted: 4
+    lossless_restart_test.go:374: 4. Waiting for agent 2 to push all events to control plane and ClickHouse...
+[FleetIngestServer] Received batch seq=5 with 200 events
+    lossless_restart_test.go:389: All 2000 events confirmed in ClickHouse!
+[FleetIngestServer] PushEvents Recv error: rpc error: code = Canceled desc = context canceled
+    lossless_restart_test.go:406: 5. Verifying ClickHouse records: 0 event loss, 0 duplicates...
+    lossless_restart_test.go:414: ClickHouse received 2000 / 2000 events
+    lossless_restart_test.go:466: SUCCESS: All 2000 events accounted for in ClickHouse with zero loss and zero duplicates across agent restart under load!
+--- PASS: TestLosslessRestartUnderLoad (16.72s)
+=== RUN   TestLosslessFixtureIgnoresLegacyAddresses
+--- PASS: TestLosslessFixtureIgnoresLegacyAddresses (10.41s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	28.294s
+0 issues.
