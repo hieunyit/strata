@@ -1,0 +1,8 @@
+{
+  "compiler_sha256": "adce22e1532a10fe71e5141eb700ed792ab7a9a9ee17c14a97e96a4a2e4d058a",
+  "go_files": {
+    "control-plane/policy/compiler.go": "cb1a152322efa67fd771a7b49028e948f3ba380260db27f369a48a3ca2141817",
+    "control-plane/policy/snapshot.go": "35df71c392980a2e016add173ae42904c504bdaeaae80a935bda0f5a13d5f2c0",
+    "control-plane/policy/staging.go": "61a4f45a4ad6451a71f18cd3254949b8620c77ebc9e70cd2fc9800cab9060d90"
+  }
+}
