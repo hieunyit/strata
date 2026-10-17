@@ -44,6 +44,10 @@ func TestEventAnnotationAPIInPostgres(t *testing.T) {
 		t.Fatalf("mark: %d %v", code, body)
 	}
 	etag := body["etag"]
+	var bundle string
+	if err := p.QueryRow(t.Context(), `SELECT report_bundle_version::text FROM rule_annotation_context WHERE block_id=$1`, block).Scan(&bundle); err != nil || bundle != "1" {
+		t.Fatalf("API did not bind server bundle: %s %v", bundle, err)
+	}
 	// New server/store, same databases: both point lookup and search expose annotation.
 	s = NewServer(ServerConfig{Auth: tokenRoles{}, Annotations: store.New(p)}, events)
 	code, body = do(t, s, http.MethodGet, "/v1/events/"+block, "viewer", nil)

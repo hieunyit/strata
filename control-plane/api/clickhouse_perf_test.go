@@ -113,7 +113,7 @@ func clickHouseAPIPerf(t *testing.T, annotated bool) {
 			bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
 			e, err := store.GetEvent(bounded, id)
 			if err == nil {
-				_, err = annotations.MarkEventFalsePositive(bounded, id, "benign performance fixture", "", pgstore.Audit{Actor: "example-operator", Subject: "example-operator", RequestID: "perf-" + id, RuleContext: &pgstore.EventRuleContext{PolicyID: e.PolicyID, EventTime: e.Timestamp, RuleIDs: e.MatchedRules}})
+				_, err = annotations.MarkEventFalsePositive(bounded, id, "benign performance fixture", "", pgstore.Audit{Actor: "example-operator", Subject: "example-operator", RequestID: "perf-" + id, RuleContext: &pgstore.EventRuleContext{BundleVersion: e.PolicyVersion, PolicyID: e.PolicyID, EventTime: e.Timestamp, RuleIDs: e.MatchedRules}})
 			}
 			cancel()
 			if err != nil {

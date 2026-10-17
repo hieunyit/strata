@@ -74,7 +74,7 @@ func (s *Store) MarkEventFalsePositive(ctx context.Context, block, reason, etag 
 		}
 		result.MarkedAt = result.MarkedAt.UTC()
 		if a.RuleContext != nil {
-			if err := writeRuleAnnotationContext(ctx, tx, block, a.RuleContext); err != nil {
+			if err := writeRuleAnnotationContext(ctx, tx, block, a.RuleContext, before.Etag == "", result.MarkedAt); err != nil {
 				return err
 			}
 		}
