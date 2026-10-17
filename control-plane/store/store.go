@@ -34,6 +34,8 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 type Audit struct {
 	// ReplayOperation is populated by the admin service, never from user JSON.
 	ReplayOperation string `json:"-"`
+	// RuleContext is populated from a looked-up event by the API, never JSON.
+	RuleContext *EventRuleContext `json:"-"`
 
 	At    time.Time `json:"at"`
 	Actor string    `json:"actor"`

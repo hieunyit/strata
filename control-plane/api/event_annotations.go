@@ -74,7 +74,8 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	if _, err := h.store.GetEvent(ctx, block); err != nil {
+	event, err := h.store.GetEvent(ctx, block)
+	if err != nil {
 		if errors.Is(err, ingest.ErrEventNotFound) {
 			writeError(w, 404, "event not found", block)
 		} else {
@@ -86,7 +87,10 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 	if actor == "" {
 		actor = caller.Subject
 	}
-	a, err := h.annotations.MarkEventFalsePositive(ctx, block, req.Reason, req.Etag, store.Audit{Actor: actor, Subject: caller.Subject, Action: "events.markFalsePositive", Resource: "events/" + block, RequestID: req.RequestID})
+	a, err := h.annotations.MarkEventFalsePositive(ctx, block, req.Reason, req.Etag, store.Audit{
+		Actor: actor, Subject: caller.Subject, Action: "events.markFalsePositive", Resource: "events/" + block, RequestID: req.RequestID,
+		RuleContext: &store.EventRuleContext{PolicyID: event.PolicyID, EventTime: event.Timestamp, RuleIDs: event.MatchedRules},
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrEtagMismatch):
