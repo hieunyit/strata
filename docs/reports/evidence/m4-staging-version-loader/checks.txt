@@ -1,0 +1,4 @@
+ok  	github.com/strata/strata/control-plane/policy	3.226s
+ok  	github.com/strata/strata/control-plane/replay	4.547s
+ok  	github.com/strata/strata/control-plane/cmd/server	1.148s
+0 issues.

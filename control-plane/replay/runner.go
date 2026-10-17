@@ -284,14 +284,16 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		if err != nil {
 			return nil, fmt.Errorf("policy %s version %d: %w", x.ID, x.CurrentVersion, err)
 		}
-		base = append(base, policy.Named{Name: x.Name, Spec: spec})
+		base = append(base, policy.Named{ResourceID: x.ID, Version: x.CurrentVersion, Name: x.Name, Spec: spec})
+		version := x.CurrentVersion
 		if x.ID == p.ID {
+			version = op.Version
 			spec, found = draftSpec, true
 		}
-		draft = append(draft, policy.Named{Name: x.Name, Spec: spec})
+		draft = append(draft, policy.Named{ResourceID: x.ID, Version: version, Name: x.Name, Spec: spec})
 	}
 	if !found { // a policy no deploy has taken yet
-		draft = append(draft, policy.Named{Name: p.Name, Spec: draftSpec})
+		draft = append(draft, policy.Named{ResourceID: p.ID, Version: op.Version, Name: p.Name, Spec: draftSpec})
 	}
 	sort.Slice(draft, func(i, j int) bool { return draft[i].Name < draft[j].Name })
 	sort.Slice(base, func(i, j int) bool { return base[i].Name < base[j].Name })

@@ -1,0 +1,11 @@
+# M4 — preserve effective staging across replay and deployment
+
+Branch `codex/m4-staging-version-loader`, stacked on PR #191.
+
+The production compiler now loads the durable staging map once for the exact policy resource/version set. Deploy uses each approved version; replay substitutes the draft's version only for the edited policy. A saved draft cannot replace the previous approved authority. Resource/version metadata selects the ledger and is separately bound by Gate; empty state preserves the previous input digest format.
+
+The compiler copies state into the private snapshot, validates enabled scoped delegation/codec bounds, and never rereads the ledger during a Prepared build. Shared compiler configuration is not mutated. An unavailable store, missing/duplicate resource identity, returned unrequested policy, invalid rule, or a manual overlay trying to replace durable state fails before compilation. A new human version starts without its predecessor's stage IDs and must replay/obtain approval before it can restore enforcement.
+
+Validation: [output](evidence/m4-staging-version-loader/checks.txt). PostgreSQL integration creates/approves a policy, records a source and atomic derivation, reconstructs its exact digest via another Store/compiler, and proves a new draft neither inherits old stage IDs nor replaces deployable v1. That test checks state/digest boundaries with a fake executable; the existing real Rust compiler subprocess test runs separately with `STRATA_TEST_COMPILER` enabled. Other new tests check snapshot ownership, empty-state compatibility, error paths and replay candidate version propagation. `go test -race ./policy ./replay ./cmd/server -count=1` passes: policy 3.226 s, replay 4.547 s, server 1.148 s. Lint results are recorded with the output.
+
+Self-review: context reaches ledger I/O; no silent read-error fallback or global compiler mutation; bounded maps and canonicalized rules; no PII/dependencies/new public endpoint; only compiler/deploy/replay wiring and related tests/docs. Existing tests remain enabled. M4 still needs the authorized source derivation writer, recoverable idempotent rollout, worker/notification and automatic activation deadline proof. No main merge or production access.

@@ -57,6 +57,13 @@ func (p *Prepared) ReplayBuildPolicies(ctx context.Context, key string, policies
 // Prepare snapshots compiler binary, ordered rule files, block page, policies
 // and privacy identity key before either replay or deploy starts compiling.
 func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Prepared, err error) {
+	if c.StagingStore != nil {
+		next, err := c.withStaging(ctx, policies)
+		if err != nil {
+			return nil, err
+		}
+		return next.Prepare(ctx, policies)
+	}
 	if len(policies) == 0 {
 		return nil, ErrNoPolicies
 	}

@@ -17,12 +17,17 @@ import (
 
 // Named is a policy as it goes into a bundle.
 type Named struct {
-	Name string
-	Spec Spec
+	// Resource identity selects durable state; Gate separately binds versions.
+	ResourceID string `json:"-"`
+	Version    int    `json:"-"`
+	Name       string
+	Spec       Spec
 }
 
 // Compiler runs strata-compile.
 type Compiler struct {
+	StagingStore StagingReader
+
 	// StagedRules is an internal, explicit effective overlay. It is never a
 	// public policy API input. Approval/provenance remain the deployer's duty.
 	StagedRules map[string][]uint32
@@ -80,6 +85,13 @@ func needsIdentityKey(policies []Named) bool {
 
 // Build compiles and signs a bundle of version holding policies.
 func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) ([]byte, error) {
+	if c.StagingStore != nil {
+		next, err := c.withStaging(ctx, policies)
+		if err != nil {
+			return nil, err
+		}
+		return next.Build(ctx, version, policies)
+	}
 	if len(policies) == 0 {
 		return nil, ErrNoPolicies
 	}
