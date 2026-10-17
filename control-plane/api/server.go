@@ -22,10 +22,11 @@ type AuditStore interface {
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
 	// Annotations persists event classifications; nil disables writes.
-	Annotations EventAnnotationStore
-	Exceptions  ExceptionPolicyStore
-	ReplayKick  func()
-	Health      HealthReader // nil leaves the optional rule health route out
+	Annotations    EventAnnotationStore
+	Exceptions     ExceptionPolicyStore
+	ReplayKick     func()
+	StagingNotices StagingNoticeReader
+	Health         HealthReader // nil leaves the optional rule health route out
 
 	Addr         string
 	ReadTimeout  time.Duration
@@ -137,6 +138,9 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	if s.cfg.StagingNotices != nil {
+		v1.HandleFunc("/v1/rules/staging-actions", auth.RequireHTTP(auth.PermPoliciesApprove, s.handleStagingNotices))
+	}
 	if s.cfg.Health != nil {
 		v1.HandleFunc("/v1/rules/", func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := healthPath(r.URL.Path); ok {

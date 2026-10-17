@@ -5,6 +5,13 @@
 
 
 export interface paths {
+  "/v1/rules/staging-actions": {
+    /**
+     * Read durable automatic staging notices for reviewers
+     * @description Requires policies:approve (approver or admin). Historical signed-bundle intent and rollout state, not current runtime protection or proof of node activation. Read-only; no acknowledgment or re-enforcement. Decimal strings preserve 64-bit counts and versions. Keyset pagination is independent of audit traffic. Maximum 1024-byte query; unknown/repeated parameters rejected.
+     */
+    get: operations["listRuleStagingNotices"];
+  };
   "/v1/rules/{rule_id}/health": {
     /**
      * Read observed rule telemetry
@@ -122,6 +129,35 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    RuleStagingNoticePage: {
+      notices: components["schemas"]["RuleStagingNotice"][];
+      /** @description Empty means end of history. */
+      next_cursor: string;
+    };
+    RuleStagingNotice: {
+      id: string;
+      policy_id: string;
+      policy_name: string;
+      policy_version: number;
+      rule_id: number;
+      source_bundle: string;
+      bundle_version: string;
+      matches: string;
+      reports: string;
+      /** Format: date-time */
+      window_from: string;
+      /** Format: date-time */
+      window_to: string;
+      /** Format: date-time */
+      created_at: string;
+      /** @description Empty before rollout creation. */
+      rollout_id: string;
+      /**
+       * @description Publication history only. DONE is not a claim of current runtime protection.
+       * @enum {string}
+       */
+      rollout_state: "PENDING" | "RUNNING" | "PAUSED" | "FAILED" | "DONE" | "ABORTED";
+    };
     RuleHealth: {
       /** Format: int64 */
       rule_id: number;
@@ -553,6 +589,44 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /**
+   * Read durable automatic staging notices for reviewers
+   * @description Requires policies:approve (approver or admin). Historical signed-bundle intent and rollout state, not current runtime protection or proof of node activation. Read-only; no acknowledgment or re-enforcement. Decimal strings preserve 64-bit counts and versions. Keyset pagination is independent of audit traffic. Maximum 1024-byte query; unknown/repeated parameters rejected.
+   */
+  listRuleStagingNotices: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string;
+      };
+    };
+    responses: {
+      /** @description Durable notices with Cache-Control no-store. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleStagingNoticePage"];
+        };
+      };
+      /** @description Invalid cursor */
+      400: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Optional durable store is not configured. */
+      404: {
+        content: never;
+      };
+      /** @description GET required. */
+      405: {
+        content: never;
+      };
+      /** @description Durable notices unavailable; no database details returned. */
+      503: {
+        content: never;
+      };
+    };
+  };
   /**
    * Read observed rule telemetry
    * @description Requires events:read and both ClickHouse and PostgreSQL. Read-only; no quarantine or enforcement changes. Counts deduplicated events containing the rule and human-reported FP events containing it, which does not attribute blame to an individual rule. Cost covers only top-eight timings received in sampled security events, not all traffic. Unknown/empty telemetry is insufficient, not healthy. Each replica permits four concurrent queries with a shared five-second deadline. Query string at most 2048 bytes; unknown/repeated parameters and malformed URL encoding are rejected.

@@ -354,8 +354,10 @@ func main() {
 	var annotations api.EventAnnotationStore
 	var exceptions api.ExceptionPolicyStore
 	var health api.HealthReader
+	var notices api.StagingNoticeReader
 	if pg != nil {
 		annotations = pg
+		notices = pg
 		exceptions = pg
 		contextAge := ingest.MaxEventAge
 		if *ttlDays > 0 && *ttlDays < int(ingest.MaxEventAge/(24*time.Hour)) {
@@ -373,19 +375,20 @@ func main() {
 		}
 	}
 	srv := api.NewServer(api.ServerConfig{
-		Annotations:  annotations,
-		Exceptions:   exceptions,
-		Health:       health,
-		ReplayKick:   deps.ReplayKick,
-		Addr:         *addr,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		Auth:         verifier,
-		Admin:        adm.Gateway,
-		Rules:        catalog,
-		Local:        local,
-		Audit:        auditReader(pg),
-		OIDC:         dispatch.OIDC != nil,
+		Annotations:    annotations,
+		Exceptions:     exceptions,
+		Health:         health,
+		StagingNotices: notices,
+		ReplayKick:     deps.ReplayKick,
+		Addr:           *addr,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		Auth:           verifier,
+		Admin:          adm.Gateway,
+		Rules:          catalog,
+		Local:          local,
+		Audit:          auditReader(pg),
+		OIDC:           dispatch.OIDC != nil,
 	}, store)
 
 	allowedOrigins := map[string]bool{}
