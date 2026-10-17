@@ -1,0 +1,14 @@
+{
+  "valid_measurement": true,
+  "measured_pairs": 4,
+  "measured_http_attempts": 8,
+  "proxy_status_counts": {
+    "200": 2,
+    "403": 2
+  },
+  "classifications": {
+    "backend_sql_oracle_reached": 1,
+    "signature_block": 2,
+    "benign_pass": 1
+  }
+}
