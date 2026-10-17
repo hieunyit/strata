@@ -35,16 +35,17 @@ type Audit struct {
 	// ReplayOperation is populated by the admin service, never from user JSON.
 	ReplayOperation string `json:"-"`
 
-	Actor string
+	At        time.Time `json:"at"`
+	Actor     string    `json:"actor"`
 	// Subject: the caller's token subject (sub), which the user cannot
 	// change, unlike the name in Actor; the four-eyes rule compares it.
-	Subject   string
-	Channel   string // ui, api, gitops, system
-	Action    string // full method name, e.g. /strata.admin.v1.FleetAdminService/RevokeNode
-	Resource  string // e.g. nodes/node-abc
-	RequestID string
-	Before    any // marshalled to JSON; nil for none
-	After     any
+	Subject   string `json:"subject,omitempty"`
+	Channel   string `json:"channel"` // ui, api, gitops, system
+	Action    string `json:"action"`  // full method name, e.g. /strata.admin.v1.FleetAdminService/RevokeNode
+	Resource  string `json:"resource"` // e.g. nodes/node-abc
+	RequestID string `json:"request_id,omitempty"`
+	Before    any    `json:"before,omitempty"` // marshalled to JSON; nil for none
+	After     any    `json:"after,omitempty"`
 }
 
 func writeAudit(ctx context.Context, tx pgx.Tx, a Audit) error {
@@ -309,7 +310,7 @@ func (s *Store) RevokeNode(ctx context.Context, id string, at time.Time, a Audit
 
 // AuditEntries returns the newest audit rows (for tests and GET /v1/audit).
 func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
-	rows, err := s.pool.Query(ctx, `SELECT actor, channel, action, resource, request_id, before, after
+	rows, err := s.pool.Query(ctx, `SELECT at, actor, channel, action, resource, request_id, before, after
 		FROM audit_log ORDER BY id DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: audit: %w", err)
@@ -317,7 +318,7 @@ func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Audit, error) {
 		var a Audit
 		var before, after []byte
-		err := r.Scan(&a.Actor, &a.Channel, &a.Action, &a.Resource, &a.RequestID, &before, &after)
+		err := r.Scan(&a.At, &a.Actor, &a.Channel, &a.Action, &a.Resource, &a.RequestID, &before, &after)
 		if before != nil {
 			a.Before = json.RawMessage(before)
 		}

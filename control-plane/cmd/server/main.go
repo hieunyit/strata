@@ -365,6 +365,7 @@ func main() {
 		Admin:        adm.Gateway,
 		Rules:        catalog,
 		Local:        local,
+		Audit:        pg,
 		OIDC:         dispatch.OIDC != nil,
 	}, store)
 
