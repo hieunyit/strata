@@ -113,16 +113,26 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
 
         <section className="panel">
           <SectionTitle>{t('detail.verdictTitle')}</SectionTitle>
-          <div className="px-4 py-4 space-y-4">
-            <p className="text-[15px] leading-relaxed max-w-[72ch]" data-testid="verdict-summary">
-              {t(`detail.summary.${verdict}`, {
-                policy: event.policy_id || '—',
-                version: event.policy_version ?? 0,
-                score: event.score_anomaly ?? 0,
-                count: ruleCount,
-              })}
-            </p>
-            <div className="space-y-2.5">
+          <div className="px-5 py-4 space-y-4">
+            <div
+              className={`p-3.5 rounded-lg border ${
+                verdict === 'block'
+                  ? 'border-block/30 bg-block/5 text-ink'
+                  : verdict === 'shadow'
+                  ? 'border-shadow/30 bg-shadow/5 text-ink'
+                  : 'border-line bg-sunken/40 text-ink'
+              }`}
+            >
+              <p className="text-[14px] leading-relaxed font-medium max-w-[72ch]" data-testid="verdict-summary">
+                {t(`detail.summary.${verdict}`, {
+                  policy: event.policy_id || '—',
+                  version: event.policy_version ?? 0,
+                  score: event.score_anomaly ?? 0,
+                  count: ruleCount,
+                })}
+              </p>
+            </div>
+            <div className="space-y-2.5 pt-1">
               <ScoreBar label={t('detail.scoreProtocol')} value={event.score_protocol ?? 0} max={scoreMax} />
               <ScoreBar label={t('detail.scoreSqli')} value={event.score_sqli ?? 0} max={scoreMax} />
               <ScoreBar label={t('detail.scoreXss')} value={event.score_xss ?? 0} max={scoreMax} />
@@ -133,14 +143,14 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
 
         <section className="panel">
           <SectionTitle>{t('detail.requestTitle')}</SectionTitle>
-          <div className="px-4 py-4">
-            <div className="font-mono text-[13px] leading-relaxed break-all rounded border border-line bg-sunken/60 px-3 py-2.5" data-testid="request-line">
-              <span className="font-medium">{event.http_method}</span> <span className="text-muted">{event.http_host}</span>
+          <div className="px-5 py-4">
+            <div className="font-mono text-[13px] leading-relaxed break-all rounded-lg border border-line bg-sunken/60 p-3 shadow-xs" data-testid="request-line">
+              <span className="font-semibold text-accent">{event.http_method}</span> <span className="text-muted">{event.http_host}</span>
               <MarkedPath event={event} />
-              {event.status_code ? <span className="ml-2 text-muted">→ {event.status_code}</span> : null}
+              {event.status_code ? <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold bg-surface border border-line text-muted">→ {event.status_code}</span> : null}
             </div>
             {(event.inspection === 'partial' || event.inspection === 'body_skipped') && (
-              <p data-testid="inspection-warning" className="mt-3 rounded border border-shadow/40 bg-shadow/10 px-3 py-2 text-[13px]">
+              <p data-testid="inspection-warning" className="mt-3 rounded-lg border border-shadow/40 bg-shadow/10 px-3.5 py-2.5 text-[13px]">
                 {t(`detail.inspection.${event.inspection}`)}
               </p>
             )}

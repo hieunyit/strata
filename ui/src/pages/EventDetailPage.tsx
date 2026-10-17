@@ -50,14 +50,14 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
             window.history.back();
           }
         }}
-        className="mb-3 inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink"
+        className="mb-3 inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors"
         data-testid="back-to-events"
       >
         <ChevronLeft className="w-4 h-4" />
         {t('detail.back')}
       </a>
       <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="font-mono text-[22px] font-medium tracking-tight" data-testid="detail-block-id">
+        <h1 className="font-mono text-[24px] font-bold tracking-tight text-ink" data-testid="detail-block-id">
           {id}
         </h1>
         {ev && <VerdictBadge action={ev.action} size="md" />}

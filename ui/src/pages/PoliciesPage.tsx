@@ -48,7 +48,8 @@ export const PoliciesPage: React.FC = () => {
   };
 
   const mode = (m?: string) => (
-    <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-medium ${modeClass[m ?? ''] ?? 'text-muted border-line'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${modeClass[m ?? ''] ?? 'text-muted border-line'}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m === 'MODE_ENFORCE' ? 'bg-block' : m === 'MODE_SHADOW' ? 'bg-shadow' : 'bg-muted'}`} />
       {t(`policies.mode.${m ?? 'MODE_UNSPECIFIED'}`)}
     </span>
   );

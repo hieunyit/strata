@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
     (onSearchBlockId ?? ((b: string) => navigate({ page: 'event', blockId: b })))(id);
   };
 
-  const lang = (i18n.language || 'en').startsWith('vi') ? 'vi' : 'en';
+  const lang = i18n.language.startsWith('vi') ? 'vi' : 'en';
 
   return (
     <header className="sticky top-0 z-30 h-14 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-3 px-4 lg:px-6">
@@ -66,40 +66,42 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
         <label htmlFor="block-id-search" className="sr-only">
           {t('header.searchLabel')}
         </label>
-        <Search className="w-4 h-4 text-faint absolute left-2.5 top-2" aria-hidden />
-        <input
-          id="block-id-search"
-          data-testid="block-id-search-input"
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            if (error) setError('');
-          }}
-          placeholder={t('header.searchPlaceholder')}
-          spellCheck={false}
-          autoComplete="off"
-          className="field pl-8 pr-20 font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-sans"
-          aria-invalid={!!error}
-          aria-describedby={error ? 'block-id-error' : undefined}
-        />
-        <button
-          type="submit"
-          data-testid="block-id-search-btn"
-          disabled={!input.trim()}
-          className="absolute right-1 top-1 h-6 px-2.5 rounded-sm text-xs font-medium bg-accent text-accent-ink disabled:opacity-40"
-        >
-          {t('header.searchBtn')}
-        </button>
+        <div className="relative flex items-center">
+          <Search className="w-4 h-4 text-faint absolute left-3 pointer-events-none" aria-hidden />
+          <input
+            id="block-id-search"
+            data-testid="block-id-search-input"
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (error) setError('');
+            }}
+            placeholder={t('header.searchPlaceholder')}
+            spellCheck={false}
+            autoComplete="off"
+            className="field h-9 pl-9 pr-20 font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-sans bg-sunken/40 focus:bg-surface border-line/80 focus:border-accent shadow-xs"
+            aria-invalid={!!error}
+            aria-describedby={error ? 'block-id-error' : undefined}
+          />
+          <button
+            type="submit"
+            data-testid="block-id-search-btn"
+            disabled={!input.trim()}
+            className="absolute right-1.5 h-6 px-2.5 rounded text-xs font-medium bg-accent text-accent-ink hover:opacity-90 disabled:opacity-40 transition-all shadow-xs"
+          >
+            {t('header.searchBtn')}
+          </button>
+        </div>
         {error && (
-          <div id="block-id-error" role="alert" className="absolute top-full left-0 mt-1 rounded border border-block/30 bg-surface px-2 py-1 text-xs text-block shadow-sm">
+          <div id="block-id-error" role="alert" className="absolute top-full left-0 mt-1.5 z-50 rounded-md border border-block/30 bg-surface px-2.5 py-1 text-xs text-block shadow-md">
             {error}
           </div>
         )}
       </form>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1.5">
         {version && (
-          <span data-testid="cp-version" className="hidden xl:inline mr-2 text-xs text-faint">
+          <span data-testid="cp-version" className="hidden xl:inline mr-2 px-2 py-0.5 rounded text-[11px] font-mono text-faint bg-sunken/60 border border-line/60">
             {t('header.version', { version })}
           </span>
         )}
@@ -109,9 +111,9 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
           data-testid="language-toggle-btn"
           title={t('header.lang')}
           aria-label={t('header.lang')}
-          className="h-8 px-2 inline-flex items-center gap-1 rounded text-xs font-medium text-muted hover:text-ink hover:bg-sunken"
+          className="h-8 px-2.5 inline-flex items-center gap-1 rounded-md text-xs font-semibold text-muted hover:text-ink hover:bg-sunken border border-transparent hover:border-line transition-all"
         >
-          <Languages className="w-4 h-4" />
+          <Languages className="w-3.5 h-3.5" />
           {lang.toUpperCase()}
         </button>
         <button
@@ -120,16 +122,21 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
           data-testid="theme-toggle-btn"
           title={t('header.theme')}
           aria-label={t('header.theme')}
-          className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-sunken border border-transparent hover:border-line transition-all"
         >
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
-        <div className="mx-2 h-6 w-px bg-line hidden sm:block" />
-        <div data-testid="current-user" title={t('header.signedInAs', { name: username ?? '' })} className="hidden sm:flex flex-col items-end leading-tight mr-1">
-          <span className="text-[13px] font-medium text-ink max-w-[14ch] truncate">{username}</span>
-          <span data-testid="current-role" className="text-[11px] text-muted">
-            {t(`header.roles.${role ?? 'none'}`)}
-          </span>
+        <div className="mx-1 h-5 w-px bg-line/80 hidden sm:block" />
+        <div data-testid="current-user" title={t('header.signedInAs', { name: username ?? '' })} className="hidden sm:flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full border border-line bg-surface shadow-xs mr-0.5">
+          <div className="w-5 h-5 rounded-full bg-accent/15 text-accent flex items-center justify-center font-bold text-[11px] uppercase shrink-0" aria-hidden>
+            {username ? username[0] : 'U'}
+          </div>
+          <div className="flex flex-col items-start leading-none pr-0.5">
+            <span className="text-[12px] font-semibold text-ink max-w-[12ch] truncate">{username}</span>
+            <span data-testid="current-role" className="text-[10px] text-muted capitalize mt-0.5">
+              {t(`header.roles.${role ?? 'none'}`)}
+            </span>
+          </div>
         </div>
         {isLocal && (
           <button
@@ -138,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
             data-testid="change-password-open"
             title={t('account.title')}
             aria-label={t('account.title')}
-            className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-sunken transition-colors"
           >
             <KeyRound className="w-4 h-4" />
           </button>
@@ -149,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
           data-testid="logout-btn"
           title={t('header.logout')}
           aria-label={t('header.logout')}
-          className="h-8 w-8 inline-flex items-center justify-center rounded text-muted hover:text-ink hover:bg-sunken"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-sunken transition-colors"
         >
           <LogOut className="w-4 h-4" />
         </button>

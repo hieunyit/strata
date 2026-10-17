@@ -43,7 +43,7 @@ const StateBadge: React.FC<{ state?: string; testId?: string }> = ({ state, test
   const s = (state || 'NONE').toUpperCase();
   return (
     <span data-testid={testId} data-state={s}
-      className={`inline-block rounded border px-1.5 py-0.5 text-xs font-medium ${stateStyle[s] ?? 'text-muted border-line'}`}>
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wide ${stateStyle[s] ?? 'text-muted border-line'}`}>
       {t(`fleet.bundleState.${s}`, { defaultValue: s })}
     </span>
   );
@@ -115,11 +115,10 @@ const RolloutPanel: React.FC<{ rollout?: Rollout; names: Map<string, string> }> 
 // seconds, so a node's DOWNLOADING → VERIFIED → ACTIVE shows as it happens.
 export const FleetPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { data, error, loading, refresh } = usePolling(load, 3000);
   const { roles } = useAuth();
   const canRevoke = roles.includes('admin');
   const [revokingNode, setRevokingNode] = useState<FleetNode | null>(null);
-
+  const { data, error, loading, refresh } = usePolling(load, 3000);
   const nodes = data?.nodes ?? [];
   const groups = data?.groups ?? [];
   const online = nodes.filter((n) => statusOf(n) === 'online').length;
@@ -189,7 +188,7 @@ export const FleetPage: React.FC = () => {
                     <th className="th">{t('fleet.col.bundle')}</th>
                     <th className="th">{t('fleet.col.lastSeen')}</th>
                     <th className="th">{t('fleet.col.cert')}</th>
-                    {canRevoke && <th className="th text-right">{t('common.actions', 'Actions')}</th>}
+                    {canRevoke && <th className="th text-right">{t('fleet.col.actions', 'Actions')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -199,13 +198,18 @@ export const FleetPage: React.FC = () => {
                   {members.map((n) => {
                     const s = statusOf(n);
                     return (
-                      <tr key={n.id} data-testid="node-row" data-node={n.id} data-status={s} className="border-b border-line last:border-0">
+                      <tr key={n.id} data-testid="node-row" data-node={n.id} data-status={s} className="border-b border-line last:border-0 hover:bg-sunken/50 transition-colors">
                         <td className="td whitespace-nowrap">
-                          <span className={`mr-2 inline-block h-2 w-2 rounded-full ${dot[s]}`} />
-                          <span data-testid="node-status">{t(`fleet.status.${s}`)}</span>
+                          <span className="relative inline-flex items-center justify-center mr-2.5">
+                            {s === 'online' && (
+                              <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-ok opacity-70" />
+                            )}
+                            <span className={`relative inline-block h-2 w-2 rounded-full ${dot[s]}`} />
+                          </span>
+                          <span data-testid="node-status" className="font-medium text-ink">{t(`fleet.status.${s}`)}</span>
                         </td>
                         <td className="td">
-                          <div className="font-medium">{n.hostname || n.id}</div>
+                          <div className="font-semibold text-ink">{n.hostname || n.id}</div>
                           <div className="font-mono text-xs text-faint">{n.id}</div>
                         </td>
                         <td className="td text-muted" data-testid="node-nginx">{n.proxy_version || '—'}</td>
@@ -225,7 +229,7 @@ export const FleetPage: React.FC = () => {
                             {s !== 'revoked' && (
                               <button
                                 type="button"
-                                className="btn py-1 px-2 h-7 text-xs text-block hover:bg-block/10"
+                                className="btn py-1 px-2.5 h-7 text-xs font-semibold text-block hover:bg-block/10 border-block/30"
                                 data-testid="revoke-node-btn"
                                 onClick={() => setRevokingNode(n)}
                               >

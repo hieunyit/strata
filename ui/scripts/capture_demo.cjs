@@ -248,6 +248,19 @@ const mockApi = {
         after: { rule_id: 920100, path: '/v1/healthz', ttl_seconds: 86400 }
       }
     ]
+  },
+  '/v1/users': {
+    users: [
+      { username: 'admin', roles: ['admin', 'operator', 'approver'], disabled: false, locked: false, last_login_at: '2026-10-16T15:10:00Z' },
+      { username: 'secops_lead', roles: ['operator', 'approver'], disabled: false, locked: false, last_login_at: '2026-10-16T14:30:00Z' },
+      { username: 'auditor', roles: ['viewer'], disabled: false, locked: false, last_login_at: '2026-10-16T11:00:00Z' }
+    ]
+  },
+  '/v1/service-accounts': {
+    service_accounts: [
+      { id: 'sa-cicd-deployer', name: 'CI/CD Deployer Bot', description: 'GitHub Actions policy deployment pipeline', roles: ['operator', 'approver'], created_at: '2026-10-01T08:00:00Z' },
+      { id: 'sa-siem-exporter', name: 'SIEM Exporter Agent', description: 'Splunk/Datadog security events harvester', roles: ['viewer'], created_at: '2026-10-05T09:30:00Z' }
+    ]
   }
 };
 
@@ -400,6 +413,18 @@ server.listen(5173, async () => {
       }
     });
     await page.waitForTimeout(300);
+
+    // 9. Policies Page
+    console.log('Capturing 09_policies.png...');
+    await page.locator('[data-testid="nav-policies"]').click();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(OUTPUT_DIR, '09_policies.png') });
+
+    // 10. Users & Service Accounts Page
+    console.log('Capturing 10_users_service_accounts.png...');
+    await page.locator('[data-testid="nav-users"]').click();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(OUTPUT_DIR, '10_users_service_accounts.png') });
 
     console.log('ALL SCREENSHOTS CAPTURED SUCCESSFULLY!');
     await browser.close();

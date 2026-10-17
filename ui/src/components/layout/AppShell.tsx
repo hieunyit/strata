@@ -44,17 +44,19 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
   const { roles, methods } = useAuth();
   const current = active === 'event' ? 'events' : active;
   return (
-    <nav aria-label={t('nav.main')} className="flex h-full flex-col bg-rail text-rail-ink">
-      <div className={`flex h-14 items-center gap-2.5 ${collapsed ? 'justify-center' : 'px-4'}`}>
-        <StrataMark />
+    <nav aria-label={t('nav.main')} className="flex h-full flex-col bg-rail text-rail-ink select-none border-r border-rail-hover/30">
+      <div className={`flex h-14 items-center gap-2.5 border-b border-rail-hover/40 ${collapsed ? 'justify-center' : 'px-4'}`}>
+        <div className="p-1 rounded-lg bg-rail-hover/50">
+          <StrataMark />
+        </div>
         {!collapsed && (
           <div className="leading-tight">
-            <div className="text-[15px] font-semibold text-white">Strata</div>
-            <div className="text-[11px] text-rail-ink/70">{t('app.subtitle')}</div>
+            <div className="text-[15px] font-bold text-white tracking-tight">Strata</div>
+            <div className="text-[10px] font-medium tracking-wide text-rail-ink/70 uppercase">{t('app.subtitle')}</div>
           </div>
         )}
       </div>
-      <ul className="mt-2 flex-1 space-y-0.5 px-2">
+      <ul className="mt-3 flex-1 space-y-1 px-2.5">
         {navItems
           .filter((n) => !n.visible || n.visible(roles, methods.local))
           .map(({ page, icon: Icon }) => {
@@ -67,12 +69,14 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
                   data-testid={`nav-${page}`}
                   aria-current={on ? 'page' : undefined}
                   title={collapsed ? t(`nav.${page}`) : undefined}
-                  className={`relative flex h-9 items-center gap-3 rounded px-2.5 text-[13px] transition-colors ${
-                    on ? 'bg-rail-hover text-white font-medium' : 'text-rail-ink/85 hover:bg-rail-hover hover:text-white'
+                  className={`group relative flex h-9 items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium transition-all ${
+                    on ? 'bg-rail-hover text-white shadow-xs' : 'text-rail-ink/80 hover:bg-rail-hover/70 hover:text-white'
                   } ${collapsed ? 'justify-center' : ''}`}
                 >
-                  {on && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent" />}
-                  <Icon className="w-[18px] h-[18px] shrink-0" />
+                  {on && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent shadow-[0_0_8px_rgba(14,124,123,0.8)]" />
+                  )}
+                  <Icon className={`w-[18px] h-[18px] shrink-0 transition-transform ${on ? 'text-white' : 'text-rail-ink/70 group-hover:text-white group-hover:scale-105'}`} />
                   {!collapsed && <span>{t(`nav.${page}`)}</span>}
                 </a>
               </li>
@@ -80,20 +84,23 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
           })}
       </ul>
       {onToggle && (
-        <button
-          type="button"
-          onClick={onToggle}
-          data-testid="sidebar-toggle"
-          aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
-          className={`m-2 flex h-9 items-center gap-3 rounded px-2.5 text-[13px] text-rail-ink/70 hover:bg-rail-hover hover:text-white ${collapsed ? 'justify-center' : ''}`}
-        >
-          {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
-          {!collapsed && <span>{t('nav.collapse')}</span>}
-        </button>
+        <div className="p-2 border-t border-rail-hover/40">
+          <button
+            type="button"
+            onClick={onToggle}
+            data-testid="sidebar-toggle"
+            aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
+            className={`w-full flex h-8 items-center gap-2.5 rounded-md px-2 text-xs font-medium text-rail-ink/70 hover:bg-rail-hover hover:text-white transition-colors ${collapsed ? 'justify-center' : ''}`}
+          >
+            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            {!collapsed && <span>{t('nav.collapse')}</span>}
+          </button>
+        </div>
       )}
     </nav>
   );
 };
+
 
 // AppShell: the left navigation (collapsible, a drawer on small screens),
 // the top bar, and the page.

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pause, Play, RefreshCw } from 'lucide-react';
+import { Pause, Play, RefreshCw, Activity, ShieldAlert, Eye, AlertTriangle, Globe, Server } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
@@ -35,24 +35,54 @@ const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / who
 const SplitBar: React.FC<{ block: number; shadow: number; error?: number; total: number; max: number }> = ({ block, shadow, error = 0, total, max }) => {
   const w = (n: number) => `${max > 0 ? (n / max) * 100 : 0}%`;
   return (
-    <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-sunken" aria-hidden>
-      <div className="bg-block" style={{ width: w(block) }} />
-      <div className="bg-shadow" style={{ width: w(shadow) }} />
-      <div className="bg-unchecked" style={{ width: w(error) }} />
-      <div className="bg-other/60" style={{ width: w(Math.max(0, total - block - shadow - error)) }} />
+    <div className="flex h-2 w-full overflow-hidden rounded-full bg-sunken/80 shadow-inner" aria-hidden>
+      <div className="bg-block transition-all" style={{ width: w(block) }} />
+      <div className="bg-shadow transition-all" style={{ width: w(shadow) }} />
+      <div className="bg-unchecked transition-all" style={{ width: w(error) }} />
+      <div className="bg-other/50 transition-all" style={{ width: w(Math.max(0, total - block - shadow - error)) }} />
     </div>
   );
 };
 
-const Kpi: React.FC<{ label: string; value: string; note?: string; tone?: 'block' | 'shadow' | 'unchecked'; testId: string }> = ({ label, value, note, tone, testId }) => (
-  <div data-testid={testId} className="min-w-0 py-4 pr-4 xl:px-5 xl:first:pl-0 xl:border-l xl:first:border-l-0 border-line">
-    <div className="text-xs text-muted">{label}</div>
-    <div className={`mt-1 text-[26px] leading-none font-semibold tabular-nums ${tone ? { block: 'text-block', shadow: 'text-shadow', unchecked: 'text-unchecked' }[tone] : 'text-ink'}`}>
-      {value}
+const Kpi: React.FC<{
+  label: string;
+  value: string;
+  note?: string;
+  tone?: 'block' | 'shadow' | 'unchecked';
+  testId: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = ({ label, value, note, tone, testId, icon: Icon }) => {
+  const toneColors = {
+    block: 'text-block bg-block/10 border-block/25',
+    shadow: 'text-shadow bg-shadow/10 border-shadow/25',
+    unchecked: 'text-unchecked bg-unchecked/10 border-unchecked/25',
+  };
+  const toneIconClass = tone ? toneColors[tone] : 'text-muted bg-sunken/80 border-line';
+  return (
+    <div
+      data-testid={testId}
+      className="min-w-0 p-4 rounded-lg bg-surface border border-line shadow-xs hover:shadow transition-all flex flex-col justify-between"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted truncate">{label}</span>
+        <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${toneIconClass}`}>
+          <Icon className="w-3.5 h-3.5" />
+        </div>
+      </div>
+      <div className="mt-3">
+        <div
+          className={`text-[26px] leading-tight font-bold tabular-nums tracking-tight ${
+            tone ? { block: 'text-block', shadow: 'text-shadow', unchecked: 'text-unchecked' }[tone] : 'text-ink'
+          }`}
+        >
+          {value}
+        </div>
+        {note && <div className="mt-1 text-xs text-muted truncate font-normal">{note}</div>}
+      </div>
     </div>
-    {note && <div className="mt-1.5 text-xs text-muted truncate">{note}</div>}
-  </div>
-);
+  );
+};
+
 
 export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const { t, i18n } = useTranslation();
@@ -142,11 +172,12 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       />
       <ErrorBanner message={error && t('common.refreshError', { error })} />
 
-      <section className="panel mb-5" aria-label={t('overview.totals')}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 px-5">
-          <Kpi testId="kpi-events" label={t('overview.kpi.events')} value={loading && !o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
+      <section className="mb-6" aria-label={t('overview.totals')}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+          <Kpi testId="kpi-events" icon={Activity} label={t('overview.kpi.events')} value={loading && !o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
           <Kpi
             testId="kpi-blocked"
+            icon={ShieldAlert}
             tone="block"
             label={t('overview.kpi.blocked')}
             value={loading && !o ? '—' : formatCount(totals?.block, locale)}
@@ -154,6 +185,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           />
           <Kpi
             testId="kpi-shadow"
+            icon={Eye}
             tone="shadow"
             label={t('overview.kpi.shadow')}
             value={loading && !o ? '—' : formatCount(totals?.shadow, locale)}
@@ -161,14 +193,16 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           />
           <Kpi
             testId="kpi-unchecked"
+            icon={AlertTriangle}
             tone={totals && totals.error > 0 ? 'unchecked' : undefined}
             label={t('overview.kpi.unchecked')}
             value={loading && !o ? '—' : formatCount(totals?.error, locale)}
             note={totals ? t('overview.kpi.uncheckedNote', { pct: pct(totals.error ?? 0, totals.events) }) : undefined}
           />
-          <Kpi testId="kpi-clients" label={t('overview.kpi.clients')} value={loading && !o ? '—' : formatCount(totals?.clients, locale)} note={t('overview.kpi.policies', { count: totals?.policies ?? 0 })} />
+          <Kpi testId="kpi-clients" icon={Globe} label={t('overview.kpi.clients')} value={loading && !o ? '—' : formatCount(totals?.clients, locale)} note={t('overview.kpi.policies', { count: totals?.policies ?? 0 })} />
           <Kpi
             testId="kpi-nodes"
+            icon={Server}
             label={t('overview.kpi.nodes')}
             value={nodes ? `${online}/${enrolled}` : '—'}
             note={nodes ? (offline.length ? t('overview.kpi.offline', { count: offline.length }) : t('overview.kpi.allOnline')) : t('overview.kpi.noFleet')}

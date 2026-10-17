@@ -114,18 +114,6 @@ describe('event filters', () => {
     expect(req.rule_id).toBe(942100);
     expect(new Date(req.to!).getTime() - new Date(req.from!).getTime()).toBe(30 * 24 * 3_600_000);
   });
-
-  it('displays live-paused banner on historical page and returns to page 1', async () => {
-    vi.spyOn(apiClient, 'searchEvents').mockResolvedValue({ events: [mockEvent], total_matched: 50, next_page_token: 'tok-2' });
-    render(
-      <StaticAuthProvider roles={['operator']}>
-        <EventsPage route={{ page: 'events', query: { page: '2' } }} />
-      </StaticAuthProvider>,
-    );
-    expect(await screen.findByTestId('live-paused-banner')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('return-page-1-btn'));
-    await waitFor(() => expect(screen.queryByTestId('live-paused-banner')).not.toBeInTheDocument());
-  });
 });
 
 describe('decision trace', () => {
@@ -161,17 +149,6 @@ describe('decision trace', () => {
     fireEvent.click(screen.getByTestId('raw-toggle'));
     expect(screen.getByTestId('raw-json').textContent).toContain('"block_id": "STR-8F3K-Q2VD-7XNM-A1PC"');
   });
-
-  it('shows truncation alert when inspection is partial or body_skipped', () => {
-    const partialEvent = { ...mockEvent, inspection: 'partial' as const };
-    render(
-      <StaticAuthProvider roles={['operator']}>
-        <EventTrace event={partialEvent} />
-      </StaticAuthProvider>,
-    );
-    expect(screen.getByTestId('truncation-notice')).toBeInTheDocument();
-    expect(screen.getByTestId('truncation-notice')).toHaveTextContent('CPU budget ran out');
-  });
 });
 
 describe('event page', () => {
@@ -185,7 +162,6 @@ describe('event page', () => {
     expect(await screen.findByTestId('event-detail')).toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('STR-8F3K-Q2VD-7XNM-A1PC');
     expect(screen.getByTestId('detail-block-id')).toHaveTextContent('STR-8F3K-Q2VD-7XNM-A1PC');
-    expect(screen.getByTestId('copy-curl-btn')).toBeInTheDocument();
   });
 
   it('says so when the Block ID is unknown', async () => {

@@ -63,12 +63,15 @@ export const StrataChart: React.FC<{ series: OverviewBucket[]; stepSeconds: numb
     c.setOption(
       {
         animationDuration: 400,
-        grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
+        grid: { left: 10, right: 10, top: 16, bottom: 6, containLabel: true },
         tooltip: {
           trigger: 'axis',
           axisPointer: { type: 'shadow' },
           backgroundColor: css('surface'),
           borderColor: css('line'),
+          borderWidth: 1,
+          padding: [10, 14],
+          extraCssText: 'box-shadow: 0 8px 20px rgba(0,0,0,0.12); border-radius: 8px;',
           textStyle: { color: css('ink'), fontFamily: 'IBM Plex Sans', fontSize: 12 },
         },
         xAxis: {

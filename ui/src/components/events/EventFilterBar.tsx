@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Filter } from 'lucide-react';
 import { RangeSwitch } from '../ui';
 import { RangeKey, eventRanges } from '../../lib/timeRange';
-import { apiClient, Policy, FleetNode } from '../../api/client';
 
 // The Events filters, kept as text (they round-trip through the URL);
 // EventsPage turns them into a search request.
@@ -35,22 +34,6 @@ interface FilterBarProps {
 export const EventFilterBar: React.FC<FilterBarProps> = ({ initial, onApply }) => {
   const { t } = useTranslation();
   const [f, setF] = useState<EventFilters>(initial);
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [nodes, setNodes] = useState<FleetNode[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    apiClient.listPolicies().then((res) => alive && setPolicies(res || [])).catch(() => {});
-    apiClient.listNodes().then((res) => alive && setNodes(res || [])).catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    setF(initial);
-  }, [initial]);
-
   const set = (k: keyof EventFilters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   const submit = (e: React.FormEvent) => {
@@ -58,9 +41,22 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({ initial, onApply }) =
     onApply({ ...f, client_ip: f.client_ip.trim(), node_id: f.node_id.trim(), policy_id: f.policy_id.trim() });
   };
 
+  const activeCount = Object.entries(f).filter(([k, v]) => k !== 'range' && !!v).length;
+
   return (
-    <form onSubmit={submit} className="panel mb-4 p-4" data-testid="event-filters">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <form onSubmit={submit} className="panel mb-5 p-4.5" data-testid="event-filters">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5 pb-3 border-b border-line/60">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-sunken flex items-center justify-center text-muted">
+            <Filter className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-xs font-semibold text-ink uppercase tracking-wider">{t('events.filter.title', { defaultValue: 'Filter Events' })}</span>
+          {activeCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-accent/15 text-accent text-[11px] font-bold">
+              {activeCount}
+            </span>
+          )}
+        </div>
         <RangeSwitch
           value={f.range}
           options={eventRanges}
@@ -89,14 +85,7 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({ initial, onApply }) =
         </div>
         <div>
           <label className="label" htmlFor="f-rule">{t('events.filter.ruleId')}</label>
-          <input
-            id="f-rule"
-            className="field font-mono"
-            data-testid="rule-id-filter-input"
-            value={f.rule_id}
-            onChange={(e) => setF({ ...f, rule_id: e.target.value.replace(/[^0-9,\s]/g, '') })}
-            placeholder="942100, 941100"
-          />
+          <input id="f-rule" className="field font-mono" data-testid="rule-id-filter-input" inputMode="numeric" value={f.rule_id} onChange={(e) => setF({ ...f, rule_id: e.target.value.replace(/\D/g, '') })} placeholder="942100" />
         </div>
         <div>
           <label className="label" htmlFor="f-method">{t('events.filter.httpMethod')}</label>
@@ -109,61 +98,11 @@ export const EventFilterBar: React.FC<FilterBarProps> = ({ initial, onApply }) =
         </div>
         <div>
           <label className="label" htmlFor="f-policy">{t('events.filter.policy')}</label>
-          {policies.length > 0 ? (
-            <select
-              id="f-policy"
-              className="field"
-              data-testid="policy-filter-input"
-              value={f.policy_id}
-              onChange={set('policy_id')}
-            >
-              <option value="">{t('events.filter.allPolicies', 'All policies')}</option>
-              {policies.map((p) => (
-                <option key={p.id} value={p.id ?? ''}>
-                  {p.name || p.id}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id="f-policy"
-              className="field"
-              data-testid="policy-filter-input"
-              value={f.policy_id}
-              onChange={set('policy_id')}
-              placeholder="example-api"
-              spellCheck={false}
-            />
-          )}
+          <input id="f-policy" className="field" data-testid="policy-filter-input" value={f.policy_id} onChange={set('policy_id')} placeholder="example-api" spellCheck={false} />
         </div>
         <div>
           <label className="label" htmlFor="f-node">{t('events.filter.nodeId')}</label>
-          {nodes.length > 0 ? (
-            <select
-              id="f-node"
-              className="field font-mono"
-              data-testid="node-filter-input"
-              value={f.node_id}
-              onChange={set('node_id')}
-            >
-              <option value="">{t('events.filter.allNodes', 'All nodes')}</option>
-              {nodes.map((n) => (
-                <option key={n.id} value={n.id ?? ''}>
-                  {n.hostname || n.id}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id="f-node"
-              className="field font-mono"
-              data-testid="node-filter-input"
-              value={f.node_id}
-              onChange={set('node_id')}
-              placeholder="node-edge-01"
-              spellCheck={false}
-            />
-          )}
+          <input id="f-node" className="field font-mono" data-testid="node-filter-input" value={f.node_id} onChange={set('node_id')} spellCheck={false} />
         </div>
         <div className="flex items-end gap-2 col-span-2 md:col-span-1">
           <button type="submit" className="btn-primary flex-1" data-testid="apply-filters-btn">
