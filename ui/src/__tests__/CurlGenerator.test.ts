@@ -63,7 +63,7 @@ describe('buildCurlFromEvent', () => {
     };
 
     const cmd = buildCurlFromEvent(event);
-    expect(cmd).toContain("curl -i -X POST 'https://shop.example.test/search?q=' OR '1'='1'");
+    expect(cmd).toContain("curl -i -X POST 'https://shop.example.test/search?q='\\'' OR '\\''1'\\''='\\''1'");
     expect(cmd).toContain("-H 'User-Agent: Mozilla/5.0 (compatible; Hacker'\\''s Tool/1.0)'");
     expect(cmd).toContain("-H 'Referer: https://shop.example.test/referral'\\''test'");
     expect(cmd).toContain("--data-raw 'username='\\''admin'\\''--'");

@@ -211,12 +211,20 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, saStore auth.ServiceAccoun
 						if req.TTLSeconds <= 0 {
 							ttl = 30 * 24 * time.Hour // default 30 days
 						}
+						if ttl > 365*24*time.Hour {
+							writeSAError(w, http.StatusBadRequest, "ttl_seconds cannot exceed 365 days (31536000 seconds)")
+							return
+						}
 						raw, tok, err := auth.GenerateToken(saID, req.Scopes, ttl)
 						if err != nil {
 							writeSAError(w, http.StatusBadRequest, err.Error())
 							return
 						}
 						if err := saStore.CreateToken(r.Context(), tok); err != nil {
+							if errors.Is(err, auth.ErrServiceAccountNotFound) {
+								writeSAError(w, http.StatusNotFound, "service account not found")
+								return
+							}
 							writeSAError(w, http.StatusInternalServerError, err.Error())
 							return
 						}

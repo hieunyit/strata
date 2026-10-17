@@ -12,12 +12,14 @@ const MIN_PASSWORD = 12;
 const SCOPES = [
   { id: 'policies:read', label: 'policies:read' },
   { id: 'policies:write', label: 'policies:write' },
-  { id: 'rules:read', label: 'rules:read' },
-  { id: 'rules:write', label: 'rules:write' },
+  { id: 'policies:approve', label: 'policies:approve' },
+  { id: 'policies:deploy', label: 'policies:deploy' },
+  { id: 'rules:disable', label: 'rules:disable' },
   { id: 'events:read', label: 'events:read' },
-  { id: 'service_accounts:read', label: 'service_accounts:read' },
-  { id: 'service_accounts:write', label: 'service_accounts:write' },
-  { id: 'system:admin', label: 'system:admin (Full Access)' },
+  { id: 'serviceaccounts:read', label: 'serviceaccounts:read' },
+  { id: 'serviceaccounts:write', label: 'serviceaccounts:write' },
+  { id: 'audit:read', label: 'audit:read' },
+  { id: '*', label: '* (Full Access)' },
 ];
 
 const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));

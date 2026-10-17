@@ -8,13 +8,16 @@ export function buildCurlFromEvent(event: Event): string {
   const method = (event.http_method || 'GET').toUpperCase();
   const host = event.http_host || 'localhost';
   const path = event.http_path || '/';
+  const safeHost = host.replace(/'/g, "'\\''");
+  const safePath = path.replace(/'/g, "'\\''");
   const proto = 'https';
-  const url = `${proto}://${host}${path.startsWith('/') ? path : '/' + path}`;
+  const url = `${proto}://${safeHost}${safePath.startsWith('/') ? safePath : '/' + safePath}`;
 
   const lines: string[] = [`curl -i -X ${method} '${url}'`];
 
   if (event.http_host) {
-    lines.push(`  -H 'Host: ${event.http_host}'`);
+    const safeHostHdr = event.http_host.replace(/'/g, "'\\''");
+    lines.push(`  -H 'Host: ${safeHostHdr}'`);
   }
   if (event.user_agent) {
     const safeUa = event.user_agent.replace(/'/g, "'\\''");
@@ -36,7 +39,8 @@ export function buildCurlFromEvent(event: Event): string {
     }
   }
   if (event.client_ip && !event.client_ip.includes('*') && event.client_ip !== '[REDACTED]') {
-    lines.push(`  -H 'X-Forwarded-For: ${event.client_ip}'`);
+    const safeIp = event.client_ip.replace(/'/g, "'\\''");
+    lines.push(`  -H 'X-Forwarded-For: ${safeIp}'`);
   }
 
   const bodyViolation = (event.violations || []).find((v) => (v.field || '').startsWith('body'));
