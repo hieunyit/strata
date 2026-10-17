@@ -270,6 +270,7 @@ func main() {
 	}
 	deps := admin.Deps{Presence: presence}
 	var objects *policy.S3
+	var stagingWriter *policy.StagingDeployer
 	var rollouts *fleet.Rollouts
 	var canary *fleet.CanaryMonitor
 	if pg != nil {
@@ -304,6 +305,7 @@ func main() {
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
 				d.VerifyReplay = (replay.Gate{Store: pg}).Check
+				stagingWriter = &policy.StagingDeployer{Store: pg, Compiler: d.Builder.(*policy.Compiler), Objects: objects, PubKey: pub, VerifySource: (replay.Gate{Store: pg}).CheckStaging}
 				runner := &replay.Runner{Prepare: d.Builder.(*policy.Compiler).Prepare, Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
 					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
 					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
@@ -361,7 +363,13 @@ func main() {
 		}
 		go (rulehealth.ContextRetention{Store: pg, MaxAge: contextAge}).Run(ctx)
 		if source, ok := store.(rulehealth.EventReader); ok {
-			health = rulehealth.NewService(source, pg)
+			service := rulehealth.NewService(source, pg)
+			health = service
+			if stagingWriter != nil {
+				stagingWriter.Observe = service.Observe
+				worker := &rulehealth.StagingWorker{Store: pg, Writer: stagingWriter, Evaluate: service.Evaluate, Publish: rollouts.StartStaging}
+				go worker.Run(ctx)
+			}
 		}
 	}
 	srv := api.NewServer(api.ServerConfig{

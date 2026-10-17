@@ -57,7 +57,7 @@ func newStagingWriter(t *testing.T, enabled bool) *writerFixture {
 	s := store.New(pool)
 	ctx := t.Context()
 	author := store.Audit{Actor: "operator", Subject: "operator"}
-	raw := `{"mode":"enforce","auto_staging":{"enabled":true,"rule_ids":[700011],"window_seconds":300,"min_matches":100,"min_reports":5,"fp_threshold_bps":500}}`
+	raw := `{"mode":"enforce","auto_staging":{"enabled":true,"rule_ids":[700011,700012],"window_seconds":300,"min_matches":100,"min_reports":5,"fp_threshold_bps":500}}`
 	if !enabled {
 		raw = strings.Replace(raw, `"enabled":true`, `"enabled":false`, 1)
 	}
@@ -85,6 +85,17 @@ rules:
      all:
       - targets: [{var: args}]
         operator: {type: detect_sqli}
+   metadata: {source: organization, license: Apache-2.0}
+ - id: 700012
+   name: example XSS
+   layer: managed
+   stage: request_headers
+   score: 100
+   severity: critical
+   match:
+     all:
+      - targets: [{var: args}]
+        operator: {type: detect_xss}
    metadata: {source: organization, license: Apache-2.0}
 `
 	if err = os.WriteFile(rules, []byte(ir), 0600); err != nil {
