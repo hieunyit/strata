@@ -1,0 +1,23 @@
+{
+  "scope": "Read-only metadata name/key inventory; artifact/cache contents were not downloaded.",
+  "metadata_sha256": "40d39c7e4543a341293caf18c731dc8d9c0463ff9e256e4e52d80537a0eac360",
+  "artifact_metadata_rows": 648,
+  "cache_metadata_rows": 146,
+  "non_docker_build_artifact_names": [
+    "codeql-c-cpp-sarif",
+    "codeql-go-sarif",
+    "mutation-report",
+    "nginx-1.30.5-servroot",
+    "nginx-1.31.6-servroot",
+    "sanitizers-1.30.5"
+  ],
+  "archive_related_cache_keys": [],
+  "worktree_inventory": {
+    "worktree_count": 15,
+    "candidate_paths": [
+      "/home/hellc/strata-ui/build/crs/coreruleset-4.25.2/.verified",
+      "/home/hellc/strata-w10/build/crs/coreruleset-4.25.2/.verified",
+      "/home/hellc/strata/build/crs/coreruleset-4.25.2/.verified"
+    ]
+  }
+}
