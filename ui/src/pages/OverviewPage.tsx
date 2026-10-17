@@ -261,10 +261,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
                   return (
                     <tr key={r.rule_id} data-testid="top-rule" className="border-b border-line last:border-0 hover:bg-sunken/60">
                       <td className="td min-w-0">
-                        <a href={eventsHref({ rule_id: String(r.rule_id) })} className="font-mono text-accent hover:underline">
-                          {r.rule_id}
-                        </a>
-                        <div className="text-xs text-muted truncate max-w-[42ch]" title={meta?.name}>
+                        <div className="flex items-center gap-2">
+                          <a href={eventsHref({ rule_id: String(r.rule_id) })} className="font-mono font-bold text-accent px-1.5 py-0.5 rounded bg-accent/10 border border-accent/25 hover:bg-accent/20 transition-colors">
+                            {r.rule_id}
+                          </a>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                            {r.rule_id >= 940000 ? 'OWASP CRS' : r.rule_id >= 700000 ? 'VIRTUAL PATCH' : 'CUSTOM'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted truncate max-w-[42ch] mt-1" title={meta?.name}>
                           {meta?.name ?? t('overview.unknownRule')}
                         </div>
                       </td>
@@ -298,13 +303,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
                 {o.top_routes.map((r) => (
                   <tr key={`${r.policy_id}|${r.host}|${r.path_prefix}`} data-testid="top-route" className="border-b border-line last:border-0 hover:bg-sunken/60">
                     <td className="td min-w-0">
-                      <div className="font-mono truncate max-w-[44ch]" title={`${r.host}${r.path_prefix}`}>
-                        <span className="text-muted">{r.host}</span>
+                      <div className="font-mono text-ink font-semibold truncate max-w-[44ch]" title={`${r.host}${r.path_prefix}`}>
+                        <span className="text-muted font-normal">{r.host}</span>
                         {r.path_prefix || '/'}
                       </div>
-                      <a href={eventsHref({ policy_id: r.policy_id })} className="text-xs text-accent hover:underline">
-                        {r.policy_id || t('overview.noPolicy')}
-                      </a>
+                      <div className="mt-1 flex items-center gap-2">
+                        <a href={eventsHref({ policy_id: r.policy_id })} className="text-[11px] font-mono text-accent hover:underline">
+                          policy: {r.policy_id || t('overview.noPolicy')}
+                        </a>
+                      </div>
                     </td>
                     <td className="td">
                       <div className="flex items-center gap-3">
@@ -320,7 +327,9 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
             <Empty>{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
           )}
         </section>
+      </div>
 
+      <div className="grid gap-5 xl:grid-cols-3 mt-5">
         <section className="panel" data-testid="inspection">
           <SectionTitle aside={t('overview.inspection.note')}>{t('overview.inspection.title')}</SectionTitle>
           {o && o.inspection.length > 0 ? (
@@ -334,15 +343,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
               </thead>
               <tbody>
                 {o.inspection.map((p) => (
-                  <tr key={p.policy_id} data-testid="inspection-row" data-policy={p.policy_id} className="border-b border-line last:border-0 hover:bg-sunken/60">
+                  <tr key={p.policy_id} data-testid="inspection-row" data-policy={p.policy_id} className="border-b border-line/50 last:border-0 hover:bg-sunken/60 transition-colors">
                     <td className="td">
-                      <a href={eventsHref({ policy_id: p.policy_id })} className="text-accent hover:underline">
+                      <a href={eventsHref({ policy_id: p.policy_id })} className="text-accent font-medium hover:underline">
                         {p.policy_id || t('overview.noPolicy')}
                       </a>
                     </td>
-                    <td className="td text-right tabular-nums">{formatCount(p.requests, locale)}</td>
+                    <td className="td text-right tabular-nums font-mono">{formatCount(p.requests, locale)}</td>
                     <td
-                      className={`td text-right tabular-nums ${p.not_inspected > 0 ? 'text-unchecked' : ''}`}
+                      className={`td text-right tabular-nums font-mono ${p.not_inspected > 0 ? 'text-unchecked font-semibold' : ''}`}
                       title={t('overview.inspection.breakdown', { partial: p.partial, body: p.body_skipped, error: p.error, degraded: p.degraded })}
                       data-testid="inspection-share"
                     >
@@ -374,14 +383,14 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
               </thead>
               <tbody>
                 {o.top_clients.map((c) => (
-                  <tr key={c.client_ip} data-testid="top-client" className="border-b border-line last:border-0 hover:bg-sunken/60">
+                  <tr key={c.client_ip} data-testid="top-client" className="border-b border-line/50 last:border-0 hover:bg-sunken/60 transition-colors">
                     <td className="td">
-                      <a href={eventsHref({ client_ip: c.client_ip })} className="font-mono text-accent hover:underline">
+                      <a href={eventsHref({ client_ip: c.client_ip })} className="font-mono text-accent font-semibold hover:underline">
                         {maskIp(c.client_ip)}
                       </a>
                     </td>
-                    <td className="td text-right tabular-nums text-block">{formatCount(c.block, locale)}</td>
-                    <td className="td text-right tabular-nums">{formatCount(c.events, locale)}</td>
+                    <td className="td text-right tabular-nums font-mono font-bold text-rose-400">{formatCount(c.block, locale)}</td>
+                    <td className="td text-right tabular-nums font-mono text-muted">{formatCount(c.events, locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -390,30 +399,33 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
         </section>
 
         <section className="panel" data-testid="fleet-health">
-          <SectionTitle aside={<a href={href({ page: 'fleet' })} className="text-accent hover:underline">{t('overview.openFleet')}</a>}>
+          <SectionTitle aside={<a href={href({ page: 'fleet' })} className="text-accent font-medium hover:underline">{t('overview.openFleet')}</a>}>
             {t('overview.fleet')}
           </SectionTitle>
-          <div className="px-4 py-3 text-[13px] space-y-3">
+          <div className="px-5 py-4 text-[13px] space-y-3.5">
             {data?.rollout ? (
-              <p data-testid="overview-rollout">
+              <p data-testid="overview-rollout" className="p-2 rounded-lg bg-surface border border-line/60 font-mono text-xs">
                 {t('overview.rollout', { id: data.rollout.id, version: data.rollout.bundle_version, state: t(`fleet.bundleState.${data.rollout.state}`, { defaultValue: data.rollout.state }) })}
               </p>
             ) : (
-              <p className="text-muted">{t('fleet.rollout.none')}</p>
+              <p className="text-muted text-xs font-mono">{t('fleet.rollout.none')}</p>
             )}
             {!nodes ? (
               <p className="text-muted">{t('overview.kpi.noFleet')}</p>
             ) : offline.length === 0 ? (
-              <p className="text-ok">{t('overview.allNodesOnline', { count: enrolled })}</p>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-medium text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-semibold">{t('overview.allNodesOnline', { count: enrolled })}</span>
+              </div>
             ) : (
-              <ul className="divide-y divide-line" data-testid="offline-nodes">
+              <ul className="divide-y divide-line/60" data-testid="offline-nodes">
                 {offline.slice(0, 6).map((n) => (
-                  <li key={n.id} className="flex items-center justify-between gap-3 py-1.5">
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-faint" />
-                      <span className="truncate">{n.hostname || n.id}</span>
+                  <li key={n.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                    <span className="flex items-center gap-2 min-w-0 font-mono">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span className="truncate text-ink font-medium">{n.hostname || n.id}</span>
                     </span>
-                    <span className="text-xs text-muted whitespace-nowrap">
+                    <span className="text-[11px] text-muted whitespace-nowrap">
                       {n.last_seen_time ? t('overview.lastSeen', { when: relativeTime(n.last_seen_time, locale) }) : t('common.never')}
                     </span>
                   </li>

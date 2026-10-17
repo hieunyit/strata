@@ -108,7 +108,10 @@ const mockApi = {
       { country_iso: 'SG', events: 18400, blocked: 310, top_attack_type: 'Path Traversal' },
       { country_iso: 'DE', events: 9200, blocked: 840, top_attack_type: 'RCE Webhook' },
       { country_iso: 'JP', events: 6400, blocked: 210, top_attack_type: 'Scanner Bot' },
-      { country_iso: 'CN', events: 5100, blocked: 450, top_attack_type: 'Credential Stuffing' }
+      { country_iso: 'CN', events: 5100, blocked: 450, top_attack_type: 'Credential Stuffing' },
+      { country_iso: 'GB', events: 4200, blocked: 380, top_attack_type: 'Remote File Inclusion' },
+      { country_iso: 'FR', events: 3800, blocked: 290, top_attack_type: 'SSRF Probe' },
+      { country_iso: 'IN', events: 3100, blocked: 180, top_attack_type: 'Crawler Scanner' }
     ],
     asns: [
       { asn: 7552, as_org: 'Viettel Group', events: 24500, blocked: 60 },
