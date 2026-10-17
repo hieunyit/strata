@@ -1,0 +1,14 @@
+M5 · Duyệt đúng report đã xem · 18/10/2026 (UTC+7)
+Nhánh `codex/approval-replay-pin`, base `codex/policy-review-client` (`65d77d4`). Người dùng đã duyệt phạm vi proto/OpenAPI trong `m5-review-replay-binding-proposal.md`.
+
+`ApprovePolicyRequest.expected_replay_id` (field 4) tùy chọn; API so ID với replay DONE mới nhất của đúng version. Không có replay verifier thì yêu cầu pin bị từ chối, không fallback. ID có khoảng trắng/control/non-ASCII hoặc quá 128 byte bị từ chối. Caller cũ bỏ field vẫn được dùng; RBAC, bốn mắt, comment và deploy gate giữ nguyên.
+
+Store giữ khóa version và kiểm lại proof là replay mới nhất DONE trước khi ghi approval/audit trong cùng transaction. Xếp replay lấy cùng khóa; `created_at` ghi bằng `clock_timestamp()` sau khi lấy khóa, tránh transaction bắt đầu trước nhưng xếp sau bị coi cũ. Replay tạo sau commit không thay `approved_replay_id`. Không thêm bảng/dependency hay sửa enforcement. Generated Go/OpenAPI/TypeScript và mô tả API thiết kế cập nhật cùng contract. Facade approve có tham số pin và không retry unpinned.
+
+Test hồi quy với Store cũ: `TestApprovalRejectsReplacedReplayInPostgres` FAIL `approved superseded replay`. Sau sửa: 6 test cấp cao (thêm 2 subtest khóa) PASS với PostgreSQL và `-race`; REST kiểm ID cũ/sai/missing/FAILED/PENDING/sai version, quá dài/control, viewer/operator, tự duyệt; chấp nhận pin mới và caller cũ; lỗi không thêm audit, replay sau không thay proof. Test PG quan sát `pg_blocking_pids`, kiểm cả queue/approve thật sự chờ khóa và timestamp sau chờ, không dựa vào sleep đơn thuần.
+
+Lệnh: `buf lint && buf generate --template buf.gen.admin.yaml`; `npm run generate:api`; `go -C control-plane test -race -count=1 -v -run '^Test(Approval.*InPostgres|ApproveReplayPinRESTInPostgres|ApproveNeedsADoneReplay|ApprovedReplayIsDurableInPostgres|FourEyesInPostgres)$' ./store ./admin`; `golangci-lint run ./admin/... ./store/...` → **0 issues**. UI: `npm test -- --cache=false && npm run lint && npm run build -- --outDir /src/build/approval-pin-dist` → **114/114 (18 file) PASS**, lint/build PASS (14,96 s).
+
+Bằng chứng: [output thực tế](evidence/approval-replay-pin/). Lượt `go test -race -p 1 -count=1 -timeout 5m ./...` với PostgreSQL và compiler/replay thật: 13 package PASS, riêng API FAIL vì cấu hình eval trỏ file chưa có. Giữ nguyên log FAIL; build release `strata-eval` rồi chạy lại toàn bộ `./api -race -v`: 29 test cấp cao PASS, 3 test yêu cầu fixture CH/browser riêng SKIP, package PASS 72,209 s. Bao gồm workflow ba replay thật, duyệt/deploy và hết TTL. Replay package thật trên 4.300 mẫu PASS 84,315 s. Không sửa/bỏ test để che lỗi fixture; không gọi command full ban đầu là PASS.
+
+Tự review: mỗi điều kiện có test, đường lỗi không ghi state/audit, input có giới hạn, RBAC/subject bốn mắt nguyên vẹn, chỉ interface đã duyệt và tài liệu liên quan, lint sạch. Chưa có approval queue UI/browser trong PR này. Không chờ hosted CI, không merge/deploy.

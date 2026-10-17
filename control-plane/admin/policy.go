@@ -302,7 +302,7 @@ func (p *policyAdmin) SubmitPolicy(ctx context.Context, req *adminv1.SubmitPolic
 
 // ApprovePolicy implements POST /v1/policies/{policy_id}:approve.
 func (p *policyAdmin) ApprovePolicy(ctx context.Context, req *adminv1.ApprovePolicyRequest) (*adminv1.ApprovePolicyResponse, error) {
-	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), true, req.GetComment())
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), true, req.GetComment(), req.GetExpectedReplayId())
 	if err != nil {
 		return nil, err
 	}
@@ -314,19 +314,25 @@ func (p *policyAdmin) RejectPolicy(ctx context.Context, req *adminv1.RejectPolic
 	if strings.TrimSpace(req.GetComment()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "a comment saying why is required")
 	}
-	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), false, req.GetComment())
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), false, req.GetComment(), "")
 	if err != nil {
 		return nil, err
 	}
 	return &adminv1.RejectPolicyResponse{Version: versionPB(v)}, nil
 }
 
-func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, approve bool, comment string) (store.PolicyVersion, error) {
+func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, approve bool, comment, expectedReplay string) (store.PolicyVersion, error) {
 	if version == 0 {
 		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "version is required: the one reviewed")
 	}
 	if utf8.RuneCountInString(comment) > 1000 {
 		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "comment: at most 1000 characters")
+	}
+	if len(expectedReplay) > 128 || strings.IndexFunc(expectedReplay, func(r rune) bool { return r <= ' ' || r > '~' }) >= 0 {
+		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "expected_replay_id: at most 128 printable non-space ASCII characters")
+	}
+	if expectedReplay != "" && p.ops == nil {
+		return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay verification is unavailable")
 	}
 	verb := ":reject"
 	proof := ""
@@ -341,6 +347,9 @@ func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, app
 				return store.PolicyVersion{}, internal("replay", err)
 			}
 			if op.State != store.OpDone {
+				return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay changed; review the latest result")
+			}
+			if expectedReplay != "" && op.ID != expectedReplay {
 				return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay changed; review the latest result")
 			}
 			proof = op.ID

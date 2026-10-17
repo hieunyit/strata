@@ -80,15 +80,16 @@ func createReplayOperationTx(ctx context.Context, tx pgx.Tx, policyID string, ve
 	if err != nil {
 		return Operation{}, err
 	}
-	var n int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM policy_versions WHERE policy_id = $1 AND version = $2`, policyID, version).Scan(&n); err != nil {
-		return Operation{}, fmt.Errorf("store: replay operation: %w", err)
-	}
-	if n == 0 {
+	// Serialize new replays with decisions on this version. A replay queued
+	// after approval cannot replace the proof saved by that approval.
+	var lockedVersion int
+	if err := tx.QueryRow(ctx, `SELECT version FROM policy_versions WHERE policy_id=$1 AND version=$2 FOR UPDATE`, policyID, version).Scan(&lockedVersion); errors.Is(err, pgx.ErrNoRows) {
 		return Operation{}, ErrNotFound
+	} else if err != nil {
+		return Operation{}, fmt.Errorf("store: replay operation lock: %w", err)
 	}
-	o, err := scanOp(tx.QueryRow(ctx, `INSERT INTO operations (id,kind,policy_id,version,created_by)
- VALUES ($1,$2,$3,$4,$5) RETURNING `+opCols, id, OpReplay, policyID, version, a.Actor))
+	o, err := scanOp(tx.QueryRow(ctx, `INSERT INTO operations (id,kind,policy_id,version,created_by,created_at)
+ VALUES ($1,$2,$3,$4,$5,clock_timestamp()) RETURNING `+opCols, id, OpReplay, policyID, version, a.Actor))
 	if err != nil {
 		return Operation{}, fmt.Errorf("store: replay operation: %w", err)
 	}

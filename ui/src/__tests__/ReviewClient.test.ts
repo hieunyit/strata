@@ -41,6 +41,12 @@ describe('policy review client', () => {
     answer({}); await expect(apiClient.submitPolicy('example-api', 2)).rejects.toMatchObject({ code: 502 });
     const [, init] = fetchMock.mock.calls[0]; expect(JSON.parse(init.body)).toEqual({ version: 2 });
   });
+  it('sends the inspected report ID without retrying unpinned on conflict', async () => {
+    answer({ message: 'replay changed' }, 400);
+    await expect(apiClient.approvePolicy('example-api', 2, 'reviewed', 'op-viewed')).rejects.toMatchObject({ code: 400 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ version: 2, comment: 'reviewed', expected_replay_id: 'op-viewed' });
+  });
   it('distinguishes missing replay from forbidden or unavailable replay', async () => {
     answer({}, 404); expect(await apiClient.getVersionReplay('example-api', 2)).toBeUndefined();
     for (const status of [403, 503]) {
