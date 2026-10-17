@@ -23,7 +23,10 @@ type Named struct {
 
 // Compiler runs strata-compile.
 type Compiler struct {
-	Binary string // default "strata-compile" from PATH
+	// StagedRules is an internal, explicit effective overlay. It is never a
+	// public policy API input. Approval/provenance remain the deployer's duty.
+	StagedRules map[string][]uint32
+	Binary      string // default "strata-compile" from PATH
 	// Signer signs bundles (KMS): strata-compile then writes the unsigned
 	// bytes and never sees a key. Without it, KeyFile (an Ed25519 seed,
 	// lab and development only) is passed to strata-compile.
@@ -80,6 +83,10 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 	if len(policies) == 0 {
 		return nil, ErrNoPolicies
 	}
+	staged, err := c.stagingFor(policies)
+	if err != nil {
+		return nil, err
+	}
 	dir, err := os.MkdirTemp("", "strata-bundle-")
 	if err != nil {
 		return nil, err
@@ -87,21 +94,22 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 	defer os.RemoveAll(dir)
 
 	type item struct {
-		Exceptions []Exception `json:"exceptions,omitempty"`
-		Name       string      `json:"name"`
-		Mode       string      `json:"mode"`
-		Oversize   string      `json:"oversize,omitempty"`
-		Response   *Response   `json:"response,omitempty"`
-		Snippet    int         `json:"max_snippet_size,omitempty"`
-		Privacy    *Privacy    `json:"privacy,omitempty"`
-		Canary     float64     `json:"canary_percent,omitempty"`
-		MaxArgs    int         `json:"max_args,omitempty"`
-		FailOn     string      `json:"fail_on_findings,omitempty"`
+		StagedRules []uint32    `json:"staged_rules,omitempty"`
+		Exceptions  []Exception `json:"exceptions,omitempty"`
+		Name        string      `json:"name"`
+		Mode        string      `json:"mode"`
+		Oversize    string      `json:"oversize,omitempty"`
+		Response    *Response   `json:"response,omitempty"`
+		Snippet     int         `json:"max_snippet_size,omitempty"`
+		Privacy     *Privacy    `json:"privacy,omitempty"`
+		Canary      float64     `json:"canary_percent,omitempty"`
+		MaxArgs     int         `json:"max_args,omitempty"`
+		FailOn      string      `json:"fail_on_findings,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
-		items = append(items, item{Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
+		items = append(items, item{StagedRules: staged[p.Name], Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
 			Canary: p.Spec.CanaryPercent, MaxArgs: p.Spec.MaxArgs, FailOn: p.Spec.FailOnFindings})
 	}
 	doc["policies"] = items

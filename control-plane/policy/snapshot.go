@@ -64,7 +64,13 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 	if err = json.Unmarshal(raw, &p.policies); err != nil {
 		return nil, err
 	}
+	staged, err := c.stagingFor(p.policies)
+	if err != nil {
+		return nil, err
+	}
+	p.compiler.StagedRules = staged
 	type manifest struct {
+		StagedRules    map[string][]uint32 `json:",omitempty"`
 		Format         int
 		Compiler       string
 		Rules          []string
@@ -75,7 +81,7 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 		CostBudget     uint64
 		IdentityKey    string
 	}
-	m := manifest{Format: 2, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
+	m := manifest{StagedRules: staged, Format: 2, Policies: p.policies, SupportContact: c.SupportContact, CostBudget: c.CostBudget}
 	remaining := int64(512 << 20)
 	snapshot := func(src, label string, mode os.FileMode) (string, string, error) {
 		in, err := os.Open(src)
