@@ -91,54 +91,66 @@ func revertDesired(ctx context.Context, tx pgx.Tx, where string, args ...any) er
 // aborts the rollouts still running or paused. The nodes of the first wave
 // get the version as desired; their ids are returned for notification.
 func (s *Store) CreateRollout(ctx context.Context, version uint64, nodes []string, plan []float64, soak time.Duration, a Audit) (Rollout, []string, error) {
-	waves := WavePlan(len(nodes), plan)
-	raw, _ := json.Marshal(waves)
 	var r Rollout
 	var first []string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := revertDesired(ctx, tx, `r.state IN ('RUNNING', 'PAUSED', 'FAILED')`); err != nil {
-			return err
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", int64(lockBundleRecords)); err != nil {
+			return fmt.Errorf("store: rollout record lock: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `UPDATE rollouts SET state = 'ABORTED', reason = $1, updated_at = now()
-			WHERE state IN ('RUNNING', 'PAUSED', 'FAILED')`, fmt.Sprintf("superseded by bundle %d", version)); err != nil {
-			return fmt.Errorf("store: supersede: %w", err)
-		}
-		state := RolloutRunning
-		if len(nodes) == 0 {
-			state = RolloutDone
-		}
-		if err := tx.QueryRow(ctx, `INSERT INTO rollouts (bundle_version, state, waves, soak_seconds, created_by)
-			VALUES ($1, $2, $3, $4, $5) RETURNING id`, int64(version), state, raw, int(soak.Seconds()), a.Actor).Scan(&r.ID); err != nil {
-			return fmt.Errorf("store: create rollout: %w", err)
-		}
-		for i, n := range nodes {
-			w := 0
-			for w < len(waves) && i >= waves[w] {
-				w++
-			}
-			st := "PENDING"
-			if w == 0 {
-				st = "NOTIFIED"
-				first = append(first, n)
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO rollout_nodes (rollout_id, node_id, wave, state) VALUES ($1, $2, $3, $4)`, r.ID, n, w, st); err != nil {
-				return fmt.Errorf("store: rollout node: %w", err)
-			}
-		}
-		if len(first) > 0 {
-			if _, err := tx.Exec(ctx, `UPDATE nodes SET desired_bundle_version = $1 WHERE id = ANY($2)`, int64(version), first); err != nil {
-				return fmt.Errorf("store: desired version: %w", err)
-			}
-		}
-		a.Resource = fmt.Sprintf("rollouts/%d", r.ID)
-		a.After = map[string]any{"bundle_version": version, "waves": waves, "nodes": nodes}
-		return writeAudit(ctx, tx, a)
+		var e error
+		r, first, e = createRolloutTx(ctx, tx, version, nodes, plan, soak, a)
+		return e
 	})
 	if err != nil {
 		return Rollout{}, nil, err
 	}
 	r, err = s.GetRollout(ctx, r.ID)
 	return r, first, err
+}
+
+func createRolloutTx(ctx context.Context, tx pgx.Tx, version uint64, nodes []string, plan []float64, soak time.Duration, a Audit) (Rollout, []string, error) {
+	waves := WavePlan(len(nodes), plan)
+	raw, _ := json.Marshal(waves)
+	var r Rollout
+	var first []string
+
+	if err := revertDesired(ctx, tx, `r.state IN ('RUNNING', 'PAUSED', 'FAILED')`); err != nil {
+		return Rollout{}, nil, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE rollouts SET state = 'ABORTED', reason = $1, updated_at = now()
+			WHERE state IN ('RUNNING', 'PAUSED', 'FAILED')`, fmt.Sprintf("superseded by bundle %d", version)); err != nil {
+		return Rollout{}, nil, fmt.Errorf("store: supersede: %w", err)
+	}
+	state := RolloutRunning
+	if len(nodes) == 0 {
+		state = RolloutDone
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO rollouts (bundle_version, state, waves, soak_seconds, created_by)
+			VALUES ($1, $2, $3, $4, $5) RETURNING id`, int64(version), state, raw, int(soak.Seconds()), a.Actor).Scan(&r.ID); err != nil {
+		return Rollout{}, nil, fmt.Errorf("store: create rollout: %w", err)
+	}
+	for i, n := range nodes {
+		w := 0
+		for w < len(waves) && i >= waves[w] {
+			w++
+		}
+		st := "PENDING"
+		if w == 0 {
+			st = "NOTIFIED"
+			first = append(first, n)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO rollout_nodes (rollout_id, node_id, wave, state) VALUES ($1, $2, $3, $4)`, r.ID, n, w, st); err != nil {
+			return Rollout{}, nil, fmt.Errorf("store: rollout node: %w", err)
+		}
+	}
+	if len(first) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE nodes SET desired_bundle_version = $1 WHERE id = ANY($2)`, int64(version), first); err != nil {
+			return Rollout{}, nil, fmt.Errorf("store: desired version: %w", err)
+		}
+	}
+	a.Resource = fmt.Sprintf("rollouts/%d", r.ID)
+	a.After = map[string]any{"bundle_version": version, "waves": waves, "nodes": nodes}
+	return r, first, writeAudit(ctx, tx, a)
 }
 
 // GetRollout returns a rollout and its nodes.
