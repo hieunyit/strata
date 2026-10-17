@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ExceptionDraft } from '../components/events/ExceptionDraft';
 import { ApiError, Event, ExceptionDraftResponse, GetEventResponse, apiClient } from '../api/client';
 import { StaticAuthProvider, UserRole } from '../context/AuthContext';
 import i18n from '../i18n';
+import { EventDetailPage } from '../pages/EventDetailPage';
 
 const event: Event = {
   block_id: 'STR-8F3K-Q2VD-7XNM-A1PC', timestamp: '2026-10-17T00:00:00Z', node_id: 'example-node', connector_type: 'nginx', policy_id: 'example-api', policy_version: 3, client_ip: '198.51.100.42',
@@ -111,6 +112,19 @@ describe('exception draft from a Block ID', () => {
     await screen.findByText('You no longer have permission to create an exception.');
     expect(screen.getByRole('button', { name: 'Create draft' })).toBeDisabled();
     expect(apiClient.createExceptionFromBlock).toHaveBeenCalledWith(expect.objectContaining({ rule_id: 700012, field: 'REQUEST_HEADERS:X-Example-Text', ttl_seconds: 86400 }));
+  });
+
+  it('preserves a created draft when the event page changes language', async () => {
+    const getEvent = vi.spyOn(apiClient, 'getEvent').mockResolvedValue({ event, rules });
+    vi.spyOn(apiClient, 'getVersion').mockResolvedValue({ version: 'test', commit: '', api_version: 'v1' });
+    render(<StaticAuthProvider roles={['operator']}><EventDetailPage blockId={event.block_id} /></StaticAuthProvider>);
+    await screen.findByRole('button', { name: 'Create exception' });
+    fireEvent.change(await open(), { target: { value: 'legitimate query' } }); send();
+    await screen.findByTestId('exception-created');
+    await act(async () => { await i18n.changeLanguage('vi'); });
+    expect(screen.getByTestId('exception-created')).toHaveTextContent('Đã tạo bản nháp phiên bản 4');
+    expect(getEvent).toHaveBeenCalledTimes(1);
+    expect(apiClient.createExceptionFromBlock).toHaveBeenCalledTimes(1);
   });
 
 });

@@ -21,3 +21,5 @@ npm run build -- --outDir /src/build/m2-exception-ui-final-dist
 Giới hạn: pending command chỉ giữ trong bộ nhớ khi form còn mở; không lưu lý do vào localStorage. Reload trang không giữ receipt chưa xác định, backend vẫn có CAS/idempotency/duplicate-scope guard. Chưa có approval queue/replay result UI và chưa chạy Chromium/API thật cho form ở PR này; acceptance đó theo bước riêng. Backend/runtime chain được kiểm riêng ở [M2 backend/runtime](m2-exception-workflow.md), không suy ra từ unit tests UI.
 
 Tự review: mọi ghi qua API/RBAC và audit hiện có; không nới scope, có TTL/etag/request ID và xử lý lỗi; viewer không có form; không dependency/interface mới; i18n keys hai ngôn ngữ khớp. Không chờ CI, không merge/deploy.
+
+Bổ sung ở bước tiếp: [browser/API acceptance và lỗi locale](m2-exception-browser.md) có bằng chứng riêng; không thay phạm vi unit-test của PR này.

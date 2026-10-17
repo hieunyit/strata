@@ -13,7 +13,7 @@ type State =
   | { kind: 'loading' }
   | { kind: 'found'; data: GetEventResponse }
   | { kind: 'missing' }
-  | { kind: 'failed'; message: string };
+  | { kind: 'failed'; apiMessage?: string };
 
 // One event, opened from the table, the top bar's Block ID lookup or a
 // link (#/events/STR-...): the helpdesk's page.
@@ -31,13 +31,13 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       .catch((err: unknown) => {
         if (!alive) return;
         if (err instanceof ApiError && err.code === 404) setState({ kind: 'missing' });
-        else if (err instanceof ApiError) setState({ kind: 'failed', message: t('errors.blockIdLookup', { error: err.message }) });
-        else setState({ kind: 'failed', message: t('errors.blockIdConnection', { id }) });
+        else if (err instanceof ApiError) setState({ kind: 'failed', apiMessage: err.message });
+        else setState({ kind: 'failed' });
       });
     return () => {
       alive = false;
     };
-  }, [id, t]);
+  }, [id]);
 
   const ev = state.kind === 'found' ? state.data.event : undefined;
 
@@ -68,7 +68,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       </div>
 
       {state.kind === 'loading' && <p className="text-[13px] text-muted">{t('detail.loading')}</p>}
-      {state.kind === 'failed' && <ErrorBanner message={state.message} testId="error-banner" />}
+      {state.kind === 'failed' && <ErrorBanner message={state.apiMessage !== undefined ? t('errors.blockIdLookup', { error: state.apiMessage }) : t('errors.blockIdConnection', { id })} testId="error-banner" />}
       {state.kind === 'missing' && (
         <div className="panel px-6 py-10 text-center" data-testid="event-missing">
           <SearchX className="mx-auto mb-3 w-8 h-8 text-faint" />
