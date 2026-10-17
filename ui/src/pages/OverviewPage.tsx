@@ -153,6 +153,11 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
     void fetchTimeline();
   }, [filterState, policy]);
 
+  // Sync filterState.timeRange whenever top-level range changes
+  useEffect(() => {
+    setFilterState((prev) => (prev.timeRange !== range ? { ...prev, timeRange: range as any } : prev));
+  }, [range]);
+
   const fetchDrillEvents = useCallback(async () => {
     setDrillLoading(true);
     try {
@@ -192,18 +197,17 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       setData(await load(range, policy));
       setError(undefined);
       setUpdated(new Date().toISOString());
-      void fetchDrillEvents();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [range, policy, fetchDrillEvents]);
+  }, [range, policy]);
 
   useEffect(() => {
     setLoading(true);
     void refresh();
-  }, [refresh, range, policy]);
+  }, [refresh]);
 
   useEffect(() => {
     replaceQuery({
@@ -220,9 +224,12 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
 
   useEffect(() => {
     if (!live) return;
-    const id = setInterval(() => void refresh(), REFRESH_MS);
+    const id = setInterval(() => {
+      void refresh();
+      void fetchDrillEvents();
+    }, REFRESH_MS);
     return () => clearInterval(id);
-  }, [live, refresh]);
+  }, [live, refresh, fetchDrillEvents]);
 
   useEffect(() => {
     apiClient.listPolicies().then(setPolicies).catch(() => {});

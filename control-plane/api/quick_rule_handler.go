@@ -138,6 +138,13 @@ func (h *QuickRuleHandler) HandleQuickRule(w http.ResponseWriter, r *http.Reques
 			Enabled:       &enabled,
 			DefaultAction: "pass",
 		}
+	} else {
+		// Ensure geo restrictions are active when an operator creates a quick rule mitigation
+		enabled := true
+		spec.GeoRestrictions.Enabled = &enabled
+		if spec.GeoRestrictions.DefaultAction == "" {
+			spec.GeoRestrictions.DefaultAction = "pass"
+		}
 	}
 
 	if isGeo {
@@ -171,18 +178,41 @@ func (h *QuickRuleHandler) HandleQuickRule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 5. Audit record & update policy (creates new DRAFT version)
-	caller := auth.FromContext(r.Context())
-	actor := caller.Name
-	if actor == "" {
+	actor, subject := "system", "system"
+	if caller := auth.FromContext(r.Context()); caller != nil {
+		subject = caller.Subject
 		actor = caller.Subject
+		if caller.Name != "" {
+			actor = caller.Name + " (" + caller.Subject + ")"
+		}
 	}
+
+	channel := "api"
+	if ch := r.Header.Get("Strata-Channel"); ch == "ui" || ch == "gitops" {
+		channel = ch
+	}
+
+	reqID := r.Header.Get("X-Request-Id")
+	if len(reqID) > 128 {
+		reqID = reqID[:128]
+	}
+
+	actionDesc := "QuickRule"
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		if len(reason) > 200 {
+			reason = reason[:200]
+		}
+		actionDesc = fmt.Sprintf("QuickRule: %s (action=%s, target=%s)", reason, action, rawTarget)
+	}
+
 	audit := store.Audit{
-		Actor:    actor,
-		Subject:  caller.Subject,
-		Channel:  "api",
-		Action:   "QuickRule",
-		Resource: "policies/" + policyID,
-		Before:   p,
+		Actor:     actor,
+		Subject:   subject,
+		Channel:   channel,
+		Action:    actionDesc,
+		Resource:  "policies/" + policyID,
+		RequestID: reqID,
+		Before:    p,
 	}
 
 	updated, err := h.store.UpdatePolicy(r.Context(), policyID, p.Etag, updatedSpecRaw, audit)

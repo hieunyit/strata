@@ -6,7 +6,7 @@ import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell } from './PageShell';
 import { PageHeader, ErrorBanner, SectionTitle, Empty, formatTime } from '../components/ui';
-import { href } from '../router';
+import { Route, href } from '../router';
 import { useAuth } from '../context/AuthContext';
 import { canWritePolicies } from '../auth/roles';
 import { PolicyEditor } from '../components/policy/PolicyEditor';
@@ -21,7 +21,7 @@ const modeClass: Record<string, string> = {
 // editor (W11-F-01), which saves a draft version; anyone who can read
 // policies compares two versions block by block (W12-F-01). Deploy from
 // the UI comes later.
-export const PoliciesPage: React.FC = () => {
+export const PoliciesPage: React.FC<{ route?: Route }> = ({ route }) => {
   const { t, i18n } = useTranslation();
   const { roles } = useAuth();
   const canEdit = canWritePolicies(roles);
@@ -32,6 +32,15 @@ export const PoliciesPage: React.FC = () => {
   const [saved, setSaved] = useState<number | undefined>();
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
   const [versionsError, setVersionsError] = useState<string | undefined>();
+
+  React.useEffect(() => {
+    if (route?.query?.policy_id && data && !selected) {
+      const match = data.find((p) => p.id === route.query?.policy_id);
+      if (match) {
+        void open(match);
+      }
+    }
+  }, [route?.query?.policy_id, data, selected]);
 
   const open = async (p: Policy) => {
     setSelected(p);

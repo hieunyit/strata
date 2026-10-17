@@ -37,6 +37,7 @@ export function specToYaml(spec: PolicySpec): string {
   const g = (spec as any).geo_restrictions;
   if (g) {
     lines.push('geo_restrictions:');
+    if (g.enabled !== undefined) lines.push(`  enabled: ${g.enabled ? 'true' : 'false'}`);
     if (g.default_action) lines.push(`  default_action: ${g.default_action}`);
     if (g.blocked_countries?.length) lines.push(`  blocked_countries: [${g.blocked_countries.join(', ')}]`);
     if (g.challenged_countries?.length) lines.push(`  challenged_countries: [${g.challenged_countries.join(', ')}]`);

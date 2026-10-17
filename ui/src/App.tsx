@@ -57,7 +57,7 @@ export const AppContent: React.FC = () => {
       case 'event':
         return <EventDetailPage key={route.blockId} blockId={route.blockId ?? ''} />;
       case 'policies':
-        return <PoliciesPage />;
+        return <PoliciesPage route={route} />;
       case 'fleet':
         return <FleetPage />;
       case 'users':
