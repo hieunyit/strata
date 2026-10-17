@@ -365,7 +365,7 @@ func main() {
 		Admin:        adm.Gateway,
 		Rules:        catalog,
 		Local:        local,
-		Audit:        pg,
+		Audit:        auditReader(pg),
 		OIDC:         dispatch.OIDC != nil,
 	}, store)
 
@@ -503,6 +503,13 @@ func main() {
 		}
 	}
 	log.Println("[INFO] Server stopped")
+}
+
+func auditReader(pg *store.Store) api.AuditStore {
+	if pg == nil {
+		return nil
+	}
+	return pg
 }
 
 // connectS3 connects to the bundle bucket, waiting for it to come up.
