@@ -497,5 +497,28 @@
       "canary_percent": "Canary (%)",
       "advanced": "Exceptions, privacy and limits"
     }
+  },
+  "stagingNotices": {
+    "title": "Automatic rule staging",
+    "unread": "New staging notice",
+    "refresh": "Refresh staging notices",
+    "explanation": "Recorded staging changes and rollout progress. These notices do not confirm current node protection.",
+    "unavailable": "Staging notices are unavailable. Try refreshing.",
+    "empty": "No recorded staging changes.",
+    "rule": "Rule {{rule}}",
+    "rollout": "Rollout: {{state}}",
+    "evidence": "{{reports}} reported FP / {{matches}} stored matched security events",
+    "viewEvents": "Review events",
+    "markRead": "Mark read in this browser",
+    "latest": "Latest",
+    "older": "Older",
+    "states": {
+      "PENDING": "Waiting to start",
+      "RUNNING": "In progress",
+      "PAUSED": "Paused",
+      "FAILED": "Failed",
+      "DONE": "Completed",
+      "ABORTED": "Aborted"
+    }
   }
 }
