@@ -1,0 +1,29 @@
+[Unit]
+Description=Strata agent in standalone lite mode (bundles, local events, SIEM export, metrics)
+Documentation=https://github.com/hieunyit/strata/blob/main/docs/design/nginx-module.md
+After=network.target strata-agent.socket
+Requires=strata-agent.socket
+ConditionPathExists=/etc/strata/standalone.env
+
+[Service]
+User=strata
+Group=strata
+EnvironmentFile=/etc/strata/standalone.env
+ExecStart=/usr/bin/strata-agent run --standalone \
+    --control-file=/var/lib/strata/bundles/control \
+    --bundle-dir=/var/lib/strata/bundles \
+    --event-socket=unix:/run/strata/events.sock \
+    --metrics-file=/run/strata/metrics \
+    --metrics-addr=${STRATA_METRICS_ADDR} \
+    ${STRATA_STANDALONE_ARGS}
+Restart=always
+RestartSec=2
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/strata /run/strata /var/log/strata
+
+[Install]
+WantedBy=multi-user.target

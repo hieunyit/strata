@@ -911,6 +911,26 @@ File `config` của module khai báo `ngx_module_type=HTTP_FILTER` cho phần fi
 - `strata-agent` phân phối riêng (deb/rpm, image) vì dùng chung cho mọi connector.
 - Script kiểm tra trước khi nâng NGINX: báo nếu chưa có module build cho phiên bản mới.
 
+## Chế độ triển khai Lite (Standalone cho cụm nhỏ / Edge gateway)
+
+Đối với các cụm gateway nhỏ, văn phòng chi nhánh, hoặc hạ tầng biên (edge) nơi việc duy trì cụm Control Plane tập trung, PostgreSQL, ClickHouse và Web UI là quá tải hoặc không cần thiết, Strata cung cấp chế độ **Lite (Standalone Mode)** qua cờ `--standalone` của `strata-agent`.
+
+### 1. Kiến trúc Standalone
+- **Zero-Dependency**: Không cần kết nối control plane (`--server`), không cần mTLS enrollment (`--identity-dir`), không cần database phụ trợ (PostgreSQL/ClickHouse).
+- **Nạp bundle cục bộ / URL**:
+  - `strata-agent run --standalone --bundle-file /path/to/bundle.sbn` hoặc `--bundle-dir /var/lib/strata/bundles` (hoặc `--bundle-url http://.../bundle.sbn`).
+  - Kiểm tra chữ ký Ed25519 bằng public key cục bộ (`--bundle-pubkey /etc/strata/bundle.pub`).
+  - Tự động ghi `/run/strata/control` theo cơ chế seqlock để worker NGINX nạp bundle trong ≤ 1 giây (hot reload không cần `nginx -s reload`).
+  - Theo dõi định kỳ file/thư mục: khi quản trị viên cập nhật bundle (bằng `strata-rules` hoặc `strata-compile`), agent phát hiện thay đổi và ghi control file ngay lập tức.
+- **Đường xuất sự kiện SIEM (P-01 §2)**:
+  - Nhận sự kiện từ NGINX worker qua Unix datagram socket `/run/strata/events.sock`.
+  - Xuất ra file **JSON Lines** (`--events-jsonl /var/log/strata/events.jsonl`) để các log forwarder (Filebeat, Promtail, Fluentbit) thu thập.
+  - Hoặc gửi trực tiếp qua **Syslog** (`--syslog-addr 127.0.0.1:514` hoặc local `/dev/log`) định dạng RFC 5424 / RFC 3164 cho SIEM trung tâm (Splunk, QRadar, Wazuh).
+- **Metrics Prometheus**: Đọc bộ đếm shared memory `/dev/shm/strata/metrics` và phục vụ endpoint HTTP `/metrics` (`--metrics-addr 127.0.0.1:9469`).
+- **Cài đặt 1 lệnh**:
+  - Script `deploy/packaging/install-standalone.sh` tự động cài đặt package module NGINX, binary agent, cấu hình NGINX và bundle starter rules core.
+  - Sẵn sàng kích hoạt và chặn tấn công mẫu (SQLi/XSS) trong dưới 5 phút trên một máy chủ sạch.
+
 ## Kế hoạch triển khai
 
 Module NGINX mất khoảng 10 tuần để chạy shadow trên traffic thật, với 2 kỹ sư (1 C/NGINX, 1 Rust) làm song song với lõi libstrata; tuần 11–16 dành cho canary enforce.

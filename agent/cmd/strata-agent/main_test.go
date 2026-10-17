@@ -54,3 +54,15 @@ func TestRunNeedsServerAndNode(t *testing.T) {
 		t.Fatal("run without --server accepted")
 	}
 }
+
+func TestRunStandaloneFlags(t *testing.T) {
+	// Without bundle flags, standalone errors with bundle requirement, NOT server requirement
+	_, err := execute(t, "run", "--standalone")
+	if err == nil {
+		t.Fatal("run --standalone without bundle accepted")
+	}
+	if !strings.Contains(err.Error(), "bundle-file") {
+		t.Fatalf("expected bundle requirement error, got: %v", err)
+	}
+}
+

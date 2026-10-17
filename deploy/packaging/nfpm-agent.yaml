@@ -22,11 +22,18 @@ contents:
   - src: deploy/packaging/files/strata-agent.service
     dst: /usr/lib/systemd/system/strata-agent.service
     file_info: { mode: 0644 }
+  - src: deploy/packaging/files/strata-agent-standalone.service
+    dst: /usr/lib/systemd/system/strata-agent-standalone.service
+    file_info: { mode: 0644 }
   - src: deploy/packaging/files/strata-agent.socket
     dst: /usr/lib/systemd/system/strata-agent.socket
     file_info: { mode: 0644 }
   - src: deploy/packaging/files/agent.env
     dst: /etc/strata/agent.env
+    type: config|noreplace
+    file_info: { mode: 0640 }
+  - src: deploy/packaging/files/standalone.env
+    dst: /etc/strata/standalone.env
     type: config|noreplace
     file_info: { mode: 0640 }
   - src: deploy/packaging/files/90-strata.conf
