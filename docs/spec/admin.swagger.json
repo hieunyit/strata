@@ -1314,6 +1314,10 @@
         "comment": {
           "type": "string",
           "title": "optional, at most 1000 characters"
+        },
+        "expected_replay_id": {
+          "type": "string",
+          "description": "Optional: the DONE replay report the reviewer inspected. A stale ID is\nrejected atomically with the decision; omitted retains legacy behavior."
         }
       }
     },

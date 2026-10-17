@@ -306,12 +306,17 @@ func (s *Store) DecidePolicyVersion(ctx context.Context, id string, version int,
 				return &StateError{fmt.Sprintf("version %d is older than version %d, already approved", version, approved)}
 			}
 			if a.ReplayOperation != "" {
-				var valid bool
-				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM operations WHERE id=$1 AND kind='REPLAY' AND policy_id=$2 AND version=$3 AND state='DONE')`, a.ReplayOperation, id, version).Scan(&valid); err != nil {
-					return err
+				// Queue creation takes this same version lock. Recheck the proof
+				// here, rather than trusting the service's earlier read.
+				var latestID, latestState string
+				err := tx.QueryRow(ctx, `SELECT id,state FROM operations
+					WHERE kind='REPLAY' AND policy_id=$1 AND version=$2
+					ORDER BY created_at DESC,id LIMIT 1`, id, version).Scan(&latestID, &latestState)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("store: approval replay: %w", err)
 				}
-				if !valid {
-					return &StateError{Msg: "approved replay must be a DONE operation of this policy version"}
+				if latestID != a.ReplayOperation || latestState != OpDone {
+					return &StateError{Msg: "replay changed; review the latest DONE result"}
 				}
 			}
 			state, approvedBy = VersionApproved, a.Actor

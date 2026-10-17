@@ -254,10 +254,11 @@ export const apiClient = {
       `/policies/${encodeURIComponent(id)}:submit`, json('POST', { version }), 'Failed to submit version');
     return versionReceipt(r.version, id, version, 'SUBMITTED');
   },
-  async approvePolicy(id: string, version: number, comment = ''): Promise<PolicyVersion> {
+  async approvePolicy(id: string, version: number, comment = '', expectedReplayId?: string): Promise<PolicyVersion> {
     explicitVersion(version);
+    const body: admin['schemas']['PolicyServiceApprovePolicyBody'] = { version, comment, expected_replay_id: expectedReplayId };
     const r = await call<admin['schemas']['v1ApprovePolicyResponse']>(
-      `/policies/${encodeURIComponent(id)}:approve`, json('POST', { version, comment }), 'Failed to approve version');
+      `/policies/${encodeURIComponent(id)}:approve`, json('POST', body), 'Failed to approve version');
     return versionReceipt(r.version, id, version, 'APPROVED');
   },
   async rejectPolicy(id: string, version: number, comment: string): Promise<PolicyVersion> {

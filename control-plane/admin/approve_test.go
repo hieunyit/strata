@@ -94,4 +94,19 @@ func TestApproveNeedsADoneReplay(t *testing.T) {
 	if ps.replayProof != "op-1" {
 		t.Fatalf("approval did not bind replay: %q", ps.replayProof)
 	}
+	// A caller asking for a pinned proof must not silently fall back when
+	// replay verification is disabled; legacy unpinned calls still work.
+	unverified := &decidingStore{}
+	legacy, err := admin.New(ctx, v, admin.BuildInfo{}, admin.Deps{Policies: unverified})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(legacy.Close)
+	h = api.NewServer(api.ServerConfig{Auth: v, Admin: legacy.Gateway}, ingest.NewMockEventStore()).Handler()
+	if c, body := call("approve", `{"version":2,"expected_replay_id":"op-1"}`); c != http.StatusBadRequest || unverified.decided != 0 {
+		t.Fatalf("unverified pin: %d %s", c, body)
+	}
+	if c, body := call("approve", `{"version":2}`); c != http.StatusOK {
+		t.Fatalf("legacy without replay: %d %s", c, body)
+	}
 }

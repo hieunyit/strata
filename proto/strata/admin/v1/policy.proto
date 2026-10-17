@@ -294,6 +294,9 @@ message ApprovePolicyRequest {
   string policy_id = 1;
   uint32 version = 2; // required
   string comment = 3; // optional, at most 1000 characters
+  // Optional: the DONE replay report the reviewer inspected. A stale ID is
+  // rejected atomically with the decision; omitted retains legacy behavior.
+  string expected_replay_id = 4;
 }
 
 message ApprovePolicyResponse {

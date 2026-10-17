@@ -244,6 +244,11 @@ export interface components {
       version?: number;
       /** optional, at most 1000 characters */
       comment?: string;
+      /**
+       * @description Optional: the DONE replay report the reviewer inspected. A stale ID is
+       * rejected atomically with the decision; omitted retains legacy behavior.
+       */
+      expected_replay_id?: string;
     };
     PolicyServiceDeployPolicyBody: Record<string, never>;
     PolicyServiceRejectPolicyBody: {
