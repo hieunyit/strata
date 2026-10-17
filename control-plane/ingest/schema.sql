@@ -46,6 +46,14 @@ CREATE TABLE IF NOT EXISTS events (
     ),
     inspection       LowCardinality(String),
 
+    -- Optional top-eight sampled rule timings, not all rule executions.
+    rule_costs Nested (
+        rule_id      UInt32,
+        samples      UInt64,
+        total_ns     UInt64,
+        max_ns       UInt64
+    ),
+
     INDEX idx_ts timestamp TYPE minmax GRANULARITY 1,
     INDEX idx_policy policy_id TYPE set(100) GRANULARITY 2,
     INDEX idx_action action TYPE set(10) GRANULARITY 1,

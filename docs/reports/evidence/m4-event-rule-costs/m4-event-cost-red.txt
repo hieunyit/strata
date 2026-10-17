@@ -1,0 +1,6 @@
+=== RUN   TestPushEventsPreservesSampledRuleCosts
+    rulecost_test.go:41: sampled costs lost or attributed to wrong node: &{RuleCosts:[] FalsePositive:false FalsePositiveReason: FalsePositiveBy: FalsePositiveAt:<nil> AnnotationEtag: BlockID:STR-8F3K-Q2VD-7XNM-A1PC Timestamp:2026-10-17 03:15:41.825 +0000 UTC NodeID:example-node ConnectorType:nginx PolicyID:example-api PolicyVersion:3 ClientIP:192.0.2.10 Identity: RequestID: HTTPMethod:POST HTTPHost:api.example.test HTTPPath:/v1/items StatusCode:403 Action:block ScoreProtocol:0 ScoreSQLi:45 ScoreXSS:0 ScoreAnomaly:45 MatchedRules:[942100] Violations:[{RuleID:942100 Layer:sqli Field:ARGS:q Snippet:' OR 1=1 --}] ReceivedAt:2026-10-17 03:15:41.862554498 +0000 UTC UserAgent: Referer: Headers:[] Inspection:}
+--- FAIL: TestPushEventsPreservesSampledRuleCosts (0.07s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/fleet	0.170s
+FAIL

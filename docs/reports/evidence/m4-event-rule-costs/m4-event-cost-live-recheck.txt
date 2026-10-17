@@ -1,0 +1,14 @@
+=== RUN   TestContext_ClickHouseOldTableAndLookup
+--- PASS: TestContext_ClickHouseOldTableAndLookup (0.55s)
+=== RUN   TestLookup_ClickHouseSkewAndUnmergedRetry
+--- PASS: TestLookup_ClickHouseSkewAndUnmergedRetry (0.42s)
+=== RUN   TestRuleCosts_ClickHouseMigrationAndRetry
+--- PASS: TestRuleCosts_ClickHouseMigrationAndRetry (0.58s)
+PASS
+ok  	github.com/strata/strata/control-plane/ingest	2.667s
+=== RUN   TestPushEventsPreservesSampledRuleCosts
+--- PASS: TestPushEventsPreservesSampledRuleCosts (0.12s)
+=== RUN   TestRuleCostsBoundBeforeFleetCopiesAgentInput
+--- PASS: TestRuleCostsBoundBeforeFleetCopiesAgentInput (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/fleet	1.228s

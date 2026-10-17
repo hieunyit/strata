@@ -21,6 +21,9 @@ type Header struct {
 
 // Event represents a security event produced by proxy connectors and agent.
 type Event struct {
+	// Internal sampled telemetry; not part of the public event JSON API.
+	RuleCosts []RuleCost `json:"-"`
+
 	// Read-time overlay from PostgreSQL; never accepted from the data plane.
 	FalsePositive       bool       `json:"false_positive,omitempty"`
 	FalsePositiveReason string     `json:"false_positive_reason,omitempty"`
