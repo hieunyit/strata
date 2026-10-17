@@ -31,6 +31,11 @@
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]
           },
+          "staged_rules": {
+            "description": "Compiler-internal signed log-only overlay, 0..16 distinct managed request Rule IDs. The public policy API accepts only auto_staging delegation, not effective staged_rules. Requires staging-aware engines (mandatory policy bit); no automatic expiry or re-enforcement.",
+            "type": "array", "maxItems": 16, "uniqueItems": true,
+            "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
+          },
           "exceptions": {
             "description": "Exact expiring field exclusions for managed rules. Requires exception-aware engines on every node; older engines refuse the mandatory policy flag. Changes go through policy draft/replay/four-eyes/deploy, including revocation.",
             "type": "array", "maxItems": 128,
