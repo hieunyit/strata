@@ -1,0 +1,24 @@
+=== RUN   TestContextRetentionRunsAgainstPostgres
+--- PASS: TestContextRetentionRunsAgainstPostgres (0.53s)
+=== RUN   TestContextRetentionUsesBoundedBatchAndRetries
+2026/10/17 03:29:29 [WARN] rule health: context retention: fixture database unavailable
+--- PASS: TestContextRetentionUsesBoundedBatchAndRetries (0.00s)
+=== RUN   TestContextRetentionHonorsShorterAgeAndCapsLongerAge
+=== RUN   TestContextRetentionHonorsShorterAgeAndCapsLongerAge/168h0m0s
+=== RUN   TestContextRetentionHonorsShorterAgeAndCapsLongerAge/4320h0m0s
+--- PASS: TestContextRetentionHonorsShorterAgeAndCapsLongerAge (0.00s)
+    --- PASS: TestContextRetentionHonorsShorterAgeAndCapsLongerAge/168h0m0s (0.00s)
+    --- PASS: TestContextRetentionHonorsShorterAgeAndCapsLongerAge/4320h0m0s (0.00s)
+=== RUN   TestContextRetentionCancellationInterruptsStoreCall
+--- PASS: TestContextRetentionCancellationInterruptsStoreCall (0.00s)
+=== RUN   TestContextRetentionAlreadyCancelledDoesNotCallStore
+--- PASS: TestContextRetentionAlreadyCancelledDoesNotCallStore (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/rulehealth	1.619s
+=== RUN   TestAuditWithoutPostgresDoesNotRegisterNilReader
+--- PASS: TestAuditWithoutPostgresDoesNotRegisterNilReader (0.00s)
+=== RUN   TestConfiguredAuditReaderIsKept
+--- PASS: TestConfiguredAuditReaderIsKept (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/cmd/server	1.177s
+0 issues.
