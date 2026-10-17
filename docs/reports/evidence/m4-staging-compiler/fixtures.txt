@@ -1,0 +1,7 @@
+cargo build --release -p mkbundle -p strata-compiler
+   Compiling strata-compiler v0.1.0 (/src/engine/compiler)
+    Finished `release` profile [optimized + debuginfo] target(s) in 17.15s
+cargo build --release -p mkbundle -p strata-compiler
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.18s
+connectors/nginx/t/fixtures/make.sh /src/target/release
+git diff --exit-code -- connectors/nginx/t/fixtures
