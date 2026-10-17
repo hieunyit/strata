@@ -1391,6 +1391,18 @@ impl<'a> State<'a> {
                     if self.stats_tokens == 3 {
                         return false;
                     }
+                    // W20-R-01: '5 < 10 && 10 > 2' is a programming condition, not SQLi
+                    if fp == b"1&1" && memmem(self.s, b"&&").is_some() {
+                        let has_quotes = memchr::memchr(CHAR_SINGLE, self.s).is_some()
+                            || memchr::memchr(CHAR_DOUBLE, self.s).is_some();
+                        let has_comments = self.stats_comment_ddw != 0
+                            || self.stats_comment_ddx != 0
+                            || self.stats_comment_c != 0
+                            || self.stats_comment_hash != 0;
+                        if !has_quotes && !has_comments {
+                            return false;
+                        }
+                    }
                 } else if t[1].kind == TYPE_KEYWORD
                     && (t[1].len < 5 || cstrcasecmp(b"INTO", &t[1].val[..4], 4) != 0)
                 {
@@ -1502,7 +1514,27 @@ mod tests {
                 input.escape_ascii()
             );
         }
-        for input in [&b"hello world"[..], b"O'Reilly", b"1234", b"", b"a=1&b=2"] {
+        for input in [
+            &b"hello world"[..],
+            b"O'Reilly",
+            b"1234",
+            b"",
+            b"a=1&b=2",
+            b"order-1234-5678",
+            b"bread and butter",
+            b"rock and roll",
+            b"tom and jerry",
+            b"select your preferred language",
+            b"from London to Paris",
+            b"where is the nearest store",
+            b"as simple as that",
+            b"like a bird",
+            b"width > 100",
+            b"price < 50",
+            b"1 - 2",
+            b"2026-10-18",
+            b"c9a646d3-9c61-4cc9-bc55-c29016181f08",
+        ] {
             assert_eq!(detect(input), None, "{}", input.escape_ascii());
         }
     }

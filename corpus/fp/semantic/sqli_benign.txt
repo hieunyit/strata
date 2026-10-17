@@ -1,0 +1,58 @@
+# Benign SQLi False Positive Corpus (W20-R-01)
+# Natural language words containing SQL keywords
+select your car
+select your preferred language
+select an option below
+order by date desc
+order by price asc
+order by popularity
+group by category
+group by department
+from London to Paris
+from morning to night
+where is my order
+where can I buy this
+like a rolling stone
+like a bird
+update your profile
+update your contact information
+insert coin to play
+create a new account
+create your own style
+delete unwanted files
+table of contents
+as good as new
+as simple as that
+union of workers
+grant permission to view
+
+# Math & logical expressions
+1 + 2 = 3
+10 - 5
+1 - 2
+price < 50
+quantity > 100
+5 <= 10
+20 >= 15
+5 < 10 && 10 > 2
+width > 100
+height < 200
+
+# Identifiers, UUIDs, dates, phone numbers
+order-1234-5678
+invoice_2026_10_18
+2026-10-18
++84-90-123-4567
+c9a646d3-9c61-4cc9-bc55-c29016181f08
+user_token_abc-def-123
+
+# Natural phrases with boolean conjunctions
+bread and butter
+rock and roll
+tom and jerry
+black or white
+yes or no
+true or false
+in or out
+left or right
+up and down

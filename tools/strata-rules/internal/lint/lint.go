@@ -93,7 +93,7 @@ func (l *Linter) Lint(dir string) ([]Finding, int, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && p != dir && d.Name() == "schema" {
+		if d.IsDir() && p != dir && (d.Name() == "schema" || d.Name() == "templates") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && (strings.HasSuffix(p, ".yaml") || strings.HasSuffix(p, ".yml")) {

@@ -23,7 +23,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W20-F-01 | Trang Tổng quan đầy đủ (SOC Enterprise Dashboard) | Antigravity | W18-G2-01 | ✅ Done (`ui/src/pages/OverviewPage.tsx`, `ui/src/components/overview/EngineLatencyWidget.tsx`, `ActiveRolloutBanner.tsx`, `NodeFaultList.tsx`) |
 | W20-G2-01 | Tối ưu truy vấn thống kê ClickHouse (Hourly SummingMergeTree) | Antigravity | W17-Q-01 | ✅ Done (`control-plane/ingest/hourly_views.go`, `control-plane/ingest/stats.go`, `Fast-path Router`) |
 | W20-S-01 | Template policy cho API có OpenAPI (Positive Security Model) | Antigravity | — | ✅ Done (`rules/templates/api.yaml`, `control-plane/policy/spec.go`, `InheritFrom`) |
-| W20-R-01 | Tinh chỉnh Semantic Detector (SQLi, XSS) | Claude Code | — | ⏳ Chưa bắt đầu |
+| W20-R-01 | Tinh chỉnh Semantic Detector (SQLi, XSS) | Antigravity (PO giao) | — | ✅ Done (`engine/src/detectors/injection/sqli.rs`, `corpus/fp/semantic/`, `engine/tests/semantic_tuning_test.rs`) |
 
 **Nhiệm vụ tuần 19** (khối C1 · Drill-down và rule geo/ASN · kế hoạch `docs/plan/w19-plan.md`)
 
