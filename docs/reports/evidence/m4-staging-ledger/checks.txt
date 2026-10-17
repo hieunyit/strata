@@ -1,0 +1,37 @@
+New PostgreSQL cases (race enabled):
+=== RUN   TestStagingRecordAtomicRetryAndPersistence
+--- PASS: TestStagingRecordAtomicRetryAndPersistence (0.48s)
+=== RUN   TestStagingRecordRollsBackWithAudit
+--- PASS: TestStagingRecordRollsBackWithAudit (0.52s)
+=== RUN   TestStagingSourceChecksAndSingleWriter
+--- PASS: TestStagingSourceChecksAndSingleWriter (0.37s)
+=== RUN   TestStagingLedgerBoundsAndMigration
+--- PASS: TestStagingLedgerBoundsAndMigration (0.51s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	2.973s
+=== RUN   TestLoad
+--- PASS: TestLoad (0.00s)
+=== RUN   TestLoadRejectsTwoMigrationsWithOneNumber
+--- PASS: TestLoadRejectsTwoMigrationsWithOneNumber (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/db	1.047s
+
+Full control-plane suite and lint:
+ok  	github.com/strata/strata/control-plane/admin	6.412s
+ok  	github.com/strata/strata/control-plane/api	8.467s
+ok  	github.com/strata/strata/control-plane/auth	2.903s
+?   	github.com/strata/strata/control-plane/auth/authtest	[no test files]
+ok  	github.com/strata/strata/control-plane/cmd/server	1.163s
+ok  	github.com/strata/strata/control-plane/db	1.071s
+ok  	github.com/strata/strata/control-plane/fleet	28.018s
+?   	github.com/strata/strata/control-plane/gen/strata/admin/v1	[no test files]
+ok  	github.com/strata/strata/control-plane/ingest	5.519s
+ok  	github.com/strata/strata/control-plane/localauth	24.473s
+?   	github.com/strata/strata/control-plane/localauth/localauthtest	[no test files]
+ok  	github.com/strata/strata/control-plane/metrics	1.241s
+ok  	github.com/strata/strata/control-plane/policy	2.138s
+ok  	github.com/strata/strata/control-plane/replay	4.415s
+ok  	github.com/strata/strata/control-plane/rulecat	1.087s
+ok  	github.com/strata/strata/control-plane/rulehealth	1.632s
+ok  	github.com/strata/strata/control-plane/store	13.280s
+0 issues.
