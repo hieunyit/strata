@@ -1,0 +1,40 @@
+{
+  "receipt": {
+    "exception": {
+      "id": "exc-90a535bff44e7e83288b6125798508b4",
+      "rule_id": 700011,
+      "method": "GET",
+      "host": "api.example.test",
+      "path": "/search",
+      "field": "ARGS:Name",
+      "expires_unix_ms": 1792283844254,
+      "reason": "example legitimate request",
+      "source_block_id": "STR-0000-0000-0000-0001"
+    },
+    "policy_id": "resource-api",
+    "policy_version": 2,
+    "etag": "4effe2abfd6116c04fee0307",
+    "state": "DRAFT",
+    "replay_url": "/v1/policies/resource-api/versions/2/replay"
+  },
+  "denied": {
+    "viewer": 403,
+    "approver": 403
+  },
+  "errors": [],
+  "external": [],
+  "writes": [
+    "/v1/exceptions:fromBlockId",
+    "/v1/auth/logout",
+    "/v1/exceptions:fromBlockId",
+    "/v1/auth/logout",
+    "/v1/exceptions:fromBlockId"
+  ],
+  "mobile_form_bounds": {
+    "x": 14,
+    "y": 254.5,
+    "width": 362,
+    "height": 426.5
+  },
+  "scope": "real local auth/API/PostgreSQL, seeded event store; replay queued, no replay worker/deploy/NGINX in browser fixture"
+}

@@ -1,0 +1,24 @@
+{
+  "source_sha256": {
+    "ui/src/pages/EventDetailPage.tsx": "c1c63f6f282e0a9d5b494b5114571684a33a6540cdcc052c350e52444cd79d64",
+    "ui/src/components/events/ExceptionDraft.tsx": "7937363f369890ff0c9b3fa5b26c629edc5d0876c936c2f237ff6be178ab7787",
+    "ui/src/__tests__/ExceptionDraft.test.tsx": "22b6a9b47cac83700517f9be6b79d05830dd475eb1543ed7d8c19bc45f17ef77",
+    "ui/tests-lab/exception-draft.spec.ts": "5a09ff9621ad410e42234ad80e775c1a9d678787a25f873141501a204b965549",
+    "ui/playwright.exceptions.config.ts": "f03e5566b5e9c19474640ae3fc7ee51cb79d68250d04e13b41b82104132c3ca6",
+    "control-plane/api/exception_browser_test.go": "43ca64d741cad726f8aa44768cd9567d9e18ee6cf74115361b96fafe05d3c14f",
+    "control-plane/api/exceptions_test.go": "facd2d27e4c9bf9637933fa58cc7207a80c5f15fd59c017fa359012146178be2"
+  },
+  "ui_build_sha256": {
+    "index.html": "34d96fadb09562a1a95e27af22e125d39dbd6b1753c61e16046388c13d47ee13",
+    "index-CHpjGAo_.js": "3df18fb4c682022e815ab99be272dc4be96f087347d1694ee8e791220dfd9496"
+  },
+  "base_commit": "978dca7",
+  "browser_image": "mcr.microsoft.com/playwright:v1.64.0-noble",
+  "screenshots": "desktop EN prefill / VI receipt, 390px VI form inspected; no auth tokens/password fields exported",
+  "limits": [
+    "seeded in-memory event store, actual local-auth/REST/PostgreSQL for policy/audit/queue",
+    "replay job persists PENDING; worker and deploy are not started",
+    "no NGINX/agent/ClickHouse in this browser fixture",
+    "existing runtime/replay/approval test remains separate; no production claim"
+  ]
+}

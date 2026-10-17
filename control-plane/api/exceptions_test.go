@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth/localauthtest"
 	"github.com/strata/strata/control-plane/rulecat"
@@ -21,7 +22,12 @@ const exceptionBlock = "STR-0000-0000-0000-0001"
 
 func exceptionServer(t *testing.T) (*Server, *store.Store, store.Policy) {
 	t.Helper()
-	pg := store.New(localauthtest.Pool(t))
+	return exceptionServerWithPool(t, localauthtest.Pool(t))
+}
+
+func exceptionServerWithPool(t *testing.T, pool *pgxpool.Pool) (*Server, *store.Store, store.Policy) {
+	t.Helper()
+	pg := store.New(pool)
 	first, err := pg.CreatePolicy(t.Context(), store.Policy{ID: "resource-api", Name: "example-api", Spec: json.RawMessage(`{"mode":"enforce","max_args":200,"future_setting":{"keep":true}}`)}, store.Audit{Actor: "creator", Subject: "creator-sub", Action: "policies.create"})
 	if err != nil {
 		t.Fatal(err)

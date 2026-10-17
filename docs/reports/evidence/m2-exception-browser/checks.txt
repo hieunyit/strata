@@ -1,0 +1,8 @@
+Browser: 1 passed (9.2 s), no request mocks; Go -race fixture PASS 16.413 s
+Database assertions: one exact scoped DRAFT v2, one exception audit, replay PENDING, existing settings retained
+Viewer/approver direct API: 403/403
+No unexpected non-login write paths or external origins; no page errors
+Locale regression red: new test FAIL before fix (7 other tests excluded by -t)
+UI full green: 17 files / 107 tests PASS
+TypeScript lint/build: PASS, final build 15.13 s
+Go API regression with PostgreSQL: PASS 8.936 s; API lint: 0 issues
