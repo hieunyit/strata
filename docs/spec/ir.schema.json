@@ -121,7 +121,8 @@
             "request_body", "files", "files_names", "remote_addr", "protocol",
             "response_status", "response_headers", "response_body",
             "matched_vars", "request_line", "query_string", "xml", "xml_attributes", "body_processor",
-            "multipart_part_headers", "geo_country", "geo_asn"
+            "multipart_part_headers", "geo_country", "geo_asn",
+            "bot_verified", "bot_name"
           ]
         },
         "key": { "description": "Only this name (header, argument, cookie), case-insensitive for headers.", "type": "string", "minLength": 1 },

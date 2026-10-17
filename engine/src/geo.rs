@@ -230,7 +230,7 @@ impl<'a> MmdbView<'a> {
             // Looking for uint control byte (type 2, 8, or 9)
             if window[0] & 0xe0 == 0x40 || window[0] & 0xe0 == 0x00 {
                 let len = (window[0] & 0x1f) as usize;
-                if (1..=4).contains(&len) && rest.len() >= 1 + len {
+                if (1..=4).contains(&len) && rest.len() > len {
                     let mut val = 0u64;
                     for &b in &window[1..=len] {
                         val = (val << 8) | (b as u64);
@@ -542,10 +542,8 @@ impl<'a> GeoResolver<'a> {
             }
 
             // 3. Fallback to MMDB zero-copy view if present
-            if let Some(mmdb) = &self.mmdb {
-                if let Some(loc) = mmdb.lookup_v4(*v4) {
-                    return loc;
-                }
+            if let Some(loc) = self.mmdb.as_ref().and_then(|m| m.lookup_v4(*v4)) {
+                return loc;
             }
         }
 

@@ -43,7 +43,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W18-G2-02 | Danh sách IP của bot tốt | Antigravity | — | ✅ Done (`control-plane/botip/syncer.go`, `good_bots.json` MinIO bundle) |
 | W18-S-01 | Pack bot | Antigravity | — | ✅ Done (`rules/bots/500001`, `500010`, `500020`, `500030`, `strata-rules lint` 94/94 pass) |
 | W18-R-01 | Phủ thêm rule CRS | Claude Code | — | ⏳ Chưa bắt đầu |
-| W18-R-02 | Xác minh bot tốt trong engine | Claude Code | W18-G2-02 | ⏳ Chưa bắt đầu |
+| W18-R-02 | Xác minh bot tốt trong engine | Antigravity (PO giao) | W18-G2-02 | ✅ Done (`engine/src/bot.rs`, `engine/tests/bot_verification_test.rs`, `engine/src/eval.rs`) |
 | RV-R-04 | Challenge, rate theo identity, rate limit toàn cụm | Claude Code | — | ⏳ Chưa bắt đầu |
 
 **Nhiệm vụ tuần 17** (khối C1 · GeoIP và nền bản đồ · kế hoạch `docs/plan/w17-plan.md`)

@@ -413,7 +413,7 @@ where
     let mut any = false;
     for entry in entries {
         for item in entry.as_ref().split(',') {
-            let s = item.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+            let s = item.trim().trim_start_matches(['A', 'S', 'a', 's']);
             if s.is_empty() {
                 continue;
             }
@@ -513,7 +513,7 @@ impl CompiledOperators {
                             for li in first..first + count {
                                 let item_bytes = tables.list(li).ok_or("bundle has missing asn_match item")?;
                                 if let Ok(s) = std::str::from_utf8(item_bytes) {
-                                    let clean = s.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                    let clean = s.trim().trim_start_matches(['A', 'S', 'a', 's']);
                                     if let Ok(num) = clean.parse::<u32>() {
                                         asns.push(num);
                                     }
@@ -528,7 +528,7 @@ impl CompiledOperators {
                         ValueView::Str(bytes) => {
                             if let Ok(s) = std::str::from_utf8(bytes) {
                                 for item in s.split(',') {
-                                    let clean = item.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                    let clean = item.trim().trim_start_matches(['A', 'S', 'a', 's']);
                                     if let Ok(num) = clean.parse::<u32>() {
                                         asns.push(num);
                                     }

@@ -55,8 +55,10 @@ pub mod kind {
     pub const PRIVACY: u32 = 9;
     /// GeoIP & ASN database (.mmdb) and policy geo restrictions (W19-R-01).
     pub const GEO: u32 = 10;
+    /// Good bot verified IP ranges (W18-R-02).
+    pub const BOT: u32 = 11;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 10;
+    pub const KNOWN: u32 = 11;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

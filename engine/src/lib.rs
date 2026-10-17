@@ -9,6 +9,7 @@
 pub mod anon;
 pub mod b64;
 pub mod block_id;
+pub mod bot;
 pub mod budget;
 pub mod bundle;
 pub mod canary;

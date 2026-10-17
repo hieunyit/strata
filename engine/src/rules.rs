@@ -104,6 +104,9 @@ pub const VARS: &[&str] = &[
     // appended (W19-R-01): GeoIP & ASN
     "geo_country",
     "geo_asn",
+    // appended (W18-R-02): Good Bot Verification
+    "bot_verified",
+    "bot_name",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -138,6 +141,8 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("response_body") => "RESPONSE_BODY",
         Some("geo_country") => "GEO_COUNTRY",
         Some("geo_asn") => "GEO_ASN",
+        Some("bot_verified") => "BOT_VERIFIED",
+        Some("bot_name") => "BOT_NAME",
         _ => "",
     }
 }
@@ -465,6 +470,7 @@ pub struct Tables<'a> {
     hs: Option<Hyperscan<'a>>,
     hs_block: Option<Hyperscan<'a>>,
     geo: &'a [u8],
+    bot: &'a [u8],
 }
 
 /// The HYPERSCAN section: pattern id -> condition index, and the image.
@@ -719,6 +725,7 @@ impl<'a> Tables<'a> {
         let hs_block =
             parse_hyperscan_block(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, hs)?;
         let geo = info.section(bundle, kind::GEO);
+        let bot = info.section(bundle, kind::BOT);
 
         Ok(Tables {
             rules,
@@ -731,6 +738,7 @@ impl<'a> Tables<'a> {
             hs,
             hs_block,
             geo,
+            bot,
         })
     }
 
@@ -748,6 +756,7 @@ impl<'a> Tables<'a> {
             hs: None,
             hs_block: None,
             geo: &[],
+            bot: &[],
         })
     }
 
@@ -784,6 +793,7 @@ impl<'a> Tables<'a> {
         let hs_block =
             parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, false)?;
         let geo = info.section(bundle, kind::GEO);
+        let bot = info.section(bundle, kind::BOT);
         Ok(Tables {
             rules,
             n_rules,
@@ -795,6 +805,7 @@ impl<'a> Tables<'a> {
             hs,
             hs_block,
             geo,
+            bot,
         })
     }
 
@@ -810,6 +821,11 @@ impl<'a> Tables<'a> {
     /// Geographic and ASN section slice (W19-R-01).
     pub fn geo(&self) -> &'a [u8] {
         self.geo
+    }
+
+    /// Good bot verified IP ranges section slice (W18-R-02).
+    pub fn bot(&self) -> &'a [u8] {
+        self.bot
     }
 
     pub fn cond(&self, i: u32) -> Option<CondView<'a>> {

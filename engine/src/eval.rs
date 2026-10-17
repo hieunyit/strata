@@ -568,6 +568,7 @@ struct Data<'a> {
     geo_country: [u8; 2],
     geo_asn: [u8; 12],
     geo_asn_len: usize,
+    bot_res: crate::bot::BotVerificationResult,
 }
 
 type ScanKey = (usize, usize, u128, u8);
@@ -1444,6 +1445,16 @@ fn values<'d>(
             name: None,
             val: &d.geo_asn[..d.geo_asn_len],
         })
+    } else if v == const { var("bot_verified") } {
+        TargetVals::One(TargetVal {
+            name: None,
+            val: d.bot_res.verified_bytes(),
+        })
+    } else if v == const { var("bot_name") } {
+        TargetVals::One(TargetVal {
+            name: None,
+            val: d.bot_res.bot_name_bytes(),
+        })
     } else if v == const { var("args") }
         || v == const { var("args_get") }
         || v == const { var("args_post") }
@@ -1482,24 +1493,38 @@ fn values<'d>(
                 .collect(),
         )
     } else if v == const { var("request_headers") } {
-        TargetVals::Many(
-            r.headers
-                .iter()
-                .filter(|(n, _)| keyed(n))
-                .map(|(n, val)| TargetVal {
-                    name: Some(*n),
-                    val,
-                })
-                .collect(),
-        )
+        let mut list: Vec<TargetVal<'d>> = r
+            .headers
+            .iter()
+            .filter(|(n, _)| !n.eq_ignore_ascii_case(b"x-strata-verified-bot"))
+            .filter(|(n, _)| keyed(n))
+            .map(|(n, val)| TargetVal {
+                name: Some(*n),
+                val,
+            })
+            .collect();
+        if keyed(b"x-strata-verified-bot") {
+            list.push(TargetVal {
+                name: Some(b"X-Strata-Verified-Bot"),
+                val: d.bot_res.verified_bytes(),
+            });
+        }
+        TargetVals::Many(list)
     } else if v == const { var("request_headers_names") } {
-        TargetVals::Many(
-            r.headers
-                .iter()
-                .filter(|(n, _)| keyed(n))
-                .map(|(n, _)| TargetVal { name: None, val: n })
-                .collect(),
-        )
+        let mut list: Vec<TargetVal<'d>> = r
+            .headers
+            .iter()
+            .filter(|(n, _)| !n.eq_ignore_ascii_case(b"x-strata-verified-bot"))
+            .filter(|(n, _)| keyed(n))
+            .map(|(n, _)| TargetVal { name: None, val: n })
+            .collect();
+        if keyed(b"x-strata-verified-bot") {
+            list.push(TargetVal {
+                name: None,
+                val: b"X-Strata-Verified-Bot",
+            });
+        }
+        TargetVals::Many(list)
     } else if v == const { var("request_cookies") } {
         TargetVals::Many(
             d.cookies
@@ -1652,6 +1677,28 @@ fn compare(op: &str, x: i64, y: i64) -> bool {
 /// `matched_vars` of the next condition (ModSecurity's MATCHED_VARS).
 type Matched = Vec<Vec<u8>>;
 
+#[inline]
+fn eval_str_op(op: u8, value: ValueView<'_>, tv: Option<&[u8]>, tables: &Tables<'_>) -> bool {
+    let Some(b) = tv else { return false };
+    match (op, value) {
+        (5 /* streq */, ValueView::Str(needle)) => b == needle,
+        (2 /* contains */, ValueView::Str(needle)) => {
+            needle.is_empty() || b.windows(needle.len()).any(|w| w == needle)
+        }
+        (3 /* begins_with */, ValueView::Str(needle)) => b.starts_with(needle),
+        (4 /* ends_with */, ValueView::Str(needle)) => b.ends_with(needle),
+        (1 /* pm */, ValueView::List(first, count)) => {
+            (first..first + count)
+                .filter_map(|li| tables.list(li))
+                .any(|item| {
+                    item.is_empty()
+                        || b.windows(item.len()).any(|w| w.eq_ignore_ascii_case(item))
+                })
+        }
+        _ => false,
+    }
+}
+
 /// Evaluates condition `ci`. `prev` holds the values the previous
 /// condition of the rule matched; with `collect`, every value this one
 /// matches is kept there (else evaluation stops at the first).
@@ -1689,7 +1736,8 @@ fn condition(
     }
     let regexes = ctx.regexes;
     let fallback = regexes.get(ci);
-    if pattern && fallback.is_none() && ctx.hs.is_none() {
+    let is_direct_str_op = matches!(c.op, 1..=5);
+    if pattern && fallback.is_none() && ctx.hs.is_none() && !is_direct_str_op {
         return Outcome::Unsupported;
     }
     let y = match (numeric, c.value) {
@@ -1757,7 +1805,8 @@ fn condition(
             }
             for k in chains.clone() {
                 let chain = &c.transforms[..k];
-                let is_pattern_scan = pattern && fallback.is_none() && !from_prev;
+                let is_pattern_scan =
+                    pattern && ctx.hs.is_some() && fallback.is_none() && !from_prev;
                 let mut tv: Option<Cow<'_, [u8]>> = None;
                 if !is_pattern_scan {
                     tv = match transform::apply_chain_with_budget(
@@ -1799,7 +1848,7 @@ fn condition(
                         "geo_match" => ctx.operators.check_geo_match(ci, tv_ref),
                         "asn_match" => {
                             if let Ok(s) = std::str::from_utf8(tv_ref) {
-                                let clean = s.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                let clean = s.trim().trim_start_matches(['A', 'S', 'a', 's']);
                                 if let Ok(asn) = clean.parse::<u32>() {
                                     ctx.operators.check_asn_match(ci, asn)
                                 } else {
@@ -1832,7 +1881,13 @@ fn condition(
                         }
                     })
                 } else if from_prev {
-                    scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv).contains(&ci)
+                    if ctx.hs.is_some() {
+                        scan(&ctx.hs, &mut ctx.budget, &mut ctx.budget_exceeded, &tv).contains(&ci)
+                    } else {
+                        eval_str_op(c.op, c.value, tv.as_deref(), ctx.tables)
+                    }
+                } else if ctx.hs.is_none() {
+                    eval_str_op(c.op, c.value, tv.as_deref(), ctx.tables)
                 } else {
                     matched(ctx, v.val, chain).contains(&ci)
                 };
@@ -2313,6 +2368,22 @@ pub fn evaluate_with_budget(
         }
         (loc.country_iso, asn_buf, asn_len)
     };
+    let bot_res = {
+        let ua = req
+            .headers
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(b"user-agent"))
+            .map(|(_, v)| *v)
+            .unwrap_or(&[]);
+        let ip_str = std::str::from_utf8(req.client_addr).unwrap_or("");
+        if !tables.bot().is_empty() {
+            crate::bot::BotVerifier::parse_section(tables.bot())
+                .unwrap_or_default()
+                .verify(ua, ip_str)
+        } else {
+            crate::bot::BotVerifier::default().verify(ua, ip_str)
+        }
+    };
     let d = Data {
         req,
         full_uri,
@@ -2330,6 +2401,7 @@ pub fn evaluate_with_budget(
         geo_country,
         geo_asn,
         geo_asn_len,
+        bot_res,
     };
     let hs = tables.hyperscan().zip(db).map(|(map, db)| {
         // validated with the engine (Engine::map), like the stream image
