@@ -45,6 +45,8 @@ func TestRuleAnnotationsInPostgres(t *testing.T) {
 		}
 	}
 	count(942100, "example-api", now, now.Add(time.Second), 1)
+	count(942100, "example-api", now.Add(time.Nanosecond), now.Add(time.Second), 0)
+	count(942100, "example-api", now.Add(-time.Second), now.Add(time.Nanosecond), 1)
 	count(942100, "", now, now.Add(time.Second), 1)
 	count(^uint32(0), "", now, now.Add(time.Second), 1)
 	count(942100, "another-policy", now, now.Add(time.Second), 0)

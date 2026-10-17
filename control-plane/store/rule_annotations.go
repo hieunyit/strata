@@ -46,7 +46,13 @@ func (s *Store) RuleFalsePositiveEvents(ctx context.Context, rule uint32, policy
 	}
 	q := `SELECT count(*) FROM rule_annotation_context c JOIN event_annotations a USING(block_id)
  WHERE c.rule_ids @> ARRAY[$1]::bigint[] AND c.event_at >= $2 AND c.event_at < $3`
-	args := []any{int64(rule), from, to}
+	// PostgreSQL timestamps have microsecond resolution. Round each boundary
+	// up before binding: >= from and < to then preserve the requested window
+	// on that grid instead of silently widening/narrowing it by truncation.
+	ceilMicro := func(t time.Time) time.Time {
+		return t.Add(time.Microsecond - time.Nanosecond).Truncate(time.Microsecond)
+	}
+	args := []any{int64(rule), ceilMicro(from), ceilMicro(to)}
 	if policy != "" {
 		q += " AND c.policy_id = $4"
 		args = append(args, policy)
