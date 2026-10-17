@@ -1,0 +1,13 @@
+=== RUN   TestEventAnnotationAPIInPostgres
+--- PASS: TestEventAnnotationAPIInPostgres (0.73s)
+=== RUN   TestAnnotationBindsRuleContextFromLookedUpEvent
+--- PASS: TestAnnotationBindsRuleContextFromLookedUpEvent (0.59s)
+PASS
+ok  	github.com/strata/strata/control-plane/api	2.472s
+=== RUN   TestEventAnnotationsInPostgres
+--- PASS: TestEventAnnotationsInPostgres (0.65s)
+=== RUN   TestRuleAnnotationsInPostgres
+--- PASS: TestRuleAnnotationsInPostgres (0.66s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	2.418s
+0 issues.

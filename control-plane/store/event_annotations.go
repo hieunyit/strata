@@ -73,10 +73,18 @@ func (s *Store) MarkEventFalsePositive(ctx context.Context, block, reason, etag 
 			return err
 		}
 		result.MarkedAt = result.MarkedAt.UTC()
+		if a.RuleContext != nil {
+			if err := writeRuleAnnotationContext(ctx, tx, block, a.RuleContext); err != nil {
+				return err
+			}
+		}
 		if before.Etag != "" {
 			a.Before = before
 		}
 		a.After = result
+		if a.RuleContext != nil {
+			a.After = map[string]any{"annotation": result, "event_context": a.RuleContext}
+		}
 		if err := writeAudit(ctx, tx, a); err != nil {
 			return err
 		}
