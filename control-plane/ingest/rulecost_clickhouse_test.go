@@ -63,7 +63,7 @@ func TestRuleCosts_ClickHouseMigrationAndRetry(t *testing.T) {
 	if err := ch.conn.Exec(ctx, "ALTER TABLE events DROP COLUMN rule_costs"); err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now().UTC().Truncate(time.Millisecond)
+	now := time.Now().UTC().Truncate(time.Second).Add(250 * time.Millisecond)
 	if err := ch.conn.Exec(ctx, "INSERT INTO events (block_id,timestamp,node_id,action) VALUES (?,?,?,?)", "STR-AAAA-AAAA-AAAA-AAAA", now, "example-node", "block"); err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +109,12 @@ func TestRuleCosts_ClickHouseMigrationAndRetry(t *testing.T) {
 	tm, err := ch.RuleTelemetry(ctx, 942100, "example-api", now, now.Add(time.Second))
 	if err != nil || tm.MatchedEvents != 1 || tm.CostSamples != "3" || tm.CostTotalNS != "1000" || tm.CostMeanNS == nil || math.Abs(*tm.CostMeanNS-1000.0/3) > 0.001 {
 		t.Fatalf("wrong deduplicated telemetry: %+v %v", tm, err)
+	}
+	if sub, err := ch.RuleTelemetry(ctx, 942100, "example-api", now.Add(time.Nanosecond), now.Add(time.Second)); err != nil || sub.MatchedEvents != 0 || sub.CostSamples != "0" {
+		t.Fatalf("fractional lower bound broadened: %+v %v", sub, err)
+	}
+	if sub, err := ch.RuleTelemetry(ctx, 942100, "example-api", now.Add(-time.Second), now.Add(time.Nanosecond)); err != nil || sub.MatchedEvents != 1 || sub.CostSamples != "3" {
+		t.Fatalf("fractional upper bound narrowed: %+v %v", sub, err)
 	}
 	if other, err := ch.RuleTelemetry(ctx, 942100, "different-policy", now, now.Add(time.Second)); err != nil || other.MatchedEvents != 0 || other.CostSamples != "0" || other.CostMeanNS != nil {
 		t.Fatalf("policy scope lost: %+v %v", other, err)
