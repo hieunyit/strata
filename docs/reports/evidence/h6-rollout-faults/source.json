@@ -1,0 +1,8 @@
+{
+  "execution_commit": "95b48eeb25f596cf3416929388d70121e56cfbbf",
+  "source_sha256": {
+    "tests/e2e/rollout_test.go": "35ff6763ab17c4bd3052f7e205291ee3bcd42dfad575d7dec80c237ab89ad5be",
+    "tests/e2e/policy_deploy_test.go": "b52ddf500db9c44b175e0e6a85ac0b9bf8533fc4f87cf773fec3a44a6dd77f13",
+    "tests/e2e/lossless_restart_test.go": "e7468a36229e89edbccebcb77619110de87e9bcf3dc28190813881be8f73c10e"
+  }
+}
