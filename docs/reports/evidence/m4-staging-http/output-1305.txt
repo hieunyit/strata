@@ -1,0 +1,4 @@
+strata-compile: /src/build/m4-staging-http-1305-final/fixture/bundle.sbn: version 1, 2 rules, 2 policies, block page: no, 28752 bytes, 22 cost units
+{"valid_measurement": true, "measured_pairs": 4, "measured_http_attempts": 8, "proxy_status_counts": {"200": 2, "403": 2}, "classifications": {"backend_sql_oracle_reached": 1, "signature_block": 2, "benign_pass": 1}}
+{"valid_measurement": true, "measured_pairs": 4, "measured_http_attempts": 8, "proxy_status_counts": {"403": 3, "200": 1}, "classifications": {"signature_block": 3, "benign_pass": 1}}
+PASS: 8 paired cases / 16 HTTP attempts; correct policy/log/block IDs; no sanitizer reports
