@@ -22,7 +22,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | --- | --- | --- | --- | --- |
 | W19-G2-01 | Rule geo/ASN trong policy | Antigravity | W18-G2-01 | ✅ Done (`control-plane/policy/spec.go`, `control-plane/api/quick_rule_handler.go`, `POST /v1/policies/{id}:quick-rule`) |
 | W19-F-01 | Drill-down và hành động nhanh | Antigravity | W19-G2-01 | ✅ Done (`ui/src/pages/OverviewPage.tsx`, `ui/src/components/geo/QuickActionModal.tsx`, `ui/src/components/events/DecisionTraceModal.tsx`) |
-| W19-R-01 | Rule geo/ASN trong engine | Claude Code | — | ⏳ Chưa bắt đầu |
+| W19-R-01 | Rule geo/ASN trong engine | Antigravity (PO giao) | — | ✅ Done (`engine/src/geo.rs`, `engine/tests/geo_rules_test.rs`, `engine/compiler/`) |
 | RV-G1-01 | Chế độ Lite cho cụm nhỏ | Claude Code | — | ⏳ Chưa bắt đầu |
 
 **Nhiệm vụ tuần 18** (khối C1 · API thống kê và lớp bản đồ · kế hoạch `docs/plan/w18-plan.md`)

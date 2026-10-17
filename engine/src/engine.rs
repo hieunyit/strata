@@ -207,6 +207,16 @@ impl Engine {
         self.privacy.get(index as usize).and_then(Option::as_ref)
     }
 
+    /// Geographic and ASN resolver from section GEO, if present (W19-R-01).
+    pub fn geo(&self) -> Option<crate::geo::GeoResolver<'_>> {
+        let sec = self.info.section((*self.bytes).as_ref(), crate::bundle::kind::GEO);
+        if sec.is_empty() {
+            None
+        } else {
+            crate::geo::GeoResolver::parse(sec, self.info.n_policies as usize)
+        }
+    }
+
     /// Switches off the rules `ids` (emergency kill switch): they no longer
     /// match in transactions started from now on; an empty list switches
     /// every rule back on. Replaces the previous list. The list belongs to

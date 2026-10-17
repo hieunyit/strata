@@ -4,7 +4,7 @@
 //! strata-compile --policies <file> (--key <seed file> | --unsigned)
 //!                --version <n> --out <file>
 //!                [--rules <file>]... [--created-at <ms>] [--rollback]
-//!                [--cost-report <file>] [--identity-key <file>] [--no-hs-block]
+//!                [--cost-report <file>] [--identity-key <file>] [--geo-db <file>] [--no-hs-block]
 //! ```
 //! Files are JSON or YAML by extension. Without --created-at the current
 //! time is used (fixtures pass it to stay reproducible).
@@ -15,6 +15,7 @@
 //! `{"total": n, "rules": [{"id", "name", "cost"}...]}`, costliest first.
 //! `--identity-key` is the installation's key for policies with
 //! `privacy: { identity: hmac }` (32 bytes, or 64 hex digits).
+//! `--geo-db` is the optional GeoIP MMDB database file.
 //! The block-mode copy of the Hyperscan database (section HYPERSCAN_BLOCK,
 //! #27), which engines scan short values with, is written by default (PO
 //! 14/10/2026); `--no-hs-block` leaves it out (smaller bundle, slower
@@ -33,6 +34,7 @@ fn run(args: &[String]) -> Result<(), String> {
         (vec![], None, None, None, None);
     let (mut created, mut rollback, mut unsigned, mut cost_report) = (None, false, false, None);
     let mut identity_key: Option<String> = None;
+    let mut geo_db: Option<String> = None;
     // HYPERSCAN_BLOCK by default (PO 14/10/2026)
     let mut opts = Options { hs_block: true };
     let mut it = args.iter();
@@ -42,6 +44,7 @@ fn run(args: &[String]) -> Result<(), String> {
             "--rules" => rules_files.push(val()?),
             "--policies" => policies = Some(val()?),
             "--key" => key = Some(val()?),
+            "--geo-db" => geo_db = Some(val()?),
             "--version" => {
                 version = Some(
                     val()?
@@ -90,6 +93,10 @@ fn run(args: &[String]) -> Result<(), String> {
     if let Some(f) = &identity_key {
         let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
         pol.identity_key = Some(read_identity_key(&b).map_err(|e| format!("{f}: {e}"))?);
+    }
+    if let Some(f) = &geo_db {
+        let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
+        pol.geo_db = Some(b);
     }
     let created_at_ms = created.unwrap_or_else(|| {
         SystemTime::now()

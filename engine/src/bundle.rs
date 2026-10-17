@@ -53,8 +53,10 @@ pub mod kind {
     pub const HYPERSCAN_BLOCK: u32 = 8;
     /// Privacy settings of the policies (P-01 §1, `crate::privacy`).
     pub const PRIVACY: u32 = 9;
+    /// GeoIP & ASN database (.mmdb) and policy geo restrictions (W19-R-01).
+    pub const GEO: u32 = 10;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 9;
+    pub const KNOWN: u32 = 10;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

@@ -176,6 +176,36 @@ fn condition(c: &Value) -> Result<CondDef> {
             }
             _ => return Err("ip_match requires a list value".into()),
         }
+    } else if op_type_str == "geo_match" {
+        match &value {
+            RValue::List(items) => {
+                let mut strs = Vec::with_capacity(items.len());
+                for b in items {
+                    strs.push(
+                        std::str::from_utf8(b)
+                            .map_err(|_| "geo_match: entry is not valid utf-8".to_string())?,
+                    );
+                }
+                libstrata::operators::validate_geo_match_syntax(&strs)
+                    .map_err(|e| format!("geo_match: {e}"))?;
+            }
+            _ => return Err("geo_match requires a list value".into()),
+        }
+    } else if op_type_str == "asn_match" {
+        match &value {
+            RValue::List(items) => {
+                let mut strs = Vec::with_capacity(items.len());
+                for b in items {
+                    strs.push(
+                        std::str::from_utf8(b)
+                            .map_err(|_| "asn_match: entry is not valid utf-8".to_string())?,
+                    );
+                }
+                libstrata::operators::validate_asn_match_syntax(&strs)
+                    .map_err(|e| format!("asn_match: {e}"))?;
+            }
+            _ => return Err("asn_match requires a list value".into()),
+        }
     }
     Ok(CondDef {
         targets,
@@ -258,6 +288,10 @@ pub struct Policies {
     /// the installation's identity key, for policies with `identity: hmac`
     /// (strata-compile --identity-key; the control plane keeps it)
     pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
+    /// geo restrictions, indexed by policy index
+    pub geo_restrictions: Vec<Option<libstrata::geo::PolicyGeoRestriction>>,
+    /// optional raw MMDB database bytes
+    pub geo_db: Option<Vec<u8>>,
 }
 
 /// Reads an identity key file: 32 raw bytes, or 64 hex digits (a final
@@ -291,6 +325,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut seen = BTreeSet::new();
     let mut policies = vec![];
     let mut privacy = vec![];
+    let mut geo_restrictions = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
         let name = s(p, "name").to_string();
         if !seen.insert(name.clone()) {
@@ -399,6 +434,63 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 identity_hmac,
             });
         }
+        let mut geo_restriction = None;
+        if let Some(gr) = p.get("geo_restrictions") {
+            let enabled = gr.get("enabled").and_then(Value::as_bool).unwrap_or(true);
+            let default_action = match gr.get("default_action").and_then(Value::as_str) {
+                Some("monitor") => libstrata::geo::GeoAction::Monitor,
+                _ => libstrata::geo::GeoAction::Pass,
+            };
+            let action = libstrata::geo::GeoAction::Block;
+            let mut blocked_countries = Vec::new();
+            if let Some(bc) = gr.get("blocked_countries").and_then(Value::as_array) {
+                for c in bc {
+                    if let Some(s) = c.as_str() {
+                        let bytes = s.as_bytes();
+                        if bytes.len() == 2 {
+                            blocked_countries.push([bytes[0], bytes[1]]);
+                        }
+                    }
+                }
+            }
+            let mut challenged_countries = Vec::new();
+            if let Some(cc) = gr.get("challenged_countries").and_then(Value::as_array) {
+                for c in cc {
+                    if let Some(s) = c.as_str() {
+                        let bytes = s.as_bytes();
+                        if bytes.len() == 2 {
+                            challenged_countries.push([bytes[0], bytes[1]]);
+                        }
+                    }
+                }
+            }
+            let mut blocked_asns = Vec::new();
+            if let Some(ba) = gr.get("blocked_asns").and_then(Value::as_array) {
+                for a in ba {
+                    if let Some(num) = a.as_u64() {
+                        blocked_asns.push(num as u32);
+                    }
+                }
+            }
+            let mut challenged_asns = Vec::new();
+            if let Some(ca) = gr.get("challenged_asns").and_then(Value::as_array) {
+                for a in ca {
+                    if let Some(num) = a.as_u64() {
+                        challenged_asns.push(num as u32);
+                    }
+                }
+            }
+            geo_restriction = Some(libstrata::geo::PolicyGeoRestriction {
+                enabled,
+                default_action,
+                action,
+                blocked_countries,
+                blocked_asns,
+                challenge_countries: challenged_countries,
+                challenge_asns: challenged_asns,
+            });
+        }
+        geo_restrictions.push(geo_restriction);
         policies.push((
             name,
             mode,
@@ -436,6 +528,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         block_page,
         privacy,
         identity_key: None,
+        geo_restrictions,
+        geo_db: None,
     })
 }
 
@@ -627,7 +721,12 @@ fn op_weight(op: u8, fallback: bool) -> u64 {
     match OPERATORS.get(op as usize).copied().unwrap_or("") {
         "rx" if fallback => 25,
         "detect_sqli" | "detect_xss" => 10,
-        "validate_byte_range" | "validate_url_encoding" | "validate_utf8_encoding" | "ip_match" => {
+        "validate_byte_range"
+        | "validate_url_encoding"
+        | "validate_utf8_encoding"
+        | "ip_match"
+        | "geo_match"
+        | "asn_match" => {
             2
         }
         _ => 1,
@@ -929,6 +1028,32 @@ fn compile_unsigned_with(
         .map_err(|e| format!("{e} (strata-compile --identity-key)"))?;
     if !privacy.is_empty() {
         sections.push((libstrata::bundle::kind::PRIVACY, privacy));
+    }
+    let has_geo_restrictions = policies.geo_restrictions.iter().any(|r| r.is_some());
+    if has_geo_restrictions || policies.geo_db.is_some() {
+        let restrictions: Vec<libstrata::geo::PolicyGeoRestriction> = (0..policies.policies.len())
+            .map(|i| {
+                policies
+                    .geo_restrictions
+                    .get(i)
+                    .and_then(|opt| opt.clone())
+                    .unwrap_or(libstrata::geo::PolicyGeoRestriction {
+                        enabled: false,
+                        default_action: libstrata::geo::GeoAction::Pass,
+                        action: libstrata::geo::GeoAction::Block,
+                        blocked_countries: vec![],
+                        blocked_asns: vec![],
+                        challenge_countries: vec![],
+                        challenge_asns: vec![],
+                    })
+            })
+            .collect();
+        let geo_section = libstrata::geo::encode_section(
+            &restrictions,
+            &[],
+            policies.geo_db.as_deref(),
+        );
+        sections.push((libstrata::bundle::kind::GEO, geo_section));
     }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
     let names: Vec<PolicySpec> = policies

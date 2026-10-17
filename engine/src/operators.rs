@@ -379,22 +379,77 @@ where
     Ok(())
 }
 
+/// Validates syntax of a `geo_match` list of ISO country codes (2-letter uppercase).
+pub fn validate_geo_match_syntax<I, S>(entries: I) -> Result<(), String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut any = false;
+    for entry in entries {
+        for item in entry.as_ref().split(',') {
+            let s = item.trim();
+            if s.is_empty() {
+                continue;
+            }
+            if s.len() != 2 || !s.chars().all(|c| c.is_ascii_uppercase()) {
+                return Err(format!("invalid country ISO code {s:?}, must be 2 uppercase ASCII letters"));
+            }
+            any = true;
+        }
+    }
+    if !any {
+        return Err("empty geo_match entry list".to_string());
+    }
+    Ok(())
+}
+
+/// Validates syntax of an `asn_match` list of AS numbers (e.g. 13335, AS15169).
+pub fn validate_asn_match_syntax<I, S>(entries: I) -> Result<(), String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut any = false;
+    for entry in entries {
+        for item in entry.as_ref().split(',') {
+            let s = item.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+            if s.is_empty() {
+                continue;
+            }
+            s.parse::<u32>()
+                .map_err(|_| format!("invalid ASN number in {item:?}"))?;
+            any = true;
+        }
+    }
+    if !any {
+        return Err("empty asn_match entry list".to_string());
+    }
+    Ok(())
+}
+
 /// Pre-compiled operator lookup tables built once at bundle map time.
 #[derive(Clone, Debug, Default)]
 pub struct CompiledOperators {
     byte_ranges: Vec<(u32, ByteRangeSet)>,
     ip_matches: Vec<(u32, IpMatchSet)>,
+    geo_matches: Vec<(u32, Vec<[u8; 2]>)>,
+    asn_matches: Vec<(u32, Vec<u32>)>,
 }
 
 impl CompiledOperators {
-    /// Builds lookup structures for all `validate_byte_range` and `ip_match`
-    /// conditions in `tables`.
+    /// Builds lookup structures for all `validate_byte_range`, `ip_match`,
+    /// `geo_match`, and `asn_match` conditions in `tables`.
     pub fn build(tables: &Tables<'_>) -> Result<Self, &'static str> {
         let vbr_code = code(crate::rules::OPERATORS, "validate_byte_range").unwrap_or(u8::MAX);
         let ipm_code = code(crate::rules::OPERATORS, "ip_match").unwrap_or(u8::MAX);
+        let geo_code = code(crate::rules::OPERATORS, "geo_match").unwrap_or(u8::MAX);
+        let asn_code = code(crate::rules::OPERATORS, "asn_match").unwrap_or(u8::MAX);
 
         let mut byte_ranges = Vec::new();
         let mut ip_matches = Vec::new();
+        let mut geo_matches = Vec::new();
+        let mut asn_matches = Vec::new();
 
         for ri in 0..tables.n_rules() {
             let Some(r) = tables.rule(ri) else { continue };
@@ -425,16 +480,80 @@ impl CompiledOperators {
                     let set = IpMatchSet::parse_entries(&entries)
                         .map_err(|_| "bundle has invalid ip_match entry")?;
                     ip_matches.push((ci, set));
+                } else if c.op == geo_code {
+                    let mut countries = Vec::new();
+                    match c.value {
+                        ValueView::List(first, count) => {
+                            for li in first..first + count {
+                                let item_bytes = tables.list(li).ok_or("bundle has missing geo_match item")?;
+                                if item_bytes.len() == 2 {
+                                    countries.push([item_bytes[0].to_ascii_uppercase(), item_bytes[1].to_ascii_uppercase()]);
+                                }
+                            }
+                        }
+                        ValueView::Str(bytes) => {
+                            if let Ok(s) = std::str::from_utf8(bytes) {
+                                for item in s.split(',') {
+                                    let b = item.trim().as_bytes();
+                                    if b.len() == 2 {
+                                        countries.push([b[0].to_ascii_uppercase(), b[1].to_ascii_uppercase()]);
+                                    }
+                                }
+                            }
+                        }
+                        _ => return Err("bundle has invalid geo_match value"),
+                    }
+                    countries.sort_unstable();
+                    countries.dedup();
+                    geo_matches.push((ci, countries));
+                } else if c.op == asn_code {
+                    let mut asns = Vec::new();
+                    match c.value {
+                        ValueView::List(first, count) => {
+                            for li in first..first + count {
+                                let item_bytes = tables.list(li).ok_or("bundle has missing asn_match item")?;
+                                if let Ok(s) = std::str::from_utf8(item_bytes) {
+                                    let clean = s.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                    if let Ok(num) = clean.parse::<u32>() {
+                                        asns.push(num);
+                                    }
+                                }
+                            }
+                        }
+                        ValueView::Int(n) => {
+                            if n > 0 {
+                                asns.push(n as u32);
+                            }
+                        }
+                        ValueView::Str(bytes) => {
+                            if let Ok(s) = std::str::from_utf8(bytes) {
+                                for item in s.split(',') {
+                                    let clean = item.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                    if let Ok(num) = clean.parse::<u32>() {
+                                        asns.push(num);
+                                    }
+                                }
+                            }
+                        }
+                        _ => return Err("bundle has invalid asn_match value"),
+                    }
+                    asns.sort_unstable();
+                    asns.dedup();
+                    asn_matches.push((ci, asns));
                 }
             }
         }
 
         byte_ranges.sort_unstable_by_key(|(ci, _)| *ci);
         ip_matches.sort_unstable_by_key(|(ci, _)| *ci);
+        geo_matches.sort_unstable_by_key(|(ci, _)| *ci);
+        asn_matches.sort_unstable_by_key(|(ci, _)| *ci);
 
         Ok(Self {
             byte_ranges,
             ip_matches,
+            geo_matches,
+            asn_matches,
         })
     }
 
@@ -450,6 +569,29 @@ impl CompiledOperators {
     pub fn check_ip_match(&self, ci: u32, val: &[u8]) -> bool {
         match self.ip_matches.binary_search_by_key(&ci, |(c, _)| *c) {
             Ok(idx) => self.ip_matches[idx].1.is_match(val),
+            Err(_) => false,
+        }
+    }
+
+    /// Evaluates condition `ci` with `geo_match`.
+    pub fn check_geo_match(&self, ci: u32, country_iso: &[u8]) -> bool {
+        if country_iso.len() != 2 {
+            return false;
+        }
+        let needle = [country_iso[0].to_ascii_uppercase(), country_iso[1].to_ascii_uppercase()];
+        match self.geo_matches.binary_search_by_key(&ci, |(c, _)| *c) {
+            Ok(idx) => self.geo_matches[idx].1.binary_search(&needle).is_ok(),
+            Err(_) => false,
+        }
+    }
+
+    /// Evaluates condition `ci` with `asn_match`.
+    pub fn check_asn_match(&self, ci: u32, asn: u32) -> bool {
+        if asn == 0 {
+            return false;
+        }
+        match self.asn_matches.binary_search_by_key(&ci, |(c, _)| *c) {
+            Ok(idx) => self.asn_matches[idx].1.binary_search(&asn).is_ok(),
             Err(_) => false,
         }
     }

@@ -101,6 +101,9 @@ pub const VARS: &[&str] = &[
     "body_processor",
     // appended (W08 review): codes above keep their meaning
     "multipart_part_headers",
+    // appended (W19-R-01): GeoIP & ASN
+    "geo_country",
+    "geo_asn",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -133,6 +136,8 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("response_status") => "RESPONSE_STATUS",
         Some("response_headers") => "RESPONSE_HEADERS",
         Some("response_body") => "RESPONSE_BODY",
+        Some("geo_country") => "GEO_COUNTRY",
+        Some("geo_asn") => "GEO_ASN",
         _ => "",
     }
 }
@@ -176,6 +181,9 @@ pub const OPERATORS: &[&str] = &[
     "validate_url_encoding",
     "validate_utf8_encoding",
     "ip_match",
+    // appended (W19-R-01): GeoIP & ASN
+    "geo_match",
+    "asn_match",
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;
@@ -456,6 +464,7 @@ pub struct Tables<'a> {
     page: Option<(&'a [u8], &'a [u8])>,
     hs: Option<Hyperscan<'a>>,
     hs_block: Option<Hyperscan<'a>>,
+    geo: &'a [u8],
 }
 
 /// The HYPERSCAN section: pattern id -> condition index, and the image.
@@ -709,6 +718,7 @@ impl<'a> Tables<'a> {
         let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
         let hs_block =
             parse_hyperscan_block(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, hs)?;
+        let geo = info.section(bundle, kind::GEO);
 
         Ok(Tables {
             rules,
@@ -720,6 +730,7 @@ impl<'a> Tables<'a> {
             page,
             hs,
             hs_block,
+            geo,
         })
     }
 
@@ -736,6 +747,7 @@ impl<'a> Tables<'a> {
             page: None,
             hs: None,
             hs_block: None,
+            geo: &[],
         })
     }
 
@@ -771,6 +783,7 @@ impl<'a> Tables<'a> {
         // not repeated on every view
         let hs_block =
             parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, false)?;
+        let geo = info.section(bundle, kind::GEO);
         Ok(Tables {
             rules,
             n_rules,
@@ -781,6 +794,7 @@ impl<'a> Tables<'a> {
             page,
             hs,
             hs_block,
+            geo,
         })
     }
 
@@ -791,6 +805,11 @@ impl<'a> Tables<'a> {
     /// The block-mode copy of the stream database, for short values.
     pub fn hyperscan_block(&self) -> Option<Hyperscan<'a>> {
         self.hs_block
+    }
+
+    /// Geographic and ASN section slice (W19-R-01).
+    pub fn geo(&self) -> &'a [u8] {
+        self.geo
     }
 
     pub fn cond(&self, i: u32) -> Option<CondView<'a>> {

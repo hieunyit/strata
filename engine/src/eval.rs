@@ -565,6 +565,9 @@ struct Data<'a> {
     b64_get: usize,
     /// decoded copies of the cookies that look base64-encoded
     b64_cookies: Vec<(Vec<u8>, Vec<u8>)>,
+    geo_country: [u8; 2],
+    geo_asn: [u8; 12],
+    geo_asn_len: usize,
 }
 
 type ScanKey = (usize, usize, u128, u8);
@@ -1431,6 +1434,16 @@ fn values<'d>(
             name: None,
             val: r.client_addr,
         })
+    } else if v == const { var("geo_country") } {
+        TargetVals::One(TargetVal {
+            name: None,
+            val: &d.geo_country,
+        })
+    } else if v == const { var("geo_asn") } {
+        TargetVals::One(TargetVal {
+            name: None,
+            val: &d.geo_asn[..d.geo_asn_len],
+        })
     } else if v == const { var("args") }
         || v == const { var("args_get") }
         || v == const { var("args_post") }
@@ -1662,7 +1675,12 @@ fn condition(
     let detect = matches!(op, "detect_sqli" | "detect_xss");
     let operator_v2 = matches!(
         op,
-        "validate_byte_range" | "validate_url_encoding" | "validate_utf8_encoding" | "ip_match"
+        "validate_byte_range"
+            | "validate_url_encoding"
+            | "validate_utf8_encoding"
+            | "ip_match"
+            | "geo_match"
+            | "asn_match"
     );
     if !(numeric || pattern || detect || operator_v2)
         || !c.transforms.iter().all(|&t| transform::is_implemented(t))
@@ -1778,6 +1796,19 @@ fn condition(
                         "validate_url_encoding" => operators::validate_url_encoding(tv_ref),
                         "validate_utf8_encoding" => operators::validate_utf8_encoding(tv_ref),
                         "ip_match" => ctx.operators.check_ip_match(ci, tv_ref),
+                        "geo_match" => ctx.operators.check_geo_match(ci, tv_ref),
+                        "asn_match" => {
+                            if let Ok(s) = std::str::from_utf8(tv_ref) {
+                                let clean = s.trim().trim_start_matches(|c| c == 'A' || c == 'S' || c == 'a' || c == 's');
+                                if let Ok(asn) = clean.parse::<u32>() {
+                                    ctx.operators.check_asn_match(ci, asn)
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        }
                         _ => false,
                     })
                 } else if let Some(fb) = fallback {
@@ -2245,6 +2276,43 @@ pub fn evaluate_with_budget(
         &mut left,
     ));
     let b64_cookies = crate::b64::decode_all(cookies.iter().map(pair), &mut left);
+    let (geo_country, geo_asn, geo_asn_len) = {
+        let ip_str = std::str::from_utf8(req.client_addr).unwrap_or("");
+        let loc = if !tables.geo().is_empty() {
+            crate::geo::GeoResolver::parse(tables.geo(), 4096)
+                .map(|r| r.resolve(ip_str))
+                .unwrap_or_else(|| {
+                    if let Some(ip) = crate::geo::parse_ip_or_host(ip_str) {
+                        if crate::geo::is_private_ip(&ip) {
+                            crate::geo::GeoLocation::INTERNAL
+                        } else {
+                            crate::geo::GeoLocation::default()
+                        }
+                    } else {
+                        crate::geo::GeoLocation::default()
+                    }
+                })
+        } else if let Some(ip) = crate::geo::parse_ip_or_host(ip_str) {
+            if crate::geo::is_private_ip(&ip) {
+                crate::geo::GeoLocation::INTERNAL
+            } else {
+                crate::geo::GeoLocation::default()
+            }
+        } else {
+            crate::geo::GeoLocation::default()
+        };
+
+        let mut asn_buf = [0u8; 12];
+        let mut asn_len = 0;
+        if loc.asn > 0 {
+            let s = loc.asn.to_string();
+            let b = s.as_bytes();
+            let len = std::cmp::min(b.len(), asn_buf.len());
+            asn_buf[..len].copy_from_slice(&b[..len]);
+            asn_len = len;
+        }
+        (loc.country_iso, asn_buf, asn_len)
+    };
     let d = Data {
         req,
         full_uri,
@@ -2259,6 +2327,9 @@ pub fn evaluate_with_budget(
         b64_args,
         b64_get,
         b64_cookies,
+        geo_country,
+        geo_asn,
+        geo_asn_len,
     };
     let hs = tables.hyperscan().zip(db).map(|(map, db)| {
         // validated with the engine (Engine::map), like the stream image
