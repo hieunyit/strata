@@ -1,0 +1,1 @@
+DROP INDEX rule_staging_actions_notice_order;
