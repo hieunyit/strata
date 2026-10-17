@@ -124,6 +124,21 @@ const mockApi = {
       { geohash: 'w7e', lat: 21.0285, lon: 105.8542, city: 'Hanoi', country_iso: 'VN', events: 19800, blocked: 40, top_attack_type: 'XSS' }
     ]
   },
+  '/v1/stats/timeline': {
+    from: '2026-10-15T16:00:00Z',
+    to: '2026-10-16T16:00:00Z',
+    step: '1h',
+    buckets: [
+      { timestamp: '2026-10-16T08:00:00Z', total: 6400, blocked: 280, monitored: 80, passed: 6040 },
+      { timestamp: '2026-10-16T09:00:00Z', total: 7200, blocked: 310, monitored: 90, passed: 6800 },
+      { timestamp: '2026-10-16T10:00:00Z', total: 8500, blocked: 420, monitored: 110, passed: 7970 },
+      { timestamp: '2026-10-16T11:00:00Z', total: 9100, blocked: 510, monitored: 130, passed: 8460 },
+      { timestamp: '2026-10-16T12:00:00Z', total: 8800, blocked: 390, monitored: 95, passed: 8315 },
+      { timestamp: '2026-10-16T13:00:00Z', total: 10010, blocked: 480, monitored: 130, passed: 9400 },
+      { timestamp: '2026-10-16T14:00:00Z', total: 10970, blocked: 620, monitored: 150, passed: 10200 },
+      { timestamp: '2026-10-16T15:00:00Z', total: 12025, blocked: 640, monitored: 185, passed: 11200 }
+    ]
+  },
   '/v1/events:search': {
     events: [
       {

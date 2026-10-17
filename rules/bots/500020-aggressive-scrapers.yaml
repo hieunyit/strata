@@ -1,0 +1,36 @@
+rule:
+  id: 500020
+  name: "Aggressive or unauthorized headless scraper"
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+      - operator:
+          type: rx
+          value: '(?i)\b(?:scrapy|aiohttp|python-requests|go-http-client|apache-httpclient)\b'
+        targets:
+          - var: request_headers
+            key: User-Agent
+  score: 50
+  action_mode: score
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    author: strata
+    attack_type: bot
+tests:
+  match:
+    - uri: /api/v1/catalog
+      headers:
+        Host: api.example.test
+        User-Agent: "Scrapy/2.11.0 (+https://scrapy.org)"
+    - uri: /v1/products
+      headers:
+        Host: api.example.test
+        User-Agent: "python-requests/2.31.0"
+  no_match:
+    - uri: /v1/products
+      headers:
+        Host: api.example.test
+        User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

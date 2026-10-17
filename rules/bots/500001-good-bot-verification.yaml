@@ -1,0 +1,44 @@
+rule:
+  id: 500001
+  name: "Spoofed or unverified search engine crawler"
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+      - operator:
+          type: rx
+          value: '(?i)\b(?:googlebot|bingbot|msnbot)\b'
+        targets:
+          - var: request_headers
+            key: User-Agent
+      - operator:
+          type: streq
+          value: "false"
+        targets:
+          - var: request_headers
+            key: X-Strata-Verified-Bot
+  score: 75
+  action_mode: score
+  severity: error
+  metadata:
+    source: strata
+    license: Apache-2.0
+    author: strata
+    attack_type: bot
+tests:
+  match:
+    - uri: /products
+      headers:
+        Host: api.example.test
+        User-Agent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+        X-Strata-Verified-Bot: "false"
+  no_match:
+    - uri: /products
+      headers:
+        Host: api.example.test
+        User-Agent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+        X-Strata-Verified-Bot: "true"
+    - uri: /products
+      headers:
+        Host: api.example.test
+        User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"

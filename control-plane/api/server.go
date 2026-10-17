@@ -131,6 +131,8 @@ func (s *Server) registerRoutes() {
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
 	v1.HandleFunc("/v1/stats/geo", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleGeoStats))
+	v1.HandleFunc("/v1/stats/geo:watch", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleWatchGeo))
+	v1.HandleFunc("/v1/stats/timeline", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleTimelineStats))
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
 		roles := make([]string, len(p.Roles))

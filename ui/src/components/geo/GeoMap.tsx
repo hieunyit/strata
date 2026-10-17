@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Globe, Shield, RefreshCw, Layers, Radio } from 'lucide-react';
+import { Globe, RefreshCw, Radio } from 'lucide-react';
 import { apiClient, GeoStatsResponse } from '../../api/client';
 import { WORLD_COUNTRIES, GEO_CENTERS } from './worldData';
 
@@ -7,16 +7,41 @@ export interface GeoMapProps {
   onSelectCountry?: (countryIso: string) => void;
   onSelectASN?: (asn: number) => void;
   policyId?: string;
+  selectedCountry?: string | null;
+  selectedASN?: number | null;
+  timeRangeDays?: number;
+  actionFilter?: string;
+  categoryFilter?: string;
 }
 
-export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, policyId }) => {
+function getLogChoropleth(events: number): string {
+  if (events <= 0) return '#0f172a';
+  if (events < 100) return '#1e3a8a';
+  if (events < 1000) return '#0284c7';
+  if (events < 10000) return '#d97706';
+  if (events < 50000) return '#ea580c';
+  return '#dc2626';
+}
+
+export const GeoMap: React.FC<GeoMapProps> = ({
+  onSelectCountry,
+  onSelectASN,
+  policyId,
+  selectedCountry: externalSelectedCountry,
+  selectedASN: externalSelectedASN,
+  timeRangeDays,
+  actionFilter,
+}) => {
   const [data, setData] = useState<GeoStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [windowDays, setWindowDays] = useState<number>(1); // 1 = 24h, 7 = 7d, 30 = 30d
+  const [internalWindowDays, setInternalWindowDays] = useState<number>(1); // 1 = 24h, 7 = 7d, 30 = 30d
   const [groupBy, setGroupBy] = useState<'all' | 'country' | 'city' | 'asn'>('all');
-  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [internalSelectedCountry, setInternalSelectedCountry] = useState<string | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
+
+  const windowDays = timeRangeDays !== undefined ? timeRangeDays : internalWindowDays;
+  const activeSelectedCountry = externalSelectedCountry !== undefined ? externalSelectedCountry : internalSelectedCountry;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -29,6 +54,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
         to,
         groupBy,
         policy_id: policyId,
+        action: actionFilter && actionFilter !== 'all' ? actionFilter : undefined,
       });
       setData(res);
     } catch (e) {
@@ -36,20 +62,18 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
     } finally {
       setLoading(false);
     }
-  }, [windowDays, groupBy, policyId]);
+  }, [windowDays, groupBy, policyId, actionFilter]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
   const handleCountryClick = (iso: string) => {
-    setSelectedCountry((prev) => {
-      const next = prev === iso ? null : iso;
-      if (onSelectCountry) {
-        onSelectCountry(next ?? '');
-      }
-      return next;
-    });
+    const next = activeSelectedCountry === iso ? null : iso;
+    setInternalSelectedCountry(next);
+    if (onSelectCountry) {
+      onSelectCountry(next ?? '');
+    }
   };
 
   const countries = data?.countries ?? [];
@@ -60,7 +84,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
   // Map country name or ISO to attack record
   const attackMap = new Map<string, typeof countries[0]>();
   for (const c of countries) {
-    attackMap.set(c.country_iso, c);
+    attackMap.set(c.country_iso.toUpperCase(), c);
     const center = GEO_CENTERS[c.country_iso];
     if (center) {
       attackMap.set(center.name.toLowerCase(), c);
@@ -110,7 +134,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                 key={w.val}
                 type="button"
                 data-testid={`time-window-${w.val}d`}
-                onClick={() => setWindowDays(w.val)}
+                onClick={() => setInternalWindowDays(w.val)}
                 className={`px-3 py-1 rounded text-[11px] font-medium transition-all ${
                   windowDays === w.val
                     ? 'bg-accent/20 text-accent font-semibold shadow-sm border border-accent/40'
@@ -167,8 +191,8 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
             <span>
               {hoveredCountry ? (
                 <span className="text-accent font-semibold">{hoveredCountry}</span>
-              ) : selectedCountry ? (
-                <span className="text-rose-400 font-semibold">FILTER: {selectedCountry}</span>
+              ) : activeSelectedCountry ? (
+                <span className="text-rose-400 font-semibold">FILTER: {activeSelectedCountry}</span>
               ) : (
                 <span>INTERACTIVE GEOGRAPHIC TELEMETRY</span>
               )}
@@ -220,11 +244,14 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
               <g id="world-countries-layer">
                 {WORLD_COUNTRIES.map((c, idx) => {
                   const isVN = c.name === 'Vietnam';
-                  const isAttacker = attackMap.has(c.name.toLowerCase());
-                  const isSel = selectedCountry && (attackMap.get(selectedCountry)?.country_iso === c.name || selectedCountry === 'VN' && isVN);
+                  const attackRecord = attackMap.get(c.name.toLowerCase());
+                  const isSel = activeSelectedCountry && (
+                    attackRecord?.country_iso === activeSelectedCountry ||
+                    (activeSelectedCountry === 'VN' && isVN)
+                  );
 
-                  let fillColor = '#0f172a'; // Default slate
-                  let strokeColor = '#1e293b'; // Country boundary separation line
+                  let fillColor = '#0f172a'; // Default dark slate
+                  let strokeColor = '#1e293b'; // Country boundary line
                   let strokeW = 0.55;
 
                   if (isVN) {
@@ -234,9 +261,9 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                   } else if (isSel) {
                     fillColor = '#38131e';
                     strokeColor = '#f43f5e';
-                    strokeW = 1.2;
-                  } else if (isAttacker) {
-                    fillColor = '#171c2f';
+                    strokeW = 1.3;
+                  } else if (attackRecord) {
+                    fillColor = getLogChoropleth(attackRecord.events);
                     strokeColor = '#334155';
                   }
 
@@ -249,7 +276,14 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                       strokeWidth={strokeW}
                       onMouseEnter={() => setHoveredCountry(c.name)}
                       onMouseLeave={() => setHoveredCountry(null)}
-                      className="transition-colors duration-150 hover:fill-[#1e293b] hover:stroke-cyan-400 cursor-pointer"
+                      onClick={() => {
+                        if (attackRecord) {
+                          handleCountryClick(attackRecord.country_iso);
+                        } else if (isVN) {
+                          handleCountryClick('VN');
+                        }
+                      }}
+                      className="transition-colors duration-150 hover:stroke-cyan-400 cursor-pointer"
                     >
                       <title>{c.name}</title>
                     </path>
@@ -271,7 +305,6 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
 
                     return (
                       <g key={`arc-group-${c.country_iso}`}>
-                        {/* Curved flight path */}
                         <path
                           d={`M ${startX} ${startY} Q ${midX} ${midY} ${TARGET_X} ${TARGET_Y}`}
                           fill="none"
@@ -312,176 +345,221 @@ export const GeoMap: React.FC<GeoMapProps> = ({ onSelectCountry, onSelectASN, po
                 </text>
               </g>
 
+              {/* CITY GEOHASH GRID LAYER */}
+              {(groupBy === 'all' || groupBy === 'city') &&
+                grid.map((pt, i) => {
+                  const cx = ((pt.lon + 180) * 1000) / 360;
+                  const cy = ((90 - pt.lat) * 500) / 180;
+                  const r = Math.max(4, Math.min(14, Math.sqrt(pt.events) / 10));
+                  const threatColor =
+                    pt.top_attack_type === 'sqli'
+                      ? '#ef4444'
+                      : pt.top_attack_type === 'xss'
+                      ? '#a855f7'
+                      : pt.top_attack_type === 'bot'
+                      ? '#f59e0b'
+                      : '#06b6d4';
+
+                  return (
+                    <g
+                      key={`grid-${pt.geohash || i}`}
+                      className="cursor-pointer"
+                      data-testid={`grid-point-${pt.geohash || i}`}
+                    >
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={r}
+                        fill={threatColor}
+                        fillOpacity={0.85}
+                        stroke="#ffffff"
+                        strokeWidth={0.8}
+                      />
+                      <title>{`${pt.city || pt.geohash} (${pt.country_iso}): ${pt.events.toLocaleString()} events (${pt.blocked.toLocaleString()} blocked) - Top Attack: ${pt.top_attack_type}`}</title>
+                    </g>
+                  );
+                })}
+
               {/* DYNAMIC ATTACK ORIGIN PULSES */}
-              {countries.map((c, idx) => {
-                const isSelected = selectedCountry === c.country_iso;
-                const center = GEO_CENTERS[c.country_iso];
-                let cx = center ? center.x : 300 + ((idx * 37) % 400);
-                let cy = center ? center.y : 100 + ((idx * 29) % 200);
+              {(groupBy === 'all' || groupBy === 'country') &&
+                countries.map((c, idx) => {
+                  const isSelected = activeSelectedCountry === c.country_iso;
+                  const center = GEO_CENTERS[c.country_iso];
+                  let cx = center ? center.x : 300 + ((idx * 37) % 400);
+                  let cy = center ? center.y : 100 + ((idx * 29) % 200);
 
-                if (c.country_iso === 'VN') {
-                  cx = 794;
-                  cy = 205;
-                }
+                  if (c.country_iso === 'VN') {
+                    cx = 794;
+                    cy = 205;
+                  }
 
-                const radius = Math.min(Math.max((c.events / maxEvents) * 16, 5), 18);
+                  const radius = Math.min(Math.max((c.events / maxEvents) * 16, 5), 18);
 
-                return (
-                  <g
-                    key={c.country_iso}
-                    onClick={() => handleCountryClick(c.country_iso)}
-                    className="cursor-pointer transition-transform hover:scale-125"
-                    data-testid={`map-country-point-${c.country_iso}`}
-                  >
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={radius}
-                      fill={c.blocked > 0 ? '#f43f5e' : '#06b6d4'}
-                      fillOpacity={isSelected ? 0.95 : 0.75}
-                      stroke={isSelected ? '#ffffff' : '#080c14'}
-                      strokeWidth={isSelected ? 2 : 1}
-                      filter={c.blocked > 0 ? 'url(#cyber-glow-red)' : 'url(#cyber-glow-cyan)'}
-                    />
-                    <title>
-                      {`${c.country_iso}: ${c.events.toLocaleString()} events (${c.blocked.toLocaleString()} blocked) - Top Attack: ${c.top_attack_type}`}
-                    </title>
-                  </g>
-                );
-              })}
+                  return (
+                    <g
+                      key={c.country_iso}
+                      onClick={() => handleCountryClick(c.country_iso)}
+                      className="cursor-pointer transition-transform hover:scale-125"
+                      data-testid={`map-country-point-${c.country_iso}`}
+                    >
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={radius}
+                        fill={c.blocked > 0 ? '#f43f5e' : '#06b6d4'}
+                        fillOpacity={isSelected ? 0.95 : 0.75}
+                        stroke={isSelected ? '#ffffff' : '#080c14'}
+                        strokeWidth={isSelected ? 2 : 1}
+                        filter={c.blocked > 0 ? 'url(#cyber-glow-red)' : 'url(#cyber-glow-cyan)'}
+                      />
+                      <title>
+                        {`${c.country_iso}: ${c.events.toLocaleString()} events (${c.blocked.toLocaleString()} blocked) - Top Attack: ${c.top_attack_type}`}
+                      </title>
+                    </g>
+                  );
+                })}
             </svg>
           </div>
 
-          {/* Map Footer: Legal Compliance & Legend */}
-          <div className="flex flex-wrap items-center justify-between text-[11px] text-muted border-t border-line/60 pt-2.5 mt-2">
-            <span className="flex items-center gap-1.5 font-sans">
-              <Shield className="w-3.5 h-3.5 text-accent" />
+          {/* Choropleth scale & Legal compliance banner */}
+          <div className="flex flex-wrap items-center justify-between text-[10px] text-muted font-mono pt-2 border-t border-line/40 gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 font-medium">Choropleth Threat Level:</span>
+              <div className="flex items-center gap-1">
+                <span className="w-3 h-2 rounded-sm bg-[#0f172a] border border-slate-700" title="0 attacks" />
+                <span className="w-3 h-2 rounded-sm bg-[#1e3a8a]" title="1-100" />
+                <span className="w-3 h-2 rounded-sm bg-[#0284c7]" title="100-1K" />
+                <span className="w-3 h-2 rounded-sm bg-[#d97706]" title="1K-10K" />
+                <span className="w-3 h-2 rounded-sm bg-[#dc2626]" title=">10K" />
+                <span className="text-[9px] text-slate-500 ml-1">Logarithmic (Zero → Critical)</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-accent/90">
               <span>Bản đồ tự host PMTiles tuân thủ chủ quyền lãnh thổ Việt Nam (Nghị định 18/2020/NĐ-CP)</span>
-            </span>
-            <div className="flex items-center gap-4 font-mono text-[11px]">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e] inline-block" />
-                <span>Blocked Attack</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4] inline-block" />
-                <span>Inspected Traffic</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981] inline-block" />
-                <span>Protected Node</span>
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Right Telemetry Panels: Top Threat Countries & ASNs (4 Cols) */}
-        <div className="xl:col-span-4 space-y-3.5 flex flex-col justify-between">
-          {/* Top Attacking Countries Panel */}
-          <div className="bg-[#0b0f19] rounded-xl border border-line/90 p-4 space-y-3 shadow-sm">
-            <div className="flex items-center justify-between border-b border-line/60 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-accent" />
+        {/* Right Telemetry Column: Origin Ranking & ASN Breakdown (4 Cols) */}
+        <div className="xl:col-span-4 flex flex-col gap-4">
+          {/* Top Attack Origins */}
+          <div className="bg-[#070b14] rounded-xl border border-line/90 p-3.5 flex flex-col justify-between shadow-lg">
+            <div className="flex items-center justify-between border-b border-line/50 pb-2 mb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink font-mono flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
                 Top Attack Origins
-              </h3>
-              <div className="flex items-center gap-2">
-                {selectedCountry && (
-                  <button
-                    type="button"
-                    onClick={() => handleCountryClick(selectedCountry)}
-                    className="text-[10px] text-accent font-semibold hover:underline bg-accent/10 px-1.5 py-0.5 rounded border border-accent/25"
-                    data-testid="clear-country-filter"
-                  >
-                    Clear Filter ({selectedCountry})
-                  </button>
-                )}
-                <span className="text-[11px] font-mono text-muted">{countries.length} detected</span>
-              </div>
+              </span>
+              {activeSelectedCountry && (
+                <button
+                  type="button"
+                  data-testid="clear-country-filter"
+                  onClick={() => handleCountryClick(activeSelectedCountry)}
+                  className="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 font-mono transition-colors"
+                >
+                  Clear ({activeSelectedCountry})
+                </button>
+              )}
             </div>
 
-            {countries.length === 0 && !loading && (
-              <p className="text-xs text-muted py-4 text-center font-mono">No geo data in selected window.</p>
-            )}
-
             <div className="space-y-2 max-h-[175px] overflow-y-auto pr-1">
-              {countries.map((c) => {
-                const pctVal = Math.round((c.events / maxEvents) * 100);
-                const blockRate = c.events > 0 ? Math.round((c.blocked / c.events) * 100) : 0;
-                const active = selectedCountry === c.country_iso;
+              {countries.length === 0 ? (
+                <div className="text-center py-6 text-xs text-muted font-mono">No attack origins detected</div>
+              ) : (
+                countries.slice(0, 5).map((c) => {
+                  const isSelected = activeSelectedCountry === c.country_iso;
+                  const blkRate = c.events > 0 ? ((c.blocked / c.events) * 100).toFixed(1) : '0';
+                  const center = GEO_CENTERS[c.country_iso];
+                  const fullName = center ? center.name : c.country_iso;
 
-                return (
-                  <div
-                    key={c.country_iso}
-                    onClick={() => handleCountryClick(c.country_iso)}
-                    className={`p-2 rounded-lg cursor-pointer transition-all border ${
-                      active
-                        ? 'bg-accent/15 border-accent/50 shadow-[0_0_10px_rgba(6,182,212,0.15)]'
-                        : 'bg-surface/50 border-line/60 hover:bg-surface hover:border-line'
-                    }`}
-                    data-testid={`country-row-${c.country_iso}`}
-                  >
-                    <div className="flex items-center justify-between font-mono text-xs">
-                      <span className="font-semibold text-ink flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 bg-sunken rounded text-[10px] font-bold border border-line text-accent">
-                          {c.country_iso}
+                  return (
+                    <div
+                      key={c.country_iso}
+                      data-testid={`country-row-${c.country_iso}`}
+                      onClick={() => handleCountryClick(c.country_iso)}
+                      className={`p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-rose-500/15 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+                          : 'bg-sunken/60 border-line/60 hover:border-slate-600 hover:bg-sunken'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-accent px-1.5 py-0.2 rounded bg-accent/10 border border-accent/20 text-[10px]">
+                            {c.country_iso}
+                          </span>
+                          <span className="text-ink font-medium truncate max-w-[110px]" title={fullName}>
+                            {fullName}
+                          </span>
+                        </div>
+                        <span className="font-mono text-muted text-[11px]">
+                          {c.events.toLocaleString()} reqs
                         </span>
-                        <span className="text-muted text-[11px] font-sans truncate max-w-[120px]">
-                          {GEO_CENTERS[c.country_iso]?.name || c.country_iso}
-                        </span>
-                      </span>
-                      <span className="text-ink font-semibold">
-                        {c.events.toLocaleString()}{' '}
-                        <span className="text-rose-400 font-bold">({blockRate}% blk)</span>
-                      </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted font-mono">
+                        <span>Top: <span className="text-rose-400 font-semibold">{c.top_attack_type}</span></span>
+                        <span className="text-rose-400 font-semibold">{blkRate}% blk</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-1 mt-1.5 overflow-hidden">
+                        <div
+                          className="bg-rose-500 h-1 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(8, (c.events / maxEvents) * 100))}%` }}
+                        />
+                      </div>
                     </div>
-                    {/* Glowing progress bar */}
-                    <div className="w-full h-1.5 bg-sunken rounded-full mt-1.5 overflow-hidden border border-line/50">
-                      <div
-                        className="h-full bg-gradient-to-r from-cyan-500 to-rose-500 rounded-full transition-all duration-300"
-                        style={{ width: `${pctVal}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
-          {/* Top ASN Threat Networks Panel */}
-          <div className="bg-[#0b0f19] rounded-xl border border-line/90 p-4 space-y-3 shadow-sm">
-            <div className="flex items-center justify-between border-b border-line/60 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-accent" />
-                Top Threat Networks (ASN)
-              </h3>
-              <span className="text-[11px] font-mono text-muted">{asns.length} ASNs</span>
+          {/* Threat Autonomous Systems (ASNs) */}
+          <div className="bg-[#070b14] rounded-xl border border-line/90 p-3.5 flex flex-col justify-between shadow-lg">
+            <div className="flex items-center justify-between border-b border-line/50 pb-2 mb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink font-mono flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Threat Networks (ASNs)
+              </span>
+              <span className="text-[10px] text-muted font-mono">{asns.length} tracked</span>
             </div>
 
-            {asns.length === 0 && !loading && (
-              <p className="text-xs text-muted py-3 text-center font-mono">No ASN telemetry.</p>
-            )}
+            <div className="space-y-2 max-h-[175px] overflow-y-auto pr-1">
+              {asns.length === 0 ? (
+                <div className="text-center py-6 text-xs text-muted font-mono">No threat ASN activity</div>
+              ) : (
+                asns.slice(0, 5).map((a) => {
+                  const isSelected = externalSelectedASN === a.asn;
+                  const blkRate = a.events > 0 ? ((a.blocked / a.events) * 100).toFixed(1) : '0';
 
-            <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
-              {asns.map((a) => (
-                <div
-                  key={a.asn}
-                  onClick={() => onSelectASN && onSelectASN(a.asn)}
-                  className="p-2 rounded-lg hover:bg-surface border border-transparent hover:border-line/70 cursor-pointer text-xs flex items-center justify-between transition-all"
-                  data-testid={`asn-row-${a.asn}`}
-                >
-                  <div className="truncate pr-2">
-                    <span className="font-mono font-bold text-accent px-1.5 py-0.5 rounded bg-accent/10 border border-accent/20">
-                      AS{a.asn}
-                    </span>
-                    <span className="text-ink font-medium text-[11px] ml-2 truncate">
-                      {a.as_org || 'Unknown Org'}
-                    </span>
-                  </div>
-                  <span className="font-mono text-muted text-[11px] whitespace-nowrap tabular-nums">
-                    {a.events.toLocaleString()}
-                  </span>
-                </div>
-              ))}
+                  return (
+                    <div
+                      key={a.asn}
+                      data-testid={`asn-row-${a.asn}`}
+                      onClick={() => onSelectASN?.(a.asn)}
+                      className={`p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-amber-500/15 border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                          : 'bg-sunken/60 border-line/60 hover:border-slate-600 hover:bg-sunken'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 text-[10px]">
+                          AS{a.asn}
+                        </span>
+                        <span className="font-mono text-muted text-[11px]">
+                          {a.events.toLocaleString()} reqs
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-slate-300 truncate max-w-[130px]" title={a.as_org}>
+                          {a.as_org || 'Unknown Provider'}
+                        </span>
+                        <span className="text-rose-400 font-semibold">{blkRate}% blk</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

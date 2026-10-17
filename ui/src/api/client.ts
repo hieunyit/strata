@@ -310,6 +310,61 @@ export const apiClient = {
     const qs = q.toString();
     return call<GeoStatsResponse>(`/stats/geo${qs ? '?' + qs : ''}`, { method: 'GET' }, 'Failed to fetch geo statistics');
   },
+
+  /** GET /v1/stats/timeline */
+  async getTimelineStats(filter?: TimelineFilter): Promise<TimelineResponse> {
+    const q = new URLSearchParams();
+    if (filter?.from) q.set('from', filter.from);
+    if (filter?.to) q.set('to', filter.to);
+    if (filter?.step) q.set('step', filter.step);
+    if (filter?.policy_id) q.set('policy_id', filter.policy_id);
+    if (filter?.country_iso) q.set('country_iso', filter.country_iso);
+    if (filter?.asn) q.set('asn', String(filter.asn));
+    if (filter?.action) q.set('action', filter.action);
+    const qs = q.toString();
+    return call<TimelineResponse>(`/stats/timeline${qs ? '?' + qs : ''}`, { method: 'GET' }, 'Failed to fetch timeline statistics');
+  },
+
+  /** GET /v1/stats/geo:watch (Server-Sent Events) */
+  openGeoWatchStream(
+    onUpdate: (data: GeoStatsResponse | { timestamp: string; countries: GeoCountryStat[]; asns: GeoASNStat[] }) => void,
+    onError?: (err: globalThis.Event) => void
+  ): () => void {
+    if (typeof EventSource === 'undefined') {
+      return () => {};
+    }
+    let es: EventSource | null = null;
+    let closed = false;
+    void handlers.token().then((tok) => {
+      if (closed) return;
+      const url = `/v1/stats/geo:watch${tok ? '?token=' + encodeURIComponent(tok) : ''}`;
+      es = new EventSource(url);
+      es.addEventListener('geo_snapshot', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          onUpdate(data);
+        } catch (err) {
+          console.error('Failed to parse geo_snapshot', err);
+        }
+      });
+      es.addEventListener('geo_update', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          onUpdate(data);
+        } catch (err) {
+          console.error('Failed to parse geo_update', err);
+        }
+      });
+      if (onError) {
+        es.onerror = onError;
+      }
+    });
+
+    return () => {
+      closed = true;
+      es?.close();
+    };
+  },
 };
 
 export interface GeoCountryStat {
@@ -350,6 +405,33 @@ export interface GeoStatsFilter {
   to?: string;
   groupBy?: string;
   policy_id?: string;
+  action?: string;
+}
+
+export interface TimelineBucket {
+  timestamp: string;
+  total: number;
+  blocked: number;
+  monitored: number;
+  passed: number;
+  challenged?: number;
+  attack_types?: Record<string, number>;
+}
+
+export interface TimelineResponse {
+  from: string;
+  to: string;
+  step: string;
+  buckets: TimelineBucket[];
+}
+
+export interface TimelineFilter {
+  from?: string;
+  to?: string;
+  step?: string;
+  policy_id?: string;
+  country_iso?: string;
+  asn?: number;
   action?: string;
 }
 

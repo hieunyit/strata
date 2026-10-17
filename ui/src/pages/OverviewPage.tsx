@@ -5,7 +5,9 @@ import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
 import { GeoMap } from '../components/geo/GeoMap';
-import { apiClient, Overview, FleetNode, Rollout, Policy } from '../api/client';
+import { FilterChips, FilterState } from '../components/geo/FilterChips';
+import { TimelineChart } from '../components/geo/TimelineChart';
+import { apiClient, Overview, FleetNode, Rollout, Policy, TimelineResponse } from '../api/client';
 import { RangeKey, overviewRanges, isRange, windowOf } from '../lib/timeRange';
 import { Route, href, replaceQuery } from '../router';
 import { useAuth } from '../context/AuthContext';
@@ -97,6 +99,41 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(true);
   const [updated, setUpdated] = useState<string | undefined>();
+  const [filterState, setFilterState] = useState<FilterState>({
+    timeRange: (['1h', '24h', '7d', '30d'].includes(range) ? (range as any) : '24h'),
+    action: 'all',
+    category: 'all',
+    selectedCountry: null,
+    selectedASN: null,
+  });
+  const [timelineData, setTimelineData] = useState<TimelineResponse | null>(null);
+  const [liveStreaming, setLiveStreaming] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchTimeline = async () => {
+      try {
+        const res = await apiClient.getTimelineStats({
+          ...windowOf(filterState.timeRange as RangeKey),
+          policy_id: policy || undefined,
+          country_iso: filterState.selectedCountry ?? undefined,
+          asn: filterState.selectedASN ?? undefined,
+          action: filterState.action !== 'all' ? filterState.action : undefined,
+        });
+        setTimelineData(res);
+      } catch {
+        // Timeline is best effort
+      }
+    };
+    void fetchTimeline();
+  }, [filterState, policy]);
+
+  useEffect(() => {
+    if (!liveStreaming) return;
+    const unsub = apiClient.openGeoWatchStream((_update) => {
+      setUpdated(new Date().toISOString());
+    });
+    return unsub;
+  }, [liveStreaming]);
 
   const refresh = useCallback(async () => {
     try {
@@ -132,7 +169,17 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const online = nodes?.filter((n) => n.online && !n.revoked).length ?? 0;
   const enrolled = nodes?.filter((n) => !n.revoked).length ?? 0;
   const offline = nodes?.filter((n) => !n.online && !n.revoked) ?? [];
-  const eventsHref = (q: Record<string, string>) => href({ page: 'events', query: { range, ...(policy ? { policy_id: policy } : {}), ...q } });
+  const eventsHref = (q: Record<string, string>) =>
+    href({
+      page: 'events',
+      query: {
+        range,
+        ...(policy ? { policy_id: policy } : {}),
+        ...(filterState.selectedCountry ? { client_ip: filterState.selectedCountry } : {}),
+        ...(filterState.action !== 'all' ? { action: filterState.action } : {}),
+        ...q,
+      },
+    });
   const ruleMax = o?.top_rules[0]?.events ?? 0;
   const routeMax = o?.top_routes[0]?.events ?? 0;
 
@@ -211,14 +258,52 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
         </div>
       </section>
 
+      <section className="mb-4">
+        <FilterChips
+          filters={filterState}
+          onChange={(newFilters) => {
+            setFilterState(newFilters);
+            if (newFilters.timeRange !== range) {
+              setRange(newFilters.timeRange as RangeKey);
+            }
+          }}
+          liveStreaming={liveStreaming}
+          onToggleLive={() => setLiveStreaming(!liveStreaming)}
+        />
+      </section>
+
       <section className="mb-6">
         <GeoMap
           policyId={policy}
+          selectedCountry={filterState.selectedCountry}
+          selectedASN={filterState.selectedASN}
+          timeRangeDays={filterState.timeRange === '1h' ? 0.04 : filterState.timeRange === '7d' ? 7 : filterState.timeRange === '30d' ? 30 : 1}
+          actionFilter={filterState.action}
+          categoryFilter={filterState.category}
           onSelectCountry={(iso) => {
-            if (iso) replaceQuery({ page: 'events', query: { range, client_ip: iso } });
+            setFilterState((prev) => ({ ...prev, selectedCountry: iso || null }));
+          }}
+          onSelectASN={(asn) => {
+            setFilterState((prev) => ({ ...prev, selectedASN: asn || null }));
           }}
         />
       </section>
+
+      {timelineData && timelineData.buckets && timelineData.buckets.length > 0 && (
+        <section className="mb-6">
+          <TimelineChart
+            buckets={timelineData.buckets}
+            step={timelineData.step}
+            activeFilter={
+              filterState.selectedCountry
+                ? `Country: ${filterState.selectedCountry}`
+                : filterState.selectedASN
+                ? `ASN: AS${filterState.selectedASN}`
+                : undefined
+            }
+          />
+        </section>
+      )}
 
       <section className="panel mb-5" data-testid="overview-series">
         <SectionTitle

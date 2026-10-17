@@ -16,6 +16,18 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 18** (khối C1 · API thống kê và lớp bản đồ · kế hoạch `docs/plan/w18-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W18-G2-01 | StatsService (Geo, Timeline, SSE Watch) | Antigravity | W17-G2-01 | ✅ Done (`control-plane/ingest/timeline.go`, `control-plane/api/timeline_handler.go`, `control-plane/api/watch_handler.go`) |
+| W18-F-01 | Lớp bản đồ và panel đồng bộ | Antigravity | W18-G2-01 | ✅ Done (`ui/src/components/geo/FilterChips.tsx`, `ui/src/components/geo/TimelineChart.tsx`, `ui/src/components/geo/GeoMap.tsx`) |
+| W18-G2-02 | Danh sách IP của bot tốt | Antigravity | — | ✅ Done (`control-plane/botip/syncer.go`, `good_bots.json` MinIO bundle) |
+| W18-S-01 | Pack bot | Antigravity | — | ✅ Done (`rules/bots/500001`, `500010`, `500020`, `500030`, `strata-rules lint` 94/94 pass) |
+| W18-R-01 | Phủ thêm rule CRS | Claude Code | — | ⏳ Chưa bắt đầu |
+| W18-R-02 | Xác minh bot tốt trong engine | Claude Code | W18-G2-02 | ⏳ Chưa bắt đầu |
+| RV-R-04 | Challenge, rate theo identity, rate limit toàn cụm | Claude Code | — | ⏳ Chưa bắt đầu |
+
 **Nhiệm vụ tuần 17** (khối C1 · GeoIP và nền bản đồ · kế hoạch `docs/plan/w17-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
