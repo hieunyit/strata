@@ -96,6 +96,25 @@ message PolicySpec {
   // Must follow the normal draft/replay/four-eyes/deploy flow. Old engines
   // refuse the required policy flag: upgrade them before using exceptions.
   repeated PolicyException exceptions = 9;
+  // Explicit delegation to reduce listed rules to log-only after FP evidence.
+  // Default off; changes require replay and four-eyes approval. Never authorizes
+  // automatic re-enforcement. Effective staged rule state is not an API input.
+  RuleAutoStaging auto_staging = 10;
+}
+
+// Control-plane authorization metadata; not runtime policy parameters.
+message RuleAutoStaging {
+  bool enabled = 1;
+  // 1–16 distinct existing managed Rule IDs; compiler/runtime verify membership.
+  repeated uint32 rule_ids = 2;
+  // Decision and initial report windows in seconds, 60–86400.
+  uint32 window_seconds = 3;
+  // Minimum matched security events, 1–1000000000.
+  uint32 min_matches = 4;
+  // Initial unambiguous FP reports, 1–min_matches; exact deployed bundle.
+  uint32 min_reports = 5;
+  // FP report share over matched security events, basis points, 1–10000.
+  uint32 fp_threshold_bps = 6;
 }
 
 message PolicyException {

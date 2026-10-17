@@ -619,6 +619,7 @@ export interface components {
        * refuse the required policy flag: upgrade them before using exceptions.
        */
       exceptions?: components["schemas"]["v1PolicyException"][];
+      auto_staging?: components["schemas"]["v1RuleAutoStaging"];
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -810,6 +811,32 @@ export interface components {
       error?: string;
       /** Format: date-time */
       update_time?: string;
+    };
+    /** @description Control-plane authorization metadata; not runtime policy parameters. */
+    v1RuleAutoStaging: {
+      enabled?: boolean;
+      /** @description 1–16 distinct existing managed Rule IDs; compiler/runtime verify membership. */
+      rule_ids?: number[];
+      /**
+       * Format: int64
+       * @description Decision and initial report windows in seconds, 60–86400.
+       */
+      window_seconds?: number;
+      /**
+       * Format: int64
+       * @description Minimum matched security events, 1–1000000000.
+       */
+      min_matches?: number;
+      /**
+       * Format: int64
+       * @description Initial unambiguous FP reports, 1–min_matches; exact deployed bundle.
+       */
+      min_reports?: number;
+      /**
+       * Format: int64
+       * @description FP report share over matched security events, basis points, 1–10000.
+       */
+      fp_threshold_bps?: number;
     };
     v1SetReplaySamplingResponse: {
       sampling?: components["schemas"]["v1ReplaySampling"];

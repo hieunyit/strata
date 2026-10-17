@@ -33,7 +33,7 @@ cat "$rules" "$policies" > "$out"
 	page := write("block.html", "original block page")
 	identity := []byte(strings.Repeat("i", 32))
 	c := &Compiler{Binary: bin, Rules: []string{rules}, BlockPage: page, IdentityKey: func(context.Context) ([]byte, error) { return identity, nil }}
-	ps := []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Privacy: &Privacy{Identity: "hmac", SensitiveFields: []string{"secret"}}}}}
+	ps := []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", AutoStaging: exampleAutoStaging(), Privacy: &Privacy{Identity: "hmac", SensitiveFields: []string{"secret"}}}}}
 	first, err := c.Prepare(t.Context(), ps)
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +55,12 @@ cat "$rules" "$policies" > "$out"
 		func() { ps[0].Spec.Privacy.SensitiveFields[0] = "other" },
 		func() { identity[0] = 'x' },
 		func() { c.CostBudget++ },
+		func() { ps[0].Spec.AutoStaging.RuleIDs[0]++ },
+		func() { ps[0].Spec.AutoStaging.Enabled = false },
+		func() { ps[0].Spec.AutoStaging.WindowSeconds++ },
+		func() { ps[0].Spec.AutoStaging.MinMatches++ },
+		func() { ps[0].Spec.AutoStaging.MinReports++ },
+		func() { ps[0].Spec.AutoStaging.FPThresholdBPS++ },
 		func() { c.SupportContact = "support@example.test" },
 		func() { write("compiler", "#!/bin/sh\nexit 99\n") },
 	} {
@@ -81,6 +87,9 @@ cat "$rules" "$policies" > "$out"
 	key, err := first.compiler.IdentityKey(t.Context())
 	if err != nil || key[0] != 'i' {
 		t.Fatal("identity key not snapshotted")
+	}
+	if a := first.policies[0].Spec.AutoStaging; a == nil || !a.Enabled || a.RuleIDs[0] != 942100 {
+		t.Fatal("approved delegation snapshot changed")
 	}
 	// Close removes private files, including the executable copy.
 	snapdir := same.dir

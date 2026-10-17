@@ -16,10 +16,13 @@ import (
 // Spec mirrors one policy of docs/spec/policies.schema.json without its
 // name; it is stored as each version's JSON.
 type Spec struct {
-	Exceptions []Exception `json:"exceptions,omitempty"`
-	Mode       string      `json:"mode"`               // shadow | enforce
-	Oversize   string      `json:"oversize,omitempty"` // pass | block
-	Response   *Response   `json:"response,omitempty"`
+	// AutoStaging delegates only reduction to log-only for an explicit rule set.
+	// It is versioned and included in the replay digest like the rest of Spec.
+	AutoStaging *AutoStaging `json:"auto_staging,omitempty"`
+	Exceptions  []Exception  `json:"exceptions,omitempty"`
+	Mode        string       `json:"mode"`               // shadow | enforce
+	Oversize    string       `json:"oversize,omitempty"` // pass | block
+	Response    *Response    `json:"response,omitempty"`
 	// MaxSnippetSize: 0 (128 bytes), 128, 2048 or 4096 (P-01 §1b).
 	MaxSnippetSize int `json:"max_snippet_size,omitempty"`
 	// Privacy settings (P-01 §1).
@@ -68,6 +71,9 @@ var (
 
 // Validate checks a spec like the compiler's schema does.
 func (s Spec) Validate() error {
+	if err := s.AutoStaging.Validate(); err != nil {
+		return err
+	}
 	if len(s.Exceptions) > 128 {
 		return errors.New("at most 128 policy exceptions")
 	}
