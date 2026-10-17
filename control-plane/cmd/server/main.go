@@ -35,6 +35,7 @@ import (
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/replay"
+	"github.com/strata/strata/control-plane/rulehealth"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -353,6 +354,11 @@ func main() {
 	if pg != nil {
 		annotations = pg
 		exceptions = pg
+		contextAge := ingest.MaxEventAge
+		if *ttlDays > 0 && *ttlDays < int(ingest.MaxEventAge/(24*time.Hour)) {
+			contextAge = time.Duration(*ttlDays) * 24 * time.Hour
+		}
+		go (rulehealth.ContextRetention{Store: pg, MaxAge: contextAge}).Run(ctx)
 	}
 	srv := api.NewServer(api.ServerConfig{
 		Annotations:  annotations,
