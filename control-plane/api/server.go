@@ -211,6 +211,15 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 
+		// Streaming requests (e.g. SSE :watch) stay open indefinitely;
+		// they must not be cancelled by the general WriteTimeout context.
+		if isStream(r) {
+			rc := http.NewResponseController(w)
+			_ = rc.SetWriteDeadline(time.Time{})
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Request timeout. A deploy gets longer, and so does its
 		// connection: the server's read and write deadlines would otherwise
 		// cancel the request (and kill the compiler) after ReadTimeout.
@@ -222,11 +231,19 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 			_ = rc.SetReadDeadline(deadline)
 			_ = rc.SetWriteDeadline(deadline)
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
-		defer cancel()
+		if timeout > 0 {
+			ctx, cancel := context.WithTimeout(r.Context(), timeout)
+			defer cancel()
+			r = r.WithContext(ctx)
+		}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r)
 	})
+}
+
+// isStream reports whether r is an SSE streaming request.
+func isStream(r *http.Request) bool {
+	return strings.HasSuffix(r.URL.Path, ":watch") || r.Header.Get("Accept") == "text/event-stream"
 }
 
 // isDeploy: POST /v1/policies/{id}:deploy, the one route that compiles.

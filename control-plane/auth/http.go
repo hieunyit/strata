@@ -15,13 +15,18 @@ type Authenticator interface {
 }
 
 // TokenFromRequest extracts the authentication token from either the
-// "Authorization: Bearer <token>" header or the "token" query parameter
-// (used for EventSource SSE connections that cannot set custom headers).
+// "Authorization: Bearer <token>" header or the "token" query parameter.
+// Query parameter tokens are strictly restricted to safe HTTP methods (GET, HEAD)
+// (such as EventSource SSE connections that cannot set custom headers),
+// preventing token leakage in server logs for state-mutating requests (POST, PUT, DELETE, PATCH).
 func TokenFromRequest(r *http.Request) string {
 	if tok := BearerToken(r.Header.Get("Authorization")); tok != "" {
 		return tok
 	}
-	return r.URL.Query().Get("token")
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return r.URL.Query().Get("token")
+	}
+	return ""
 }
 
 // Middleware authenticates every request: without a valid bearer token it

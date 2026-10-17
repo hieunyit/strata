@@ -128,4 +128,16 @@ func TestWatchGeoSSE(t *testing.T) {
 	if noAuthResp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 Unauthorized without token, got %d", noAuthResp.StatusCode)
 	}
+
+	// 6. Mutating method (POST) with query parameter ?token=viewer is rejected with 401
+	// (query parameter tokens are strictly prohibited on mutating requests)
+	postQueryReq, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/stats/geo:watch?token=viewer", nil)
+	postQueryResp, err := client.Do(postQueryReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer postQueryResp.Body.Close()
+	if postQueryResp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for POST with query token, got %d", postQueryResp.StatusCode)
+	}
 }

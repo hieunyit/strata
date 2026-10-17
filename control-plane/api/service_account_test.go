@@ -50,6 +50,19 @@ func TestServiceAccountAPI_LifecycleAndScoping(t *testing.T) {
 		t.Fatalf("admin got status %d, want 201: %s", rec.Code, rec.Body.String())
 	}
 
+	// 2b. Attempt to create SA with malicious / invalid ID -> 400 Bad Request
+	badBody, _ := json.Marshal(CreateServiceAccountRequest{
+		ID:   "../malicious/sa",
+		Name: "Bad SA",
+	})
+	badReq := httptest.NewRequest(http.MethodPost, "/v1/service-accounts", bytes.NewReader(badBody))
+	badReq.Header.Set("Authorization", "Bearer admin")
+	badRec := httptest.NewRecorder()
+	handler.ServeHTTP(badRec, badReq)
+	if badRec.Code != http.StatusBadRequest {
+		t.Fatalf("malicious ID got status %d, want 400", badRec.Code)
+	}
+
 	// 3. Issue scoped token for sa-deployer (scope: events:read only)
 	tokenReqBody, _ := json.Marshal(CreateTokenRequest{
 		Scopes:     []auth.Permission{auth.PermEventsRead},

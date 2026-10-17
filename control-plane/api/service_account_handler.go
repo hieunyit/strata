@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/store"
 )
+
+var validSAID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$`)
 
 // AuditRecorder persists audit log entries.
 type AuditRecorder interface {
@@ -104,6 +107,10 @@ func RegisterServiceAccountRoutes(mux *http.ServeMux, saStore auth.ServiceAccoun
 				saID := strings.TrimSpace(req.ID)
 				if saID == "" {
 					saID = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(req.Name), " ", "-"))
+				}
+				if !validSAID.MatchString(saID) {
+					writeSAError(w, http.StatusBadRequest, "invalid service account ID: must be 2-64 alphanumeric characters, dashes, or underscores")
+					return
 				}
 				caller := auth.FromContext(r.Context())
 				createdBy := "system"

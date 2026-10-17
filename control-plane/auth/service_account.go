@@ -88,10 +88,12 @@ func (a *ServiceAccountAuthenticator) Authenticate(ctx context.Context, raw stri
 		return nil, ErrUnauthenticated
 	}
 
-	// Update last used time asynchronously
-	go func() {
-		_ = a.store.TouchTokenUsage(context.Background(), tok.ID, time.Now())
-	}()
+	// Update last used time asynchronously if not touched recently (throttle to once per 5m)
+	if tok.LastUsedAt == nil || time.Since(*tok.LastUsedAt) > 5*time.Minute {
+		go func() {
+			_ = a.store.TouchTokenUsage(context.Background(), tok.ID, time.Now())
+		}()
+	}
 
 	return &Principal{
 		Subject: "sa:" + sa.ID,
