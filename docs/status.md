@@ -96,14 +96,17 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 - Main baseline nêu trên có API replay/four-eyes; UI approval queue ở nhánh remote `W13-G2-02-replay-gate` có merge #115 không chứng minh main có UI đó. Chưa đóng W13-F-01 chỉ từ nhánh khác.
 - `RV-R-03-ratelimit` là prototype; chưa có đường request/shared-memory theo node, chưa có benchmark proxy đạt <2%. Không quảng bá brute-force protection đã hoạt động.
 - `W14-G2-01-exceptions-api` và `W14-G2-02-rule-health` là prototype; RAM exception/health không phải policy artifact/runtime hoặc durable quarantine. H3/M1 đã có replacement PR #122/#123, không nhập nguyên prototype để lấy endpoint.
-- H4 có bản sửa dispatch local `codex/h4-health-route`, SHA `3f2e4e7`; chưa nhập health prototype vào main và chưa chứng minh pipeline tự về staging. M4 vẫn chưa hoàn tất.
+- H4/M4 có replacement PR #169–#176 cho cost/FP/retention/API bền; #180–#182 thêm nguồn gốc lần báo FP, opt-in policy đã duyệt và bộ đánh giá đúng bundle. Default tắt. Chưa có writer/outbox/signed staging runtime hoặc proof <5 phút; M4 chưa hoàn tất và chưa merge main.
 - M5 snapshot/proof/gate/API đang ở các PR #124/#126/#128–#130. “Replay DONE” cũ trên main không có cùng bảo đảm provenance với chuỗi PR này. Dùng report của đúng SHA để đánh giá.
 - Rule header 300011–300013 là candidate trong PR #133/#136: Header SQLi 8/8, XSS 54/56, benign 47/47 trên tập đã chọn; chưa phát hành pack production, cần review nội dung và chi phí.
 - H5 PR #127 sửa cache integrity, resume test và C line budget; archive ET Open nguyên bản còn thiếu. Không ghi pipeline Rules tái lập thành công khi chưa có artifact đúng checksum.
 - Benchmark/HTTP trong remediation có hash executable/bundle và đơn vị rõ. `engine_serial_rps` không phải TPS NGINX; 1052,62 ms tương đương khoảng 1,053 giây. Campaign redteam cũ và game day chưa được xác nhận lại bởi các phép thử paired HTTP mới.
 - L3 PR #159–#165 đã đo worker NGINX cold/reload/hot bundle và sửa cache preparation: 714 request hữu hạn không budget/fail-mode, 595 sanitizer test trên mỗi bản NGINX 1.30.5/1.31.6. Không suy ra mọi request đầu tiên luôn dưới budget, không ghi đã đạt p99 overhead <1 ms; xem [báo cáo](reports/l3-worker-cache-preparation.md).
-- M6 PR #167 đã đo 20 triệu row ClickHouse: API Block ID p99 97,673 ms, tìm kiếm 24 giờ cao nhất 1,927 s, TTL PASS; giữ FINAL và fallback lệch giờ. Đây là truy vấn tuần tự trên fixture đã OPTIMIZE, chưa chứng minh tải production/multi-replica; xem [báo cáo](reports/m6-query-performance.md).
+- M6 PR #167/#177 đã đo 20 triệu row ClickHouse; lượt sau M4 có overlay FP PostgreSQL và 200.922 event mang cost: API Block ID p99 96,071 ms, tìm kiếm 24 giờ cao nhất 1,893 s, TTL PASS; giữ FINAL và fallback lệch giờ. Đây là truy vấn tuần tự trên fixture đã OPTIMIZE, chưa chứng minh tải production/multi-replica; xem [báo cáo lượt mới](reports/m6-annotated-read-benchmark.md).
 - Copy as cURL từ main PR #141 có lỗi quote shell cần thao tác dán/chạy lệnh của người vận hành; H8 PR #166 sửa và có test red/green, toàn UI 91 test + lint/build PASS. Không gọi đây là RCE tự động trong trình duyệt; xem [báo cáo](reports/h8-curl-shell-safety.md).
+
+- H6 PR #178: chữ ký sai bị từ chối và agent bị kill giữa tải 64 MiB resume từ 1 MiB. #179: fixture CH riêng, restart graceful 2.000/2.000 event, zero raw duplicate; producer có retry, không phải sink NGINX. Chưa đủ game day/CP process stop/panic/continuous proxy metrics.
+- M9 PR #171: optional PostgreSQL/audit store không còn typed-nil gây HTTP 500; không cấu hình trả 404, race/lint pass.
 
 Không có bằng chứng rollout staging/production mới trong đợt remediation này. Theo yêu cầu người dùng, chạy kiểm chứng local, không chờ hosted CI; trạng thái CI cũ không được ghi thành PASS. Các điều kiện vận hành/Gate còn thiếu giữ nguyên.
 
