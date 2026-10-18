@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PoliciesPage } from '../pages/PoliciesPage';
 import { ReviewsPage } from '../pages/ReviewsPage';
 import { apiClient, PolicyVersion } from '../api/client';
 import { StaticAuthProvider } from '../context/AuthContext';
@@ -53,4 +54,16 @@ describe('review queue reads', () => {
     expect(await screen.findByText(/No other approved version exists/)).toBeInTheDocument();
     expect(screen.queryByTestId('policy-diff')).not.toBeInTheDocument();
   });
+});
+
+it('ignores an older policy version list after switching policies', async () => {
+  vi.spyOn(apiClient, 'listPolicies').mockResolvedValue([{ id: 'a', name: 'example-a' }, { id: 'b', name: 'example-b' }]);
+  const finish: Record<string, (v: PolicyVersion[]) => void> = {};
+  vi.mocked(apiClient.listPolicyVersions).mockImplementation(id => new Promise(resolve => { finish[id] = resolve; }));
+  render(<StaticAuthProvider roles={['viewer']}><PoliciesPage /></StaticAuthProvider>);
+  const rows = await screen.findAllByTestId('policy-row'); fireEvent.click(rows[0]); fireEvent.click(rows[1]);
+  await act(async () => finish.b([version(2, 'DRAFT', 'b')]));
+  await act(async () => finish.a([version(9, 'DRAFT', 'a')]));
+  expect(screen.getByTestId('policy-version-row')).toHaveTextContent('v2');
+  expect(screen.queryByText('v9')).not.toBeInTheDocument();
 });

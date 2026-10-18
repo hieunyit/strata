@@ -137,7 +137,7 @@ describe('policies page', () => {
     expect(rows[0]).toHaveTextContent('Block');
     fireEvent.click(rows[0]);
     await waitFor(() => expect(screen.getAllByTestId('policy-version-row')).toHaveLength(2));
-    expect(versions).toHaveBeenCalledWith('example-api');
+    expect(versions).toHaveBeenCalledWith('example-api', expect.any(AbortSignal));
     // Read only: nothing to edit or deploy.
     expect(screen.queryByRole('button', { name: /deploy|edit/i })).not.toBeInTheDocument();
   });

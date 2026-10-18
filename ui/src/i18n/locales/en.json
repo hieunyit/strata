@@ -617,6 +617,22 @@
     "empty": "No versions are awaiting approval.",
     "previous": "Previous",
     "next": "Next",
-    "page": "Page {{page}}/{{pages}} · {{total}} versions"
+    "page": "Page {{page}}/{{pages}} · {{total}} versions",
+    "writeFailed": "The request was refused or its outcome is unknown. Reload review before another action.",
+    "saving": "Sending decision…",
+    "comment": "Review comment (required for rejection)",
+    "commentLimit": "Use at most 1,000 characters without null characters.",
+    "needReplay": "Approval needs a completed, nonempty replay report with artifact proof. Rejection can proceed while replay runs.",
+    "reviewed": "I reviewed replay report {{id}}.",
+    "approve": "Approve version",
+    "reject": "Reject version",
+    "submit": "Submit for review",
+    "runReplay": "Run replay",
+    "result": {
+      "submitted": "Version submitted for independent review.",
+      "approved": "Version approved. Deployment is a separate action.",
+      "rejected": "Version rejected with the recorded reason.",
+      "replayed": "Replay queued. Wait for the completed report."
+    }
   }
 }

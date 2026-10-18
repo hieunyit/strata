@@ -611,6 +611,22 @@
     "empty": "Không có version đang chờ duyệt.",
     "previous": "Trang trước",
     "next": "Trang sau",
-    "page": "Trang {{page}}/{{pages}} · {{total}} version"
+    "page": "Trang {{page}}/{{pages}} · {{total}} version",
+    "writeFailed": "Yêu cầu bị từ chối hoặc chưa rõ kết quả. Tải lại xét duyệt trước khi thao tác tiếp.",
+    "saving": "Đang gửi quyết định…",
+    "comment": "Nhận xét (bắt buộc khi từ chối)",
+    "commentLimit": "Tối đa 1.000 ký tự, không chứa ký tự null.",
+    "needReplay": "Duyệt cần report replay hoàn tất, có mẫu và bằng chứng artifact. Có thể từ chối khi replay đang chạy.",
+    "reviewed": "Tôi đã xem report replay {{id}}.",
+    "approve": "Duyệt version",
+    "reject": "Từ chối version",
+    "submit": "Gửi duyệt",
+    "runReplay": "Chạy replay",
+    "result": {
+      "submitted": "Đã gửi version để người khác duyệt.",
+      "approved": "Đã duyệt version. Triển khai là thao tác riêng.",
+      "rejected": "Đã từ chối version và ghi nhận lý do.",
+      "replayed": "Đã xếp hàng replay. Hãy chờ report hoàn tất."
+    }
   }
 }

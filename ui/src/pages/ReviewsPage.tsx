@@ -34,6 +34,6 @@ export const ReviewsPage: React.FC = () => {
         <button type="button" className="btn" disabled={currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{t('reviews.next')}</button>
       </div>
     </>}
-    {selected && <VersionReview key={`${selected.id}:${selected.version}`} policyId={selected.id} version={selected.version} />}
+    {selected && <VersionReview key={`${selected.id}:${selected.version}`} policyId={selected.id} version={selected.version} onChanged={queue.refresh} />}
   </PageShell>;
 };
