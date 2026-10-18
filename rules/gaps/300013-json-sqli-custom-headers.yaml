@@ -1,0 +1,44 @@
+# A boolean SQL predicate invoking a JSON function; keyword mentions and
+# ordinary JSON/path headers do not satisfy the comparison syntax.
+rule:
+  id: 300013
+  name: SQL JSON function predicate in custom headers
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets:
+      - var: request_headers
+        exclude: [Host, User-Agent, Referer, Cookie]
+      transforms: [url_decode_uni, remove_nulls, base64_decode]
+      multi_match: true
+      operator:
+        type: rx
+        value: '(?i)\b(?:and|or)\s+json_(?:extract|depth|keys|length|value|search|contains)\s*\([^\r\n;]{1,256}\)\s*(?:!=|<>|=|<|>)\s*[-+]?\d+'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    author: Strata rules team
+    owner: rules-team
+    review_by: "2027-01-16"
+    attack_type: sql-injection
+    accuracy: high
+    tags: [issue-108, custom-header]
+tests:
+  match:
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "123)%20AND%2012=12%20AND%20JSON_DEPTH('%7B%7D')%20!=%202521" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: "1 OR JSON_EXTRACT('{a:1}', '$.a') = 1" }
+  - uri: /header-sql
+    headers: { Host: api.example.test, X-Example-Filter: 'MSBPUiBKU09OX0RFUFRIKCd7fScpICE9IDI1MjE=' }
+  no_match:
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: "Documentation for JSON_DEPTH('{}') and JSON_EXTRACT usage" }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'and json_depth summary = 1' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: "json_extract('{}', '$.a')" }

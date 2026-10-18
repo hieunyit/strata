@@ -1,0 +1,75 @@
+# Header placements bypass the argument-only 941100/300008 targets.
+# The second decoding pass normalizes encoded text inside a base64 value;
+# multi_match also inspects raw values before a permissive base64 transform.
+rule:
+  id: 300012
+  name: XSS markup or indirect JavaScript calls in custom headers
+  layer: managed
+  stage: request_headers
+  match:
+    any:
+    - targets:
+      - var: request_headers
+        exclude: [Host, User-Agent, Cookie]
+      transforms: [url_decode_uni, html_entity_decode, js_decode, css_decode, remove_nulls, base64_decode, html_entity_decode, js_decode, css_decode, remove_nulls]
+      multi_match: true
+      operator: { type: detect_xss }
+    - targets:
+      - var: request_headers
+        exclude: [Host, User-Agent, Cookie]
+      transforms: [url_decode_uni, html_entity_decode, js_decode, css_decode, remove_nulls, base64_decode, html_entity_decode, js_decode, css_decode, remove_nulls]
+      multi_match: true
+      operator:
+        type: rx
+        value: '(?i)\b(?:alert|confirm|prompt)\s*(?:\?\.\s*)?\(\s*(?:\d|document\b|window\b|null\b|this\b|[''"`])|\(\s*(?:alert|confirm|prompt|eval)\s*\)\s*\(|\b(?:alert|confirm|prompt|eval)\s*\.\s*(?:call|apply|bind)\s*\(|\b(?:alert|confirm|prompt)\s*`[^`]{0,40}`|\bonerror\s*=\s*eval\b'
+    - targets:
+      - var: request_headers
+        exclude: [Host, User-Agent, Cookie]
+      transforms: [url_decode_uni, html_entity_decode, js_decode, css_decode, remove_nulls, base64_decode, html_entity_decode, js_decode, css_decode, remove_nulls]
+      multi_match: true
+      operator:
+        type: rx
+        value: '(?i)\bjavascript\s*:\s*(?:setinterval|settimeout|eval|function)\s*\('
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    author: Strata rules team
+    owner: rules-team
+    review_by: "2027-01-16"
+    attack_type: xss
+    accuracy: high
+    tags: [issue-108, custom-header]
+tests:
+  match:
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: "<body onload=alert('test')>" }
+  - uri: /metadata
+    headers: { Host: api.example.test, x-example-text: '%3Cbody%20onload%3Dalert(1)%3E' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'PGJvZHkgb25sb2FkPWFsZXJ0KDEpPg==' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'Jmx0O3N2Zy9vbmxvYWQ9YWxlcnQoMSkmZ3Q7' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'confirm.call(null,1)' }
+  - uri: /metadata
+    headers: { Host: api.example.test, Referer: 'https://example.test/?q=%3Csvg/onload%3Dalert(1)%3E' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: "javascript:setInterval('ale'+'rt(document.domain)')" }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'javascript%3AsetTimeout(%22alert(1)%22)' }
+  no_match:
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'JavaScript: setInterval scheduling documentation' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'Set an alert (daily), confirm (yes or no), improve my prompt(s)' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'JavaScript: Basics of JavaScript Language' }
+  - uri: /metadata
+    headers: { Host: api.example.test, Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJleGFtcGxlIn0.signature' }
+  - uri: /metadata
+    headers: { Host: api.example.test, If-None-Match: 'W/"example-v1"', Accept: 'text/html,application/xhtml+xml' }
+  - uri: /metadata
+    headers: { Host: api.example.test, X-Example-Text: 'U2V0IGFuIGFsZXJ0IChkYWlseSk=' }
