@@ -81,6 +81,17 @@ func TestOverview_ClickHouseMatchesMock(t *testing.T) {
 	if err := mock.SaveEvents(ctx, events); err != nil {
 		t.Fatal(err)
 	}
+	// Keep duplicate parts unmerged: query correctness must not depend on timing.
+	if err := ch.conn.Exec(ctx, "SYSTEM STOP MERGES events"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ch.SaveEvents(ctx, events); err != nil {
+		t.Fatal(err)
+	}
+	search, err := ch.SearchEvents(ctx, SearchFilter{From: base.Add(-30 * 24 * time.Hour), To: base.Add(time.Second), Limit: 200})
+	if err != nil || search.Total != uint64(len(events)) || len(search.Events) != 200 {
+		t.Fatalf("unmerged retry search: %+v, %v", search, err)
+	}
 	// RV-N-01: requests per node and policy, every 15 minutes
 	var counts []PolicyRequests
 	for i := 0; i < 300; i++ {

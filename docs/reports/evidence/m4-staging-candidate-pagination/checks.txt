@@ -1,0 +1,16 @@
+Initial new fixture failure:
+=== RUN   TestStagingCandidatesUseImmutableReportsAndAdvanceCursor
+    staging_candidates_test.go:32: store: invalid event annotation
+--- FAIL: TestStagingCandidatesUseImmutableReportsAndAdvanceCursor (0.52s)
+=== RUN   TestStagingCandidateBounds
+--- PASS: TestStagingCandidateBounds (0.56s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/store	1.243s
+FAIL
+
+Final corrected fixtures (private PostgreSQL):
+go test -race ./store ./rulehealth -count=1
+golangci-lint run ./store/... ./rulehealth/...
+ok  	github.com/strata/strata/control-plane/store	16.760s
+ok  	github.com/strata/strata/control-plane/rulehealth	1.710s
+0 issues.

@@ -1,0 +1,8 @@
+M2 · Trang hàng chờ và inspector đọc version · 18/10/2026 (UTC+7)
+Nhánh `codex/review-queue-read`, base `codex/replay-report-ui` (`29b9e77`).
+
+Nối route/nav `#/reviews` với endpoint SUBMITTED hiện có. Bảng phân trang 50 dòng tại UI; không GET replay cho từng dòng. Chỉ version đang mở mới đọc version list + replay, có hủy request/timeout và poll từ thành phần đã kiểm. Inspector cố định candidate và bản APPROVED/DEPLOYED khác mới nhất làm mốc diff; không lấy DRAFT trước đó làm baseline. Nếu chưa có mốc duyệt, hiển thị cấu hình đề xuất. Replay nêu riêng bundle baseline thực tế; không nhập nhằng hai mốc. Lỗi read không biến thành queue rỗng hoặc replay chưa có; locale đổi không tải lại/mất selection. PolicyDiff thêm chế độ cố định version, giữ nguyên chức năng so sánh cũ.
+
+Kiểm chứng Node 24.21.0: `npm test -- --cache=false && npm run lint && npm run build -- --outDir /src/build/review-queue-dist` → **125/125 (21 file) PASS**, lint/build PASS. Bốn test mới kiểm 51 dòng/phân trang, chỉ đọc selected replay, baseline APPROVED v2 thay vì DRAFT v3 khi xem v4, locale không refetch, lỗi queue/version sai scope, policy chưa có baseline. [Output thật](evidence/review-queue-read/checks.log.gz).
+
+Giới hạn: endpoint server trả toàn bộ queue/version list; phân trang UI không phải giới hạn cardinality phía server. Chưa nối nút ghi trong PR này, chưa có browser acceptance queue. Không sửa schema/dependency/runtime hay con trỏ tuần. Tự review: read có cancellation và trạng thái lỗi; bảng render tối đa 50 dòng, replay giới hạn top/example; không tự ghi/approve/deploy; EN/VI, lint sạch; chỉ UI và báo cáo. Không merge/chờ hosted CI.

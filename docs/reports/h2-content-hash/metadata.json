@@ -1,0 +1,15 @@
+{
+  "baseline_binary_sha256": "41fa4c3d81f85918afcaaac2f905b2ae14a2b8d6f3aca7dacf00384c4c78c020",
+  "candidate_binary_sha256": "3ecca986617de79d785f0852c82b812d3077802c2bcb2e9a86fbdb3379208975",
+  "bundle_sha256": "bc051ed06bbb3f0645709942bf5e0a82a2a239ac2636b38ff21d421f130e1506",
+  "nginx_asan_sha256": "4708c7c5929190cbb3345e3e4bdda9eddb719438f3a472447127409bca724a0e",
+  "module_asan_sha256": "f65e6e5943b2a1cc8b3803ff5b53076dea3177128136681c464a699beaebda85",
+  "source_base": "25a6e9e8c4d28f7c18e70ba785e755a65670817b",
+  "engine_diff_sha256": "0cf535c4ccedb290d1f62eb505b62f7b5a424e3147345e9767031822432749d8",
+  "cpuset": "6-10",
+  "scope": "generated_engine_workload; nginx_asan_separate",
+  "callgrind_prefilter_instructions": {
+    "baseline": 2835214417,
+    "candidate": 2740835628
+  }
+}

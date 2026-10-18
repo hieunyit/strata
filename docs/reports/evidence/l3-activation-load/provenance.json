@@ -1,0 +1,11 @@
+{
+  "base_commit": "4aa3aee",
+  "dev_build_test_hooks": true,
+  "sanitizers": false,
+  "sha256": {
+    "tests/security/activation_load_probe.py": "c41f3f31393476c9cfa13de2042599065b73d0ca79eb1743a893c68143af68a4",
+    "tests/security/cold_worker_probe.py": "5caac3a2d93c07bf1c8023ee8cfcedeaeee8e098e3b465bfcd2a4cbd8ac778b1",
+    "tests/security/test_activation_load_probe.py": "ef4c9aa1c004e83cbb94ce397973b4500b9394038886562203b84c8dc2fe0c36",
+    "build/m4-runtime-target/release/libstrata.a": "47f545c2783d5e513fcac882d54ead5f59764d98a2a51f751a04b76f06c61cda"
+  }
+}

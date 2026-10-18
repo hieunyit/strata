@@ -1,0 +1,33 @@
+ClickHouse fixture: strata-ch-perf-1792206209-1376296 at 127.0.0.1:32869
+filled in 223 s: 20000000 rows, 812.82 MiB active disk
+=== RUN   TestClickHouseAPIPerf
+    clickhouse_perf_test.go:101: GET /v1/events/{id}, 200 IDs: p50 54.217988ms, p99 97.673146ms, max 98.296521ms; unknown ID 396.56115ms (404)
+    clickhouse_perf_test.go:142: POST /v1/events:search, 24 hours (count + first 50):
+        all                      total   9972255  p50   1.052s  p99   1.243s
+        policy                   total   5982977  p50   1.172s  p99   1.265s
+        action block             total   7979104  p50   1.038s  p99   1.455s
+        rule 942100              total   3215833  p50   1.453s  p99   1.566s
+        client IP                total    997012  p50   1.566s  p99   1.927s
+        node + method            total    356120  p50   1.147s  p99   1.354s
+        policy + rule + action   total   1288179  p50   1.521s  p99   1.824s
+        all, page 41             total   9972255  p50   1.109s  p99    1.33s
+--- PASS: TestClickHouseAPIPerf (111.95s)
+PASS
+ok  	github.com/strata/strata/control-plane/api	112.016s
+=== RUN   TestClickHousePerf
+    clickhouse_perf_test.go:61: events: 20000000 in all, 9960456 in the last 24 h
+    clickhouse_perf_test.go:95: Block ID lookup, 200 IDs: p50 54.802254ms, p99 95.67697ms, max 97.492783ms; an unknown ID 315.361197ms
+    clickhouse_perf_test.go:136: 24-hour searches (count + first 50):
+        all                      total   9958929  p50    970ms  p99   1.121s
+        policy                   total   5974994  p50   1.074s  p99   1.264s
+        action block             total   7968406  p50    952ms  p99   1.339s
+        rule 942100              total   3211575  p50   1.459s  p99   1.534s
+        client IP                total    995631  p50   1.491s  p99   1.642s
+        node + method            total    355623  p50   1.177s  p99   1.359s
+        policy + rule + action   total   1286447  p50   1.477s  p99   1.654s
+        all, page 41             total   9958929  p50   1.109s  p99   1.368s
+--- PASS: TestClickHousePerf (112.13s)
+=== RUN   TestClickHouseTTL
+--- PASS: TestClickHouseTTL (0.24s)
+PASS
+ok  	github.com/strata/strata/control-plane/ingest	112.396s

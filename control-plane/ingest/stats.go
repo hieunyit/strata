@@ -311,10 +311,8 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 	return o, nil
 }
 
-// Overview runs one query per part over the window's partitions. Counts are
-// count() of rows: a batch the agent resent is merged away by the
-// ReplacingMergeTree in the background, and until then it is counted twice,
-// which a dashboard tolerates (uniqExact over 30 days would not be cheap).
+// Overview reads logical events, including before background merges finish.
+// FINAL collapses retries left by a crash between ClickHouse and PG commits.
 func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Overview, error) {
 	if err := f.Normalize(); err != nil {
 		return nil, err
@@ -329,7 +327,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 	const counts = `countIf(action = 'block'), countIf(action = 'shadow'), countIf(action NOT IN ('block', 'shadow')), countIf(action = 'error')`
 
 	// Totals.
-	q := fmt.Sprintf(`SELECT count(), %s, uniq(client_ip), uniq(node_id), uniq(policy_id) FROM %s WHERE %s`,
+	q := fmt.Sprintf(`SELECT count(), %s, uniq(client_ip), uniq(node_id), uniq(policy_id) FROM %s FINAL WHERE %s`,
 		counts, s.tableName, where)
 	t := &o.Totals
 	if err := s.conn.QueryRow(ctx, q, args...).Scan(&t.Events, &t.Block, &t.Shadow, &t.Other, &t.Error, &t.Clients, &t.Nodes, &t.Policies); err != nil {
@@ -338,7 +336,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 
 	// Series.
 	q = fmt.Sprintf(`SELECT toStartOfInterval(timestamp, toIntervalSecond(%d), 'UTC') AS b, %s
-		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(f.Step/time.Second), counts, s.tableName, where)
+		FROM %s FINAL WHERE %s GROUP BY b ORDER BY b`, int64(f.Step/time.Second), counts, s.tableName, where)
 	rows, err := s.conn.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("overview series: %w", err)
@@ -363,7 +361,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 
 	// Top rules: each event counts once per distinct rule it matched.
 	q = fmt.Sprintf(`SELECT rule_id, count() AS n, countIf(action = 'block'), countIf(action = 'shadow')
-		FROM %s ARRAY JOIN arrayDistinct(matched_rules) AS rule_id WHERE %s
+		FROM %s FINAL ARRAY JOIN arrayDistinct(matched_rules) AS rule_id WHERE %s
 		GROUP BY rule_id ORDER BY n DESC, rule_id LIMIT %d`, s.tableName, where, TopN)
 	if err := s.collect(ctx, q, args, func(sc func(...any) error) error {
 		var r RuleCount
@@ -380,7 +378,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 	q = fmt.Sprintf(`SELECT policy_id, http_host,
 			arrayStringConcat(arraySlice(splitByChar('/', path(concat('http://h', http_path))), 1, 3), '/') AS prefix,
 			count() AS n, countIf(action = 'block'), countIf(action = 'shadow'), countIf(action = 'error')
-		FROM %s WHERE %s
+		FROM %s FINAL WHERE %s
 		GROUP BY policy_id, http_host, prefix ORDER BY n DESC, policy_id, http_host, prefix LIMIT %d`, s.tableName, where, TopN)
 	if err := s.collect(ctx, q, args, func(sc func(...any) error) error {
 		var r RouteCount
@@ -395,7 +393,7 @@ func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Over
 
 	if f.Clients {
 		q = fmt.Sprintf(`SELECT client_ip, count() AS n, countIf(action = 'block')
-			FROM %s WHERE %s GROUP BY client_ip ORDER BY n DESC, client_ip LIMIT %d`, s.tableName, where, TopN)
+			FROM %s FINAL WHERE %s GROUP BY client_ip ORDER BY n DESC, client_ip LIMIT %d`, s.tableName, where, TopN)
 		o.TopClients = []ClientCount{}
 		if err := s.collect(ctx, q, args, func(sc func(...any) error) error {
 			var c ClientCount

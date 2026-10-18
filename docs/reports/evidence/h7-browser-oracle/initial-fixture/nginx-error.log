@@ -1,0 +1,22 @@
+2026/10/17 15:12:28 [notice] 9#9: using the "epoll" event method
+2026/10/17 15:12:28 [notice] 9#9: nginx/1.30.5
+2026/10/17 15:12:28 [notice] 9#9: built by gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+2026/10/17 15:12:28 [notice] 9#9: OS: Linux 6.8.0-85-generic
+2026/10/17 15:12:28 [notice] 9#9: getrlimit(RLIMIT_NOFILE): 1024:524288
+2026/10/17 15:12:28 [notice] 9#9: start worker processes
+2026/10/17 15:12:28 [notice] 9#9: start worker process 12
+2026/10/17 15:12:28 [notice] 9#9: start worker process 45
+2026/10/17 15:12:33 [error] 12#12: *10 strata: engine error 4, event id EVT-D199-NZPE-BMBP-RSCX, fail mode open, client: 127.0.0.1, server: , request: "GET /reflect?encoder=URL&context=raw HTTP/1.1", host: "127.0.0.1:42501"
+2026/10/17 15:12:33 [notice] 9#9: signal 3 (SIGQUIT) received from 1, shutting down
+2026/10/17 15:12:33 [notice] 12#12: gracefully shutting down
+2026/10/17 15:12:33 [notice] 45#45: gracefully shutting down
+2026/10/17 15:12:33 [notice] 12#12: exiting
+2026/10/17 15:12:33 [notice] 45#45: exiting
+2026/10/17 15:12:33 [notice] 45#45: exit
+2026/10/17 15:12:33 [notice] 9#9: signal 17 (SIGCHLD) received from 45
+2026/10/17 15:12:33 [notice] 9#9: worker process 45 exited with code 0
+2026/10/17 15:12:33 [notice] 9#9: signal 29 (SIGIO) received
+2026/10/17 15:12:33 [notice] 12#12: exit
+2026/10/17 15:12:33 [notice] 9#9: signal 17 (SIGCHLD) received from 12
+2026/10/17 15:12:33 [notice] 9#9: worker process 12 exited with code 0
+2026/10/17 15:12:33 [notice] 9#9: exit

@@ -1,0 +1,15 @@
+=== RUN   TestCompilerSnapshotPreservesRuleParser
+--- PASS: TestCompilerSnapshotPreservesRuleParser (0.02s)
+ok  	github.com/strata/strata/control-plane/policy	1.421s
+=== RUN   TestFirstReplayBaselineUsesPreparedCompilerInputs
+--- PASS: TestFirstReplayBaselineUsesPreparedCompilerInputs (0.08s)
+=== RUN   TestRealReplay
+--- SKIP: TestRealReplay (0.00s)
+ok  	github.com/strata/strata/control-plane/replay	3.820s
+=== RUN   TestRealReplay
+2026/10/16 15:54:48 [INFO] replay: op-real (policy example-api version 2): 4300 samples in 7232 ms
+    real_test.go:77: 4300 corpus samples: 1700 newly blocked by 61 rules in 7232 ms
+2026/10/16 15:55:21 [WARN] replay: op-bad (policy example-api version 2): strata-replay: exit status 2: strata-replay: /tmp/strata-replay-4139185120/baseline.sbn: bundle refused (5): bad bundle signature
+--- PASS: TestRealReplay (75.21s)
+ok  	github.com/strata/strata/control-plane/replay	76.347s
+0 issues.

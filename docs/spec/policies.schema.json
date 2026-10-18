@@ -31,6 +31,30 @@
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]
           },
+          "staged_rules": {
+            "description": "Compiler-internal signed log-only overlay, 0..16 distinct managed request Rule IDs. The public policy API accepts only auto_staging delegation, not effective staged_rules. Requires staging-aware engines (mandatory policy bit); no automatic expiry or re-enforcement.",
+            "type": "array", "maxItems": 16, "uniqueItems": true,
+            "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
+          },
+          "exceptions": {
+            "description": "Exact expiring field exclusions for managed rules. Requires exception-aware engines on every node; older engines refuse the mandatory policy flag. Changes go through policy draft/replay/four-eyes/deploy, including revocation.",
+            "type": "array", "maxItems": 128,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["id", "rule_id", "method", "host", "path", "field", "expires_unix_ms", "reason"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^exc-[a-f0-9]{32}$" },
+                "rule_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+                "method": { "type": "string", "minLength": 1, "maxLength": 32 },
+                "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+                "path": { "type": "string", "minLength": 1, "maxLength": 2048 },
+                "field": { "type": "string", "minLength": 1, "maxLength": 160 },
+                "expires_unix_ms": { "type": "integer", "minimum": 1, "maximum": 9223372036854775807 },
+                "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+                "source_block_id": { "type": "string", "pattern": "^STR-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$" }
+              }
+            }
+          },
           "privacy": {
             "description": "Privacy settings (P-01 §1), on top of the built-in ones (sensitive names, CCCD, JWT, card numbers, always on): field names whose input is never kept in events (case-insensitive: a parameter, a header, the last part of a JSON path), and patterns masked with '*' in event snippets and headers (regex crate syntax, linear time, must not match the empty string). Engines from before the setting refuse a bundle with it.",
             "type": "object",

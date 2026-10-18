@@ -1,0 +1,5 @@
+--- FAIL: TestRuleFPReportProvenanceInPostgres (0.48s)
+    rule_report_provenance_test.go:26: legacy promoted: 0 ERROR: column "first_reported_at" does not exist (SQLSTATE 42703)
+FAIL
+FAIL	github.com/strata/strata/control-plane/store	0.569s
+FAIL

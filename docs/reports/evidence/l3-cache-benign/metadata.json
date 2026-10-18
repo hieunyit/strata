@@ -1,0 +1,23 @@
+{
+  "scope": "worker_first_transaction_and_reload_not_cold_host_cache",
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "workers": 1,
+  "reloads": 10,
+  "warm_per_worker": 20,
+  "request_uri_sha256": "52d731845ce6123d0240024b312ada6c47b218f37d24f8476dea76bb42eaae3d",
+  "expected_status": 200,
+  "activation_mode": "worker_reload",
+  "cpu": 6,
+  "bundle_version": 1,
+  "hashes": {
+    "/src/build/nginx-1.30.5/objs/nginx": "a22f25764fb9ca4267ec1649686f46f28bc1bc3095552ce5a3ea729df57b8998",
+    "/src/build/nginx-1.30.5/objs/ngx_http_strata_module.so": "5750d2234967d5c4a2fb993cd3d798fb7b0aed2ce376bccec41252dc6ecbc766",
+    "/src/build/current-pack/header-v4.sbn": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a",
+    "/src/connectors/nginx/t/fixtures/bundle.pub": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e",
+    "/src/target/release/mkbundle": "7f6a38254875ed12e39c7ba8bf2541f67cc1851839e6a4415e88291d76fce729",
+    "/src/tests/security/cold_worker_probe.py": "5caac3a2d93c07bf1c8023ee8cfcedeaeee8e098e3b465bfcd2a4cbd8ac778b1"
+  },
+  "configuration_sha256": "e37f449e531047601f7b481ad25edd5f08f29478597f89b41dbdaa6ea0f06545",
+  "datagrams_received": 11
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"github.com/strata/strata/agent/internal/fallback"
 	"github.com/strata/strata/agent/internal/fleettest"
 	"github.com/strata/strata/agent/internal/pusher"
 )
@@ -44,6 +45,18 @@ strata_agent_spool_unacked_batches 0
 	if err := testutil.GatherAndCompare(r.a.Registry, strings.NewReader(want),
 		"strata_agent_events_received_total", "strata_agent_events_invalid_total",
 		"strata_agent_spool_unacked_batches"); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the collector with fallback enabled without changing the running agent.
+	c := collector{a: &Agent{Socket: r.a.Socket, Pusher: r.a.Pusher, Spool: r.a.Spool,
+		Fallback: fallback.NewWatcher("", nil, fallback.Options{})}}
+	if err := testutil.CollectAndCompare(c, strings.NewReader(`
+# HELP strata_agent_fallback_alerts_total Source saturation or jumps of engine errors or budget overruns that left the policies as they are, by reason.
+# TYPE strata_agent_fallback_alerts_total counter
+strata_agent_fallback_alerts_total{reason="source_limit"} 0
+strata_agent_fallback_alerts_total{reason="engine_errors"} 0
+strata_agent_fallback_alerts_total{reason="budget"} 0
+`), "strata_agent_fallback_alerts_total"); err != nil {
 		t.Fatal(err)
 	}
 	mfs, err := r.a.Registry.Gather()

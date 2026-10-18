@@ -1,0 +1,15 @@
+# M4 — durable staging ledger and publication intent
+
+Branch: `codex/m4-staging-ledger`, stacked on PR #190. M4 remains incomplete; this component is not wired to an automatic worker.
+
+A control-plane crash between recording a signed derivation and starting its rollout must not lose the staging state or the work to publish it. Migration 0021 records each immutable `(policy_id, policy_version, rule_id)` together with its source/derived bundles, count evidence, window, request fingerprint and optional rollout reference. A null rollout reference means pending publication, not active enforcement state.
+
+`Store.RecordStagingBundle` records the bundle, ledger row and audit in one PostgreSQL transaction. It compares the latest source version, input digest, SHA and complete policy/version map; requires independent approval provenance for the target version; and rejects stale sources or repeated staging of the same rule/version. The caller still must validate opt-in/thresholds, captured inputs, managed-rule eligibility and the signed artifact. This store primitive grants no deployment authority.
+
+Ordinary and staging bundle records share a short transaction advisory lock, separate from the existing compilation lock. This fences source comparison against an ordinary record without deadlocking its pooled build connection. Identical request retries return the original action without a duplicate audit, even after the source was superseded. A changed request with the same key fails. Effective stage IDs load only for exact versions, with codec limits; a later bundle record, restart or window expiry does not clear them. Count evidence supports UInt64 maximum without narrowing. Persisted window timestamps use PostgreSQL microsecond precision.
+
+Validation: [recorded output](evidence/m4-staging-ledger/checks.txt). New PostgreSQL tests cover rollback when audit fails, another Store reading the same state, exact retry and conflicting retry, forged source digest/SHA, missing independent approval, two concurrent writers, stale source, invalid/bounded inputs, cancellation, and migration 20 → 21 with no inferred staging. Full control-plane `go test -race ./... -count=1` passed (store 13.280 s, fleet 28.018 s, API 8.467 s); `golangci-lint run ./...` reports 0 issues. The suite has service-dependent skips when their environment variables are absent; this run used the private PostgreSQL server, not ClickHouse/MinIO or real replay binaries.
+
+Self-review: all new write I/O takes context; source/state/audit changes are atomic; input/codec bounds are enforced; no credentials or event snippets enter the ledger; only store/schema and related tests/docs change. No dependency or public endpoint added. Existing tests remain enabled.
+
+Remaining: load exact version state into normal replay/deploy, restrict the source-bound derivation publisher, idempotent rollout recovery, worker/notification wiring, and a real opt-in FP spike → node activation proof under five minutes. No main merge, hosted CI wait or staging/production access.

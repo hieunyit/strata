@@ -1,0 +1,6 @@
+=== RUN   TestAnnotationBindsRuleContextFromLookedUpEvent
+    rule_annotation_context_test.go:36: rule 942100 policy default-api: 0, want 1: <nil>
+--- FAIL: TestAnnotationBindsRuleContextFromLookedUpEvent (0.52s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/api	0.623s
+FAIL

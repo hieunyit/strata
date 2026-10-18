@@ -1,0 +1,9 @@
+{
+  "bundle_sha256": "604284d6a1c919b9ce296f8369b251fa093ded0944e44fb78cc82d5c89ea1a9c",
+  "pubkey_sha256": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e",
+  "binary_sha256": "b7d10ddb5839f877f213062ee2b7a2a7ad147c4b5ee006ec6ec7e3e7041c7b7e",
+  "source_head": "991c4bb7a662765d038606a3ceb3a284cef2e270",
+  "source_diff_sha256": "7f3878a36a4495beeb5ccd0037c7c0c832fdf98cf564bafca95b67f50aa20369",
+  "platform": "Linux-6.8.0-85-generic-x86_64-with-glibc2.39",
+  "kind": "engine_serial_generated_workload"
+}

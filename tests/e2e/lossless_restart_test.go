@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +27,7 @@ type losslessWorker struct {
 	localPath  string
 	conn       *net.UnixConn
 	mu         sync.Mutex
+	retries    atomic.Uint64
 }
 
 func newLosslessWorker(socketPath string) (*losslessWorker, error) {
@@ -44,6 +44,11 @@ func newLosslessWorker(socketPath string) (*losslessWorker, error) {
 }
 
 func (w *losslessWorker) send(ev *eventv1.Event) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.conn == nil {
+		return net.ErrClosed
+	}
 	b, err := proto.Marshal(ev)
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
@@ -51,11 +56,15 @@ func (w *losslessWorker) send(ev *eventv1.Event) error {
 
 	addr := &net.UnixAddr{Name: w.socketPath, Net: "unixgram"}
 	deadline := time.Now().Add(15 * time.Second)
+	if err := w.conn.SetWriteDeadline(deadline); err != nil {
+		return fmt.Errorf("set producer write deadline: %w", err)
+	}
 	for time.Now().Before(deadline) {
 		_, err := w.conn.WriteTo(b, addr)
 		if err == nil {
 			return nil
 		}
+		w.retries.Add(1)
 		time.Sleep(5 * time.Millisecond)
 	}
 	return fmt.Errorf("timeout sending event %s to socket %s", ev.GetBlockId(), w.socketPath)
@@ -71,76 +80,6 @@ func (w *losslessWorker) Close() error {
 		return err
 	}
 	return nil
-}
-
-func isClickHouseReady(httpAddr, password string) bool {
-	client := http.Client{Timeout: 800 * time.Millisecond}
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/?query=SELECT+1", httpAddr), nil)
-	if err != nil {
-		return false
-	}
-	if password != "" {
-		req.SetBasicAuth("default", password)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
-func ensureClickHouse(t *testing.T) string {
-	t.Helper()
-	nativeAddr := os.Getenv("CLICKHOUSE_ADDR")
-	if nativeAddr == "" {
-		nativeAddr = "127.0.0.1:9000"
-	}
-	httpAddr := os.Getenv("CLICKHOUSE_HTTP_ADDR")
-	if httpAddr == "" {
-		httpAddr = "127.0.0.1:8123"
-	}
-	password := os.Getenv("CLICKHOUSE_PASSWORD")
-	if password == "" {
-		password = "strata"
-	}
-
-	if isClickHouseReady(httpAddr, password) {
-		t.Logf("ClickHouse is already running at %s (native: %s)", httpAddr, nativeAddr)
-		return nativeAddr
-	}
-
-	containerName := fmt.Sprintf("strata-e2e-ch-%d", time.Now().UnixNano()%100000)
-	t.Logf("Starting temporary ClickHouse container %s...", containerName)
-
-	cmd := exec.Command("docker", "run", "-d", "--rm",
-		"--name", containerName,
-		"-p", "9000:9000",
-		"-p", "8123:8123",
-		"-e", fmt.Sprintf("CLICKHOUSE_PASSWORD=%s", password),
-		"--ulimit", "nofile=262144:262144",
-		"clickhouse/clickhouse-server:latest",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("failed to start ClickHouse container: %v, output: %s", err, string(out))
-	}
-
-	t.Cleanup(func() {
-		t.Logf("Stopping ClickHouse container %s...", containerName)
-		_ = exec.Command("docker", "stop", "-t", "2", containerName).Run()
-	})
-
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
-		if isClickHouseReady(httpAddr, password) {
-			t.Logf("ClickHouse container %s is ready at %s", containerName, nativeAddr)
-			return nativeAddr
-		}
-		time.Sleep(300 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for ClickHouse to start at %s", httpAddr)
-	return nativeAddr
 }
 
 type agentProcess struct {
@@ -242,29 +181,13 @@ func waitForSocket(sockPath string, timeout time.Duration) error {
 }
 
 // TestLosslessRestartUnderLoad verifies W06-Q-01: restarting strata-agent under continuous load
-// guarantees 0 event loss and 0 duplicate events in ClickHouse.
+// checks delivery from a retry-capable producer across a graceful restart.
+// This producer is not the best-effort NGINX event sink.
 func TestLosslessRestartUnderLoad(t *testing.T) {
-	chAddr := ensureClickHouse(t)
-
-	password := os.Getenv("CLICKHOUSE_PASSWORD")
-	if password == "" {
-		password = "strata"
-	}
-
+	store, _ := losslessClickHouse(t)
 	ctx := context.Background()
-	store, err := ingest.NewClickHouseStore(ctx, ingest.ClickHouseConfig{
-		Addr:     chAddr,
-		Database: "default",
-		Username: "default",
-		Password: password,
-		Table:    "events",
-	})
-	if err != nil {
-		t.Fatalf("connect to clickhouse: %v", err)
-	}
-	defer store.Close()
 
-	// Ensure schema exists and clean previous test records
+	// The private fixture starts empty; never truncate a discovered database.
 	schemaSQLPath := filepath.Join("..", "..", "control-plane", "ingest", "schema.sql")
 	schemaBytes, err := os.ReadFile(schemaSQLPath)
 	if err != nil {
@@ -277,12 +200,6 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 		}
 		if err := store.Conn().Exec(ctx, stmt); err != nil {
 			t.Fatalf("execute schema.sql: %v", err)
-		}
-	}
-	// node_seq too: a watermark left by an earlier run would drop this run's batches.
-	for _, table := range []string{"events", "node_seq"} {
-		if err := store.Conn().Exec(ctx, "TRUNCATE TABLE IF EXISTS "+table); err != nil {
-			t.Fatalf("truncate %s: %v", table, err)
 		}
 	}
 
@@ -409,7 +326,13 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 	}()
 
 	// Wait until threshold is reached, then perform restart
-	<-restartDone
+	select {
+	case <-restartDone:
+	case err := <-workerErrors:
+		t.Fatalf("producer failed before restart threshold: %v", err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("producer did not reach restart threshold")
+	}
 	t.Logf("3. Load reached %d events. Terminating agent 1 via SIGTERM while load continues...", restartAfter)
 
 	restartStart := time.Now()
@@ -437,6 +360,8 @@ func TestLosslessRestartUnderLoad(t *testing.T) {
 	if sent := eventsSent.Load(); sent != totalEvents {
 		t.Fatalf("worker sent %d events; expected %d", sent, totalEvents)
 	}
+	elapsed := time.Since(start)
+	t.Logf("retry-capable producer: %d datagrams, %d retried writes, %.2f datagrams/s over %v; not NGINX throughput", eventsSent.Load(), worker.retries.Load(), float64(eventsSent.Load())/elapsed.Seconds(), elapsed)
 
 	entries, _ := os.ReadDir(spoolDir)
 	t.Logf("Spool directory %s has %d files", spoolDir, len(entries))

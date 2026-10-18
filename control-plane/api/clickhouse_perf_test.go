@@ -25,9 +25,19 @@ import (
 	"time"
 
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/localauth/localauthtest"
+	pgstore "github.com/strata/strata/control-plane/store"
 )
 
 func TestClickHouseAPIPerf(t *testing.T) {
+	clickHouseAPIPerf(t, false)
+}
+
+func TestClickHouseAPIAnnotatedPerf(t *testing.T) {
+	clickHouseAPIPerf(t, true)
+}
+
+func clickHouseAPIPerf(t *testing.T, annotated bool) {
 	addr := os.Getenv("CLICKHOUSE_PERF_ADDR")
 	if addr == "" {
 		t.Skip("CLICKHOUSE_PERF_ADDR not set (run tests/perf/clickhouse.sh)")
@@ -41,7 +51,16 @@ func TestClickHouseAPIPerf(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ts := httptest.NewServer(NewServer(ServerConfig{Auth: tokenRoles{}}, store).Handler())
+	var annotations *pgstore.Store
+	cfg := ServerConfig{Auth: tokenRoles{}}
+	if annotated {
+		if os.Getenv("STRATA_TEST_POSTGRES_DSN") == "" {
+			t.Fatal("annotated API performance requires STRATA_TEST_POSTGRES_DSN")
+		}
+		annotations = pgstore.New(localauthtest.Pool(t))
+		cfg.Annotations = annotations
+	}
+	ts := httptest.NewServer(NewServer(cfg, store).Handler())
 	defer ts.Close()
 
 	call := func(method, path string, body any) (int, []byte, time.Duration) {
@@ -85,12 +104,34 @@ func TestClickHouseAPIPerf(t *testing.T) {
 	if len(ids) < 100 {
 		t.Fatalf("only %d Block IDs sampled: fill the table first", len(ids))
 	}
+	marked := map[string]bool{}
+	if annotated {
+		for i, id := range ids {
+			if i%10 != 0 {
+				continue
+			}
+			bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+			e, err := store.GetEvent(bounded, id)
+			if err == nil {
+				_, err = annotations.MarkEventFalsePositive(bounded, id, "benign performance fixture", "", pgstore.Audit{Actor: "example-operator", Subject: "example-operator", RequestID: "perf-" + id, RuleContext: &pgstore.EventRuleContext{BundleVersion: e.PolicyVersion, PolicyID: e.PolicyID, EventTime: e.Timestamp, RuleIDs: e.MatchedRules}})
+			}
+			cancel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			marked[id] = true
+		}
+		t.Logf("durable PostgreSQL annotation overlay enabled; %d/%d lookup IDs annotated", len(marked), len(ids))
+	}
 	var lookup []time.Duration
 	for _, id := range ids {
 		code, body, d := call(http.MethodGet, "/v1/events/"+id, nil)
 		var resp GetEventResponse
 		if code != http.StatusOK || json.Unmarshal(body, &resp) != nil || resp.Event.BlockID != id {
 			t.Fatalf("GET /v1/events/%s: %d %s", id, code, body)
+		}
+		if annotated && resp.Event.FalsePositive != marked[id] {
+			t.Fatalf("annotation overlay missing for %s", id)
 		}
 		lookup = append(lookup, d)
 	}

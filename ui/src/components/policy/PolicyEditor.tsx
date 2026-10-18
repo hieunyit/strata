@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, X } from 'lucide-react';
 import { ApiError, Policy, apiClient } from '../../api/client';
-import { DATA_GUARDS, PolicySpec, YamlError, normalizeSpec, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
+import { DATA_GUARDS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
@@ -41,7 +41,7 @@ export const PolicyEditor: React.FC<{
       setYamlError(r.error);
     } else {
       setYamlError(undefined);
-      setSpec(normalizeSpec(r.spec));
+      setSpec(mergeYamlSpec(spec, r.spec));
     }
   };
 
@@ -91,6 +91,13 @@ export const PolicyEditor: React.FC<{
       <div className="px-4 pt-3">
         <ErrorBanner message={saveError} testId="editor-save-error" />
         <p className="text-xs text-muted mb-3">{t('editor.draftNote')}</p>
+        {Object.keys(advancedSpec(spec)).length > 0 && (
+          <details className="mb-3 text-xs" data-testid="editor-advanced">
+            <summary>{t('editor.advanced')}</summary>
+            <p className="my-2 text-muted">{t('editor.advancedNote')}</p>
+            <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(advancedSpec(spec), null, 2)}</pre>
+          </details>
+        )}
       </div>
       <div className="grid gap-4 px-4 pb-4 lg:grid-cols-2">
         <form className="space-y-4" onSubmit={(e) => e.preventDefault()} data-testid="editor-form">

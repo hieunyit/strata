@@ -438,3 +438,30 @@ tests:
       - eval_time: 15m
         alertname: StrataNodeErrorsJump
         exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'strata_agent_fallback_alerts_total{instance="agent-a",reason="source_limit"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+      - series: 'strata_cp_canary_source_saturations_total{instance="cp-a"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: StrataFallbackSourcesSaturated
+        exp_alerts:
+          - exp_labels: { instance: agent-a, reason: source_limit, severity: warning, component: fallback }
+            exp_annotations:
+              summary: "agent-a: fallback source tracking exceeded its capacity"
+              description: "Block-rate fallback and baseline learning pause while source counts are incomplete. WAF enforcement remains active; independent error and latency signals still apply."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+          - exp_labels: { instance: cp-a, severity: warning, component: fallback }
+            exp_annotations:
+              summary: "cp-a: fallback source tracking exceeded its capacity"
+              description: "Block-rate fallback and baseline learning pause while source counts are incomplete. WAF enforcement remains active; independent error and latency signals still apply."
+              runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
+      - eval_time: 3m
+        alertname: StrataNodeErrorsJump
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: StrataFallbackSourcesSaturated
+        exp_alerts: []

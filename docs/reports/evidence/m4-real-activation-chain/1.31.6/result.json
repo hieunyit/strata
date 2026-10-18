@@ -1,0 +1,194 @@
+{
+  "binary_sha256": {
+    "agent": "ee247d18c7a55099a7e109471796a544b4fed0eab8ce4dee9d432bd57761426f",
+    "compiler": "adce22e1532a10fe71e5141eb700ed792ab7a9a9ee17c14a97e96a4a2e4d058a",
+    "module": "c6e5c2ba8bde16f344ba6fc5109c5a72485c992ff07303dad481da1786811e86",
+    "nginx": "1fd43b9f0d41d2a806327969f7b47eac2fba3ecbff5e775d7d0d8eccc625d067",
+    "replay": "489a88f325acaf16c1058c136d65cd5347f273951d92a14a2eb9c6a57d114847"
+  },
+  "derived_ack_missing_metrics_fallback": false,
+  "derived_bundle_sha256": "207e254a414b415ae7c3af5684abe42eeffbd9e4f958e415b2364df9492e9d03",
+  "elapsed_seconds": 11.906453312,
+  "first_fp_reports": 5,
+  "http_before_after": [
+    {
+      "Status": 403,
+      "Action": "block",
+      "Rules": "700011",
+      "ID": "STR-D199-E6J9-YEVP-8FMB",
+      "Body": "\u003c!DOCTYPE html\u003e\r\n\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003ctitle\u003eRequest blocked\u003c/title\u003e\u003c/head\u003e\r\n\u003cbody\u003e\u003ch1\u003eRequest blocked\u003c/h1\u003e\r\n\u003cp\u003eYour request was blocked by the web application firewall.\u003c/p\u003e\r\n\u003cp\u003eBlock ID: \u003ccode\u003eSTR-D199-E6J9-YEVP-8FMB\u003c/code\u003e\u003cbr\u003eTime: 2026-10-17T14:55:32+00:00\u003c/p\u003e\r\n\u003cp\u003e\u003c/p\u003e\r\n\u003c/body\u003e\u003c/html\u003e\r\n"
+    },
+    {
+      "Status": 403,
+      "Action": "block",
+      "Rules": "700012",
+      "ID": "STR-D199-E6MH-6ETN-5YBG",
+      "Body": "\u003c!DOCTYPE html\u003e\r\n\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003ctitle\u003eRequest blocked\u003c/title\u003e\u003c/head\u003e\r\n\u003cbody\u003e\u003ch1\u003eRequest blocked\u003c/h1\u003e\r\n\u003cp\u003eYour request was blocked by the web application firewall.\u003c/p\u003e\r\n\u003cp\u003eBlock ID: \u003ccode\u003eSTR-D199-E6MH-6ETN-5YBG\u003c/code\u003e\u003cbr\u003eTime: 2026-10-17T14:55:32+00:00\u003c/p\u003e\r\n\u003cp\u003e\u003c/p\u003e\r\n\u003c/body\u003e\u003c/html\u003e\r\n"
+    },
+    {
+      "Status": 200,
+      "Action": "log",
+      "Rules": "700011",
+      "ID": "EVT-D199-E9SS-EESS-VVTN",
+      "Body": "example-origin-reached"
+    },
+    {
+      "Status": 403,
+      "Action": "block",
+      "Rules": "700012",
+      "ID": "STR-D199-E9ST-YEVN-AHQA",
+      "Body": "\u003c!DOCTYPE html\u003e\r\n\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003ctitle\u003eRequest blocked\u003c/title\u003e\u003c/head\u003e\r\n\u003cbody\u003e\u003ch1\u003eRequest blocked\u003c/h1\u003e\r\n\u003cp\u003eYour request was blocked by the web application firewall.\u003c/p\u003e\r\n\u003cp\u003eBlock ID: \u003ccode\u003eSTR-D199-E9ST-YEVN-AHQA\u003c/code\u003e\u003cbr\u003eTime: 2026-10-17T14:55:45+00:00\u003c/p\u003e\r\n\u003cp\u003e\u003c/p\u003e\r\n\u003c/body\u003e\u003c/html\u003e\r\n"
+    },
+    {
+      "Status": 403,
+      "Action": "block",
+      "Rules": "700011,700012",
+      "ID": "STR-D199-E9SV-EEVC-PYT8",
+      "Body": "\u003c!DOCTYPE html\u003e\r\n\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003ctitle\u003eRequest blocked\u003c/title\u003e\u003c/head\u003e\r\n\u003cbody\u003e\u003ch1\u003eRequest blocked\u003c/h1\u003e\r\n\u003cp\u003eYour request was blocked by the web application firewall.\u003c/p\u003e\r\n\u003cp\u003eBlock ID: \u003ccode\u003eSTR-D199-E9SV-EEVC-PYT8\u003c/code\u003e\u003cbr\u003eTime: 2026-10-17T14:55:45+00:00\u003c/p\u003e\r\n\u003cp\u003e\u003c/p\u003e\r\n\u003c/body\u003e\u003c/html\u003e\r\n"
+    }
+  ],
+  "notice": {
+    "id": "7deb2c7f339dcd26a47b1cf6b7b1158fc0799ead21e899e77a0e9d841c272539",
+    "policy_id": "example-api",
+    "policy_name": "example-api",
+    "policy_version": 1,
+    "rule_id": 700011,
+    "source_bundle": "1",
+    "bundle_version": "2",
+    "matches": "100",
+    "reports": "5",
+    "window_from": "2026-10-17T14:50:44.587137Z",
+    "window_to": "2026-10-17T14:55:44.587137Z",
+    "created_at": "2026-10-17T14:55:44.653366Z",
+    "rollout_id": "2",
+    "rollout_state": "DONE"
+  },
+  "replay": {
+    "input_digest": "e48a79a5e065ddb17221894a67a4f44996b39370172311d37ca75b29b42a7bde",
+    "draft_sha256": "322fa3976fc920c71e05a702b80ad57b63268dbeea6ec805f03b8dbfff0c9117",
+    "baseline_sha256": "595359b1bbc3665f96fa686ff2d41e26027d2acd04bfbe92463ec8ff68dfc2ad",
+    "replay_sha256": "489a88f325acaf16c1058c136d65cd5347f273951d92a14a2eb9c6a57d114847",
+    "sample_sha256": [
+      "3ae8fdd786fc11ec425512d56e75f4946a5147f5ba2ccd7c39db9a42af31d410"
+    ],
+    "elapsed_ms": 101,
+    "baseline_bundle": 0,
+    "sample_files": 0,
+    "sample_bytes": 0,
+    "corpus": {
+      "samples": 4300,
+      "draft": {
+        "allow": 3584,
+        "block": 716
+      },
+      "baseline": {
+        "allow": 3584,
+        "log": 716
+      },
+      "newly_blocked": 716,
+      "newly_allowed": 0,
+      "newly_blocked_rules": {
+        "100010": 26,
+        "700011": 430,
+        "700012": 297
+      },
+      "newly_allowed_rules": {},
+      "newly_blocked_paths": {
+        "/": 1,
+        "/account/settings": 3,
+        "/api/v2": 2,
+        "/blog/2026": 3,
+        "/docs/getting-started.html": 1,
+        "/fonts/roboto-v30-latin-regular.woff2": 4,
+        "/images/logo@2x.png": 5,
+        "/static/app.33400.min.js": 1,
+        "/static/app.3953.min.js": 1,
+        "/static/css": 1,
+        "/v1/files": 1,
+        "/v1/orders": 3,
+        "/v1/products": 3,
+        "/v1/search": 687
+      },
+      "newly_blocked_sampled": {
+        "allow": 29,
+        "block": 687
+      },
+      "newly_allowed_sampled": {},
+      "examples_blocked": [
+        {
+          "ts_ms": 1791939600125,
+          "node_id": "synthetic",
+          "method": "GET",
+          "raw_uri": "/blog/2026/10/how-to-choose.html?page=1\u0026q=50%25+off+--+today+only",
+          "draft": "block",
+          "baseline": "log",
+          "draft_rules": [
+            700011
+          ],
+          "baseline_rules": [
+            700011
+          ]
+        },
+        {
+          "ts_ms": 1791939600168,
+          "node_id": "synthetic",
+          "method": "GET",
+          "raw_uri": "/static/app.33400.min.js?page=9\u0026q=50%25+off+--+today+only\u0026sort=price_asc",
+          "draft": "block",
+          "baseline": "log",
+          "draft_rules": [
+            700011
+          ],
+          "baseline_rules": [
+            700011
+          ]
+        },
+        {
+          "ts_ms": 1791939600240,
+          "node_id": "synthetic",
+          "method": "GET",
+          "raw_uri": "/static/app.3953.min.js?page=4\u0026q=50%25+off+--+today+only\u0026sort=-created_at",
+          "draft": "block",
+          "baseline": "log",
+          "draft_rules": [
+            700011
+          ],
+          "baseline_rules": [
+            700011
+          ]
+        },
+        {
+          "ts_ms": 1791939600258,
+          "node_id": "synthetic",
+          "method": "GET",
+          "raw_uri": "/blog/2026/10/how-to-choose.html?page=13\u0026q=50%25+off+--+today+only",
+          "draft": "block",
+          "baseline": "log",
+          "draft_rules": [
+            700011
+          ],
+          "baseline_rules": [
+            700011
+          ]
+        },
+        {
+          "ts_ms": 1791939600398,
+          "node_id": "synthetic",
+          "method": "GET",
+          "raw_uri": "/fonts/roboto-v30-latin-regular.woff2?page=8\u0026q=50%25+off+--+today+only",
+          "draft": "block",
+          "baseline": "log",
+          "draft_rules": [
+            700011
+          ],
+          "baseline_rules": [
+            700011
+          ]
+        }
+      ],
+      "examples_allowed": []
+    }
+  },
+  "scope": "private synthetic 2-rule policy, real replay/approval/socket/agent/mTLS/ClickHouse/signed hot reload; not production or load SLO",
+  "source_matched_events": 100
+}

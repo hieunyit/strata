@@ -1,0 +1,56 @@
+Initial integration and wiring lint (unused helper variable caught):
+=== RUN   TestStagingWorkerDurableFPToSignedRolloutAndRestart
+2026/10/17 13:56:44 [INFO] rule-health: staging recorded action=7deb2c7f339dcd26a47b1cf6b7b1158fc0799ead21e899e77a0e9d841c272539 source=1 bundle=2 rule=700011
+    staging_worker_integration_test.go:103: FP candidate to recorded signed bundle and Fleet notice: 1.121865507s (ACK above is simulated, not a real agent)
+--- PASS: TestStagingWorkerDurableFPToSignedRolloutAndRestart (2.48s)
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/false
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/true
+2026/10/17 13:56:47 [INFO] rule-health: staging recorded action=bc905f9c6ad6da11e2f6dac863407785e986648fd38e3815e633f568be060231 source=1 bundle=2 rule=700012
+--- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule (3.75s)
+    --- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/false (1.47s)
+    --- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/true (2.28s)
+PASS
+ok  	github.com/strata/strata/control-plane/policy	7.383s
+control-plane/cmd/server/main.go:1: : # github.com/strata/strata/control-plane/cmd/server [github.com/strata/strata/control-plane/cmd/server.test]
+cmd/server/main.go:539:6: declared and not used: stagingWriter (typecheck)
+// Command server runs the control plane: the admin API (gRPC and
+1 issues:
+* typecheck: 1
+
+Final full control-plane source, PostgreSQL + actual Rust compiler enabled:
+go test -race ./... -count=1
+golangci-lint run ./...
+ok  	github.com/strata/strata/control-plane/admin	6.312s
+ok  	github.com/strata/strata/control-plane/api	9.056s
+ok  	github.com/strata/strata/control-plane/auth	4.805s
+?   	github.com/strata/strata/control-plane/auth/authtest	[no test files]
+ok  	github.com/strata/strata/control-plane/cmd/server	1.117s
+ok  	github.com/strata/strata/control-plane/db	1.071s
+ok  	github.com/strata/strata/control-plane/fleet	30.663s
+?   	github.com/strata/strata/control-plane/gen/strata/admin/v1	[no test files]
+ok  	github.com/strata/strata/control-plane/ingest	5.413s
+ok  	github.com/strata/strata/control-plane/localauth	25.998s
+?   	github.com/strata/strata/control-plane/localauth/localauthtest	[no test files]
+ok  	github.com/strata/strata/control-plane/metrics	1.214s
+ok  	github.com/strata/strata/control-plane/policy	29.552s
+ok  	github.com/strata/strata/control-plane/replay	5.024s
+ok  	github.com/strata/strata/control-plane/rulecat	1.090s
+ok  	github.com/strata/strata/control-plane/rulehealth	1.827s
+ok  	github.com/strata/strata/control-plane/store	19.201s
+0 issues.
+
+Focused actual Run loop and recovery (fixture match reader, simulated ACK):
+=== RUN   TestStagingWorkerDurableFPToSignedRolloutAndRestart
+2026/10/17 14:00:15 [INFO] rule-health: staging recorded action=7deb2c7f339dcd26a47b1cf6b7b1158fc0799ead21e899e77a0e9d841c272539 source=1 bundle=2 rule=700011
+    staging_worker_integration_test.go:111: FP candidate to recorded signed bundle and Fleet notice: 1.000787605s (ACK above is simulated, not a real agent)
+--- PASS: TestStagingWorkerDurableFPToSignedRolloutAndRestart (2.63s)
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/false
+=== RUN   TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/true
+2026/10/17 14:00:19 [INFO] rule-health: staging recorded action=bc905f9c6ad6da11e2f6dac863407785e986648fd38e3815e633f568be060231 source=1 bundle=2 rule=700012
+--- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule (3.66s)
+    --- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/false (1.55s)
+    --- PASS: TestStagingWorkerSkipsDisabledAndLowShareWithoutStarvingNextRule/true (2.11s)
+PASS
+ok  	github.com/strata/strata/control-plane/policy	7.431s

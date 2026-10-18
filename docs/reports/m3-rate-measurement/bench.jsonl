@@ -1,0 +1,5 @@
+{"case":"prototype_component_bench","sample":0,"requests":1000000,"total_ns":114081811,"ns_per_check":114.082,"scope":"single_thread_component_not_proxy_overhead"}
+{"case":"prototype_component_bench","sample":1,"requests":1000000,"total_ns":90265667,"ns_per_check":90.266,"scope":"single_thread_component_not_proxy_overhead"}
+{"case":"prototype_component_bench","sample":2,"requests":1000000,"total_ns":144057151,"ns_per_check":144.057,"scope":"single_thread_component_not_proxy_overhead"}
+{"case":"prototype_component_bench","sample":3,"requests":1000000,"total_ns":104137273,"ns_per_check":104.137,"scope":"single_thread_component_not_proxy_overhead"}
+{"case":"prototype_component_bench","sample":4,"requests":1000000,"total_ns":128023276,"ns_per_check":128.023,"scope":"single_thread_component_not_proxy_overhead"}

@@ -1,0 +1,17 @@
+ok  	github.com/strata/strata/control-plane/admin	5.984s
+ok  	github.com/strata/strata/control-plane/api	8.035s
+ok  	github.com/strata/strata/control-plane/auth	4.269s
+?   	github.com/strata/strata/control-plane/auth/authtest	[no test files]
+?   	github.com/strata/strata/control-plane/cmd/server	[no test files]
+ok  	github.com/strata/strata/control-plane/db	1.080s
+ok  	github.com/strata/strata/control-plane/fleet	29.906s
+?   	github.com/strata/strata/control-plane/gen/strata/admin/v1	[no test files]
+ok  	github.com/strata/strata/control-plane/ingest	5.003s
+ok  	github.com/strata/strata/control-plane/localauth	24.364s
+?   	github.com/strata/strata/control-plane/localauth/localauthtest	[no test files]
+ok  	github.com/strata/strata/control-plane/metrics	1.248s
+ok  	github.com/strata/strata/control-plane/policy	1.842s
+ok  	github.com/strata/strata/control-plane/replay	4.831s
+ok  	github.com/strata/strata/control-plane/rulecat	1.074s
+ok  	github.com/strata/strata/control-plane/store	8.527s
+0 issues.

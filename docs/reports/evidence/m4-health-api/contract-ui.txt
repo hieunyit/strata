@@ -1,0 +1,9 @@
+> strata-ui@1.0.0 generate:api
+> openapi-typescript ../docs/spec/openapi.yaml -o src/api/generated/schema.ts && swagger2openapi ../docs/spec/admin.swagger.json -o src/api/generated/admin.openapi.json && openapi-typescript src/api/generated/admin.openapi.json -o src/api/generated/admin.ts && rm src/api/generated/admin.openapi.json
+✨ openapi-typescript 6.7.6
+✨ openapi-typescript 6.7.6
+> strata-ui@1.0.0 lint
+> tsc --noEmit
+> strata-ui@1.0.0 build
+> tsc && vite build
+✓ built in 15.05s

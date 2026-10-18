@@ -62,6 +62,15 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
 		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()]}
+	for _, e := range pb.GetExceptions() {
+		if e == nil {
+			return nil, status.Error(codes.InvalidArgument, "nil policy exception")
+		}
+		s.Exceptions = append(s.Exceptions, policy.Exception{ID: e.GetId(), RuleID: e.GetRuleId(), Method: e.GetMethod(), Host: e.GetHost(), Path: e.GetPath(), Field: e.GetField(), ExpiresUnixMS: e.GetExpiresUnixMs(), Reason: e.GetReason(), SourceBlockID: e.GetSourceBlockId()})
+	}
+	if v := pb.GetAutoStaging(); v != nil {
+		s.AutoStaging = &policy.AutoStaging{Enabled: v.GetEnabled(), RuleIDs: append([]uint32(nil), v.GetRuleIds()...), WindowSeconds: v.GetWindowSeconds(), MinMatches: v.GetMinMatches(), MinReports: v.GetMinReports(), FPThresholdBPS: v.GetFpThresholdBps()}
+	}
 	if s.MaxSnippetSize == 128 {
 		s.MaxSnippetSize = 0 // the default, stored as absent
 	}
@@ -86,6 +95,12 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings]}
+	for _, e := range s.Exceptions {
+		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
+	}
+	if v := s.AutoStaging; v != nil {
+		out.AutoStaging = &adminv1.RuleAutoStaging{Enabled: v.Enabled, RuleIds: append([]uint32(nil), v.RuleIDs...), WindowSeconds: v.WindowSeconds, MinMatches: v.MinMatches, MinReports: v.MinReports, FpThresholdBps: v.FPThresholdBPS}
+	}
 	if s.Privacy != nil {
 		out.Privacy = &adminv1.PrivacySettings{SensitiveFields: s.Privacy.SensitiveFields, MaskPatterns: s.Privacy.MaskPatterns, Identity: s.Privacy.Identity}
 	}
@@ -106,7 +121,7 @@ func policyPB(p store.Policy) *adminv1.Policy {
 func versionPB(v store.PolicyVersion) *adminv1.PolicyVersion {
 	out := &adminv1.PolicyVersion{PolicyId: v.PolicyID, Version: uint32(v.Version), Spec: specPB(v.Spec), State: v.State,
 		CreatedBy: v.CreatedBy, CreateTime: timestamppb.New(v.CreatedAt), SubmittedBy: v.SubmittedBy,
-		DecidedBy: v.DecidedBy, DecisionComment: v.DecisionComment}
+		DecidedBy: v.DecidedBy, DecisionComment: v.DecisionComment, ApprovedReplayId: v.ApprovedReplayID}
 	if v.SubmittedAt != nil {
 		out.SubmitTime = timestamppb.New(*v.SubmittedAt)
 	}
@@ -251,7 +266,10 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	}
 	d, err := p.deploy.Deploy(ctx, audit(ctx, "policies/"+req.GetPolicyId()+":deploy"))
 	var costErr *policy.CostError
+	var replayErr *policy.ReplayError
 	switch {
+	case errors.As(err, &replayErr):
+		return nil, status.Error(codes.FailedPrecondition, replayErr.Error())
 	case errors.As(err, &costErr):
 		return nil, status.Error(codes.InvalidArgument, costErr.Error())
 	case err != nil:
@@ -284,7 +302,7 @@ func (p *policyAdmin) SubmitPolicy(ctx context.Context, req *adminv1.SubmitPolic
 
 // ApprovePolicy implements POST /v1/policies/{policy_id}:approve.
 func (p *policyAdmin) ApprovePolicy(ctx context.Context, req *adminv1.ApprovePolicyRequest) (*adminv1.ApprovePolicyResponse, error) {
-	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), true, req.GetComment())
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), true, req.GetComment(), req.GetExpectedReplayId())
 	if err != nil {
 		return nil, err
 	}
@@ -296,29 +314,50 @@ func (p *policyAdmin) RejectPolicy(ctx context.Context, req *adminv1.RejectPolic
 	if strings.TrimSpace(req.GetComment()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "a comment saying why is required")
 	}
-	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), false, req.GetComment())
+	v, err := p.decide(ctx, req.GetPolicyId(), req.GetVersion(), false, req.GetComment(), "")
 	if err != nil {
 		return nil, err
 	}
 	return &adminv1.RejectPolicyResponse{Version: versionPB(v)}, nil
 }
 
-func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, approve bool, comment string) (store.PolicyVersion, error) {
+func (p *policyAdmin) decide(ctx context.Context, id string, version uint32, approve bool, comment, expectedReplay string) (store.PolicyVersion, error) {
 	if version == 0 {
 		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "version is required: the one reviewed")
 	}
 	if utf8.RuneCountInString(comment) > 1000 {
 		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "comment: at most 1000 characters")
 	}
+	if len(expectedReplay) > 128 || strings.IndexFunc(expectedReplay, func(r rune) bool { return r <= ' ' || r > '~' }) >= 0 {
+		return store.PolicyVersion{}, status.Error(codes.InvalidArgument, "expected_replay_id: at most 128 printable non-space ASCII characters")
+	}
+	if expectedReplay != "" && p.ops == nil {
+		return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay verification is unavailable")
+	}
 	verb := ":reject"
+	proof := ""
 	if approve {
 		verb = ":approve"
 		if err := p.replayDone(ctx, id, int(version)); err != nil {
 			return store.PolicyVersion{}, err
 		}
+		if p.ops != nil {
+			op, err := p.ops.LatestReplay(ctx, id, int(version))
+			if err != nil {
+				return store.PolicyVersion{}, internal("replay", err)
+			}
+			if op.State != store.OpDone {
+				return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay changed; review the latest result")
+			}
+			if expectedReplay != "" && op.ID != expectedReplay {
+				return store.PolicyVersion{}, status.Error(codes.FailedPrecondition, "replay changed; review the latest result")
+			}
+			proof = op.ID
+		}
 	}
-	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment,
-		audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb))
+	a := audit(ctx, "policies/"+id+"/versions/"+strconv.Itoa(int(version))+verb)
+	a.ReplayOperation = proof
+	v, err := p.store.DecidePolicyVersion(ctx, id, int(version), approve, comment, a)
 	if err != nil {
 		return store.PolicyVersion{}, decisionErr(err)
 	}

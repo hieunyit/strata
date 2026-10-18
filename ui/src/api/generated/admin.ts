@@ -244,6 +244,11 @@ export interface components {
       version?: number;
       /** optional, at most 1000 characters */
       comment?: string;
+      /**
+       * @description Optional: the DONE replay report the reviewer inspected. A stale ID is
+       * rejected atomically with the decision; omitted retains legacy behavior.
+       */
+      expected_replay_id?: string;
     };
     PolicyServiceDeployPolicyBody: Record<string, never>;
     PolicyServiceRejectPolicyBody: {
@@ -269,6 +274,18 @@ export interface components {
        */
       version?: number;
     };
+    /**
+     * @description #98: when the CPU budget runs out on a request that already has
+     * findings (rules matched below the threshold), BLOCK answers as in fail
+     * mode closed (503 with the Event ID) whatever the connector's fail mode;
+     * PASS (and UNSPECIFIED) follows the fail mode. Enforce only. Modules
+     * from before the setting refuse bundles that set BLOCK: upgrade first.
+     *
+     *  - FAIL_ON_FINDINGS_UNSPECIFIED: pass
+     * @default FAIL_ON_FINDINGS_UNSPECIFIED
+     * @enum {string}
+     */
+    PolicySpecFailOnFindings: "FAIL_ON_FINDINGS_UNSPECIFIED" | "FAIL_ON_FINDINGS_PASS" | "FAIL_ON_FINDINGS_BLOCK";
     /**
      * @default MODE_UNSPECIFIED
      * @enum {string}
@@ -314,6 +331,7 @@ export interface components {
       created_by?: string;
       /** Format: date-time */
       create_time?: string;
+      input_digest?: string;
     };
     v1ClearForceShadowRequest: {
       /** @description Exactly one of node_id and group_id. */
@@ -550,6 +568,24 @@ export interface components {
       /** Format: int64 */
       deployed_version?: number;
     };
+    v1PolicyException: {
+      /** @description exc- followed by 32 lowercase hex digits, unique within a policy. */
+      id?: string;
+      /** Format: int64 */
+      rule_id?: number;
+      method?: string;
+      host?: string;
+      path?: string;
+      /** @description ARGS:<case-sensitive name> or REQUEST_HEADERS:<ASCII token>. */
+      field?: string;
+      /**
+       * Format: int64
+       * @description Absolute expiry in Unix milliseconds, mandatory and positive.
+       */
+      expires_unix_ms?: string;
+      reason?: string;
+      source_block_id?: string;
+    };
     /**
      * @description PolicySpec is what the bundle carries for the policy
      * (docs/spec/policies.schema.json).
@@ -581,6 +617,14 @@ export interface components {
        * it: upgrade them first.
        */
       max_args?: number;
+      fail_on_findings?: components["schemas"]["PolicySpecFailOnFindings"];
+      /**
+       * @description Exact, expiring managed-rule field exclusions; at most 128 per policy.
+       * Must follow the normal draft/replay/four-eyes/deploy flow. Old engines
+       * refuse the required policy flag: upgrade them before using exceptions.
+       */
+      exceptions?: components["schemas"]["v1PolicyException"][];
+      auto_staging?: components["schemas"]["v1RuleAutoStaging"];
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -600,6 +644,8 @@ export interface components {
       /** Format: date-time */
       decide_time?: string;
       decision_comment?: string;
+      /** @description Completed replay bound by the approval, not a later unapproved replay. */
+      approved_replay_id?: string;
     };
     v1PrivacySettings: {
       /**
@@ -709,6 +755,12 @@ export interface components {
       truncated?: boolean;
       traffic?: components["schemas"]["v1ReplayComparison"];
       corpus?: components["schemas"]["v1ReplayComparison"];
+      /** @description SHA-256 of the prepared compiler inputs and exact compared artifacts. */
+      input_digest?: string;
+      draft_sha256?: string;
+      baseline_sha256?: string;
+      replay_sha256?: string;
+      sample_sha256?: string[];
     };
     v1ReplaySampling: {
       group_id?: string;
@@ -764,6 +816,32 @@ export interface components {
       error?: string;
       /** Format: date-time */
       update_time?: string;
+    };
+    /** @description Control-plane authorization metadata; not runtime policy parameters. */
+    v1RuleAutoStaging: {
+      enabled?: boolean;
+      /** @description 1–16 distinct existing managed Rule IDs; compiler/runtime verify membership. */
+      rule_ids?: number[];
+      /**
+       * Format: int64
+       * @description Decision and initial report windows in seconds, 60–86400.
+       */
+      window_seconds?: number;
+      /**
+       * Format: int64
+       * @description Minimum matched security events, 1–1000000000.
+       */
+      min_matches?: number;
+      /**
+       * Format: int64
+       * @description Initial unambiguous FP reports, 1–min_matches; exact deployed bundle.
+       */
+      min_reports?: number;
+      /**
+       * Format: int64
+       * @description FP report share over matched security events, basis points, 1–10000.
+       */
+      fp_threshold_bps?: number;
     };
     v1SetReplaySamplingResponse: {
       sampling?: components["schemas"]["v1ReplaySampling"];

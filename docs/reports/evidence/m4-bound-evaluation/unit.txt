@@ -1,0 +1,3 @@
+ok  	github.com/strata/strata/control-plane/rulehealth	1.102s
+ok  	github.com/strata/strata/control-plane/ingest	5.561s
+0 issues.

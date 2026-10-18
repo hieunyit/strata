@@ -1,0 +1,38 @@
+{
+  "rust_ffi_pass": 270,
+  "compiler_targeted_pass": 44,
+  "rust_ignored_stress": 3,
+  "prefilter_instructions": {
+    "json64k": {
+      "before": 2784661477,
+      "after": 2343788645,
+      "change_percent": -15.832
+    },
+    "64k": {
+      "before": 330613236,
+      "after": 331476001,
+      "change_percent": 0.261
+    },
+    "headers": {
+      "before": 8382176,
+      "after": 8397890,
+      "change_percent": 0.187
+    }
+  },
+  "full_differential_requests": 11590,
+  "with_matched_rule": 7997,
+  "differential_changes": 0,
+  "differential_seconds": 374.54,
+  "native": {
+    "1.30.5": {
+      "tests": 595,
+      "seconds": 159,
+      "sanitizer_reports": 0
+    },
+    "1.31.6": {
+      "tests": 595,
+      "seconds": 158,
+      "sanitizer_reports": 0
+    }
+  }
+}

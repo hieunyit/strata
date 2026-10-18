@@ -1,0 +1,18 @@
+/src
+cargo build --release -p mkbundle -p strata-compiler
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.27s
+cargo build --release -p mkbundle -p strata-compiler
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.18s
+connectors/nginx/t/fixtures/make.sh /src/target/release
+git diff --exit-code -- connectors/nginx/t/fixtures
+cargo build --release -p libstrata-ffi --features test-hooks
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.14s
+cc -std=c11 -Wall -Wextra -Werror -DSTRATA_TEST_HOOKS -Iengine/ffi \
+	engine/ffi/tests/c/abi_test.c target/release/libstrata.a -lstdc++ -lpthread -ldl -lm -o build/abi_test
+build/abi_test connectors/nginx/t/fixtures/bundle/bundle-1.sbn connectors/nginx/t/fixtures/bundle.pub
+
+thread '<unnamed>' (56) panicked at engine/src/tx.rs:1059:13:
+test hook: deliberate panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+block id: STR-D194-EC8M-14GB-G931
+abi_test: ok

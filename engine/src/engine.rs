@@ -36,6 +36,8 @@ pub struct Engine {
     prefilter_on: bool,
     /// per policy index: its privacy settings (P-01 §1)
     privacy: Vec<Option<crate::privacy::Privacy>>,
+    exceptions: Vec<Vec<crate::exceptions::Exception>>,
+    staging: Vec<Vec<u32>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -108,6 +110,67 @@ impl Engine {
             &flagged,
         )
         .map_err(|e| (E_BUNDLE, e.message()))?;
+        let flagged_exceptions: Vec<u32> = bundle::policies(bytes, &info)
+            .filter(|p| p.exceptions)
+            .map(|p| p.index)
+            .collect();
+        let parsed_exceptions = crate::exceptions::parse(
+            info.section(bytes, bundle::kind::EXCEPTIONS),
+            info.n_policies,
+            &flagged_exceptions,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut exceptions = vec![vec![]; info.n_policies as usize];
+        if !parsed_exceptions.is_empty() {
+            let managed = crate::rules::code(crate::rules::LAYERS, "managed");
+            let managed_ids: std::collections::HashSet<u32> = (0..tables.n_rules())
+                .filter_map(|i| tables.rule(i))
+                .filter(|r| Some(r.layer) == managed)
+                .map(|r| r.id)
+                .collect();
+            for e in parsed_exceptions {
+                if !managed_ids.contains(&e.rule_id) {
+                    return Err((E_BUNDLE, "exception must name an existing managed rule"));
+                }
+                exceptions[e.policy_index as usize].push(e);
+            }
+        }
+        let staged_policies: Vec<_> = bundle::policies(bytes, &info)
+            .filter(|p| p.staging)
+            .map(|p| p.index)
+            .collect();
+        let staged = crate::staging::parse(
+            info.section(bytes, bundle::kind::STAGING),
+            info.n_policies,
+            &staged_policies,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut staging = vec![vec![]; info.n_policies as usize];
+        if !staged.is_empty() {
+            let managed = crate::rules::code(crate::rules::LAYERS, "managed");
+            let headers = crate::rules::code(crate::rules::STAGES, "request_headers");
+            let body = crate::rules::code(crate::rules::STAGES, "request_body");
+            let mut ids = std::collections::HashMap::new();
+            for r in (0..tables.n_rules()).filter_map(|i| tables.rule(i)) {
+                let valid = Some(r.layer) == managed
+                    && (Some(r.stage) == headers || Some(r.stage) == body)
+                    && (0..=1000).contains(&r.score);
+                // IDs must resolve unambiguously, including records in other
+                // layers. Dropping a negative score could increase blocking.
+                ids.entry(r.id)
+                    .and_modify(|ok| *ok = false)
+                    .or_insert(valid);
+            }
+            for entry in staged {
+                if ids.get(&entry.rule_id) != Some(&true) {
+                    return Err((
+                        E_BUNDLE,
+                        "staging requires one managed request rule with score 0..1000",
+                    ));
+                }
+                staging[entry.policy_index as usize].push(entry.rule_id);
+            }
+        }
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -180,6 +243,8 @@ impl Engine {
             prefilter,
             prefilter_on: true,
             privacy,
+            exceptions,
+            staging,
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
@@ -203,6 +268,19 @@ impl Engine {
     }
 
     /// Privacy settings of the policy at `index`, if it has some.
+    pub fn exceptions(&self, index: u32) -> &[crate::exceptions::Exception] {
+        self.exceptions
+            .get(index as usize)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// Immutable, signed, bounded per-policy log-only overlay.
+    pub fn is_staged(&self, index: u32, rule: u32) -> bool {
+        self.staging
+            .get(index as usize)
+            .is_some_and(|ids| ids.binary_search(&rule).is_ok())
+    }
+
     pub fn privacy(&self, index: u32) -> Option<&crate::privacy::Privacy> {
         self.privacy.get(index as usize).and_then(Option::as_ref)
     }
@@ -329,13 +407,13 @@ impl Engine {
             .map(|h| MappedDb::assume_valid_with_id(h.image, self.id | crate::eval::BLOCK_DB_ID))
     }
 
-    /// Compiles the fallback regexes the first request needs (those of the
-    /// rules evaluated on every request); `map` calls it (#49). Returns how
-    /// many. The others stay lazy.
+    /// Compiles fallback regexes without a selective input gate, including
+    /// method-only gates; `map` calls it (#49), outside request evaluation.
+    /// Returns how many. Selectively gated rules stay lazy.
     pub fn precompile_hot_regexes(&self) -> usize {
         let tables = self.tables();
         self.prefilter
-            .ungated_conditions(&tables)
+            .startup_conditions(&tables)
             .filter_map(|ci| self.regexes.get(ci))
             .filter(|fb| fb.compiled().is_some())
             .count()
@@ -349,6 +427,32 @@ impl Engine {
         if let Some(db) = self.hyperscan_block() {
             let _ = db.warm_block();
         }
+    }
+
+    /// Prepare caches on the connector's worker thread before it accepts
+    /// requests or publishes a new bundle. Does not create a transaction,
+    /// record traffic, or change detection/budget policy.
+    pub fn prepare_thread(&self) -> Result<(), String> {
+        if let Some(db) = self.hyperscan() {
+            db.warm_thread()
+                .map_err(|e| format!("stream scratch: {e:?}"))?;
+        }
+        if let Some(db) = self.hyperscan_block() {
+            db.warm_block()
+                .map_err(|e| format!("block scratch: {e:?}"))?;
+        }
+        let tables = self.tables();
+        for ci in self.prefilter.startup_conditions(&tables) {
+            if let Some((re, _)) = self.regexes.get(ci).and_then(|fb| fb.compiled()) {
+                // A bounded nonempty search primes the regex library's
+                // worker-local pool; compiling on the loader thread alone
+                // does not populate the calling worker's cache.
+                let _ = re.is_match(
+                    b"ordinary request cache preparation ordinary request cache preparation",
+                );
+            }
+        }
+        Ok(())
     }
 
     pub fn tables(&self) -> Tables<'_> {

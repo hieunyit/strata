@@ -1,0 +1,7 @@
+Private PostgreSQL enabled.
+go test -race ./store ./replay -count=1
+golangci-lint run ./store/... ./replay/...
+
+ok  	github.com/strata/strata/control-plane/store	15.147s
+ok  	github.com/strata/strata/control-plane/replay	4.841s
+0 issues.

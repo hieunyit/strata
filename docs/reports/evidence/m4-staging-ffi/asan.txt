@@ -1,0 +1,11 @@
+   Compiling libstrata v0.1.0 (/src/engine)
+   Compiling strata-compiler v0.1.0 (/src/engine/compiler)
+   Compiling libstrata-ffi v0.1.0 (/src/engine/ffi)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.98s
+     Running tests/policy_staging.rs (target/x86_64-unknown-linux-gnu/debug/deps/policy_staging-dd3a19b14822dfdd)
+
+running 1 test
+test signed_staging_through_c_abi ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, ScrollText, FileCog, Server, Users, History, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { LayoutDashboard, ScrollText, FileCog, GitPullRequest, Server, Users, History, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { Header } from './Header';
 import { Page, href } from '../../router';
 import { readPref, writePref } from '../../lib/prefs';
@@ -27,6 +27,7 @@ export const navItems: NavItem[] = [
   { page: 'overview', icon: LayoutDashboard },
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
+  { page: 'reviews', icon: GitPullRequest },
   { page: 'fleet', icon: Server },
   // local accounts: admins only, when the control plane has them
   { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },

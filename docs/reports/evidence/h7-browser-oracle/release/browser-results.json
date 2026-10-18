@@ -1,0 +1,264 @@
+{
+  "browser_version": "156.0.8078.4",
+  "completed": true,
+  "failures": [],
+  "browser_pairs": 8,
+  "browser_http_attempts": 16,
+  "discovery_http_attempts": 1,
+  "rows": [
+    {
+      "id": "benign",
+      "encoder": "URL",
+      "pipeline": "raw",
+      "encoded_header": "ordinary%20header",
+      "expected_direct_execution": false,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "ordinary header"
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "ordinary header"
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "positive-control",
+      "encoder": "URL",
+      "pipeline": "raw",
+      "encoded_header": "%22%20autofocus%20onfocus%3Dalert(1)%2F%2F",
+      "expected_direct_execution": true,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [
+          "1"
+        ],
+        "attributes": {
+          "id": "probe",
+          "value": "",
+          "autofocus": "",
+          "onfocus": "alert(1)//\""
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 403,
+        "action": "block",
+        "rules": "500569,920350,300012",
+        "alerts": [],
+        "attributes": {},
+        "focused": false
+      }
+    },
+    {
+      "id": "URL-raw",
+      "encoder": "URL",
+      "pipeline": "raw",
+      "encoded_header": "%5C%22autof%3Cx%3Eocus%20o%3Cx%3Enfocus%3Dalert%3Cx%3E(1)%2F%2F",
+      "expected_direct_execution": false,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autof<x": ""
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autof<x": ""
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "URL-strip",
+      "encoder": "URL",
+      "pipeline": "strip",
+      "encoded_header": "%5C%22autof%3Cx%3Eocus%20o%3Cx%3Enfocus%3Dalert%3Cx%3E(1)%2F%2F",
+      "expected_direct_execution": true,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [
+          "1"
+        ],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autofocus": "",
+          "onfocus": "alert(1)//\""
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [
+          "1"
+        ],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autofocus": "",
+          "onfocus": "alert(1)//\""
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "URL-escaped",
+      "encoder": "URL",
+      "pipeline": "escaped",
+      "encoded_header": "%5C%22autof%3Cx%3Eocus%20o%3Cx%3Enfocus%3Dalert%3Cx%3E(1)%2F%2F",
+      "expected_direct_execution": false,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\\"autofocus onfocus=alert(1)//"
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\\"autofocus onfocus=alert(1)//"
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "Base64Flat-raw",
+      "encoder": "Base64Flat",
+      "pipeline": "raw",
+      "encoded_header": "XCJhdXRvZjx4Pm9jdXMgbzx4Pm5mb2N1cz1hbGVydDx4PigxKS8v",
+      "expected_direct_execution": false,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autof<x": ""
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autof<x": ""
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "Base64Flat-strip",
+      "encoder": "Base64Flat",
+      "pipeline": "strip",
+      "encoded_header": "XCJhdXRvZjx4Pm9jdXMgbzx4Pm5mb2N1cz1hbGVydDx4PigxKS8v",
+      "expected_direct_execution": true,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [
+          "1"
+        ],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autofocus": "",
+          "onfocus": "alert(1)//\""
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [
+          "1"
+        ],
+        "attributes": {
+          "id": "probe",
+          "value": "\\",
+          "autofocus": "",
+          "onfocus": "alert(1)//\""
+        },
+        "focused": true
+      }
+    },
+    {
+      "id": "Base64Flat-escaped",
+      "encoder": "Base64Flat",
+      "pipeline": "escaped",
+      "encoded_header": "XCJhdXRvZjx4Pm9jdXMgbzx4Pm5mb2N1cz1hbGVydDx4PigxKS8v",
+      "expected_direct_execution": false,
+      "baseline": {
+        "status": 200,
+        "action": null,
+        "rules": null,
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\\"autofocus onfocus=alert(1)//"
+        },
+        "focused": true
+      },
+      "proxy": {
+        "status": 200,
+        "action": "allow",
+        "rules": "500569,920350",
+        "alerts": [],
+        "attributes": {
+          "id": "probe",
+          "value": "\\\"autofocus onfocus=alert(1)//"
+        },
+        "focused": true
+      }
+    }
+  ],
+  "scope": "synthetic attribute reflection; tag stripping and output encoding are explicit; actual app context unknown"
+}

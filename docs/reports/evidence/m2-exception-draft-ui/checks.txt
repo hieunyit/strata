@@ -1,0 +1,6 @@
+Overall UI: 17 files / 106 tests PASS
+Final focused component: 7/7 PASS
+TypeScript lint: PASS
+Final build: PASS (13.27 s)
+EN/VI exception keys: identical
+Full suite includes existing FleetPage act() warnings; no assertions changed or disabled.

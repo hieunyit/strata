@@ -255,6 +255,8 @@ pub struct Policies {
     pub block_page: Option<BlockPage>,
     /// privacy settings, by index in `policies` (P-01 §1)
     pub privacy: Vec<libstrata::privacy::PrivacySpec>,
+    pub exceptions: Vec<libstrata::exceptions::Exception>,
+    pub staging: Vec<libstrata::staging::Entry>,
     /// the installation's identity key, for policies with `identity: hmac`
     /// (strata-compile --identity-key; the control plane keeps it)
     pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
@@ -291,6 +293,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut seen = BTreeSet::new();
     let mut policies = vec![];
     let mut privacy = vec![];
+    let mut exceptions = vec![];
+    let mut staging = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
         let name = s(p, "name").to_string();
         if !seen.insert(name.clone()) {
@@ -399,6 +403,33 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 identity_hmac,
             });
         }
+        let mut exception_ids = BTreeSet::new();
+        for e in p["exceptions"].as_array().into_iter().flatten() {
+            if !exception_ids.insert(s(e, "id"))
+                || s(e, "reason").trim().is_empty()
+                || s(e, "reason").len() > 500
+            {
+                return Err(format!(
+                    "policy {name:?}: invalid or duplicate exception metadata"
+                ));
+            }
+            exceptions.push(libstrata::exceptions::Exception {
+                policy_index: policies.len() as u32,
+                rule_id: e["rule_id"].as_u64().ok_or("exception rule_id")? as u32,
+                expires_unix_ms: e["expires_unix_ms"].as_u64().ok_or("exception expiry")?,
+                method: s(e, "method").into(),
+                host: s(e, "host").into(),
+                path: s(e, "path").into(),
+                field: s(e, "field").into(),
+            });
+        }
+        for id in p["staged_rules"].as_array().into_iter().flatten() {
+            staging.push(libstrata::staging::Entry {
+                policy_index: policies.len() as u32,
+                rule_id: u32::try_from(id.as_u64().ok_or("staging rule_id")?)
+                    .map_err(|_| "staging rule_id")?,
+            });
+        }
         policies.push((
             name,
             mode,
@@ -411,6 +442,10 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             fail_on_findings,
         ));
     }
+    libstrata::exceptions::encode(&exceptions, policies.len() as u32)
+        .map_err(|e| format!("policy exceptions: {}", e.message()))?;
+    libstrata::staging::encode(&staging, policies.len() as u32)
+        .map_err(|e| format!("policy staging: {}", e.message()))?;
     let block_page = match doc.get("block_page") {
         None => None,
         Some(bp) => {
@@ -435,6 +470,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         policies,
         block_page,
         privacy,
+        exceptions,
+        staging,
         identity_key: None,
     })
 }
@@ -930,6 +967,51 @@ fn compile_unsigned_with(
     if !privacy.is_empty() {
         sections.push((libstrata::bundle::kind::PRIVACY, privacy));
     }
+    let exception_bytes =
+        libstrata::exceptions::encode(&policies.exceptions, policies.policies.len() as u32)
+            .map_err(|e| format!("policy exceptions: {}", e.message()))?;
+    if !exception_bytes.is_empty() {
+        let managed_ids: BTreeSet<_> = rules
+            .iter()
+            .filter(|r| Some(r.layer) == rules::code(rules::LAYERS, "managed"))
+            .map(|r| r.id)
+            .collect();
+        for e in &policies.exceptions {
+            if !managed_ids.contains(&e.rule_id) {
+                return Err(format!(
+                    "exception must name an existing managed rule: {}",
+                    e.rule_id
+                ));
+            }
+        }
+        sections.push((libstrata::bundle::kind::EXCEPTIONS, exception_bytes));
+    }
+    let stage_bytes = libstrata::staging::encode(&policies.staging, policies.policies.len() as u32)
+        .map_err(|e| format!("policy staging: {}", e.message()))?;
+    if !stage_bytes.is_empty() {
+        let managed = rules::code(rules::LAYERS, "managed");
+        let headers = rules::code(rules::STAGES, "request_headers");
+        let body = rules::code(rules::STAGES, "request_body");
+        // Rule IDs have already passed the compiler's uniqueness check.
+        let eligible: BTreeSet<_> = rules
+            .iter()
+            .filter(|r| {
+                Some(r.layer) == managed
+                    && (Some(r.stage) == headers || Some(r.stage) == body)
+                    && (0..=1000).contains(&r.score)
+            })
+            .map(|r| r.id)
+            .collect();
+        for e in &policies.staging {
+            if !eligible.contains(&e.rule_id) {
+                return Err(format!(
+                    "staging requires one managed request rule with score 0..1000: {}",
+                    e.rule_id
+                ));
+            }
+        }
+        sections.push((libstrata::bundle::kind::STAGING, stage_bytes));
+    }
     let refs: Vec<(u32, &[u8])> = sections.iter().map(|(k, b)| (*k, &b[..])).collect();
     let names: Vec<PolicySpec> = policies
         .policies
@@ -943,6 +1025,11 @@ fn compile_unsigned_with(
             max_args: *a,
             fail_on_findings: *f,
             privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
+            staging: policies.staging.iter().any(|p| p.policy_index == i as u32),
+            exceptions: policies
+                .exceptions
+                .iter()
+                .any(|p| p.policy_index == i as u32),
             ..PolicySpec::new(n, *m, *o)
         })
         .collect();

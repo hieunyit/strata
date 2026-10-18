@@ -77,8 +77,8 @@ type Options struct {
 	PValue float64
 	// SourceCap: blocks of one client address counted per interval (3).
 	SourceCap uint64
-	// MaxSources tracked per interval (4096); blocks of further sources
-	// count one each.
+	// MaxSources tracked per interval (4096). Overflow suspends block-rate
+	// fallback and baseline learning until the next complete interval.
 	MaxSources int
 	// Errors: also force shadow on engine errors and budget overruns, as
 	// before #65; by default they are only reported.
@@ -118,9 +118,10 @@ func (o Options) withDefaults() Options {
 
 // Reasons a node trips.
 const (
-	ReasonBlockRate = "block_rate"
-	ReasonErrors    = "engine_errors"
-	ReasonBudget    = "budget"
+	ReasonBlockRate   = "block_rate"
+	ReasonErrors      = "engine_errors"
+	ReasonBudget      = "budget"
+	ReasonSourceLimit = "source_limit" // alert only, even with Options.Errors
 )
 
 // Totals: the node's counters, summed over the workers.
@@ -159,13 +160,18 @@ func NewDetector(o Options) *Detector { return &Detector{o: o.withDefaults()} }
 // Step takes the totals read at the end of an interval and returns the
 // reason to trip, or "". Every block counts (no source information).
 func (d *Detector) Step(t Totals) string {
-	return d.StepCapped(t, Capped{math.MaxUint64, math.MaxUint64})
+	return d.StepCapped(t, Capped{Blocked: math.MaxUint64, Would: math.MaxUint64})
 }
 
 // StepCapped is Step with the interval's blocks and would-be blocks
 // counted at most SourceCap per source (Sources.Take): each count is the
 // smaller of the metrics file's and the capped one.
-func (d *Detector) StepCapped(t Totals, capped Capped) string {
+func (d *Detector) StepCapped(t Totals, capped Capped) (reason string) {
+	defer func() {
+		if capped.Saturated && reason == "" {
+			reason = ReasonSourceLimit
+		}
+	}()
 	prev := d.prev
 	d.prev = &t
 	if prev == nil {
@@ -195,13 +201,16 @@ func (d *Detector) StepCapped(t Totals, capped Capped) string {
 	}
 	if d.samples >= d.o.Warmup {
 		switch {
-		case blocked > 0 && over(blocked, d.would):
+		case !capped.Saturated && blocked > 0 && over(blocked, d.would):
 			return ReasonBlockRate
 		case over(t.Errors-prev.Errors, d.errs):
 			return ReasonErrors
 		case over(t.Budget-prev.Budget, d.budget):
 			return ReasonBudget
 		}
+	}
+	if capped.Saturated {
+		return ReasonSourceLimit // never learn an incomplete source count
 	}
 	if d.samples == 0 {
 		d.would, d.errs, d.budget = would, errs, budget
@@ -224,17 +233,19 @@ func PoissonTail(k uint64, lambda float64) float64 { return stats.PoissonTail(k,
 
 // Capped counts of an interval: blocks, and blocks plus would-be blocks
 // logged in shadow, at most SourceCap per source.
-type Capped struct{ Blocked, Would uint64 }
+type Capped struct {
+	Blocked, Would uint64
+	Saturated      bool
+}
 
 // Sources counts an interval's blocks (a Block ID STR-, action BLOCK) and
 // would-be blocks (an Event ID with action LOG that would have blocked) by
 // client address, from the events the agent receives.
 type Sources struct {
-	max int
-	mu  sync.Mutex
-	n   map[string]*[2]uint64 // blocks, would-be blocks logged
-	// counts of sources past max
-	over [2]uint64
+	max       int
+	mu        sync.Mutex
+	n         map[string]*[2]uint64 // blocks, would-be blocks logged
+	saturated bool
 }
 
 // NewSources tracks up to max sources per interval.
@@ -259,7 +270,7 @@ func (s *Sources) Observe(ev *eventv1.Event) {
 	c, ok := s.n[k]
 	if !ok {
 		if len(s.n) >= s.max {
-			s.over[i]++
+			s.saturated = true
 			return
 		}
 		c = new([2]uint64)
@@ -273,13 +284,13 @@ func (s *Sources) Observe(ev *eventv1.Event) {
 func (s *Sources) Take(limit uint64) Capped {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := Capped{Blocked: s.over[0], Would: s.over[0] + s.over[1]}
+	out := Capped{Saturated: s.saturated}
 	for _, c := range s.n {
 		out.Blocked += min(c[0], limit)
 		out.Would += min(c[0]+c[1], limit)
 	}
 	clear(s.n)
-	s.over = [2]uint64{}
+	s.saturated = false
 	return out
 }
 
@@ -341,8 +352,15 @@ func (w *Watcher) tick() {
 	if err != nil {
 		return // no NGINX or a bad file: the metrics exporter reports it
 	}
-	reason := w.d.StepCapped(FromSnapshot(s), w.src.Take(w.o.SourceCap))
-	if reason == "" {
+	capped := w.src.Take(w.o.SourceCap)
+	reason := w.d.StepCapped(FromSnapshot(s), capped)
+	if capped.Saturated {
+		w.mu.Lock()
+		w.alerts[ReasonSourceLimit]++
+		w.mu.Unlock()
+		slog.Warn("fallback: source limit reached; block-rate decisions and learning suspended for this interval")
+	}
+	if reason == "" || reason == ReasonSourceLimit {
 		return
 	}
 	would, errs, budget, _ := w.d.Reference()
@@ -372,8 +390,8 @@ func (w *Watcher) tick() {
 		"ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
 }
 
-// Alerts: jumps of engine errors or budget overruns that did not force
-// shadow (Options.Errors off), by reason.
+// Alerts: source saturation, or jumps of engine errors or budget overruns
+// that did not force shadow (Options.Errors off), by reason.
 func (w *Watcher) Alerts() map[string]uint64 {
 	w.mu.Lock()
 	defer w.mu.Unlock()

@@ -92,6 +92,44 @@ message PolicySpec {
     FAIL_ON_FINDINGS_BLOCK = 2;
   }
   FailOnFindings fail_on_findings = 8;
+  // Exact, expiring managed-rule field exclusions; at most 128 per policy.
+  // Must follow the normal draft/replay/four-eyes/deploy flow. Old engines
+  // refuse the required policy flag: upgrade them before using exceptions.
+  repeated PolicyException exceptions = 9;
+  // Explicit delegation to reduce listed rules to log-only after FP evidence.
+  // Default off; changes require replay and four-eyes approval. Never authorizes
+  // automatic re-enforcement. Effective staged rule state is not an API input.
+  RuleAutoStaging auto_staging = 10;
+}
+
+// Control-plane authorization metadata; not runtime policy parameters.
+message RuleAutoStaging {
+  bool enabled = 1;
+  // 1–16 distinct existing managed Rule IDs; compiler/runtime verify membership.
+  repeated uint32 rule_ids = 2;
+  // Decision and initial report windows in seconds, 60–86400.
+  uint32 window_seconds = 3;
+  // Minimum matched security events, 1–1000000000.
+  uint32 min_matches = 4;
+  // Initial unambiguous FP reports, 1–min_matches; exact deployed bundle.
+  uint32 min_reports = 5;
+  // FP report share over matched security events, basis points, 1–10000.
+  uint32 fp_threshold_bps = 6;
+}
+
+message PolicyException {
+  // exc- followed by 32 lowercase hex digits, unique within a policy.
+  string id = 1;
+  uint32 rule_id = 2;
+  string method = 3;
+  string host = 4;
+  string path = 5;
+  // ARGS:<case-sensitive name> or REQUEST_HEADERS:<ASCII token>.
+  string field = 6;
+  // Absolute expiry in Unix milliseconds, mandatory and positive.
+  int64 expires_unix_ms = 7;
+  string reason = 8;
+  string source_block_id = 9;
 }
 
 message PrivacySettings {
@@ -145,6 +183,8 @@ message PolicyVersion {
   string decided_by = 9;
   google.protobuf.Timestamp decide_time = 10;
   string decision_comment = 11;
+  // Completed replay bound by the approval, not a later unapproved replay.
+  string approved_replay_id = 12;
 }
 
 message Bundle {
@@ -156,6 +196,7 @@ message Bundle {
   map<string, uint32> contents = 5;
   string created_by = 6;
   google.protobuf.Timestamp create_time = 7;
+  string input_digest = 8;
 }
 
 message ListPoliciesRequest {}
@@ -253,6 +294,9 @@ message ApprovePolicyRequest {
   string policy_id = 1;
   uint32 version = 2; // required
   string comment = 3; // optional, at most 1000 characters
+  // Optional: the DONE replay report the reviewer inspected. A stale ID is
+  // rejected atomically with the decision; omitted retains legacy behavior.
+  string expected_replay_id = 4;
 }
 
 message ApprovePolicyResponse {

@@ -2,6 +2,7 @@ package replay
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -19,9 +20,17 @@ type Collector struct {
 	Store   *Store
 	MaxRows int           // 1000
 	MaxAge  time.Duration // 5 min
+	// Authorize returns the current anonymization key ID and policy names
+	// permitted by the node's active/desired bundles. nil refuses all samples.
+	Authorize              func(context.Context, string) (string, map[string]bool, error)
+	MaxFiles               int
+	MaxBytes, MaxNodeBytes int64
 
-	mu    sync.Mutex
-	files map[fileKey]*pending
+	mu        sync.Mutex
+	files     map[fileKey]*pending
+	bytes     int64 // includes records being written
+	nodeBytes map[string]int64
+	writes    chan struct{}
 
 	Received, Written, Dropped atomic.Uint64
 }
@@ -31,11 +40,14 @@ type fileKey struct{ policy, node, keyID string }
 type pending struct {
 	first time.Time
 	recs  []Record
+	bytes int64
 }
 
 // NewCollector writes to st.
 func NewCollector(st *Store) *Collector {
-	return &Collector{Store: st, MaxRows: 1000, MaxAge: 5 * time.Minute, files: map[fileKey]*pending{}}
+	return &Collector{Store: st, MaxRows: 1000, MaxAge: 5 * time.Minute,
+		MaxFiles: 128, MaxBytes: 64 << 20, MaxNodeBytes: 8 << 20,
+		files: map[fileKey]*pending{}, nodeBytes: map[string]int64{}, writes: make(chan struct{}, 1)}
 }
 
 var canaryNames = map[eventv1.CanaryGroup]string{
@@ -56,29 +68,58 @@ func RecordOf(node string, s *eventv1.ReplaySample) Record {
 
 // Add takes the samples of one batch of node (the enrolled node id).
 func (c *Collector) Add(ctx context.Context, node string, samples []*eventv1.ReplaySample) {
+	c.Received.Add(uint64(len(samples)))
+	if c.Authorize == nil {
+		c.Dropped.Add(uint64(len(samples)))
+		return
+	}
+	keyID, policies, err := c.Authorize(ctx, node)
+	if err != nil || keyID == "" {
+		c.Dropped.Add(uint64(len(samples)))
+		return
+	}
 	now := time.Now()
-	var full []fileKey
+	full := map[fileKey]bool{}
 	c.mu.Lock()
 	for _, s := range samples {
-		c.Received.Add(1)
+		// Match wire limits before allocating strings or retaining byte slices.
+		size := proto.Size(s)
+		cost := int64(2*size + 1024)
 		k := fileKey{string(s.GetPolicy()), node, s.GetAnonKeyId()}
 		p := c.files[k]
+		if s == nil || size > 8192 || k.keyID != keyID || !policies[k.policy] ||
+			cost > c.MaxBytes-c.bytes || cost > c.MaxNodeBytes-c.nodeBytes[node] ||
+			(p == nil && len(c.files) >= c.MaxFiles) || (p != nil && len(p.recs) >= c.MaxRows) {
+			c.Dropped.Add(1)
+			continue
+		}
 		if p == nil {
 			p = &pending{first: now}
 			c.files[k] = p
 		}
 		p.recs = append(p.recs, RecordOf(node, s))
+		p.bytes += cost
+		c.bytes += cost
+		c.nodeBytes[node] += cost
 		if len(p.recs) >= c.MaxRows {
-			full = append(full, k)
+			full[k] = true
 		}
 	}
 	c.mu.Unlock()
-	for _, k := range full {
+	for k := range full {
 		c.flush(ctx, k)
 	}
 }
 
 func (c *Collector) flush(ctx context.Context, k fileKey) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	select {
+	case c.writes <- struct{}{}:
+	case <-ctx.Done():
+		return
+	}
+	defer func() { <-c.writes }()
 	c.mu.Lock()
 	p := c.files[k]
 	delete(c.files, k)
@@ -86,6 +127,15 @@ func (c *Collector) flush(ctx context.Context, k fileKey) {
 	if p == nil || len(p.recs) == 0 {
 		return
 	}
+	defer func() {
+		c.mu.Lock()
+		c.bytes -= p.bytes
+		c.nodeBytes[k.node] -= p.bytes
+		if c.nodeBytes[k.node] == 0 {
+			delete(c.nodeBytes, k.node)
+		}
+		c.mu.Unlock()
+	}()
 	key, err := c.Store.Put(ctx, k.keyID, p.recs)
 	if err != nil {
 		c.Dropped.Add(uint64(len(p.recs)))
@@ -104,7 +154,9 @@ func (c *Collector) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			c.FlushAll(context.Background())
+			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			c.FlushAll(flushCtx)
+			cancel()
 			return
 		case <-t.C:
 			c.flushOlder(ctx, time.Now().Add(-c.MaxAge))

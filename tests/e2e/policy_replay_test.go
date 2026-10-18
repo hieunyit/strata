@@ -73,8 +73,18 @@ func TestPolicyDraftReplay(t *testing.T) {
 	seed := make([]byte, ed25519.SeedSize)
 	copy(seed, "e2e-bundle-signing-seed-32-bytes")
 	pub := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
-	runner := &replay.Runner{Store: st, Deployable: st.ListPolicies,
-		Build:       replay.ReplayBuilder(policy.Compiler{Binary: buildFakeCompiler(t)}),
+	keyfile := filepath.Join(t.TempDir(), "deploy.seed")
+	if err := os.WriteFile(keyfile, seed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	rules := filepath.Join(t.TempDir(), "rules.json")
+	if err := os.WriteFile(rules, []byte("original rules"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	compiler := &policy.Compiler{Binary: buildFakeCompiler(t), KeyFile: keyfile, Rules: []string{rules}}
+	deployer := &policy.Deployer{Store: st, Builder: compiler, Objects: objects, PubKey: pub, VerifyReplay: (replay.Gate{Store: st}).Check}
+	runner := &replay.Runner{Prepare: compiler.Prepare, Store: st, Deployable: st.DeployablePolicies,
+		Build:       replay.ReplayBuilder(*compiler),
 		Baseline:    func(context.Context) ([]byte, uint64, error) { return nil, 0, store.ErrNotFound },
 		BaselinePub: pub, Samples: objects, Binary: bin, Poll: 50 * time.Millisecond}
 	if err := runner.Init(); err != nil {
@@ -87,7 +97,7 @@ func TestPolicyDraftReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adm, err := admin.New(ctx, v, admin.BuildInfo{Version: "e2e"}, admin.Deps{Policies: st, Operations: st, ReplayKick: runner.Kick})
+	adm, err := admin.New(ctx, v, admin.BuildInfo{Version: "e2e"}, admin.Deps{Policies: st, Operations: st, ReplayKick: runner.Kick, Deployer: deployer})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,9 +116,14 @@ func TestPolicyDraftReplay(t *testing.T) {
 		PolicyID string `json:"policy_id"`
 		Version  uint32 `json:"version"`
 		Replay   *struct {
-			Samples     string `json:"samples"`
-			SampleFiles uint32 `json:"sample_files"`
-			Traffic     *struct {
+			InputDigest    string   `json:"input_digest"`
+			DraftSHA256    string   `json:"draft_sha256"`
+			BaselineSHA256 string   `json:"baseline_sha256"`
+			ReplaySHA256   string   `json:"replay_sha256"`
+			SampleSHA256   []string `json:"sample_sha256"`
+			Samples        string   `json:"samples"`
+			SampleFiles    uint32   `json:"sample_files"`
+			Traffic        *struct {
 				NewlyBlocked      string            `json:"newly_blocked"`
 				NewlyBlockedRules map[string]string `json:"newly_blocked_rules"`
 				ExamplesBlocked   []example         `json:"examples_blocked"`
@@ -148,6 +163,9 @@ func TestPolicyDraftReplay(t *testing.T) {
 		got.Replay.SampleFiles != 1 || got.Replay.Traffic == nil || got.Replay.Corpus != nil || got.Replay.Traffic.NewlyBlockedRules["942100"] != "2" {
 		t.Fatalf("replay of the new policy: %+v (%s)", got, got.Error)
 	}
+	if len(got.Replay.InputDigest) != 64 || len(got.Replay.DraftSHA256) != 64 || len(got.Replay.BaselineSHA256) != 64 || len(got.Replay.ReplaySHA256) != 64 || len(got.Replay.SampleSHA256) != 1 {
+		t.Fatalf("API lost provenance: %+v", got.Replay)
+	}
 	if len(got.Replay.Traffic.ExamplesBlocked) != 0 {
 		t.Fatalf("a viewer sees examples: %+v", got.Replay.Traffic.ExamplesBlocked)
 	}
@@ -184,6 +202,40 @@ func TestPolicyDraftReplay(t *testing.T) {
 	}
 	// PO 16/10: approved once the replay is DONE (it is, above)
 	approve(t, e.call, "example-api")
+	approved, err := st.GetPolicyVersion(ctx, "example-api", 1)
+	if err != nil || approved.ApprovedReplayID != again.Operation.ID {
+		t.Fatalf("approval proof: %+v %v", approved, err)
+	}
+	if err := os.WriteFile(rules, []byte("changed rules"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:deploy", `{}`, nil); c != http.StatusBadRequest {
+		t.Fatalf("deploy after input change: %d", c)
+	}
+	// Replaying changed inputs after approval does not approve those inputs.
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:replay", `{}`, &again); c != http.StatusOK {
+		t.Fatal("replay changed inputs", c)
+	}
+	if got := wait(again.Operation.ID); got.State != "DONE" {
+		t.Fatalf("changed replay: %+v", got)
+	}
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:deploy", `{}`, nil); c != http.StatusBadRequest {
+		t.Fatalf("unapproved new replay deployed: %d", c)
+	}
+	if _, err := st.LatestBundle(ctx); err != store.ErrNotFound {
+		t.Fatalf("rejected deploy persisted bundle: %v", err)
+	}
+	if err := os.WriteFile(rules, []byte("original rules"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies/example-api:deploy", `{}`, nil); c != http.StatusOK {
+		t.Fatalf("deploy approved inputs: %d", c)
+	}
+	b, err := st.LatestBundle(ctx)
+	if err != nil || len(b.InputDigest) != 64 {
+		t.Fatalf("published provenance: %+v %v", b, err)
+	}
+
 	if c := e.call(t, "viewer", http.MethodGet, "/v1/operations/op-000000000000000000000000", "", nil); c != http.StatusNotFound {
 		t.Fatalf("missing operation: %d", c)
 	}

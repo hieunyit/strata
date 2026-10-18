@@ -1,0 +1,29 @@
+# Lab fixture only: demonstrates a release workflow, not a CVE mitigation.
+rule:
+  id: 700011
+  name: Example virtual patch canary header
+  layer: managed
+  stage: request_headers
+  severity: critical
+  score: 100
+  action_mode: block_alone
+  metadata:
+    source: organization
+    license: Apache-2.0
+    author: example-security
+    owner: example-security
+    review_by: '2026-11-16'
+    tags: [virtual-patch, lab-example]
+  match:
+    all:
+    - targets: [{var: request_headers, key: X-Example-VPatch}]
+      operator: {type: contains, value: strata-vpatch-canary}
+tests:
+  match:
+  - uri: /example-api
+    headers: {Host: api.example.test, X-Example-VPatch: strata-vpatch-canary}
+  no_match:
+  - uri: /example-api
+    headers: {Host: api.example.test, X-Example-VPatch: ordinary-value}
+  - uri: /example-api
+    headers: {Host: api.example.test, X-Unrelated: strata-vpatch-canary}

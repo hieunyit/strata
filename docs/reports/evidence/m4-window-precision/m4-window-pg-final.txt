@@ -1,0 +1,5 @@
+=== RUN   TestRuleAnnotationsInPostgres
+--- PASS: TestRuleAnnotationsInPostgres (0.65s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	1.741s
+0 issues.

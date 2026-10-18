@@ -1,0 +1,13 @@
+# M4 — restricted authorized staging writer
+
+Branch `codex/m4-authorized-staging-writer`, based on PR #194.
+
+`StagingDeployer.Stage` takes a specific source bundle/policy version/rule, holds the shared build lock and records an additive signed derivation only after checking: completed active source; exact source policy versions; enabled enforce-mode opt-in and allowlist; approval-bound replay ancestry; source signature/SHA/size; captured compiler/rule/privacy/page/cost inputs equal the source digest; fresh observation bound to the exact rule/policy/bundle/window; count minima and exact 128-bit basis-point threshold. Already staged rules cannot be added again. Source readiness is checked again after compilation. The derived artifact is verified, uploaded, then bundle/state/audit/publication intent are committed atomically with a final source CAS.
+
+No default threshold or fake approval is installed. Missing dependencies, query errors, stale/unbound evidence or changed inputs cannot publish a derivation. No API endpoint or automatic scheduler is added here. Stage success means recorded publication intent; the separate idempotent rollout path must still obtain actual activation ACKs. The ordinary deploy gate is unchanged.
+
+Validation: [output](evidence/m4-authorized-staging-writer/checks.txt). Integration uses real PostgreSQL, real Rust compiler and synthetic signing key: source → independent approval-bound proof fixture → recorded ACTIVE source → writer → verified signed overlay + durable action. The proof and observation callbacks are fixtures; this test does not run the replay executable, ClickHouse FP aggregation or a real agent/NGINX activation chain. Negative cases include default/disabled delegation, a ratio just below 5%, UInt64 overflow boundary just below threshold, wrong evidence bundle, changed rule input, corrupt source signature, non-active source, query error and missing verifier. Guard-order assertions verify failures occur before inappropriate queries/uploads; all failed cases retain only the original bundle/object.
+
+Full policy/replay race suites pass (21.528 s / 4.869 s), scoped lint: 0 issues.
+
+Self-review: two-minute work context, fixed scope/window and codec guards; no removal/re-enforcement; no secrets/PII; no dependency/public interface change; source/store/compile/sign errors propagate; related tests keep existing regressions enabled. The shared legacy bundle-lock cleanup at this PR base used an unbounded background unlock; the following [cleanup component](m4-bundle-lock-cleanup.md) hardens it before periodic writes. Remaining M4: production observation/worker/notification wiring and automatic activation deadline evidence. No main merge, hosted CI dependency or staging/production access.

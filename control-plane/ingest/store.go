@@ -129,6 +129,7 @@ var contextColumns = []string{
 	"referer String CODEC(ZSTD(1))",
 	"headers Nested(name LowCardinality(String), value String)",
 	"inspection LowCardinality(String)",
+	"rule_costs Nested(rule_id UInt32, samples UInt64, total_ns UInt64, max_ns UInt64)",
 }
 
 // EnsureColumns adds the columns of later schemas to an events table made
@@ -159,7 +160,8 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		client_ip, identity, request_id, http_method, http_host, http_path,
 		status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 		matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-		received_at, user_agent, referer, headers.name, headers.value, inspection
+		received_at, user_agent, referer, headers.name, headers.value, inspection,
+		rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns
 	)`, s.tableName)
 
 	batch, err := s.conn.PrepareBatch(ctx, query)
@@ -183,6 +185,12 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		hValues := make([]string, len(e.Headers))
 		for i, h := range e.Headers {
 			hNames[i], hValues[i] = h.Name, h.Value
+		}
+		costs := validRuleCosts(e.RuleCosts)
+		costIDs := make([]uint32, len(costs))
+		costSamples, costTotals, costMax := make([]uint64, len(costs)), make([]uint64, len(costs)), make([]uint64, len(costs))
+		for i, c := range costs {
+			costIDs[i], costSamples[i], costTotals[i], costMax[i] = c.RuleID, c.Samples, c.TotalNS, c.MaxNS
 		}
 
 		err := batch.Append(
@@ -215,6 +223,7 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			hNames,
 			hValues,
 			e.Inspection,
+			costIDs, costSamples, costTotals, costMax,
 		)
 		if err != nil {
 			return fmt.Errorf("appending event %s to batch: %w", e.BlockID, err)
@@ -234,9 +243,14 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 // is still found by the lookup over every partition that follows a miss.
 func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event, error) {
 	if t, ok := BlockIDTime(blockID); ok {
-		e, err := s.getEvent(ctx, blockID, "AND timestamp BETWEEN ? AND ?", t.Add(-24*time.Hour), t.Add(24*time.Hour))
-		if !errors.Is(err, ErrEventNotFound) {
-			return e, err
+		// Normal events are timestamped near their ID's creation. Start with
+		// one narrow partition range; the wider probe and global fallback
+		// still cover long requests, clock skew and older producers.
+		for _, radius := range []time.Duration{time.Second, 24 * time.Hour} {
+			e, err := s.getEvent(ctx, blockID, "AND timestamp BETWEEN ? AND ?", t.Add(-radius), t.Add(radius))
+			if !errors.Is(err, ErrEventNotFound) {
+				return e, err
+			}
 		}
 	}
 	return s.getEvent(ctx, blockID, "")
@@ -249,21 +263,24 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			client_ip, identity, request_id, http_method, http_host, http_path,
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-			received_at, user_agent, referer, headers.name, headers.value, inspection
-		FROM %s 
+			received_at, user_agent, referer, headers.name, headers.value, inspection,
+			rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns
+		FROM %s FINAL
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
 
 	row := s.conn.QueryRow(ctx, query, append([]any{blockID}, args...)...)
 
 	var (
-		e        Event
-		ruleIDs  []uint32
-		layers   []string
-		fields   []string
-		snippets []string
-		hNames   []string
-		hValues  []string
+		e                                Event
+		ruleIDs                          []uint32
+		layers                           []string
+		fields                           []string
+		snippets                         []string
+		hNames                           []string
+		hValues                          []string
+		costIDs                          []uint32
+		costSamples, costTotals, costMax []uint64
 	)
 
 	err := row.Scan(
@@ -296,6 +313,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		&hNames,
 		&hValues,
 		&e.Inspection,
+		&costIDs, &costSamples, &costTotals, &costMax,
 	)
 	if err != nil {
 		// Any other error, ClickHouse exceptions included, is a real failure.
@@ -319,6 +337,12 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		if i < len(hValues) {
 			e.Headers = append(e.Headers, Header{Name: hNames[i], Value: hValues[i]})
 		}
+	}
+	if len(costIDs) <= MaxEventRuleCosts && len(costSamples) == len(costIDs) && len(costTotals) == len(costIDs) && len(costMax) == len(costIDs) {
+		for i, id := range costIDs {
+			e.RuleCosts = append(e.RuleCosts, RuleCost{RuleID: id, Samples: costSamples[i], TotalNS: costTotals[i], MaxNS: costMax[i]})
+		}
+		e.RuleCosts = validRuleCosts(e.RuleCosts)
 	}
 
 	return &e, nil
@@ -384,7 +408,7 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 	}
 
 	// 1. Get total count
-	countQuery := fmt.Sprintf("SELECT count() FROM %s WHERE %s", s.tableName, whereSQL)
+	countQuery := fmt.Sprintf("SELECT count() FROM %s FINAL WHERE %s", s.tableName, whereSQL)
 	var total uint64
 	if err := s.conn.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("counting events: %w", err)
@@ -401,9 +425,9 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at
-		FROM %[1]s
+		FROM %[1]s FINAL
 		WHERE (block_id, timestamp) IN (
-			SELECT block_id, timestamp FROM %[1]s
+			SELECT block_id, timestamp FROM %[1]s FINAL
 			WHERE %[2]s
 			ORDER BY timestamp DESC, block_id DESC
 			LIMIT ? OFFSET ?)

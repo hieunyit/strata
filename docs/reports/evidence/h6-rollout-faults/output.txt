@@ -1,0 +1,41 @@
+=== RUN   TestRolloutToRealAgents
+2026/10/17 04:13:01 [INFO] fleet: node node-w5pmweolzvl5cht2 enrolled in group lab (certificate 18ac09857e891061cf44ad9c98c02416, until 2026-10-18T04:13:01Z)
+2026/10/17 04:13:01 [INFO] fleet: node node-6rx4oueym67fngdo enrolled in group lab (certificate 614d865811d2f6d535bd03c2f103c612, until 2026-10-18T04:13:01Z)
+2026/10/17 04:13:01 [INFO] fleet: node node-6wma3hbkksz3mogj enrolled in group lab (certificate 2345d427b473c94d7f229659b88837b, until 2026-10-18T04:13:01Z)
+2026/10/17 04:13:02 [INFO] fleet: rollout 1 of bundle 1: waves [1 2 3] over 3 nodes
+2026/10/17 04:13:02 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 1 DOWNLOADING 
+2026/10/17 04:13:02 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 1 VERIFIED 
+2026/10/17 04:13:04 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 1 ACTIVE 
+2026/10/17 04:13:04 [INFO] fleet: rollout 1 wave 1: [node-6rx4oueym67fngdo]
+2026/10/17 04:13:04 [INFO] fleet: node node-6rx4oueym67fngdo bundle 1 DOWNLOADING 
+2026/10/17 04:13:04 [INFO] fleet: node node-6rx4oueym67fngdo bundle 1 VERIFIED 
+2026/10/17 04:13:06 [INFO] fleet: node node-6rx4oueym67fngdo bundle 1 ACTIVE 
+2026/10/17 04:13:06 [INFO] fleet: rollout 1 wave 2: [node-6wma3hbkksz3mogj]
+2026/10/17 04:13:06 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 1 DOWNLOADING 
+2026/10/17 04:13:06 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 1 VERIFIED 
+2026/10/17 04:13:08 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 1 ACTIVE 
+2026/10/17 04:13:08 [INFO] fleet: rollout 1 of bundle 1 done
+    rollout_test.go:380: bundle 1 reached the nodes at +0, +2.057s, +4.123s
+2026/10/17 04:13:08 [INFO] fleet: rollout 2 of bundle 2: waves [1 2 3] over 3 nodes
+2026/10/17 04:13:08 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 2 DOWNLOADING 
+2026/10/17 04:13:08 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 2 FAILED bundle: signature does not verify
+2026/10/17 04:13:08 [WARN] fleet: rollout 2 stopped: node node-w5pmweolzvl5cht2 failed bundle 2: bundle: signature does not verify
+2026/10/17 04:13:20 [INFO] fleet: rollout 3 of bundle 3: waves [1 2 3] over 3 nodes
+2026/10/17 04:13:20 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 3 DOWNLOADING 
+2026/10/17 04:13:21 [ERROR] fleet: read bundles/00000000000000000003/bundle-3.sbn at 1048576: context canceled
+    rollout_test.go:444: killed with 1048576 of 67108864 bytes downloaded
+2026/10/17 04:13:21 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 3 DOWNLOADING 
+2026/10/17 04:13:25 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 3 VERIFIED 
+2026/10/17 04:13:27 [INFO] fleet: node node-w5pmweolzvl5cht2 bundle 3 ACTIVE 
+2026/10/17 04:13:27 [INFO] fleet: rollout 3 wave 1: [node-6rx4oueym67fngdo]
+2026/10/17 04:13:27 [INFO] fleet: node node-6rx4oueym67fngdo bundle 3 DOWNLOADING 
+2026/10/17 04:13:31 [INFO] fleet: node node-6rx4oueym67fngdo bundle 3 VERIFIED 
+2026/10/17 04:13:33 [INFO] fleet: node node-6rx4oueym67fngdo bundle 3 ACTIVE 
+2026/10/17 04:13:33 [INFO] fleet: rollout 3 wave 2: [node-6wma3hbkksz3mogj]
+2026/10/17 04:13:33 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 3 DOWNLOADING 
+2026/10/17 04:13:37 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 3 VERIFIED 
+2026/10/17 04:13:39 [INFO] fleet: node node-6wma3hbkksz3mogj bundle 3 ACTIVE 
+2026/10/17 04:13:39 [INFO] fleet: rollout 3 of bundle 3 done
+--- PASS: TestRolloutToRealAgents (69.11s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	70.612s

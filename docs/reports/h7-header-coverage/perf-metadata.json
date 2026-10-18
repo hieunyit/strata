@@ -1,0 +1,6 @@
+{
+  "source_commit": "25a6e9e",
+  "binary_sha256": "41fa4c3d81f85918afcaaac2f905b2ae14a2b8d6f3aca7dacf00384c4c78c020",
+  "baseline_bundle_sha256": "bc051ed06bbb3f0645709942bf5e0a82a2a239ac2636b38ff21d421f130e1506",
+  "candidate_bundle_sha256": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a"
+}
