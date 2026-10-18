@@ -21,9 +21,9 @@ export function useReviewRead<T>(key: string, load: (signal: AbortSignal) => Pro
       try {
         const data = await loader.current(current.signal);
         if (active && !current.signal.aborted) setState({ key, data, loading: false, error: false });
-        else if (active) setState({ key, loading: false, error: true });
+        else if (active) setState(s => ({ key, data: s.key === key ? s.data : undefined, loading: false, error: true }));
       } catch {
-        if (active) setState({ key, loading: false, error: true });
+        if (active) setState(s => ({ key, data: s.key === key ? s.data : undefined, loading: false, error: true }));
       } finally {
         clearTimeout(timeout); busy = false;
         if (active && interval > 0) next = setTimeout(() => void read(), interval);

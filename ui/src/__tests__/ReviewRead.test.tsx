@@ -39,3 +39,14 @@ it('does not poll a hidden page and loads on return without depending on locale'
   await waitFor(() => expect(view.result.current.data).toBe('ready'));
   view.unmount();
 });
+
+it('retains the visible snapshot but marks it unusable when a poll fails', async () => {
+  vi.useFakeTimers();
+  const read = vi.fn().mockResolvedValueOnce('viewed').mockRejectedValue(new Error('unavailable'));
+  const view = renderHook(() => useReviewRead('a:1', read, 1000));
+  await act(async () => {});
+  expect(view.result.current.data).toBe('viewed');
+  await act(async () => vi.advanceTimersByTime(1000));
+  expect(view.result.current.data).toBe('viewed'); expect(view.result.current.error).toBe(true);
+  view.unmount();
+});

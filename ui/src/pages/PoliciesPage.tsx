@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, GitCompare, Pencil } from 'lucide-react';
 import { apiClient, Policy, PolicyVersion } from '../api/client';
@@ -10,6 +10,7 @@ import { href } from '../router';
 import { useAuth } from '../context/AuthContext';
 import { canWritePolicies } from '../auth/roles';
 import { PolicyEditor } from '../components/policy/PolicyEditor';
+import { VersionReview } from '../components/policy/VersionReview';
 import { PolicyDiff } from '../components/policy/PolicyDiff';
 
 const modeClass: Record<string, string> = {
@@ -26,6 +27,10 @@ export const PoliciesPage: React.FC = () => {
   const { roles } = useAuth();
   const canEdit = canWritePolicies(roles);
   const { data, error, loading, refresh } = usePolling(() => apiClient.listPolicies(), 0);
+  const [reviewVersion, setReviewVersion] = useState<number>();
+  const versionRead = useRef<AbortController>();
+  const activePolicy = useRef<string>();
+  useEffect(() => () => versionRead.current?.abort(), []);
   const [selected, setSelected] = useState<Policy | null>(null);
   const [editing, setEditing] = useState(false);
   const [comparing, setComparing] = useState(false);
@@ -34,6 +39,9 @@ export const PoliciesPage: React.FC = () => {
   const [versionsError, setVersionsError] = useState<string | undefined>();
 
   const open = async (p: Policy) => {
+    versionRead.current?.abort(); activePolicy.current = p.id;
+    const controller = new AbortController(); versionRead.current = controller;
+    setReviewVersion(undefined);
     setSelected(p);
     setEditing(false);
     setComparing(false);
@@ -41,8 +49,10 @@ export const PoliciesPage: React.FC = () => {
     setVersions([]);
     setVersionsError(undefined);
     try {
-      setVersions(await apiClient.listPolicyVersions(p.id ?? ''));
+      const rows = await apiClient.listPolicyVersions(p.id ?? '', controller.signal);
+      if (!controller.signal.aborted) setVersions(rows);
     } catch (e) {
+      if (controller.signal.aborted) return;
       setVersionsError(e instanceof Error ? e.message : String(e));
     }
   };
@@ -96,6 +106,15 @@ export const PoliciesPage: React.FC = () => {
           <PolicyDiff name={selected.name ?? ''} versions={versions} onClose={() => setComparing(false)} />
         </div>
       )}
+      {selected?.id && reviewVersion !== undefined && <div className="mb-5">
+        <VersionReview key={`${selected.id}:${reviewVersion}`} policyId={selected.id} version={reviewVersion} onChanged={() => {
+          void refresh();
+          if (activePolicy.current !== selected.id) return;
+          const signal = versionRead.current?.signal;
+          void apiClient.listPolicyVersions(selected.id!, signal).then(rows => { if (!signal?.aborted) setVersions(rows); })
+            .catch(() => { if (!signal?.aborted) setVersionsError(t('reviews.unavailable')); });
+        }} />
+      </div>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="panel overflow-x-auto">
           <table className="w-full text-[13px]" data-testid="policies-table">
@@ -173,8 +192,9 @@ export const PoliciesPage: React.FC = () => {
               </div>
               <ol className="divide-y divide-line px-4 pb-2 text-[13px]">
                 {versions.map((v) => (
-                  <li key={v.version} data-testid="policy-version-row" className="flex items-center gap-3 py-2">
+                  <li key={v.version} data-testid="policy-version-row" className="flex flex-wrap items-center gap-3 py-2">
                     <span className="w-10 tabular-nums font-medium">v{v.version}</span>
+                    <button type="button" className="btn" onClick={() => setReviewVersion(v.version)}>{t('reviews.inspect')}</button>
                     {mode(v.spec?.mode)}
                     {v.state && (
                       <span className="text-xs text-muted" data-testid="policy-version-state">{t(`editor.state.${v.state}`, { defaultValue: v.state })}</span>

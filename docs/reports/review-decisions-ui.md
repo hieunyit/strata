@@ -1,0 +1,10 @@
+M2/M5 · Gửi duyệt và quyết định trên UI · 18/10/2026 (UTC+7)
+Nhánh `codex/review-decisions-ui`, base `codex/review-queue-read` (`6b295ff`).
+
+Operator/admin gửi DRAFT/REJECTED version cụ thể và chạy lại replay; approver/admin duyệt/từ chối SUBMITTED. Từ chối cần lý do tối đa 1.000 Unicode code point; có thể từ chối khi replay đang chạy. Duyệt cần report DONE không rỗng, số đếm và provenance hợp lệ, xác nhận đã xem ID report hiện tại; poll nhận ID mới làm xác nhận cũ hết hiệu lực. POST luôn pin ID đó, không fallback unpinned, không có nút deploy tự động. Backend vẫn quyết định quyền/bốn mắt theo subject, UI không suy từ tên hiển thị.
+
+Khóa đồng bộ chống double click. Sau write thành công, đọc snapshot mới rồi mới mở thao tác kế tiếp. Write lỗi/bất định khóa đến khi người dùng tải lại xét duyệt; không tự retry. Poll lỗi giữ snapshot đang xem nhưng vô hiệu hóa ghi; đổi ngôn ngữ không xóa comment. Thêm inspector ở danh sách version trên Policies để gửi bản nháp; sửa request đọc version cũ trả chậm đè policy vừa chọn bằng AbortSignal và kiểm tín hiệu trước khi nhận kết quả. Callback write cũ không đọc/ghi version list của selection mới.
+
+Kiểm chứng Node 24.21.0: `npm test -- --cache=false && npm run lint && npm run build -- --outDir /src/build/review-decisions-final-dist` → **134/134 (22 file) PASS**, lint/build PASS (13,09 s). Test mới kiểm role/state, ID pin/ack thay đổi, double-click, lỗi 400 và 503 không retry, reason Unicode, explicit version, read pending/error, stale policy response. Test Pages cũ cần mở rộng expected arguments từ resource ID sang cùng ID + AbortSignal do nay hỗ trợ hủy request; không bỏ assertion hay nới resource. Lượt đầu 133 PASS/1 FAIL ở đúng assertion này; giữ [output](evidence/review-decisions-ui/), chạy lại đầy đủ sau cập nhật.
+
+Tự review: xử lý lỗi và khóa ghi; comment/bảng/example có giới hạn; API kiểm RBAC/audit và subject, không xuất raw lỗi; chỉ UI và báo cáo, không dependency/interface mới; lint sạch. Chưa có browser acceptance cho quyết định ở PR này, đang chuẩn bị kiểm local auth + PostgreSQL + compiler/replay thật với race report mới. Không merge/deploy/chờ hosted CI.
