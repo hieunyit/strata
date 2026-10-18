@@ -11,7 +11,6 @@ import (
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/store"
-	"strconv"
 )
 
 // AuditStore supplies recent audit log entries for GET /v1/audit.
@@ -174,28 +173,7 @@ func (s *Server) registerRoutes() {
 		writeJSON(w, http.StatusOK, Me{Username: name, Roles: roles, Local: localauth.LocalUsername(p) != ""})
 	})
 	if s.cfg.Audit != nil {
-		v1.HandleFunc("/v1/audit", auth.RequireHTTP(auth.PermAuditRead, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				w.WriteHeader(http.StatusMethodNotAllowed)
-				return
-			}
-			limit := 100
-			if l := r.URL.Query().Get("limit"); l != "" {
-				if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 500 {
-					limit = n
-				}
-			}
-			entries, err := s.cfg.Audit.AuditEntries(r.Context(), limit)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-				return
-			}
-			if entries == nil {
-				entries = []store.Audit{}
-			}
-			w.Header().Set("Cache-Control", "no-store")
-			writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
-		}))
+		v1.HandleFunc("/v1/audit", auth.RequireHTTP(auth.PermAuditRead, s.handleAudit))
 	}
 	if s.cfg.Local != nil {
 		s.cfg.Local.Authenticated(v1)

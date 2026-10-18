@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/strata/strata/control-plane/auth"
 )
 
 // User is an account as the API shows it: never the hash.
@@ -69,6 +70,15 @@ func (s *Store) inTx(ctx context.Context, f func(pgx.Tx) error) error {
 }
 
 func audit(ctx context.Context, tx pgx.Tx, actor, action, username string, before, after any) error {
+	subject := ""
+	if p := auth.FromContext(ctx); p != nil {
+		subject = p.Subject
+	} else if strings.HasPrefix(action, "local_sessions.") || action == "local_users.change_own_password" {
+		// These internal paths already validated the local identity/session.
+		subject = SubjectPrefix + username
+	} else if strings.HasPrefix(actor, "system:") {
+		subject = actor
+	}
 	enc := func(v any) ([]byte, error) {
 		if v == nil {
 			return nil, nil
@@ -83,8 +93,8 @@ func audit(ctx context.Context, tx pgx.Tx, actor, action, username string, befor
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO audit_log (actor, channel, action, resource, before, after)
-		VALUES ($1, 'api', $2, $3, $4, $5)`, actor, action, "local_users/"+username, b, a)
+	_, err = tx.Exec(ctx, `INSERT INTO audit_log (actor, subject, channel, action, resource, before, after)
+		VALUES ($1, $2, 'api', $3, $4, $5, $6)`, actor, subject, action, "local_users/"+username, b, a)
 	return err
 }
 

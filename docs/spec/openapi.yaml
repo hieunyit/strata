@@ -7,6 +7,29 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/audit:
+    get:
+      operationId: listAudit
+      summary: Read the newest matching administrative audit records
+      description: Requires audit:read. Filters run in PostgreSQL before limiting; action/resource are literal case-insensitive substrings. Time bounds are from-inclusive/to-exclusive RFC3339 timestamps. Unknown/repeated parameters and invalid bounds are rejected. Old rows without a recorded immutable subject leave that field empty; no identity is inferred. has_more indicates the matching set exceeds the returned limit.
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 100}}
+        - {name: actor, in: query, schema: {type: string, maxLength: 256}, description: Exact display actor.}
+        - {name: channel, in: query, schema: {type: string, maxLength: 256}}
+        - {name: action, in: query, schema: {type: string, maxLength: 256}}
+        - {name: resource, in: query, schema: {type: string, maxLength: 256}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Newest matching records; never a complete-history claim when has_more is true.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditListResponse'}
+        '400': {description: Invalid filters.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {description: Audit search unavailable; no database details returned.}
   /v1/rules/staging-actions:
     get:
       operationId: listRuleStagingNotices
@@ -675,6 +698,26 @@ components:
       required: true
       schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    AuditEntry:
+      type: object
+      required: [actor, channel, action, resource]
+      properties:
+        at: {type: string, format: date-time}
+        actor: {type: string}
+        subject: {type: string, description: Immutable authenticated subject when recorded.}
+        channel: {type: string}
+        action: {type: string}
+        resource: {type: string}
+        request_id: {type: string}
+        before: {}
+        after: {}
+    AuditListResponse:
+      type: object
+      required: [entries, has_more, limit]
+      properties:
+        entries: {type: array, items: {$ref: '#/components/schemas/AuditEntry'}}
+        has_more: {type: boolean}
+        limit: {type: integer, minimum: 1, maximum: 500}
     ServiceAccount:
       type: object
       required:
