@@ -688,7 +688,7 @@ mod tests {
             challenge_asns: vec![],
         };
 
-        let resolver = GeoResolver::with_compact(vec![pol], compact);
+        let resolver = GeoResolver::with_compact(vec![pol.clone()], compact.clone());
 
         // 1. Resolve VN
         let loc_vn = resolver.resolve("203.0.113.195");
