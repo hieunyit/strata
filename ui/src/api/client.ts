@@ -332,7 +332,44 @@ export const apiClient = {
     const r = await call<ListAuditResponse>(`/audit?limit=${limit}`, { method: 'GET' }, 'Failed to list audit log');
     return r.entries ?? [];
   },
+  /** GET /v1/service-accounts */
+  async listServiceAccounts(): Promise<ServiceAccount[]> {
+    const r = await call<{ service_accounts: ServiceAccount[] }>('/service-accounts', { method: 'GET' }, 'Failed to list service accounts');
+    return r.service_accounts ?? [];
+  },
+
+  /** POST /v1/service-accounts */
+  async createServiceAccount(sa: CreateServiceAccountRequest): Promise<ServiceAccount> {
+    return call<ServiceAccount>('/service-accounts', json('POST', sa), 'Failed to create service account');
+  },
+
+  async deleteServiceAccount(id: string, etag: string, requestId: string): Promise<void> {
+    await call<void>(`/service-accounts/${encodeURIComponent(id)}`, { method: 'DELETE',
+      headers: { 'If-Match': etag, 'Idempotency-Key': requestId } }, 'Failed to delete service account');
+  },
+
+  async listServiceAccountTokens(saId: string): Promise<ServiceAccountToken[]> {
+    const r = await call<components['schemas']['ServiceAccountTokenList']>(`/service-accounts/${encodeURIComponent(saId)}/tokens`, { method: 'GET' }, 'Failed to list tokens');
+    return r.tokens ?? [];
+  },
+
+  async createServiceAccountToken(saId: string, req: CreateServiceAccountTokenRequest): Promise<CreateTokenResponse> {
+    return call<CreateTokenResponse>(`/service-accounts/${encodeURIComponent(saId)}/tokens`, json('POST',req), 'Failed to create token');
+  },
+
+  async revokeServiceAccountToken(saId: string, tokenId: string, etag: string, requestId: string): Promise<void> {
+    await call<void>(`/service-accounts/${encodeURIComponent(saId)}/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE',
+      headers: { 'If-Match': etag, 'Idempotency-Key': requestId } }, 'Failed to revoke token');
+  },
+
+
 };
+
+export type ServiceAccount = components['schemas']['ServiceAccount'];
+export type ServiceAccountToken = components['schemas']['ServiceAccountToken'];
+export type CreateTokenResponse = components['schemas']['MachineTokenResponse'];
+export type CreateServiceAccountRequest = components['schemas']['ServiceAccountCreateRequest'];
+export type CreateServiceAccountTokenRequest = components['schemas']['MachineTokenRequest'];
 
 export interface AuditEntry {
   at?: string;

@@ -40,3 +40,12 @@ The server wires its durable store and machine authenticator when PostgreSQL is 
 Full control-plane go test -race -count=1 ./... PASS with real PostgreSQL, followed by golangci-lint 0 issues. New real-PG API tests cover concurrent retry, rollback on failed audit, new server objects over persisted state, expired/revoked tokens, role refusal, an admin-role token restricted to events:read, missing/hostile input and secret-response cache control. Before the last input guard, an invalid UTF-8 header returned 404; the added negative test now passes with 400. Optional CH/native/browser fixtures need their own configuration and are not implied by this package run.
 
 The web workflow is the next integration step. Action scopes are implemented here; connector-group scoped role bindings remain separate work. The weekly branch's Geo/bot/standalone/hourly changes and operational Gate claims remain under review.
+
+
+## Web component foundation after #226
+
+Management API merged as #226, main `33e61fe5b0203e250033f4071af49b495684eb14`; its branch was removed with SHA guards. Totals: 130 remote / 129 local deletion actions including integration branches.
+
+The typed client uses the generated contract. The token dialog keeps one command through uncertain responses, pins account/token etags, validates the returned account/scopes/lifetime, ignores stale list results and serializes writes. It masks a new secret by default, offers explicit reveal/copy with error handling, traps keyboard focus, restores the trigger and supports Escape. EN/VI strings are included. A replay receipt explains that plaintext cannot be recovered and supports revoking that token.
+
+Seven component regressions and eleven existing page tests PASS; TypeScript lint PASS. These include double-submit, uncertain retry, wrong-account receipt, pinned revoke, focus, stale reads and failed clipboard access. Management-page wiring and the standalone Chromium acceptance fixture are the next review steps; this component-only change does not expose a new page entry point. Final browser evidence will be recorded with that fixture.
