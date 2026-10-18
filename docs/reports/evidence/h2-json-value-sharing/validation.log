@@ -1,0 +1,3 @@
+PASS frozen source and binary hashes match
+PASS 4 runs x 14 workloads: unlimited action/rules/inspection/error counts unchanged
+PASS quiet A/B/B/A: 4 workloads x 4 trials, action/rules/inspection/error counts unchanged

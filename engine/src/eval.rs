@@ -1010,6 +1010,12 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
     tsets.sort_unstable();
     tsets.dedup();
     let mut vals: Vec<&[u8]> = vec![];
+    // Repeated JSON values can share transformations as well as scans.
+    // Keep every address in Pass for later field-specific evaluation. Other
+    // workloads keep the address-only path: hashing unique values adds work.
+    let mut by_bytes: Option<HashMap<&[u8], u32>> = (d.processor == b"JSON"
+        && !d.req.body.is_empty())
+    .then(|| HashMap::with_hasher(ctx.operators.content_hasher.clone()));
     // the values of each target the sets read, as value indexes
     let mut target_vals: Vec<Option<Vec<u32>>> = vec![None; pf.targets.len()];
     let mut tset_vals: Vec<(u32, Vec<u32>)> = Vec::with_capacity(tsets.len());
@@ -1032,7 +1038,11 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
                             .pass
                             .index
                             .entry((v.val.as_ptr() as usize, v.val.len()))
-                            .or_insert(next);
+                            .or_insert_with(|| {
+                                by_bytes
+                                    .as_mut()
+                                    .map_or(next, |cache| *cache.entry(v.val).or_insert(next))
+                            });
                         if vi == next {
                             vals.push(v.val);
                             need.resize(need.len() + n_nodes, false);
@@ -1053,6 +1063,7 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
         }
         tset_vals.push((ts, idxs));
     }
+    drop(by_bytes);
     ctx.pass.slot = vec![NOT_SCANNED; vals.len() * n_nodes];
 
     // value by value, node by node (a parent before its children)

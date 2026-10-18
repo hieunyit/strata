@@ -1,0 +1,14 @@
+{
+  "nginx": "1.31.6",
+  "sha256": {
+    "build/nginx-1.31.6-asan/objs/nginx": "1fd43b9f0d41d2a806327969f7b47eac2fba3ecbff5e775d7d0d8eccc625d067",
+    "build/nginx-1.31.6-asan/objs/ngx_http_strata_module.so": "4bec6f4d077e8cf572933d0166869fec600687acab5a35ffb6aa2c243590be93",
+    "engine/src/eval.rs": "cf892c0745dc0da25f788baaddfa6f68b3dbbad8fb76a39e360043d11df312a9",
+    "engine/compiler/tests/repeated_values.rs": "62df19b7e53461d16aea4f39b3b8d988c3eac4c60601a667ccd558079a7d2a92"
+  },
+  "source_frozen_before_build": true,
+  "test_count": 595,
+  "http3_skipped": true,
+  "leak_sanitizer": false,
+  "sanitizer_reports": []
+}
