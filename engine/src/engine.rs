@@ -47,6 +47,8 @@ pub struct Engine {
     rule_costs: crate::rulecost::RuleCosts,
     /// Sliding window rate limiter for identity & IP (RV-R-04)
     rate_limiter: std::sync::Arc<crate::rate::RateLimiter>,
+    /// Dynamically derived HMAC key for JS challenge tokens (RV-R-04)
+    challenge_key: [u8; 32],
 }
 
 /// Most rule IDs `set_disabled_rules` takes at once.
@@ -170,6 +172,16 @@ impl Engine {
         let id = NEXT_ENGINE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let n_policies = info.n_policies as usize;
         let n_rules_for_costs = tables.n_rules();
+
+        let mut challenge_key = [0u8; 32];
+        {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(b"strata:challenge:hmac:v1:");
+            hasher.update(bytes);
+            challenge_key.copy_from_slice(&hasher.finalize());
+        }
+
         let engine = Engine {
             id,
             bytes: bundle,
@@ -187,12 +199,18 @@ impl Engine {
             counters: crate::counters::PolicyCounters::new(n_policies),
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
             rate_limiter: std::sync::Arc::new(crate::rate::RateLimiter::new()),
+            challenge_key,
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
         // with the full package (#49)
         engine.precompile_hot_regexes();
         Ok(engine)
+    }
+
+    /// Dynamically derived HMAC key for JS challenge tokens (RV-R-04).
+    pub fn challenge_key(&self) -> &[u8; 32] {
+        &self.challenge_key
     }
 
     /// Requests and inspection gaps per policy (RV-N-01).

@@ -145,12 +145,6 @@ pub fn detect(input: &[u8]) -> bool {
         return false;
     }
 
-    // 0. Direct command invocation at start of input (e.g. "sleep 5", "cat /etc/passwd")
-    let trimmed = skip_shell_whitespace(input, 0);
-    if trimmed < input.len() && starts_with_dangerous_command(&input[trimmed..]) {
-        return true;
-    }
-
     // 0b. Direct shell IFS evasion: $IFS or ${IFS}
     if input.windows(4).any(|w| w == b"$IFS") || input.windows(6).any(|w| w == b"${IFS}") {
         return true;
@@ -168,12 +162,14 @@ pub fn detect(input: &[u8]) -> bool {
 
     // 2. Direct dangerous command execution with flags or arguments:
     // e.g. "sleep 5", "cat /etc/passwd", "curl -O ...", "rm -rf ..."
-    if starts_with_dangerous_command(input) {
+    let trimmed = skip_shell_whitespace(input, 0);
+    if trimmed < input.len() && starts_with_dangerous_command(&input[trimmed..]) {
+        let input_after = &input[trimmed..];
         let mut buf = [0u8; 64];
-        let (token, raw_len) = extract_first_token(input, &mut buf);
-        let rem_idx = skip_shell_whitespace(input, raw_len);
-        if rem_idx < input.len() {
-            let rem = &input[rem_idx..];
+        let (token, raw_len) = extract_first_token(input_after, &mut buf);
+        let rem_idx = skip_shell_whitespace(input_after, raw_len);
+        if rem_idx < input_after.len() {
+            let rem = &input_after[rem_idx..];
             if rem.starts_with(b"-")
                 || rem.starts_with(b"/")
                 || rem.starts_with(b"\\")

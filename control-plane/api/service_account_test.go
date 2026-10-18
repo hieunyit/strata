@@ -75,6 +75,18 @@ func TestServiceAccountAPI_LifecycleAndScoping(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("token creation got %d, want 201: %s", rec.Code, rec.Body.String())
 	}
+	// 3b. Issue token with empty scopes -> must fail with 400 Bad Request
+	emptyTokenBody, _ := json.Marshal(CreateTokenRequest{
+		Scopes:     []auth.Permission{},
+		TTLSeconds: 3600,
+	})
+	emptyReq := httptest.NewRequest(http.MethodPost, "/v1/service-accounts/sa-deployer/tokens", bytes.NewReader(emptyTokenBody))
+	emptyReq.Header.Set("Authorization", "Bearer admin")
+	emptyRec := httptest.NewRecorder()
+	handler.ServeHTTP(emptyRec, emptyReq)
+	if emptyRec.Code != http.StatusBadRequest {
+		t.Fatalf("empty scopes token creation got %d, want 400", emptyRec.Code)
+	}
 
 	var tokenResp CreateTokenResponse
 	if err := json.NewDecoder(rec.Body).Decode(&tokenResp); err != nil {

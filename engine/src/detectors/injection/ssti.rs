@@ -139,16 +139,13 @@ fn is_dangerous_template_expr(s: &[u8]) -> bool {
         return false;
     }
 
-    // Check lowercase representation against dangerous AST patterns
-    let mut buf = [0u8; 256];
-    let check_len = trimmed.len().min(buf.len());
-    for j in 0..check_len {
-        buf[j] = trimmed[j].to_ascii_lowercase();
-    }
-    let lower_slice = &buf[..check_len];
-
+    // Check against dangerous AST patterns across entire trimmed slice without truncation
     for pattern in SSTI_DANGEROUS_PATTERNS {
-        if lower_slice.windows(pattern.len()).any(|w| w == *pattern) {
+        if trimmed.len() >= pattern.len()
+            && trimmed
+                .windows(pattern.len())
+                .any(|w| w.eq_ignore_ascii_case(pattern))
+        {
             return true;
         }
     }
@@ -184,7 +181,7 @@ fn is_math_probe(s: &[u8]) -> bool {
             } else {
                 has_digit_after = true;
             }
-        } else if c == b'*' || c == b'/' {
+        } else if c == b'*' || c == b'/' || c == b'+' || c == b'-' || c == b'%' {
             if has_digit_before {
                 has_math_op = true;
             }

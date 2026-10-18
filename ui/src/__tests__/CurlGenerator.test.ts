@@ -102,4 +102,41 @@ describe('buildCurlFromEvent', () => {
     expect(cmd).toContain("-H 'X-Custom-Trace: trace-123'");
     expect(cmd).not.toContain('X-Forwarded-For');
   });
+
+  it('prevents command injection via malicious method, header names, and CRLF', () => {
+    const maliciousEvent: Event = {
+      block_id: 'blk-exploit',
+      timestamp: '2026-10-16T12:00:00Z',
+      node_id: 'node-1',
+      connector_type: 'nginx',
+      policy_id: 'example-api',
+      policy_version: 1,
+      client_ip: '192.0.2.1',
+      http_method: "POST; rm -rf / ;",
+      http_host: "api.example.com\nmalicious-cmd",
+      http_path: "/test",
+      status_code: 403,
+      action: 'block',
+      user_agent: "normal-agent",
+      referer: '',
+      score_anomaly: 10,
+      score_protocol: 0,
+      score_sqli: 0,
+      score_xss: 0,
+      headers: [
+        { name: "X-Pwn' -d 'data", value: "hello\r\nmalicious" },
+        { name: "Valid-Header", value: "safe'val" },
+      ],
+    };
+
+    const cmd = buildCurlFromEvent(maliciousEvent);
+    // Method should fallback to GET instead of injecting ; rm -rf /
+    expect(cmd).toContain("curl -i -X GET 'https://api.example.commalicious-cmd/test'");
+    expect(cmd).not.toContain("rm -rf");
+    // Malicious header name with quote should be sanitized
+    expect(cmd).not.toContain("X-Pwn'");
+    expect(cmd).toContain("-H 'X-Pwn-ddata: hellomalicious'");
+    expect(cmd).toContain("-H 'Valid-Header: safe'\\''val'");
+  });
 });
+

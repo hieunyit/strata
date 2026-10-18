@@ -114,6 +114,9 @@ func GenerateToken(saID string, scopes []Permission, ttl time.Duration) (raw str
 	if ttl <= 0 {
 		return "", tok, errors.New("service account token requires a positive TTL")
 	}
+	if len(scopes) == 0 {
+		return "", tok, errors.New("service account token requires at least one scope")
+	}
 
 	rawBytes := make([]byte, 24)
 	if _, err := rand.Read(rawBytes); err != nil {

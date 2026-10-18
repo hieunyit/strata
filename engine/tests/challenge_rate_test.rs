@@ -175,7 +175,7 @@ fn test_expired_cookie_is_rejected() {
 
     // Generate valid token at `now` with TTL 1800s
     let token = libstrata::challenge::generate_token(
-        &libstrata::challenge::DEFAULT_CHALLENGE_KEY,
+        engine.challenge_key(),
         "203.0.113.10",
         "alice",
         now,

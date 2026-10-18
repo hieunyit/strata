@@ -41,55 +41,51 @@ pub fn identify_crawler_user_agent(ua: &[u8]) -> Option<KnownBot> {
         return None;
     }
 
-    // Fast ASCII lowercase scan without heap allocation
-    let mut buf = [0u8; 256];
-    let len = ua.len().min(buf.len());
-    for i in 0..len {
-        buf[i] = ua[i].to_ascii_lowercase();
-    }
-    let s = match std::str::from_utf8(&buf[..len]) {
-        Ok(v) => v,
-        Err(_) => return None,
+    let has = |needle: &[u8]| -> bool {
+        ua.len() >= needle.len()
+            && ua
+                .windows(needle.len())
+                .any(|w| w.eq_ignore_ascii_case(needle))
     };
 
     // Googlebot variants
-    if s.contains("googlebot")
-        || s.contains("google-inspectiontool")
-        || s.contains("storebot-google")
-        || s.contains("google-extended")
-        || s.contains("mediapartners-google")
-        || s.contains("adsbot-google")
-        || s.contains("feedfetcher-google")
+    if has(b"googlebot")
+        || has(b"google-inspectiontool")
+        || has(b"storebot-google")
+        || has(b"google-extended")
+        || has(b"mediapartners-google")
+        || has(b"adsbot-google")
+        || has(b"feedfetcher-google")
     {
         return Some(KnownBot::Googlebot);
     }
 
     // Bingbot variants
-    if s.contains("bingbot")
-        || s.contains("msnbot")
-        || s.contains("adidxbot")
-        || s.contains("bingpreview")
+    if has(b"bingbot")
+        || has(b"msnbot")
+        || has(b"adidxbot")
+        || has(b"bingpreview")
     {
         return Some(KnownBot::Bingbot);
     }
 
     // Applebot
-    if s.contains("applebot") {
+    if has(b"applebot") {
         return Some(KnownBot::Applebot);
     }
 
     // Cloudflare crawler
-    if s.contains("cloudflare-alwaysonline") {
+    if has(b"cloudflare-alwaysonline") {
         return Some(KnownBot::Cloudflare);
     }
 
     // Yandex
-    if s.contains("yandexbot") || s.contains("yandeximages") || s.contains("yandexmobilebot") {
+    if has(b"yandexbot") || has(b"yandeximages") || has(b"yandexmobilebot") {
         return Some(KnownBot::Yandex);
     }
 
     // DuckDuckGo
-    if s.contains("duckduckbot") {
+    if has(b"duckduckbot") {
         return Some(KnownBot::DuckDuckGo);
     }
 

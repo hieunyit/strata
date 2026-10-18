@@ -143,6 +143,21 @@ func TestServiceAccount_ScopeCeilingAdminRole(t *testing.T) {
 	if p.Can(PermAuditRead) {
 		t.Errorf("SECURITY FLAW: Can(PermAuditRead) should be false when not in token scopes")
 	}
+
+	// Token generation with empty scopes must fail
+	if _, _, err := GenerateToken(sa.ID, []Permission{}, 1*time.Hour); err == nil {
+		t.Errorf("expected GenerateToken to fail when scopes is empty")
+	}
+
+	// Even if principal with sa: subject somehow has empty scopes, Can() must deny all permissions
+	saEmptyPrincipal := &Principal{
+		Subject: "sa:sa-admin-bot",
+		Roles:   []Role{RoleAdmin},
+		Scopes:  []Permission{},
+	}
+	if saEmptyPrincipal.Can(PermPoliciesRead) || saEmptyPrincipal.Can(PermPoliciesWrite) {
+		t.Errorf("SECURITY FLAW: Principal with sa: subject and empty scopes must have zero permissions")
+	}
 }
 
 func TestServiceAccount_SoftRevocationAndTokenCount(t *testing.T) {

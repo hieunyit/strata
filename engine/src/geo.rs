@@ -110,6 +110,11 @@ impl PolicyGeoRestriction {
             return Some((GeoAction::Challenge, "ASN in challenge_asns"));
         }
 
+        // 5. Default action if not explicitly matched
+        if self.default_action != GeoAction::Pass {
+            return Some((self.default_action, "geo default_action"));
+        }
+
         None
     }
 }
@@ -702,6 +707,13 @@ mod tests {
         // 4. Internal IP bypasses policy check
         let check_priv = resolver.check_policy(0, "192.168.1.1");
         assert_eq!(check_priv, None);
+
+        // 5. Default action Block when configured
+        let mut pol_allowlist = pol;
+        pol_allowlist.default_action = GeoAction::Block;
+        let resolver_allowlist = GeoResolver::with_compact(vec![pol_allowlist], compact);
+        let check_other = resolver_allowlist.check_policy(0, "8.8.8.8");
+        assert_eq!(check_other, Some((GeoAction::Block, "geo default_action")));
     }
 
     #[test]

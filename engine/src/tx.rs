@@ -261,7 +261,28 @@ fn contains_ignore_case(hay: &[u8], needle: &[u8]) -> bool {
             .any(|w| w.eq_ignore_ascii_case(needle))
 }
 
+static EPHEMERAL_CHALLENGE_KEY: std::sync::LazyLock<[u8; 32]> = std::sync::LazyLock::new(|| {
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(b"strata:ephemeral:challenge:key:");
+    hasher.update(&std::process::id().to_le_bytes());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    hasher.update(&now.to_le_bytes());
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&hasher.finalize());
+    key
+});
+
 impl Tx {
+    /// Returns the HMAC challenge key for this transaction, either from the Engine
+    /// bundle or the ephemeral process fallback.
+    pub fn challenge_key(&self) -> [u8; 32] {
+        self.engine
+            .as_ref()
+            .map_or(*EPHEMERAL_CHALLENGE_KEY, |e| *e.challenge_key())
+    }
     /// Without an engine (no bundle loaded) the transaction starts in
     /// `E_BUNDLE`, so the connector applies its fail mode but still
     /// gets an Event ID.
@@ -889,7 +910,8 @@ impl Tx {
             });
             let client_ip = std::str::from_utf8(&self.client_addr[..self.client_addr_len]).unwrap_or("");
             let identity = std::str::from_utf8(&self.identity[..self.identity_len]).unwrap_or("");
-            if crate::challenge::verify_token(cookie_val, &crate::challenge::DEFAULT_CHALLENGE_KEY, client_ip, identity, now).is_ok() {
+            let challenge_key = self.challenge_key();
+            if crate::challenge::verify_token(cookie_val, &challenge_key, client_ip, identity, now).is_ok() {
                 self.challenge_cleared = true;
             }
         }
@@ -1285,8 +1307,9 @@ impl Tx {
         let client_ip = std::str::from_utf8(&self.client_addr[..self.client_addr_len]).unwrap_or("");
         let identity = std::str::from_utf8(&self.identity[..self.identity_len]).unwrap_or("");
         let nonce = now ^ 0x5a5a5a5a;
+        let challenge_key = self.challenge_key();
         let token = crate::challenge::generate_token(
-            &crate::challenge::DEFAULT_CHALLENGE_KEY,
+            &challenge_key,
             client_ip,
             identity,
             now,

@@ -3,7 +3,10 @@
 // FleetService with their node certificate.
 package auth
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Principal is an authenticated caller.
 type Principal struct {
@@ -16,6 +19,11 @@ type Principal struct {
 // Can reports whether any of the caller's roles or explicit scopes grants p.
 func (p *Principal) Can(perm Permission) bool {
 	if p == nil {
+		return false
+	}
+	// For service accounts (sa:), scopes are mandatory. If a service account principal has no scopes,
+	// deny all permissions to prevent scope bypass.
+	if strings.HasPrefix(p.Subject, "sa:") && len(p.Scopes) == 0 {
 		return false
 	}
 	// If the principal has explicit scopes (e.g. a bounded service account token),
