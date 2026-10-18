@@ -35,3 +35,11 @@ strata-agent run --standalone --bundle-file /var/lib/strata/bundles/source.sbn \
   --bundle-pubkey /etc/strata/bundle.pub --bundle-dir /var/lib/strata/bundles \
   --control-file /var/lib/strata/bundles/control --events-jsonl /var/log/strata/events.jsonl
 ```
+
+## Native process lab on two NGINX versions
+
+Fresh `make nginx-asan NGINX_VERSION=1.30.5` and `1.31.6` completed before running `tests/e2e/standalone-native.py`; the unchanged engine/FFI tree matches the previously reviewed integration (no diff from `0a5100c` under engine/src or engine/ffi). The agent executable was built with `go build -race`. Both runs use Docker `--network none` and loopback HTTP only. Stable: 1.719s; mainline: 1.675s before teardown. Both returned benign 200 / SQLi 403, changed the same bundle source path, observed the second rule block after hot reload, kept worker PIDs unchanged, verified the installed bytes against the control digest, rejected an older signed bundle without rollback authorization and rejected tampered content. Four real events reached JSONL and the exported-event counter was positive. Clean exits, no Go race report and no ASan/UBSan report; LSan is disabled, no leak/soak claim.
+
+The first harness run failed because the sample IR scores SQLi at 5 while the engine threshold is 100. The generated transport fixture now explicitly sets that detector to `block_alone` and uses the existing native suite's SQLi payload. No shipped rule, policy, budget or fail mode was changed. The failed output is retained. This is transport/detector integration evidence, not a claim about the full core rule pack. The harness has no empty-bundle or compile-error fallback. It retains generated files under ignored build/ for diagnosis.
+
+**Still pending:** repair/package the one-command installer and its systemd files, and prove clean-system installation plus rule compilation/update under the task's five-minute acceptance. The old installer harness can fall back to an empty bundle and only checks service/metrics health; that result is rejected as task acceptance.
