@@ -19,6 +19,7 @@ import (
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
 	"github.com/strata/strata/agent/internal/agent"
 	"github.com/strata/strata/agent/internal/enroll"
+	"github.com/strata/strata/agent/internal/standalone"
 )
 
 // Set at build time: -ldflags "-X main.version=...".
@@ -47,19 +48,63 @@ func newRootCmd() *cobra.Command {
 }
 
 func newRunCmd() *cobra.Command {
-	var cfg agent.Config
+	var (
+		cfg            agent.Config
+		standaloneMode bool
+		standaloneCfg  standalone.Config
+	)
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Receive worker events and push them to the control plane",
+		Short: "Receive worker events and push them to the control plane (or local SIEM in standalone mode)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if standaloneMode {
+				for _, name := range []string{"server", "server-name", "tls-ca", "tls-cert", "tls-key", "identity-dir", "spool-dir", "spool-max-bytes", "fallback", "fallback-on-errors", "fallback-factor"} {
+					if cmd.Flags().Changed(name) {
+						return fmt.Errorf("--%s cannot be used with --standalone", name)
+					}
+				}
+				standaloneCfg.Standalone = true
+				standaloneCfg.EventSocket = strings.TrimPrefix(cfg.EventSocket, "unix:")
+				standaloneCfg.ControlFile = cfg.ControlFile
+				standaloneCfg.BundleDir = cfg.BundleDir
+				standaloneCfg.BundlePubKey = cfg.BundlePubKey
+				standaloneCfg.MetricsFile = cfg.MetricsFile
+				standaloneCfg.MetricsAddr = cfg.MetricsAddr
+				standaloneCfg.NodeID = cfg.NodeID
+				standaloneCfg.AgentVersion = version
+				return runStandalone(cmd.Context(), standaloneCfg)
+			}
+			for _, name := range []string{"bundle-file", "bundle-url", "bundle-poll-interval", "events-jsonl", "syslog-addr", "syslog-tag"} {
+				if cmd.Flags().Changed(name) {
+					return fmt.Errorf("--%s requires --standalone", name)
+				}
+			}
 			cfg.EventSocket = strings.TrimPrefix(cfg.EventSocket, "unix:")
 			cfg.AgentVersion = version
 			return run(cmd.Context(), cfg)
 		},
 	}
 	f := cmd.Flags()
+	// Common flags
 	f.StringVar(&cfg.EventSocket, "event-socket", "unix:/run/strata/events.sock", "event socket (strata_event_socket)")
+	f.StringVar(&cfg.ControlFile, "control-file", "/run/strata/control", "control file the NGINX workers read (strata_control_file)")
+	f.StringVar(&cfg.BundleDir, "bundle-dir", "", "install rolled-out bundles here (strata_bundle_dir)")
+	f.StringVar(&cfg.BundlePubKey, "bundle-pubkey", "", "Ed25519 key that signs bundles (default: bundle.pub of --identity-dir)")
+	f.StringVar(&cfg.MetricsFile, "metrics-file", "/dev/shm/strata/metrics", "counters written by the NGINX workers")
+	f.StringVar(&cfg.MetricsAddr, "metrics-addr", "127.0.0.1:9469", "address of the Prometheus endpoint /metrics")
+	f.StringVar(&cfg.NodeID, "node-id", "", "node id stamped on every event")
+
+	// Standalone mode flags (RV-G1-01)
+	f.BoolVar(&standaloneMode, "standalone", false, "run in standalone lite mode without control plane")
+	f.StringVar(&standaloneCfg.BundleFile, "bundle-file", "", "path to a single bundle file (.sbn, standalone mode)")
+	f.StringVar(&standaloneCfg.BundleURL, "bundle-url", "", "URL to fetch bundle from via HTTP/HTTPS (standalone mode)")
+	f.DurationVar(&standaloneCfg.BundlePollInterval, "bundle-poll-interval", 2*time.Second, "poll interval for bundle reload (standalone mode)")
+	f.StringVar(&standaloneCfg.EventsJSONL, "events-jsonl", "", "path to write security events as JSON Lines (standalone mode)")
+	f.StringVar(&standaloneCfg.SyslogAddr, "syslog-addr", "", "syslog server address e.g. 127.0.0.1:514 or unixgram:/dev/log (standalone mode)")
+	f.StringVar(&standaloneCfg.SyslogTag, "syslog-tag", "strata-waf", "syslog tag/app name (standalone mode)")
+
+	// Fleet agent mode flags
 	f.StringVar(&cfg.SpoolDir, "spool-dir", "/var/lib/strata/spool", "directory for unacked event batches")
 	f.Int64Var(&cfg.SpoolMaxBytes, "spool-max-bytes", 2<<30, "spool size cap; the oldest batches are dropped beyond it")
 	f.StringVar(&cfg.Server, "server", "", "control plane host:port")
@@ -67,17 +112,42 @@ func newRunCmd() *cobra.Command {
 	f.StringVar(&cfg.CAFile, "tls-ca", "", "CA bundle trusted for the control plane")
 	f.StringVar(&cfg.CertFile, "tls-cert", "", "client certificate")
 	f.StringVar(&cfg.KeyFile, "tls-key", "", "client certificate key")
-	f.StringVar(&cfg.NodeID, "node-id", "", "node id stamped on every event")
 	f.StringVar(&cfg.IdentityDir, "identity-dir", "", "enrolled identity (strata-agent enroll); replaces --tls-ca, --tls-cert, --tls-key and --node-id")
-	f.StringVar(&cfg.BundleDir, "bundle-dir", "", "install rolled-out bundles here (strata_bundle_dir); empty: do not install bundles")
-	f.StringVar(&cfg.ControlFile, "control-file", "/run/strata/control", "control file the NGINX workers read (strata_control_file)")
-	f.StringVar(&cfg.BundlePubKey, "bundle-pubkey", "", "Ed25519 key that signs bundles (default: bundle.pub of --identity-dir)")
-	f.StringVar(&cfg.MetricsFile, "metrics-file", "/dev/shm/strata/metrics", "counters written by the NGINX workers")
-	f.StringVar(&cfg.MetricsAddr, "metrics-addr", "127.0.0.1:9469", "address of the Prometheus endpoint /metrics")
 	f.BoolVar(&cfg.Fallback, "fallback", true, "force every policy into shadow when the node blocks 3x its shadow level, counting at most 3 blocks per client address every 5 s (needs --bundle-dir and --metrics-file)")
 	f.BoolVar(&cfg.FallbackOptions.Errors, "fallback-on-errors", false, "also force shadow when engine errors or budget overruns jump (shadow does not change the fail mode; by default these jumps are only reported)")
 	f.Float64Var(&cfg.FallbackOptions.Factor, "fallback-factor", 3, "how many times the learnt level trips the node fallback")
+	cmd.MarkFlagsMutuallyExclusive("bundle-file", "bundle-url")
 	return cmd
+}
+
+func runStandalone(ctx context.Context, cfg standalone.Config) error {
+	if cfg.BundleFile == "" && cfg.BundleDir == "" && cfg.BundleURL == "" {
+		return errors.New("standalone: one of --bundle-file, --bundle-dir, or --bundle-url is required")
+	}
+	if cfg.BundlePubKey == "" {
+		return errors.New("standalone: --bundle-pubkey is required")
+	}
+	if cfg.BundleURL != "" && cfg.BundleDir == "" {
+		return errors.New("standalone: --bundle-url requires --bundle-dir")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	runner, err := standalone.New(cfg)
+	if err != nil {
+		return err
+	}
+	slog.Info("strata-agent standalone started",
+		"socket", cfg.EventSocket,
+		"control", cfg.ControlFile,
+		"bundle_file", cfg.BundleFile,
+		"bundle_dir", cfg.BundleDir,
+		"events_jsonl", cfg.EventsJSONL,
+	)
+	return runner.Run(ctx)
 }
 
 func run(ctx context.Context, cfg agent.Config) error {
