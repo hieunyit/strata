@@ -1,0 +1,10 @@
+{
+  "approved_replay_id": "op-4ef451fc0499806c5b6e102f",
+  "decided_by": "example-reviewer (local:example-reviewer)",
+  "decisions": {
+    "policies/resource-api/versions/2:approve": 1,
+    "policies/resource-api/versions/2:reject": 1
+  },
+  "no_deployed_bundle": true,
+  "state": "APPROVED"
+}

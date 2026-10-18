@@ -1,0 +1,60 @@
+{
+  "writes": [
+    {
+      "path": "/v1/policies/resource-api:replay",
+      "status": 200,
+      "version": 2
+    },
+    {
+      "path": "/v1/policies/resource-api:submit",
+      "status": 200,
+      "version": 2
+    },
+    {
+      "path": "/v1/policies/resource-api:approve",
+      "status": 403,
+      "version": 2,
+      "expected_replay_id": "op-0a9669f661c6944fee52349e"
+    },
+    {
+      "path": "/v1/policies/resource-api:reject",
+      "status": 200,
+      "version": 2
+    },
+    {
+      "path": "/v1/policies/resource-api:submit",
+      "status": 200,
+      "version": 2
+    },
+    {
+      "path": "/v1/policies/resource-api:approve",
+      "status": 400,
+      "version": 2,
+      "expected_replay_id": "op-0a9669f661c6944fee52349e"
+    },
+    {
+      "path": "/v1/policies/resource-api:approve",
+      "status": 200,
+      "version": 2,
+      "expected_replay_id": "op-4ef451fc0499806c5b6e102f"
+    },
+    {
+      "path": "/v1/policies/resource-api:approve",
+      "status": 403,
+      "version": 2,
+      "expected_replay_id": "op-4ef451fc0499806c5b6e102f"
+    }
+  ],
+  "old_pin": "op-0a9669f661c6944fee52349e",
+  "approved_pin": "op-4ef451fc0499806c5b6e102f",
+  "viewer_denied": 403,
+  "errors": [],
+  "external": [],
+  "mobile_bounds": {
+    "x": 14,
+    "y": 346.5,
+    "width": 362,
+    "height": 1615
+  },
+  "scope": "real local auth/API/PostgreSQL and Rust replay worker; deliberate newer replay before approval handler; no deployment/NGINX/ClickHouse"
+}
