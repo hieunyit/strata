@@ -46,19 +46,9 @@ func NewBundleWatcher(bundleFile, bundleDir, bundleURL, controlFile, pubKeyFile 
 		interval = 2 * time.Second
 	}
 
-	var pubKey []byte
-	if pubKeyFile == "" {
-		return nil, errors.New("standalone: bundle public key is required")
-	}
-	{
-		b, err := os.ReadFile(pubKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("standalone: read bundle pubkey: %w", err)
-		}
-		if !bundlefmt.ValidKeys(b) {
-			return nil, errors.New("standalone: bundle pubkey must be 32 or 64 bytes")
-		}
-		pubKey = b
+	pubKey, err := readTrustedKeys(pubKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("standalone: %w", err)
 	}
 
 	if bundleDir == "" && bundleFile != "" {

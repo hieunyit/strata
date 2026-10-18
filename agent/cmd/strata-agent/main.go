@@ -39,7 +39,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newRunCmd(), newEnrollCmd(), &cobra.Command{
+	root.AddCommand(newRunCmd(), newEnrollCmd(), newVerifyBundleCmd(), &cobra.Command{
 		Use:   "version",
 		Short: "Print the agent version",
 		Run:   func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), version) },
