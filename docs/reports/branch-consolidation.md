@@ -1,6 +1,6 @@
 # Hợp nhất nhánh — 18/10/2026
 
-Nhánh tích hợp: `codex/branch-consolidation` · [PR #220](https://github.com/hieunyit/strata/pull/220).
+Đã merge [PR #220](https://github.com/hieunyit/strata/pull/220), main `0a5100c96ad2e7d1f00966c63f701f2640b1f099`. Local main đã fast-forward khi checkout sạch. Nhánh tích hợp cũ đã được dọn.
 
 Phạm vi do PO giao: kiểm kê mọi nhánh local/remote, review, sửa, chọn phần đúng, merge main và xóa nhánh đã xử lý. PO cho phép merge và không chờ hosted CI. Không triển khai staging/production, không coi merge là nghiệm thu Gate A/B hay mở tuần mới.
 
@@ -16,7 +16,7 @@ Dọn lần đầu: 14 remote và 10 local branch đã nằm hoàn toàn trong r
 
 Nguồn `a71046e56196ec242c5baa0e71d17303212db00a` (PR #219), bao gồm các base main và chuỗi PR thành phần. Giữ lịch sử merge thay vì squash các lần sửa chồng lên nhau. Nội dung gồm RBAC/privacy, ingest watermark/annotation PostgreSQL, provenance snapshot và approval pin, exception scoped/TTL, M4 opt-in signed log-only và thông báo, UI replay/duyệt, cold-cache preparation, tối ưu JSON lặp, các harness và bằng chứng lab thật. Từng thay đổi và giới hạn: [tracker](remediation-tracker.md).
 
-**Ngoại lệ nội dung**: không đưa `rules/gaps/300011-sqli-custom-headers.yaml`, `300012-xss-custom-headers.yaml`, `300013-json-sqli-custom-headers.yaml` vào cây main trong lượt này. Các rule là candidate chưa có lượt duyệt nội dung bắt buộc của người S; giữ nguồn `codex/h7-custom-header-sqli` và `codex/h7-header-xss-coverage`. Tổ tiên Git được tích hợp không có nghĩa mọi candidate được chấp nhận. Không xóa hai nhánh nguồn này chỉ dựa vào ancestry. Các benchmark 9.067 rule trong báo cáo cũ có thêm 3 candidate; không dùng chúng để khẳng định pack mặc định 9.064 rule có cùng số đo.
+**Ngoại lệ nội dung**: không đưa `rules/gaps/300011-sqli-custom-headers.yaml`, `300012-xss-custom-headers.yaml`, `300013-json-sqli-custom-headers.yaml` vào cây main trong lượt này. Các rule là candidate chưa có lượt duyệt nội dung bắt buộc của người S; bảo toàn byte-for-byte ở [draft #221](https://github.com/hieunyit/strata/pull/221), nhánh `codex/header-rule-candidates`; hai proposal #133/#136 đã đóng là superseded, không phải được duyệt. Tổ tiên Git được tích hợp không có nghĩa mọi candidate được chấp nhận. Chỉ dọn hai nhánh nguồn sau khi xác minh từng file ở replacement trùng blob gốc và ref replacement đã push. Các benchmark 9.067 rule trong báo cáo cũ có thêm 3 candidate; không dùng chúng để khẳng định pack mặc định 9.064 rule có cùng số đo.
 
 Không đổi budget 10 ms, fail mode, oversize, max_args hoặc hành vi rate-limit khi bảng đầy. Giữ ba quyết định PO: body chỉ đo/tối ưu; rate saturation chỉ đo; tự giảm chặn M4 chỉ opt-in trong policy được replay/duyệt, mặc định tắt và không tự bật enforce lại.
 
@@ -53,3 +53,11 @@ Chưa kết luận mọi nhánh đạt chuẩn. Giữ nhánh có phần độc l
 4. Bảo mật: UI lấy type từ OpenAPI, server giữ quyền events:write; viewer/approver chỉ đọc. Không chép secret hoặc dùng môi trường staging/production.
 5. Phạm vi: nhiệm vụ hợp nhất được PO cho phép trên mọi nhánh; không đổi con trỏ tuần, không gán trạng thái Done/Gate của nguồn chưa có bằng chứng.
 6. Lint: Go/Clippy/TypeScript đã PASS; browser test chạy với -race, có lint API riêng sau khi chạy. Các whitespace trong raw stdout lịch sử được giữ nguyên, không sửa bằng chứng chỉ để `diff --check` sạch.
+
+## Dọn sau merge #220
+
+Đóng 92 PR xếp chồng là consolidated trong #220; GitHub tự đóng 4 root PR có head được gộp; đóng #133/#136 là superseded bởi draft #221. Sau đó còn #113, #144, #152 và #221 mở. Xóa thêm **107 remote và 103 local branch** đã có nội dung trong main/replacement được chỉ rõ; remote push theo batch atomic với lease SHA từng ref, local delete CAS. Tổng hai lượt: **121 remote, 113 local branch**. Không xóa local branch được checkout, nhánh WIP, hoặc head độc lập chưa giải quyết. Không xóa worktree hay stash. Các source W15–W20 vẫn được giữ cho tới khi sửa và kiểm chứng xong.
+
+Phát hiện khi tích hợp W20: cả ClickHouse Overview và widget fallback gán cứng latency 120/250/450 µs rồi báo SLA OK; MockStore còn có 120/260/480. Không nhập các số này. Bản sửa phải giữ latency absent khi chưa có telemetry và UI hiển thị thiếu dữ liệu, không gán số mẫu từ tổng sự kiện.
+
+Trong lúc thao tác, worktree W21 tự có commit mới `6550059` (không do phiên hợp nhất tạo), thay cho SHA 65d0ce2 lúc kiểm kê. Worktree đó sạch sau commit, vẫn giữ nguyên branch/ref/nội dung; commit mới là phạm vi review tiếp, chưa được nhập vào #220. Rule mới trong đó dùng ID 300011 trùng candidate header được bảo toàn ở #221; cần đối chiếu và cấp ID duy nhất trước khi nhận cả hai nguồn.
