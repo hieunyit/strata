@@ -169,6 +169,7 @@ pub struct Tx {
     challenge_cleared: bool,
     rate_limited: bool,
     time_secs: Option<u64>,
+    api_schema: Option<Arc<crate::openapi::ApiSchema>>,
 }
 
 /// Body bytes a replay sample keeps: a sample travels as one datagram of
@@ -367,6 +368,7 @@ impl Tx {
             challenge_cleared: false,
             rate_limited: false,
             time_secs: None,
+            api_schema: None,
         };
         if missing {
             tx.fail(E_BUNDLE);
@@ -403,6 +405,40 @@ impl Tx {
 
     pub fn set_degraded(&mut self, degraded: bool) {
         self.degraded = degraded;
+    }
+
+    /// Sets an API OpenAPI schema for positive security model enforcement (W21-R-01).
+    pub fn set_api_schema(&mut self, schema: Arc<crate::openapi::ApiSchema>) {
+        self.api_schema = Some(schema);
+    }
+
+    /// Evaluates the active OpenAPI schema against the request and records violations.
+    pub fn check_api_schema(
+        &mut self,
+        method: &str,
+        path: &str,
+        query_params: &[(&str, &str)],
+        body_json: Option<&[u8]>,
+    ) {
+        let schema = match self.api_schema.as_ref() {
+            Some(s) => s.clone(),
+            None => return,
+        };
+
+        let validator = crate::openapi::SchemaValidator::new(&schema);
+        let violations = validator.validate(method, path, query_params, body_json);
+
+        for v in violations {
+            self.add(Violation {
+                signature: false,
+                rule: v.rule_id(),
+                score: 100,
+                block_alone: true,
+                layer: "managed",
+                field: v.target_field().to_string(),
+                snippet: v.snippet(),
+            });
+        }
     }
 
     pub fn budget_enter(&mut self) -> Result<(), crate::budget::BudgetExceeded> {

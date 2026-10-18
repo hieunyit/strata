@@ -1,0 +1,38 @@
+# Strata gap rule, W21-S-01: Double-encoded path traversal and command injection in URI/headers
+# Addresses Red Team high-severity finding TC-EXP-02 & TC-PAR-01.
+rule:
+  id: 300011
+  name: Double-encoded traversal or command injection in URI or headers
+  layer: managed
+  stage: request_headers
+  match:
+    all:
+    - targets: [ { var: uri_raw } ]
+      operator: { type: rx, value: '%25[0-9a-fA-F]{2}' }
+    - targets: [ { var: uri_raw } ]
+      transforms: [ url_decode_uni, url_decode_uni, lowercase ]
+      operator:
+        type: rx
+        value: '(?:\.\./|\.\.\\|/etc/passwd|windows/win\.ini|[;&|`]\s*(?:id|whoami|uname|cat|sh|bash)\b)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-15"
+    attack_type: path-traversal
+    accuracy: high
+    tags: [w21-s-01, redteam-remediation, double-encoding]
+tests:
+  match:
+  - uri: /v1/download?path=%252e%252e%252f%252e%252e%252fetc%252fpasswd
+    headers: { Host: api.example.test }
+  - uri: /v1/exec?cmd=%253b%2520id
+    headers: { Host: api.example.test }
+  no_match:
+  - uri: /v1/search?q=100%25%20guaranteed
+    headers: { Host: api.example.test }
+  - uri: /v1/catalog/item-123
+    headers: { Host: api.example.test }

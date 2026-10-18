@@ -103,12 +103,17 @@ func RegisterMapTileRoutes(mux *http.ServeMux, tilePath string) {
 			return
 		}
 
-		// Strictly validate that z, x, y are valid geographic tile coordinates
+		// Strictly validate that z, x, y are valid geographic tile coordinates in Web Mercator bounds
 		z, errZ := strconv.Atoi(parts[0])
 		x, errX := strconv.Atoi(parts[1])
 		yStr := strings.TrimSuffix(parts[2], ext)
 		y, errY := strconv.Atoi(yStr)
 		if errZ != nil || errX != nil || errY != nil || z < 0 || z > 24 || x < 0 || y < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		maxTile := 1 << z
+		if x >= maxTile || y >= maxTile {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

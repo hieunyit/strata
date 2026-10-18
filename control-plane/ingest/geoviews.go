@@ -114,6 +114,8 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 	// 2. Table events_geo_grid
 	createGridTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		window_5m DateTime CODEC(DoubleDelta, ZSTD(1)),
+		policy_id LowCardinality(String),
+		action LowCardinality(String),
 		geohash4 LowCardinality(String),
 		country_iso LowCardinality(String),
 		city LowCardinality(String),
@@ -124,8 +126,8 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 		blocked_count UInt64
 	) ENGINE = SummingMergeTree()
 	PARTITION BY toYYYYMM(window_5m)
-	PRIMARY KEY (window_5m, geohash4, attack_type)
-	ORDER BY (window_5m, geohash4, attack_type)
+	PRIMARY KEY (window_5m, policy_id, action, geohash4, attack_type)
+	ORDER BY (window_5m, policy_id, action, geohash4, attack_type)
 	TTL window_5m + INTERVAL 13 MONTH`, geoGridTable)
 
 	if err := s.conn.Exec(ctx, createGridTable); err != nil {
@@ -136,6 +138,8 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 	createGridMV := fmt.Sprintf(`CREATE MATERIALIZED VIEW IF NOT EXISTS %s TO %s AS
 	SELECT
 		toStartOfFiveMinutes(timestamp) AS window_5m,
+		policy_id,
+		action,
 		geohashEncode(lon, lat, 4) AS geohash4,
 		country_iso,
 		any(city) AS city,
@@ -146,7 +150,7 @@ func (s *ClickHouseStore) EnsureGeoViews(ctx context.Context) error {
 		countIf(action = 'block') AS blocked_count
 	FROM %s
 	WHERE country_iso != 'INTERNAL' AND country_iso != '' AND lat != 0 AND lon != 0
-	GROUP BY window_5m, geohash4, country_iso, attack_type`, geoGridMV, geoGridTable, s.tableName)
+	GROUP BY window_5m, policy_id, action, geohash4, country_iso, attack_type`, geoGridMV, geoGridTable, s.tableName)
 
 	if err := s.conn.Exec(ctx, createGridMV); err != nil {
 		return fmt.Errorf("creating %s: %w", geoGridMV, err)
@@ -241,15 +245,27 @@ func (s *ClickHouseStore) GeoStats(ctx context.Context, f GeoStatsFilter) (*GeoS
 	}
 
 	if doGrid {
-		gridWhere := "window_5m >= ? AND window_5m <= ?"
+		gridWhere := []string{"window_5m >= ? AND window_5m <= ?"}
+		gridArgs := []any{f.From, f.To}
+		if f.PolicyID != "" {
+			gridWhere = append(gridWhere, "policy_id = ?")
+			gridArgs = append(gridArgs, f.PolicyID)
+		}
+		if f.Action != "" {
+			gridWhere = append(gridWhere, "action = ?")
+			gridArgs = append(gridArgs, f.Action)
+		}
+		gridWhereSQL := strings.Join(gridWhere, " AND ")
+
 		q := fmt.Sprintf(`SELECT geohash4, any(country_iso), any(city), any(lat), any(lon), any(attack_type), sum(count) as evts, sum(blocked_count) as blk
 			FROM %s
 			WHERE %s
 			GROUP BY geohash4
 			ORDER BY evts DESC
-			LIMIT ?`, geoGridTable, gridWhere)
+			LIMIT ?`, geoGridTable, gridWhereSQL)
 
-		rows, err := s.conn.Query(ctx, q, f.From, f.To, limit)
+		gridArgs = append(gridArgs, limit)
+		rows, err := s.conn.Query(ctx, q, gridArgs...)
 		if err != nil {
 			return nil, fmt.Errorf("querying grid stats from %s: %w", geoGridTable, err)
 		}

@@ -24,6 +24,7 @@ pub mod guard;
 pub mod ja4;
 pub mod json;
 pub mod multipart;
+pub mod openapi;
 pub mod operators;
 pub mod privacy;
 pub mod rate;

@@ -20,11 +20,11 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
-| W21-R-01 | Positive model v0 (Enforce theo OpenAPI) | Antigravity (PO giao) | — | 🔄 Đang làm (`engine/src/openapi/`, `engine/tests/openapi_positive_model_test.rs`) |
-| W21-G2-01 | API schema service (Upload, Parse, Validate, Compile) | Antigravity | — | 🔄 Đang làm (`control-plane/schema/`, `control-plane/api/schema_handler.go`) |
-| W21-F-01 | Trang Rule & signature, Exception, Schema UI | Antigravity | W21-G2-01 | 🔄 Đang làm (`ui/src/pages/RulesPage.tsx`, `ExceptionsPage.tsx`, `SchemasPage.tsx`) |
-| W21-S-01 | Red team đầy đủ & Phát hành pack v0.9 | Antigravity | — | 🔄 Đang làm (`rules/`, `deploy/redteam/`, `docs/reports/w21-s-01-redteam.md`) |
-| W21-Q-01 | Regression toàn bộ hệ thống | Antigravity | W21-R-01, W21-G2-01, W21-F-01, W21-S-01 | ⏳ Chưa bắt đầu |
+| W21-R-01 | Positive model v0 (Enforce theo OpenAPI) | Antigravity (PO giao) | — | ✅ Done (`engine/src/openapi.rs`, `engine/tests/openapi_positive_model_test.rs`) |
+| W21-G2-01 | API schema service (Upload, Parse, Validate, Compile) | Antigravity | — | ✅ Done (`control-plane/schema/`, `control-plane/api/schema_handler.go`) |
+| W21-F-01 | Trang Rule & signature, Exception, Schema UI | Antigravity | W21-G2-01 | ✅ Done (`ui/src/pages/RulesPage.tsx`, `ExceptionsPage.tsx`, `SchemasPage.tsx`) |
+| W21-S-01 | Red team đầy đủ & Phát hành pack v0.9 | Antigravity | — | ✅ Done (`rules/`, `deploy/redteam/`, `docs/reports/w21-s-01-redteam.md`) |
+| W21-Q-01 | Regression toàn bộ hệ thống | Antigravity | W21-R-01, W21-G2-01, W21-F-01, W21-S-01 | ✅ Done (`docs/reports/w21-q-01-regression.md`) |
 
 **Nhiệm vụ tuần 20** (khối C2 · SOC Dashboard, Tối ưu thống kê ClickHouse & Template API OpenAPI · kế hoạch `docs/plan/w20-plan.md`)
 

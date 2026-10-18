@@ -8,6 +8,9 @@ import { PoliciesPage } from './pages/PoliciesPage';
 import { FleetPage } from './pages/FleetPage';
 import { UsersPage } from './pages/UsersPage';
 import { AuditPage } from './pages/AuditPage';
+import { RulesPage } from './pages/RulesPage';
+import { ExceptionsPage } from './pages/ExceptionsPage';
+import { SchemasPage } from './pages/SchemasPage';
 import { useRoute } from './router';
 import { useIdleTimeout } from './hooks/useIdleTimeout';
 import { IdleTimeoutModal } from './components/layout/IdleTimeoutModal';
@@ -66,6 +69,12 @@ export const AppContent: React.FC = () => {
       case 'audit':
         if (roles.includes('admin')) return <AuditPage />;
         return <OverviewPage route={{ page: 'overview' }} />;
+      case 'rules':
+        return <RulesPage />;
+      case 'exceptions':
+        return <ExceptionsPage />;
+      case 'schemas':
+        return <SchemasPage />;
       default:
         return <OverviewPage key={JSON.stringify(route.query ?? {})} route={route} />;
     }
