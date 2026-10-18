@@ -7,7 +7,7 @@ Scope: review/repair/consolidation of the existing branch, authorized by the own
 | Machine credentials and Users UI | Replaced by reviewed main #223–#229: durable transactions/audit/idempotency, bounded scopes/expiry, UI/browser acceptance. Do not import RAM credentials or query tokens. |
 | Audit query | Selected and repaired in this change: DB filters before LIMIT, explicit time bounds, literal substring matching, immutable subject persistence, bounded request/query, generic backend errors and has_more. The typed UI now queries these stored-history filters; browser fixture/evidence is retained separately. |
 | Nine-block policy panel | Source controls for templates/content profiles/violations/signature sets only change local React state; they are not serialized into the saved policy. Exclude those fake controls and retain main's preserved advanced policy data. Full nine-block form/runtime behavior is not claimed delivered. |
-| GeoIP ingestion/schema | Pending real MMDB loader, safe cache lifetime, authoritative enrichment, schema migration and real ClickHouse tests. Source reader is a mock, insufficient for W16-G2-01. |
+| GeoIP ingestion/schema | Real MMDB loader selected in the reader review; safe cache, authoritative enrichment, schema migration and real ClickHouse tests remain pending. Source mock is excluded; W16-G2-01 is not complete. |
 | Module README and quality/Gate reports | Pending final code/directive comparison and correction of unsupported operational claims. Gate B cannot be inferred from passing unit tests. |
 
 ## Audit backend acceptance

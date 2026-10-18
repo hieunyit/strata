@@ -1,0 +1,14 @@
+{
+  "mmdb-go126.log": {
+    "bytes": 1452,
+    "sha256": "2a37ffd9baeda7ce9969c9078815842a8cbc6694390386c042c3220331aa1cca"
+  },
+  "mmdb-reader-isolated.log": {
+    "bytes": 68,
+    "sha256": "c0c2185234c220eb043790d2b7fbe0ed3809dcaae409259ed74d5ece99ac29c8"
+  },
+  "mmdb-lookup-error-red.log": {
+    "bytes": 212,
+    "sha256": "1aef3e9b7b203f2e5d06859ca71e16ef593eb072911d33507e08fc54bfca72af"
+  }
+}
