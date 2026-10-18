@@ -259,7 +259,9 @@ export const apiClient = {
     const body: admin['schemas']['PolicyServiceApprovePolicyBody'] = { version, comment, expected_replay_id: expectedReplayId };
     const r = await call<admin['schemas']['v1ApprovePolicyResponse']>(
       `/policies/${encodeURIComponent(id)}:approve`, json('POST', body), 'Failed to approve version');
-    return versionReceipt(r.version, id, version, 'APPROVED');
+    const approved = versionReceipt(r.version, id, version, 'APPROVED');
+    if (expectedReplayId && approved.approved_replay_id !== expectedReplayId) throw new ApiError('Approval receipt has a different replay proof', 502);
+    return approved;
   },
   async rejectPolicy(id: string, version: number, comment: string): Promise<PolicyVersion> {
     explicitVersion(version);

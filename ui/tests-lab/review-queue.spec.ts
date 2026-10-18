@@ -57,7 +57,10 @@ test('exact-version replay, four eyes, rejection and approval pin through real A
   await expect(inspector.getByRole('button', { name: 'Run replay' })).toHaveCount(0);
   await inspector.getByRole('textbox').fill('needs a second look'); await write('reject', 'Reject version', 200);
   await expect(inspector).toContainText('Version rejected with the recorded reason.');
-  await login('writer', 'policies'); await inspect('policies'); await write('submit', 'Submit for review', 200);
+  await expect(inspector.getByTestId('decision-reason')).toHaveText('needs a second look');
+  await login('writer', 'policies'); await inspect('policies');
+  await expect(inspector.getByTestId('decision-reason')).toHaveText('needs a second look');
+  await write('submit', 'Submit for review', 200);
   await login('reviewer', 'reviews'); await inspect('reviews');
   await expect(inspector.getByRole('checkbox')).toBeVisible();
   await page.screenshot({ path: path.join(output, 'review-en.png'), fullPage: true });
@@ -76,6 +79,20 @@ test('exact-version replay, four eyes, rejection and approval pin through real A
   await inspector.getByRole('checkbox').check(); const approved = await write('approve', 'Approve version', 200);
   const pin = approved.request().postDataJSON().expected_replay_id; expect(pin).not.toBe(oldPin);
   await expect(inspector).toContainText('Version approved. Deployment is a separate action.');
+  await expect(inspector.getByTestId('approved-replay-id')).toHaveText(pin);
+  // A later real replay compares enforce with the now-approved enforce
+  // baseline. It must not replace the approved shadow->enforce report.
+  await login('writer', 'policies'); await inspect('policies');
+  await write('replay', 'Run replay', 200);
+  await expect.poll(async () => {
+    await inspector.getByRole('button', { name: 'Reload review' }).click();
+    await expect(inspector.getByTestId('replay-summary')).toBeVisible();
+    return await inspector.getByTestId('replay-summary').textContent();
+  }).toContain('Done');
+  await expect(inspector.getByTestId('approved-replay-id')).toHaveText(pin);
+  await expect(inspector.getByRole('note')).toContainText('does not replace the report used for approval');
+  await page.screenshot({ path: path.join(output, 'approved-with-later-replay-en.png'), fullPage: true });
+
   await page.setViewportSize({ width: 1280, height: 900 }); await login('viewer', 'policies'); await inspect('policies');
   await expect(inspector.getByTestId('replay-summary')).toBeVisible(); await expect(inspector.getByTestId('review-actions')).toHaveCount(0);
   const denied = await page.evaluate(async expected_replay_id => {
@@ -83,6 +100,6 @@ test('exact-version replay, four eyes, rejection and approval pin through real A
     return (await fetch('/v1/policies/resource-api:approve', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ version: 2, expected_replay_id }) })).status;
   }, pin);
   expect(denied).toBe(403); expect(errors).toEqual([]); expect(external).toEqual([]);
-  expect(writes.map(w => [w.path.split(':').at(-1), w.status])).toEqual([['replay',200],['submit',200],['approve',403],['reject',200],['submit',200],['approve',400],['approve',200],['approve',403]]);
+  expect(writes.map(w => [w.path.split(':').at(-1), w.status])).toEqual([['replay',200],['submit',200],['approve',403],['reject',200],['submit',200],['approve',400],['approve',200],['replay',200],['approve',403]]);
   fs.writeFileSync(path.join(output, 'browser-result.json'), JSON.stringify({ writes, old_pin: oldPin, approved_pin: pin, viewer_denied: denied, errors, external, mobile_bounds: box, scope: 'real local auth/API/PostgreSQL and Rust replay worker; deliberate newer replay before approval handler; no deployment/NGINX/ClickHouse' }, null, 2) + '\n');
 });

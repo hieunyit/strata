@@ -627,6 +627,11 @@
       "approved": "Đã duyệt version. Triển khai là thao tác riêng.",
       "rejected": "Đã từ chối version và ghi nhận lý do.",
       "replayed": "Đã xếp hàng replay. Hãy chờ report hoàn tất."
-    }
+    },
+    "decidedBy": "Người ghi nhận quyết định",
+    "decidedAt": "Thời điểm quyết định",
+    "decisionReason": "Nhận xét / lý do từ chối",
+    "approvalReplay": "Replay dùng khi duyệt",
+    "laterReplay": "Replay hiện tại là một lần chạy khác. Nó không thay thế report đã dùng khi duyệt."
   }
 }

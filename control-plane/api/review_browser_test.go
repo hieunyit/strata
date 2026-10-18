@@ -218,6 +218,14 @@ func TestPolicyReviewBrowserLab(t *testing.T) {
 	if _, err = pg.LatestBundle(ctx); !errors.Is(err, store.ErrNotFound) {
 		t.Fatal("browser unexpectedly deployed a bundle", err)
 	}
+	latest, err := pg.LatestReplay(ctx, first.ID, 2)
+	if err != nil || latest.ID == proof || latest.State != store.OpDone {
+		t.Fatal("later replay not exercised", latest.ID, err)
+	}
+	var later replay.Report
+	if err = json.Unmarshal(latest.Result, &later); err != nil || later.Corpus == nil || later.Corpus.NewlyBlocked != 0 {
+		t.Fatal("later baseline did not use approved policy", later.Corpus, err)
+	}
 	op, err := pg.GetOperation(ctx, proof)
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +237,7 @@ func TestPolicyReviewBrowserLab(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(output, "approved-replay.json"), op.Result, 0644); err != nil {
 		t.Fatal(err)
 	}
-	summary, err := json.MarshalIndent(map[string]any{"state": saved.State, "approved_replay_id": proof, "decided_by": saved.DecidedBy, "decisions": decisions, "no_deployed_bundle": true}, "", "  ")
+	summary, err := json.MarshalIndent(map[string]any{"state": saved.State, "approved_replay_id": proof, "decided_by": saved.DecidedBy, "decisions": decisions, "no_deployed_bundle": true, "latest_replay_id": latest.ID, "latest_replay_does_not_replace_approval": latest.ID != proof}, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

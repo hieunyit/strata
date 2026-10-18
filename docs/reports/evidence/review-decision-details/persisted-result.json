@@ -1,0 +1,12 @@
+{
+  "approved_replay_id": "op-c8f9b66f52bd44c02370abf1",
+  "decided_by": "example-reviewer (local:example-reviewer)",
+  "decisions": {
+    "policies/resource-api/versions/2:approve": 1,
+    "policies/resource-api/versions/2:reject": 1
+  },
+  "latest_replay_does_not_replace_approval": true,
+  "latest_replay_id": "op-bbba69f66d360e301ece3bc4",
+  "no_deployed_bundle": true,
+  "state": "APPROVED"
+}

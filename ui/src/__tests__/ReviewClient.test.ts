@@ -47,6 +47,12 @@ describe('policy review client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ version: 2, comment: 'reviewed', expected_replay_id: 'op-viewed' });
   });
+  it('requires a pinned approval receipt to retain the same replay proof', async () => {
+    answer({ version: { policy_id: 'example-api', version: 2, state: 'APPROVED', approved_replay_id: 'op-other' } });
+    await expect(apiClient.approvePolicy('example-api', 2, '', 'op-viewed')).rejects.toMatchObject({ code: 502 });
+    answer({ version: { policy_id: 'example-api', version: 2, state: 'APPROVED', approved_replay_id: 'op-viewed' } });
+    expect((await apiClient.approvePolicy('example-api', 2, '', 'op-viewed')).approved_replay_id).toBe('op-viewed');
+  });
   it('distinguishes missing replay from forbidden or unavailable replay', async () => {
     answer({}, 404); expect(await apiClient.getVersionReplay('example-api', 2)).toBeUndefined();
     for (const status of [403, 503]) {

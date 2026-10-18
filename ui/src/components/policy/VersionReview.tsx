@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient, ApiError } from '../../api/client';
 import { PolicyDiff } from './PolicyDiff';
+import { VersionDecision } from './VersionDecision';
 import { ReplaySummary } from './ReplaySummary';
 import { ReviewActions, ReviewAction } from './ReviewActions';
 import { useReviewRead } from './useReviewRead';
@@ -28,6 +29,7 @@ export const VersionReview: React.FC<{ policyId: string; version: number; onChan
     {read.loading && <p role="status">{t('reviews.loading')}</p>}
     {read.data && <>
       <p>{t(`editor.state.${read.data.candidate.state}`)} · {t('reviews.author', { name: read.data.candidate.created_by || '—' })} · {t('reviews.submitter', { name: read.data.candidate.submitted_by || '—' })}</p>
+      <VersionDecision version={read.data.candidate} latestReplayId={read.data.operation?.id} />
       <p className="text-muted text-[13px]">{t('reviews.fourEyes')}</p>
       {read.data.baseline ? <>
         <p>{t('reviews.diffBaseline', { version: read.data.baseline.version })}</p>

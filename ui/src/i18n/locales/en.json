@@ -633,6 +633,11 @@
       "approved": "Version approved. Deployment is a separate action.",
       "rejected": "Version rejected with the recorded reason.",
       "replayed": "Replay queued. Wait for the completed report."
-    }
+    },
+    "decidedBy": "Decision recorded by",
+    "decidedAt": "Decision time",
+    "decisionReason": "Decision comment / rejection reason",
+    "approvalReplay": "Replay used for approval",
+    "laterReplay": "The current replay is a different operation. It does not replace the report used for approval."
   }
 }
