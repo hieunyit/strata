@@ -1,0 +1,123 @@
+{
+  "before_go125_ingest": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.25.14",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": 424,
+    "by_module": {
+      "stdlib": {
+        "module_ids": [
+          "GO-2026-6599",
+          "GO-2026-6600",
+          "GO-2026-6603",
+          "GO-2026-6604",
+          "GO-2026-6605",
+          "GO-2026-6607",
+          "GO-2026-6608",
+          "GO-2026-6609",
+          "GO-2026-6610",
+          "GO-2026-6611",
+          "GO-2026-6612",
+          "GO-2026-6613",
+          "GO-2026-6617"
+        ],
+        "symbol_ids": [
+          "GO-2026-6603",
+          "GO-2026-6605",
+          "GO-2026-6607",
+          "GO-2026-6608",
+          "GO-2026-6610",
+          "GO-2026-6611",
+          "GO-2026-6612",
+          "GO-2026-6613",
+          "GO-2026-6617"
+        ]
+      }
+    }
+  },
+  "after_go126_all_control_plane": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": 197,
+    "by_module": {
+      "golang.org/x/oauth2": {
+        "module_ids": [
+          "GO-2025-3488"
+        ],
+        "symbol_ids": []
+      },
+      "github.com/jackc/pgx/v5": {
+        "module_ids": [
+          "GO-2026-4771",
+          "GO-2026-4772",
+          "GO-2026-5004"
+        ],
+        "symbol_ids": [
+          "GO-2026-5004"
+        ]
+      },
+      "google.golang.org/grpc": {
+        "module_ids": [
+          "GO-2026-4762",
+          "GO-2026-6061",
+          "GO-2026-6348",
+          "GO-2026-6441",
+          "GO-2026-6443"
+        ],
+        "symbol_ids": [
+          "GO-2026-4762",
+          "GO-2026-6061",
+          "GO-2026-6348",
+          "GO-2026-6443"
+        ]
+      },
+      "github.com/go-jose/go-jose/v4": {
+        "module_ids": [
+          "GO-2025-3485",
+          "GO-2026-4945"
+        ],
+        "symbol_ids": [
+          "GO-2026-4945"
+        ]
+      },
+      "golang.org/x/net": {
+        "module_ids": [
+          "GO-2026-6603",
+          "GO-2026-6610",
+          "GO-2026-6611",
+          "GO-2026-6612",
+          "GO-2026-6617"
+        ],
+        "symbol_ids": [
+          "GO-2026-6603",
+          "GO-2026-6611",
+          "GO-2026-6612",
+          "GO-2026-6617"
+        ]
+      },
+      "golang.org/x/crypto": {
+        "module_ids": [
+          "GO-2026-5932",
+          "GO-2026-6354",
+          "GO-2026-6355"
+        ],
+        "symbol_ids": []
+      }
+    }
+  }
+}
