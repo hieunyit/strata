@@ -33,13 +33,15 @@ const (
 	PermRulesDisable Permission = "rules:disable"
 	// PermReplayConfigure: replay sampling of real traffic (W12-N-01),
 	// admin only.
-	PermReplayConfigure   Permission = "replay:configure"
-	PermExceptionsWrite   Permission = "exceptions:write"
-	PermNodesRead         Permission = "nodes:read"
-	PermNodesWrite        Permission = "nodes:write" // enrollment tokens, revocation
-	PermRoleBindingsRead  Permission = "rolebindings:read"
-	PermRoleBindingsWrite Permission = "rolebindings:write"
-	PermAuditRead         Permission = "audit:read"
+	PermReplayConfigure      Permission = "replay:configure"
+	PermExceptionsWrite      Permission = "exceptions:write"
+	PermNodesRead            Permission = "nodes:read"
+	PermNodesWrite           Permission = "nodes:write" // enrollment tokens, revocation
+	PermRoleBindingsRead     Permission = "rolebindings:read"
+	PermRoleBindingsWrite    Permission = "rolebindings:write"
+	PermServiceAccountsRead  Permission = "serviceaccounts:read"
+	PermServiceAccountsWrite Permission = "serviceaccounts:write"
+	PermAuditRead            Permission = "audit:read"
 )
 
 var (
@@ -56,8 +58,9 @@ var (
 			PermEventsReadSensitive, PermPoliciesApprove, PermRulesDisable),
 		RoleAdmin: append(append([]Permission{}, viewerPerms...),
 			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesApprove, PermPoliciesDeploy,
-			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite, PermAuditRead, PermRulesDisable,
-			PermReplayConfigure),
+			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite,
+			PermServiceAccountsRead, PermServiceAccountsWrite,
+			PermAuditRead, PermRulesDisable, PermReplayConfigure),
 	}
 )
 

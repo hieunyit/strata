@@ -14,12 +14,18 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, raw string) (*Principal, error)
 }
 
+// TokenFromRequest accepts credentials only in the Authorization header.
+// URLs are logged and retained even for GET/HEAD; SSE clients must use fetch.
+func TokenFromRequest(r *http.Request) string {
+	return BearerToken(r.Header.Get("Authorization"))
+}
+
 // Middleware authenticates every request: without a valid bearer token it
 // answers 401. Authorization is left to the routes (RequireHTTP) and to
 // the gRPC interceptors behind the gateway.
 func Middleware(a Authenticator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := a.Authenticate(r.Context(), BearerToken(r.Header.Get("Authorization")))
+		p, err := a.Authenticate(r.Context(), TokenFromRequest(r))
 		if err != nil {
 			if !errors.Is(err, ErrUnauthenticated) {
 				log.Printf("[ERROR] auth: %v", err)
@@ -50,15 +56,21 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // Dispatch sends a bearer token to the authenticator that issued it:
+// tokens starting with ServiceAccountPrefix to ServiceAccount,
 // tokens starting with LocalPrefix to Local (the control plane's own
 // sessions), the others to OIDC. Either may be nil when not configured.
 type Dispatch struct {
-	LocalPrefix string
-	Local       Authenticator
-	OIDC        Authenticator
+	LocalPrefix          string
+	Local                Authenticator
+	OIDC                 Authenticator
+	ServiceAccountPrefix string
+	ServiceAccount       Authenticator
 }
 
 func (d Dispatch) Authenticate(ctx context.Context, raw string) (*Principal, error) {
+	if d.ServiceAccount != nil && d.ServiceAccountPrefix != "" && strings.HasPrefix(raw, d.ServiceAccountPrefix) {
+		return d.ServiceAccount.Authenticate(ctx, raw)
+	}
 	if d.Local != nil && d.LocalPrefix != "" && strings.HasPrefix(raw, d.LocalPrefix) {
 		return d.Local.Authenticate(ctx, raw)
 	}
