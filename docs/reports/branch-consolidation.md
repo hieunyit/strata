@@ -1,5 +1,7 @@
 # Hợp nhất nhánh — 18/10/2026
 
+Current integration checkpoint: main `3ae86c016282ed90f28ed6b59b755789c129b332` after #229. #222 retired eleven explicitly superseded histories; #223–#229 selected and repaired machine credential authentication, durable store, API contract/handlers, web workflow and real-browser acceptance. [Detailed credential review](machine-credential-review.md). Cleanup totals: **133 remote / 132 local deletion actions**, including the temporary integration branches created during this audit. WIP/checked-out branches and unreviewed independent feature histories remain preserved. These totals are deletion actions, not a claim that every initial branch was accepted.
+
 Đã merge [PR #220](https://github.com/hieunyit/strata/pull/220), main `0a5100c96ad2e7d1f00966c63f701f2640b1f099`. Local main đã fast-forward khi checkout sạch. Nhánh tích hợp cũ đã được dọn.
 
 Phạm vi do PO giao: kiểm kê mọi nhánh local/remote, review, sửa, chọn phần đúng, merge main và xóa nhánh đã xử lý. PO cho phép merge và không chờ hosted CI. Không triển khai staging/production, không coi merge là nghiệm thu Gate A/B hay mở tuần mới.
@@ -90,3 +92,8 @@ Explicit history acknowledgement uses the ours merge strategy for the eleven sou
 [PR #222](https://github.com/hieunyit/strata/pull/222) merged as main `1f4032da75d6b51bfdae3923dcfec8190122e427`; clean local main fast-forwarded. The eleven explicitly superseded histories are now ancestors, while the reviewed replacement tree is retained. GitHub closed #113 by ancestry. Deleted a further 5 remote and 12 local refs with SHA guards; totals across the three cleanup batches are **126 remote and 125 local branches**. Another complete Git bundle was verified before this batch, including newly committed concurrent heads; worktree content is not claimed backed up by Git bundles. Checked-out local branches and independent unreviewed sources remain. Open PRs at this checkpoint: #144, #152 and draft #221.
 
 Concurrent W17 work has since advanced to `b0ff5f3`; it is preserved and has not been silently included in this integration. Ongoing feature-tree repairs (not merged at this checkpoint) reproduce and fix query-token leakage, empty/unbounded machine scopes, mutable credential slices and duration overflow. The original tests fail before each corresponding fix; PG transactional credentials/audit and complete weekly-feature acceptance remain outstanding.
+
+
+## Latest concurrent source snapshot
+
+Both active W17 and W21 local refs now point to `b0ff5f3`, advanced by other work during the audit. That history contains W21 API-schema/SecOps/red-team and JA4/challenge/rate changes beyond the original `65d0ce2` snapshot. The new delta includes tracked generated red-team bundles and further rule changes; it is preserved and remains a separate review boundary. Existing positive-model schema API is RAM-backed and needs the same persistence/audit/etag scrutiny as the earlier credential prototype. The new double-encoded rule still conflicts with reserved candidate ID 300011. No reset or deletion of those active worktrees/refs was performed.
