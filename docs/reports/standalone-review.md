@@ -21,3 +21,17 @@ Validation: `go test -race -count=1 ./internal/standalone` and `golangci-lint ru
 A real blocked HTTP bundle request and a forced event-socket failure reproduced the source leak: Run returned while the watcher request remained live and the JSONL descriptor stayed open. The runner now owns a child context, cancels and joins all three service functions on either failure or parent cancellation, then closes the socket/exporter and returns combined cleanup errors. Syslog writes have the deadline from the preceding component. Event node identity is stamped from trusted runner configuration before export.
 
 Validation: the whole agent module passed `go test -race -count=1 ./...` (agent 11.669s, standalone 1.340s) and `golangci-lint run` (0 issues). After adding node identity stamping, standalone tests passed again (1.294s), including socket-to-JSONL transport and parent-cancel / metrics-bind-error / blocked-download failure cleanup; standalone lint passed. Evidence includes the failing source run and fresh accepted outputs. CLI activation, package installer and clean-VM/native SQLi/hot-reload acceptance remain pending; this is not an RV-G1-01 Done claim.
+
+## CLI selection
+
+`strata-agent run --standalone` now exposes the reviewed internal runner. It requires a bundle source, trusted key, and JSONL/stdout/syslog sink; URL mode also needs an install directory. File and URL sources are mutually exclusive. Standalone-only arguments in fleet mode, and explicit fleet/auth/fallback arguments in standalone mode, fail with a descriptive error instead of being ignored. Common fleet flags preserve their existing behavior.
+
+Validation: a real Cobra invocation with a signed synthetic fixture installed version 7 and its correct digest, then stopped on context cancellation without a control plane. Negative cases cover missing source/key/destination configuration and incompatible flags. `go test -race -count=1 ./cmd/strata-agent ./internal/standalone` passed (1.162s / 1.328s); full-module golangci-lint reported 0 issues. The fixture checks CLI/signature/control integration; it does not prove a real engine accepts the bundle layout. The package installer and clean-VM/native SQLi/hot-reload acceptance remain pending.
+
+Example for an operator-supplied signed bundle (paths must match NGINX):
+
+```sh
+strata-agent run --standalone --bundle-file /var/lib/strata/bundles/source.sbn \
+  --bundle-pubkey /etc/strata/bundle.pub --bundle-dir /var/lib/strata/bundles \
+  --control-file /var/lib/strata/bundles/control --events-jsonl /var/log/strata/events.jsonl
+```
