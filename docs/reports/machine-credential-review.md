@@ -11,3 +11,14 @@ Selected from the W15–W20 branch stack; the complete stack remains unmerged. T
 Validation on this exact tree: full auth tests with -race PASS, auth lint 0 issues. All control-plane packages compiled with go test ./... -run '^$' before the final permission simplification; this compile check is not a full-package test claim. Empty/wildcard/roleless scope tests fail before the final fix and pass afterward. Logs are under evidence/branch-consolidation. Existing auth role/session/OIDC tests also pass. No hosted CI or operational Gate acceptance claimed.
 
 The branch stack's RAM writes/ignored audit, duration overflow and query-token path were reproduced separately; durable API and real-PG tests pass in the isolated feature tree, but are not included or declared active by this first change. Geo/bot, hourly aggregate and rate/challenge defects remain separate review work. Preserve the owner's existing body/rate saturation/M4 policy decisions.
+
+
+## Durable store selected after #223
+
+Authentication foundation merged in #223, main `e3f65746a2df465e79b8f3fd1b4fd903483d6170`. Its integration branch was deleted with SHA guards; cleanup totals are now 127 remote / 126 local deletion actions (including temporary integration branches).
+
+Migration 0023 adds machine accounts, independently revocable tokens and actor-scoped immutable command receipts. Legacy service_accounts rows remain intact and are not activated implicitly. Management mutations authorize the principal, bound I/O, serialize request retries, check etags and commit credential/audit/receipt in one transaction. Token issue checks the account role ceiling; account creation records the authenticated subject. Reads are bounded to 1,001 rows and report overflow instead of silently truncating. Large account/token listings need future pagination.
+
+Plaintext secrets never enter token metadata, audit or receipts. A repeated token issue returns the original metadata, and the API follow-up must omit plaintext on retry. Machine audit state includes immutable actor_subject because the legacy audit table stores only display actor. Revoke audit has both before and after; delete invalidates child tokens in the same transaction.
+
+On the selected main-based tree, two real-PostgreSQL store tests PASS with -race (2.115 s): persisted credentials work through new store objects, retries do not duplicate records, scope/expiry validation rejects invalid credentials, revocation takes effect, and a synthetic audit failure rolls back account and receipt before a successful retry. Migration unit tests PASS (cached); store/db lint 0 issues. Raw output is in machine-store-boundary.log.gz. These are not process-restart or production drills. API management routes and UI are still a separate follow-up at this checkpoint.
