@@ -21,3 +21,10 @@ func makeTestBundleWithKey(version uint64, seed byte, priv ed25519.PrivateKey) [
 	sig := ed25519.Sign(priv, body)
 	return append(body, sig...)
 }
+func makeTestBundle(version uint64, seed byte) ([]byte, ed25519.PublicKey, ed25519.PrivateKey) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		panic(err)
+	}
+	return makeTestBundleWithKey(version, seed, priv), pub, priv
+}
