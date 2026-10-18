@@ -21,6 +21,9 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	// ServiceAccounts is optional; only atomic durable writers enable mutations.
+	ServiceAccounts auth.ServiceAccountStore
+
 	// Annotations persists event classifications; nil disables writes.
 	Annotations    EventAnnotationStore
 	Exceptions     ExceptionPolicyStore
@@ -122,6 +125,9 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
+	if s.cfg.ServiceAccounts != nil {
+		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
+	}
 	v1.HandleFunc("/v1/exceptions:fromBlockId", auth.RequireHTTP(auth.PermExceptionsWrite, s.HandleExceptionFromBlock))
 	search := auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleSearchEvents)
 	v1.HandleFunc("/v1/events:search", search)

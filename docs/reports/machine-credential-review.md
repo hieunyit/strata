@@ -29,3 +29,14 @@ On the selected main-based tree, two real-PostgreSQL store tests PASS with -race
 Store merged in #224 as main `7fb0ad625397a660a9ed3b64c6781a03b5b1208b`; its temporary branch was deleted with SHA guards. Totals: 128 remote / 127 local deletion actions, including temporary integration branches.
 
 The optional management contract now specifies etags, immutable command IDs, known bounded scopes, one-time plaintext and retry receipts without plaintext. It uses shared parameters/responses and generated TypeScript types. Management routes can still be unavailable until the separate handler/wiring change; this contract does not declare them active. Validation: no duplicate YAML keys, 154 resolvable refs and 24 unique operation IDs; four management paths. openapi-typescript generation and UI TypeScript lint PASS. No policy/proto/FFI or enforcement behavior change.
+
+
+## Management API wired after #225
+
+Contract merged in #225 as `980ff43529a639069c6a705b9ccd4ea810021fac`; temporary branch deleted with SHA guards. Totals are 129 remote / 128 local deletion actions, including integration branches.
+
+The server wires its durable store and machine authenticator when PostgreSQL is configured. Management routes check admin permissions; writes require immutable command IDs and etags. Single-use plaintext responses carry Cache-Control: no-store, and identical issue retries return metadata with replayed=true and no secret. CORS preflight includes the two command headers for configured origins. TTL seconds are checked before duration multiplication; command/body/path strings are bounded and invalid UTF-8/NUL is rejected. Public errors omit database internals.
+
+Full control-plane go test -race -count=1 ./... PASS with real PostgreSQL, followed by golangci-lint 0 issues. New real-PG API tests cover concurrent retry, rollback on failed audit, new server objects over persisted state, expired/revoked tokens, role refusal, an admin-role token restricted to events:read, missing/hostile input and secret-response cache control. Before the last input guard, an invalid UTF-8 header returned 404; the added negative test now passes with 400. Optional CH/native/browser fixtures need their own configuration and are not implied by this package run.
+
+The web workflow is the next integration step. Action scopes are implemented here; connector-group scoped role bindings remain separate work. The weekly branch's Geo/bot/standalone/hourly changes and operational Gate claims remain under review.
