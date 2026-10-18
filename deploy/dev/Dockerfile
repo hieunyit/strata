@@ -31,13 +31,13 @@ RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \
 # Go for strata-agent, control-plane and tests/e2e, plus the proto and lint
 # tools. GOPATH and the build cache live under /tmp (HOME), so they are
 # writable for any uid; deploy/dev/run.sh points them at build/go.
-ARG GO_VERSION=1.25.14
-ARG GO_SHA256=a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712
+ARG GO_VERSION=1.26.9
+ARG GO_SHA256=42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d
 ARG BUF_VERSION=1.34.0
 ARG PROTOC_GEN_GO_VERSION=1.34.2
 ARG PROTOC_GEN_GO_GRPC_VERSION=1.5.1
 ARG GRPC_GATEWAY_VERSION=2.22.0
-ARG GOLANGCI_LINT_VERSION=2.5.0
+ARG GOLANGCI_LINT_VERSION=2.10.1
 ENV PATH=/usr/local/go/bin:/usr/local/gotools/bin:$PATH
 RUN curl -fsSL -o /tmp/go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
     && echo "${GO_SHA256}  /tmp/go.tgz" | sha256sum -c - \
