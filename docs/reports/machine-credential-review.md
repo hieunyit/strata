@@ -22,3 +22,10 @@ Migration 0023 adds machine accounts, independently revocable tokens and actor-s
 Plaintext secrets never enter token metadata, audit or receipts. A repeated token issue returns the original metadata, and the API follow-up must omit plaintext on retry. Machine audit state includes immutable actor_subject because the legacy audit table stores only display actor. Revoke audit has both before and after; delete invalidates child tokens in the same transaction.
 
 On the selected main-based tree, two real-PostgreSQL store tests PASS with -race (2.115 s): persisted credentials work through new store objects, retries do not duplicate records, scope/expiry validation rejects invalid credentials, revocation takes effect, and a synthetic audit failure rolls back account and receipt before a successful retry. Migration unit tests PASS (cached); store/db lint 0 issues. Raw output is in machine-store-boundary.log.gz. These are not process-restart or production drills. API management routes and UI are still a separate follow-up at this checkpoint.
+
+
+## Contract before management wiring
+
+Store merged in #224 as main `7fb0ad625397a660a9ed3b64c6781a03b5b1208b`; its temporary branch was deleted with SHA guards. Totals: 128 remote / 127 local deletion actions, including temporary integration branches.
+
+The optional management contract now specifies etags, immutable command IDs, known bounded scopes, one-time plaintext and retry receipts without plaintext. It uses shared parameters/responses and generated TypeScript types. Management routes can still be unavailable until the separate handler/wiring change; this contract does not declare them active. Validation: no duplicate YAML keys, 154 resolvable refs and 24 unique operation IDs; four management paths. openapi-typescript generation and UI TypeScript lint PASS. No policy/proto/FFI or enforcement behavior change.
