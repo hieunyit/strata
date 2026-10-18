@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
@@ -111,7 +112,18 @@ func (p *restartProcess) kill(t *testing.T) {
 // Uses the production server entrypoint in a separate process, not a restarted
 // in-process gRPC fixture. Dependencies and credentials belong to this test.
 func TestControlPlaneProcessRestartWithRealNginx(t *testing.T) {
+	testControlPlaneProcessRestart(t, false)
+}
+
+func TestControlPlaneCrashBetweenIngestCommits(t *testing.T) {
+	testControlPlaneProcessRestart(t, true)
+}
+
+func testControlPlaneProcessRestart(t *testing.T, commitBarrier bool) {
 	compiler, nginx, module, output := os.Getenv("STRATA_TEST_COMPILER"), os.Getenv("STRATA_TEST_NGINX"), os.Getenv("STRATA_TEST_NGINX_MODULE"), os.Getenv("STRATA_CP_RESTART_EVIDENCE_DIR")
+	if commitBarrier {
+		output = os.Getenv("STRATA_CP_COMMIT_EVIDENCE_DIR")
+	}
 	if compiler == "" || nginx == "" || module == "" || output == "" {
 		t.Skip("owned native restart fixture not configured")
 	}
@@ -241,7 +253,8 @@ rules:
 		}
 		return m
 	}
-	ids := make([]string, 0, 120)
+	ids := make([]string, 0, 141)
+	var panicID string
 	phases := map[string][]nativeReply{}
 	send := func(phase string, n int) {
 		benign := nativeGet(t, client, base, "/query?id=1")
@@ -278,7 +291,7 @@ rules:
 	send("before", 20)
 	waitFor(t, "before events durable and ACKed", 15*time.Second, func() bool { return count() == 20 && metrics()["strata_agent_spool_unacked_batches"] == 0 })
 	// This metric counts all datagrams, including policy counters; exact event
-	// coverage is verified by all 120 HTTP Block IDs in ClickHouse below.
+	// coverage is verified by every native HTTP event ID in ClickHouse below.
 	before := metrics()
 	committed := watermark()
 	if committed == 0 {
@@ -288,17 +301,86 @@ rules:
 	if err != nil {
 		t.Fatal(err)
 	}
-	first.kill(t)
-	killedAt := time.Now()
+	var killedAt time.Time
+	persistedBeforeCrash := uint64(20)
+	commitFault := map[string]any{}
+	if commitBarrier {
+		// Only this test's disposable database is modified. The real server
+		// writes ClickHouse, then blocks inside its watermark UPDATE trigger.
+		// Killing it here tests the two-database commit window without a
+		// production hook, fake event producer, or mocked acknowledgement.
+		barrier, err := pool.Acquire(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer barrier.Release()
+		const lockKey = int64(123456789)
+		locked := false
+		unlock := func() {
+			if !locked {
+				return
+			}
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			var ok bool
+			if e := barrier.QueryRow(cleanup, "SELECT pg_advisory_unlock($1)", lockKey).Scan(&ok); e != nil || !ok {
+				t.Errorf("release owned commit barrier: %v %v", ok, e)
+			}
+			locked = false
+		}
+		defer unlock()
+		if _, err = barrier.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); err != nil {
+			t.Fatal(err)
+		}
+		locked = true
+		if _, err = pool.Exec(ctx, `CREATE FUNCTION test_ingest_commit_barrier() RETURNS trigger LANGUAGE plpgsql AS $$
+			BEGIN PERFORM pg_advisory_xact_lock(123456789); RETURN NEW; END $$;
+			CREATE TRIGGER test_ingest_commit_barrier BEFORE UPDATE ON ingest_sequences FOR EACH ROW EXECUTE FUNCTION test_ingest_commit_barrier()`); err != nil {
+			t.Fatal(err)
+		}
+		send("between_commits", 20)
+		waitFor(t, "real CH insert committed and CP blocked before PG watermark", 15*time.Second, func() bool {
+			var blocked bool
+			if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid)))`, barrier.Conn().PgConn().PID()).Scan(&blocked); err != nil {
+				t.Fatal(err)
+			}
+			return blocked && count() > 20
+		})
+		persistedBeforeCrash = count()
+		if watermark() != committed || metrics()["strata_agent_acked_seq"] != before["strata_agent_acked_seq"] || metrics()["strata_agent_spool_unacked_batches"] == 0 {
+			t.Fatal("watermark/ACK advanced before commit barrier released")
+		}
+		commitFault = map[string]any{"ch_logical_rows_before_crash": persistedBeforeCrash, "pg_sequence_before_crash": watermark(), "ack_before_crash": metrics()["strata_agent_acked_seq"], "pg_lock_wait_observed": true}
+		killedAt = time.Now()
+		first.kill(t)
+		unlock()
+		if _, err = pool.Exec(ctx, `DROP TRIGGER test_ingest_commit_barrier ON ingest_sequences; DROP FUNCTION test_ingest_commit_barrier()`); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		killedAt = time.Now()
+		first.kill(t)
+	}
 	if ready() {
 		t.Fatal("REST survived killed control-plane process")
 	}
 	send("during", 80)
+	if commitBarrier {
+		// The deliberate test-hook panic is caught by the real FFI. Its
+		// error event must survive the same CP outage and durable spool.
+		r := nativeGet(t, client, base, "/query?STRATA-TEST-PANIC")
+		if r.Status != 200 || r.Action != "error" || !strings.HasPrefix(r.ID, "EVT-") {
+			t.Fatalf("native panic while CP absent: %+v", r)
+		}
+		panicID = r.ID
+		ids = append(ids, panicID)
+		phases["panic_without_cp"] = []nativeReply{r}
+	}
 	waitFor(t, "spooled while CP absent", 5*time.Second, func() bool {
-		return metrics()["strata_agent_events_received_total"] >= 100 && metrics()["strata_agent_spool_unacked_batches"] > 0
+		return metrics()["strata_agent_events_received_total"] >= uint64(len(ids)) && metrics()["strata_agent_spool_unacked_batches"] > 0
 	})
 	during := metrics()
-	if count() != 20 || watermark() != committed || during["strata_agent_acked_seq"] != before["strata_agent_acked_seq"] {
+	if count() != persistedBeforeCrash || watermark() != committed || during["strata_agent_acked_seq"] != before["strata_agent_acked_seq"] {
 		t.Fatal("events/ACK advanced while CP was dead")
 	}
 	second := restartStart(t, cpBin, env, args)
@@ -318,7 +400,7 @@ rules:
 			t.Fatal("nonzero error metric:", key)
 		}
 	}
-	if after["strata_agent_events_received_total"] < 120 || watermark() <= committed {
+	if after["strata_agent_events_received_total"] < uint64(len(ids)) || watermark() <= committed {
 		t.Fatal("event count/watermark not recovered")
 	}
 	unique := make(map[string]bool, len(ids))
@@ -328,6 +410,12 @@ rules:
 		}
 		unique[id] = true
 		event, err := events.GetEvent(ctx, id)
+		if id == panicID {
+			if err != nil || event.NodeID != nd.id || event.PolicyVersion != 1 || event.Action != "error" || len(event.MatchedRules) != 0 {
+				t.Fatalf("persisted native panic event: %+v %v", event, err)
+			}
+			continue
+		}
 		if err != nil || event.NodeID != nd.id || event.PolicyVersion != 1 || event.Action != "block" || len(event.MatchedRules) != 1 || event.MatchedRules[0] != 700011 {
 			t.Fatalf("persisted native event %s: %+v %v", id, event, err)
 		}
@@ -365,7 +453,7 @@ rules:
 			t.Fatalf("sanitizer reports: %v %v", reports, err)
 		}
 	}
-	evidence := map[string]any{"fault": "SIGKILL actual control-plane server, restart same addresses/config/databases", "outage_seconds": restoredAt.Sub(killedAt).Seconds(), "post_send_drain_seconds": recovered.Seconds(), "before": before, "during": during, "after": after, "before_durable_sequence": committed, "after_durable_sequence": watermark(), "nginx_event_ids": ids, "logical_events": len(ids), "physical_rows": physical, "http_examples": phases, "binary_sha256": hashes, "scope": "single node, signed preinstalled one-rule fixture, serial 20/80/20 attack requests; not full game day, crash-commit atomicity or production throughput"}
+	evidence := map[string]any{"commit_barrier": commitFault, "commit_window_exercised": commitBarrier, "native_panic_event_id": panicID, "fault": "SIGKILL actual control-plane server, restart same addresses/config/databases", "outage_seconds": restoredAt.Sub(killedAt).Seconds(), "post_send_drain_seconds": recovered.Seconds(), "before": before, "during": during, "after": after, "before_durable_sequence": committed, "after_durable_sequence": watermark(), "nginx_event_ids": ids, "logical_events": len(ids), "physical_rows": physical, "http_examples": phases, "binary_sha256": hashes, "scope": "single node, signed preinstalled one-rule fixture; serial native requests, optional proven CH-commit/PG-watermark crash barrier; not full game day or production throughput"}
 	raw, err := json.MarshalIndent(evidence, "", "  ")
 	if err != nil {
 		t.Fatal(err)
