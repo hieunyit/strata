@@ -9,3 +9,9 @@ File and HTTP reads are bounded by the existing fleet limit (1 GiB); directory s
 Validation: `go test -race -count=1 ./internal/standalone ./internal/bundles ./pkg/bundlefmt` passed (1.187s / 1.858s / 1.070s); `golangci-lint run ./internal/standalone/...` passed. Raw red/green stdout is compressed alongside the branch-consolidation evidence. The synthetic test bundles prove signing/control behavior, not engine layout conformance or the clean-VM acceptance.
 
 Self-review: errors propagate; untrusted data has explicit size/entry limits; no signing bypass or new dependencies; edits are limited to the selected agent package and review evidence. No staging/production access. Old immutable files are retained, so periodic operator retention is still needed; the directory cap fails visibly rather than deleting a bundle workers might still use. Runner cancellation/export lifecycle, CLI validation, packaging and clean-VM evidence are reviewed separately.
+
+## Event exporter selection
+
+The source silently counted events as exported with no destination, did not actually write the documented `stdout`/`-` destinations, and accepted writes after closing sinks. All three regression tests failed before the repair. The selected exporter requires a destination, writes explicit stdout without taking ownership of the process descriptor, rejects/counts writes after close, and bounds syslog dial/write operations to two seconds. Existing real UDP syslog + JSONL output coverage is retained. Runtime/service coordination and CLI remain separate.
+
+Validation: `go test -race -count=1 ./internal/standalone` and `golangci-lint run ./internal/standalone/...` passed; compressed red/green output is in the evidence directory. No new dependency, protocol or enforcement change. JSONL and syslog are direct sinks, without a durable queue/retry guarantee; disk/network failures are surfaced and counted.
