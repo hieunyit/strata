@@ -5,7 +5,7 @@ info:
   description: 'Security event API of the Strata control plane (plain HTTP handlers). The admin API (version, fleet,
     policies) is generated from the protos into admin.swagger.json. Every route except /v1/auth/methods and /v1/auth/login
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
-    or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login.'
+    or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
   /v1/rules/staging-actions:
     get:
@@ -512,8 +512,286 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/service-accounts:
+    get:
+      operationId: listServiceAccounts
+      summary: List machine accounts (admin)
+      responses:
+        '200':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ServiceAccountList'}
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+    post:
+      operationId: createServiceAccount
+      summary: Create account with atomic audit and retry receipt
+      responses:
+        '201':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ServiceAccount'}
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ServiceAccountCreateRequest'}
+  /v1/service-accounts/{account_id}:
+    get:
+      operationId: getServiceAccount
+      summary: Read current machine account metadata
+      responses:
+        '200':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ServiceAccount'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+      parameters:
+      - {$ref: '#/components/parameters/MachineAccountID'}
+    delete:
+      operationId: deleteServiceAccount
+      summary: Delete account and invalidate all its tokens atomically
+      responses:
+        '204':
+          description: Committed or identical command replay
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+      parameters:
+      - {$ref: '#/components/parameters/MachineAccountID'}
+      - {$ref: '#/components/parameters/MachineIfMatch'}
+      - {$ref: '#/components/parameters/MachineRequestID'}
+  /v1/service-accounts/{account_id}/tokens:
+    get:
+      operationId: listServiceAccountTokens
+      summary: List token metadata, never plaintext or hashes
+      responses:
+        '200':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ServiceAccountTokenList'}
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+      parameters:
+      - {$ref: '#/components/parameters/MachineAccountID'}
+    post:
+      operationId: createServiceAccountToken
+      summary: Issue a scoped token; plaintext returned only on first commit
+      responses:
+        '201':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MachineTokenResponse'}
+        '200':
+          description: Committed receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MachineTokenResponse'}
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MachineTokenRequest'}
+      parameters:
+      - {$ref: '#/components/parameters/MachineAccountID'}
+  /v1/service-accounts/{account_id}/tokens/{token_id}:
+    delete:
+      operationId: revokeServiceAccountToken
+      summary: Revoke token with etag and immutable retry command
+      responses:
+        '204':
+          description: Committed or identical command replay
+        '400': {$ref: '#/components/responses/MachineInvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/MachineConflict'}
+        '500': {$ref: '#/components/responses/MachineFailure'}
+        '503': {$ref: '#/components/responses/MachineUnavailable'}
+        '404': {$ref: '#/components/responses/MachineMissing'}
+      parameters:
+      - {$ref: '#/components/parameters/MachineAccountID'}
+      - {$ref: '#/components/parameters/MachineIfMatch'}
+      - {$ref: '#/components/parameters/MachineRequestID'}
+      - {$ref: '#/components/parameters/MachineTokenID'}
 components:
+  parameters:
+    MachineAccountID:
+      name: account_id
+      in: path
+      required: true
+      schema: {type: string, minLength: 2, maxLength: 64, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$'}
+    MachineIfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
+    MachineRequestID:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
+    MachineTokenID:
+      name: token_id
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    ServiceAccount:
+      type: object
+      required:
+      - id
+      - etag
+      - name
+      - roles
+      - created_at
+      - created_by
+      properties:
+        id: {type: string, maxLength: 64, minLength: 2, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$'}
+        etag: {type: string, maxLength: 128}
+        name: {type: string, maxLength: 128}
+        description: {type: string, maxLength: 2048}
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: {type: string, enum: [viewer, operator, approver, admin]}
+        created_at: {type: string, format: date-time}
+        created_by: {type: string, maxLength: 128}
+        token_count: {type: integer, minimum: 0}
+    ServiceAccountCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - request_id
+      properties:
+        id: {type: string, maxLength: 64, minLength: 2, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$'}
+        name: {type: string, maxLength: 128, minLength: 1}
+        description: {type: string, maxLength: 2048}
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: {type: string, enum: [viewer, operator, approver, admin]}
+        request_id: {type: string, minLength: 1, maxLength: 128}
+    ServiceAccountToken:
+      type: object
+      required:
+      - id
+      - etag
+      - service_account_id
+      - token_prefix
+      - scopes
+      - expires_at
+      - created_at
+      - revoked
+      properties:
+        id: {type: string, maxLength: 128}
+        etag: {type: string, maxLength: 128}
+        service_account_id: {type: string, maxLength: 64}
+        token_prefix: {type: string, maxLength: 128}
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
+              'audit:read']}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        last_used_at: {type: string, format: date-time}
+        revoked_at: {type: string, format: date-time}
+        revoked: {type: boolean}
+    MachineTokenRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - scopes
+      - request_id
+      - etag
+      properties:
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
+              'audit:read']}
+        ttl_seconds:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 31536000
+          description: Zero or omitted defaults to 30 days; negatives rejected before duration conversion.
+        request_id: {type: string, minLength: 1, maxLength: 128}
+        etag: {type: string, maxLength: 128}
+    MachineTokenResponse:
+      type: object
+      required:
+      - token
+      description: Retry returns replayed=true and no plaintext. Revoke and issue a new command if the first plaintext
+        receipt was lost. No plaintext is stored in audit or idempotency records.
+      properties:
+        token: {$ref: '#/components/schemas/ServiceAccountToken'}
+        raw_token: {type: string, writeOnly: false}
+        replayed: {type: boolean}
+    ServiceAccountList:
+      type: object
+      required:
+      - service_accounts
+      properties:
+        service_accounts:
+          type: array
+          items: {$ref: '#/components/schemas/ServiceAccount'}
+    ServiceAccountTokenList:
+      type: object
+      required:
+      - tokens
+      properties:
+        tokens:
+          type: array
+          items: {$ref: '#/components/schemas/ServiceAccountToken'}
     RuleStagingNoticePage:
       type: object
       required: [notices, next_cursor]
@@ -1216,6 +1494,17 @@ components:
       scheme: bearer
       bearerFormat: JWT
   responses:
+    MachineInvalidInput:
+      description: Invalid bounded command; creates require request_id. No mutation committed.
+    MachineConflict:
+      description: Stale etag or request ID reused with different command.
+    MachineFailure:
+      description: Operation failed; transaction rolls back credential, receipt and audit. Retry uncertain outcomes
+        with the identical command.
+    MachineUnavailable:
+      description: Durable credential mutation is not configured.
+    MachineMissing:
+      description: Account/token not found or optional management handler unavailable.
     Unauthorized:
       description: No valid access token.
       content:

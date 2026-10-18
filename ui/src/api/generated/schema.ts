@@ -123,12 +123,90 @@ export interface paths {
       };
     };
   };
+  "/v1/service-accounts": {
+    /** List machine accounts (admin) */
+    get: operations["listServiceAccounts"];
+    /** Create account with atomic audit and retry receipt */
+    post: operations["createServiceAccount"];
+  };
+  "/v1/service-accounts/{account_id}": {
+    /** Read current machine account metadata */
+    get: operations["getServiceAccount"];
+    /** Delete account and invalidate all its tokens atomically */
+    delete: operations["deleteServiceAccount"];
+  };
+  "/v1/service-accounts/{account_id}/tokens": {
+    /** List token metadata, never plaintext or hashes */
+    get: operations["listServiceAccountTokens"];
+    /** Issue a scoped token; plaintext returned only on first commit */
+    post: operations["createServiceAccountToken"];
+  };
+  "/v1/service-accounts/{account_id}/tokens/{token_id}": {
+    /** Revoke token with etag and immutable retry command */
+    delete: operations["revokeServiceAccountToken"];
+  };
 }
 
 export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    ServiceAccount: {
+      id: string;
+      etag: string;
+      name: string;
+      description?: string;
+      roles: ("viewer" | "operator" | "approver" | "admin")[];
+      /** Format: date-time */
+      created_at: string;
+      created_by: string;
+      token_count?: number;
+    };
+    ServiceAccountCreateRequest: {
+      id?: string;
+      name: string;
+      description?: string;
+      roles?: ("viewer" | "operator" | "approver" | "admin")[];
+      request_id: string;
+    };
+    ServiceAccountToken: {
+      id: string;
+      etag: string;
+      service_account_id: string;
+      token_prefix: string;
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_used_at?: string;
+      /** Format: date-time */
+      revoked_at?: string;
+      revoked: boolean;
+    };
+    MachineTokenRequest: {
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      /**
+       * Format: int64
+       * @description Zero or omitted defaults to 30 days; negatives rejected before duration conversion.
+       */
+      ttl_seconds?: number;
+      request_id: string;
+      etag: string;
+    };
+    /** @description Retry returns replayed=true and no plaintext. Revoke and issue a new command if the first plaintext receipt was lost. No plaintext is stored in audit or idempotency records. */
+    MachineTokenResponse: {
+      token: components["schemas"]["ServiceAccountToken"];
+      raw_token?: string;
+      replayed?: boolean;
+    };
+    ServiceAccountList: {
+      service_accounts: components["schemas"]["ServiceAccount"][];
+    };
+    ServiceAccountTokenList: {
+      tokens: components["schemas"]["ServiceAccountToken"][];
+    };
     RuleStagingNoticePage: {
       notices: components["schemas"]["RuleStagingNotice"][];
       /** @description Empty means end of history. */
@@ -564,6 +642,26 @@ export interface components {
     };
   };
   responses: {
+    /** @description Invalid bounded command; creates require request_id. No mutation committed. */
+    MachineInvalidInput: {
+      content: never;
+    };
+    /** @description Stale etag or request ID reused with different command. */
+    MachineConflict: {
+      content: never;
+    };
+    /** @description Operation failed; transaction rolls back credential, receipt and audit. Retry uncertain outcomes with the identical command. */
+    MachineFailure: {
+      content: never;
+    };
+    /** @description Durable credential mutation is not configured. */
+    MachineUnavailable: {
+      content: never;
+    };
+    /** @description Account/token not found or optional management handler unavailable. */
+    MachineMissing: {
+      content: never;
+    };
     /** @description No valid access token. */
     Unauthorized: {
       content: {
@@ -577,7 +675,12 @@ export interface components {
       };
     };
   };
-  parameters: never;
+  parameters: {
+    MachineAccountID: string;
+    MachineIfMatch: string;
+    MachineRequestID: string;
+    MachineTokenID: string;
+  };
   requestBodies: never;
   headers: never;
   pathItems: never;
@@ -1142,6 +1245,178 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
+    };
+  };
+  /** List machine accounts (admin) */
+  listServiceAccounts: {
+    responses: {
+      /** @description Committed receipt */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ServiceAccountList"];
+        };
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** Create account with atomic audit and retry receipt */
+  createServiceAccount: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceAccountCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Committed receipt */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ServiceAccount"];
+        };
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** Read current machine account metadata */
+  getServiceAccount: {
+    parameters: {
+      path: {
+        account_id: components["parameters"]["MachineAccountID"];
+      };
+    };
+    responses: {
+      /** @description Committed receipt */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ServiceAccount"];
+        };
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** Delete account and invalidate all its tokens atomically */
+  deleteServiceAccount: {
+    parameters: {
+      header: {
+        "If-Match": components["parameters"]["MachineIfMatch"];
+        "Idempotency-Key": components["parameters"]["MachineRequestID"];
+      };
+      path: {
+        account_id: components["parameters"]["MachineAccountID"];
+      };
+    };
+    responses: {
+      /** @description Committed or identical command replay */
+      204: {
+        content: never;
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** List token metadata, never plaintext or hashes */
+  listServiceAccountTokens: {
+    parameters: {
+      path: {
+        account_id: components["parameters"]["MachineAccountID"];
+      };
+    };
+    responses: {
+      /** @description Committed receipt */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ServiceAccountTokenList"];
+        };
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** Issue a scoped token; plaintext returned only on first commit */
+  createServiceAccountToken: {
+    parameters: {
+      path: {
+        account_id: components["parameters"]["MachineAccountID"];
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MachineTokenRequest"];
+      };
+    };
+    responses: {
+      /** @description Committed receipt */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MachineTokenResponse"];
+        };
+      };
+      /** @description Committed receipt */
+      201: {
+        content: {
+          "application/json": components["schemas"]["MachineTokenResponse"];
+        };
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  /** Revoke token with etag and immutable retry command */
+  revokeServiceAccountToken: {
+    parameters: {
+      header: {
+        "If-Match": components["parameters"]["MachineIfMatch"];
+        "Idempotency-Key": components["parameters"]["MachineRequestID"];
+      };
+      path: {
+        account_id: components["parameters"]["MachineAccountID"];
+        token_id: components["parameters"]["MachineTokenID"];
+      };
+    };
+    responses: {
+      /** @description Committed or identical command replay */
+      204: {
+        content: never;
+      };
+      400: components["responses"]["MachineInvalidInput"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["MachineMissing"];
+      409: components["responses"]["MachineConflict"];
+      500: components["responses"]["MachineFailure"];
+      503: components["responses"]["MachineUnavailable"];
     };
   };
 }
