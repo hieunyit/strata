@@ -43,6 +43,7 @@ type automaticPlatform struct {
 	compiler *policy.Compiler
 	objects  *policy.S3
 	rollouts *fleet.Rollouts
+	deployer *policy.Deployer
 }
 
 func startAutomaticPlatform(t *testing.T, compilerBin, replayBin string) *automaticPlatform {
@@ -190,7 +191,7 @@ rules:
 	health := rulehealth.NewService(events, st)
 	rest := api.NewServer(api.ServerConfig{Auth: verifier, Admin: adm.Gateway, Annotations: st, Health: health, StagingNotices: st}, events).Handler()
 	p := &platform{fleetEnv: &fleetEnv{st: st, addr: listener.Addr().String(), rest: rest, issuer: issuer, caFile: caFile, presence: presence}, pub: pub}
-	return &automaticPlatform{platform: p, events: events, runner: runner, compiler: compiler, objects: objects, rollouts: rollouts}
+	return &automaticPlatform{platform: p, events: events, runner: runner, compiler: compiler, objects: objects, rollouts: rollouts, deployer: deployer}
 }
 
 type nativeReply struct {
