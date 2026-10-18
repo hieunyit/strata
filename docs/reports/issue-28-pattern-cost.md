@@ -68,3 +68,14 @@ Bundle: 20,99 MB → 20,93 MB. Cost unit +648 (regex ngoài Hyperscan có trọn
   - gói CRS theo route: route API JSON không cần các nhóm PHP/Java/Windows;
   - chuyển thêm regex CRS sang regex crate theo số đo, nhưng mỗi rule chỉ lợi vài phần trăm và rule mất gate.
 - W13-R-02 (chi phí từng rule lúc chạy): rule chạy bằng regex crate đo được theo rule; phần Hyperscan là chi phí chung, không chia được theo rule lúc chạy. Công cụ này cho phần đó, đo offline theo gói.
+
+## 5. Đã thử thêm (16/10/2026): Hyperscan prefilter mode
+
+Ý tưởng: compile pattern CRS với `HS_FLAG_PREFILTER` để Hyperscan dùng một automaton xấp xỉ, chỉ báo thừa, rẻ hơn; engine sẽ xác nhận lại bằng regex crate. Đo trước khi sửa engine (`strata-pattern-cost minus --prefilter-sources crs`, kẹp giữa hai lần đo DB đầy đủ, 2 lượt):
+
+| DB | ns mỗi lần scan |
+| --- | ---: |
+| CRS ở prefilter mode | +1,6% / −1,3%: nhiễu |
+| Bỏ 932340 (đối chứng) | −37% / −41% |
+
+**Không có lợi**, nên không sửa engine. Cùng với §3 (mỗi rule CRS còn lại nằm trong nhiễu) và với #87 (DB tham số, không đề xuất), kết luận là lớp Hyperscan không còn chỗ tối ưu đáng kể. #28 với body 8–128 KB và gói đầy đủ cần một quyết định về hành vi, không phải tối ưu thêm (`docs/reports/issue-28-next.md`).

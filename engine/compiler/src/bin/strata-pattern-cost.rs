@@ -20,7 +20,10 @@
 //!       the full database without the K patterns most expensive alone,
 //!       without the patterns of some rules, or of a whole source;
 //!       `--each-rule-of crs`: one database per rule of that source, without
-//!       that rule (what each rule adds to the full database)
+//!       that rule (what each rule adds to the full database);
+//!       `--prefilter-sources crs`: the full database with the patterns of
+//!       those sources compiled with HS_FLAG_PREFILTER (an approximation
+//!       that may report more, never less)
 //!   strata-pattern-cost time-minus --dir <dir> [--rounds N]
 //!       ns per scan of each of those databases
 //!   strata-pattern-cost regex --dir <dir> --rule <id> [--rounds N]
@@ -43,6 +46,10 @@ use strata_compiler::{hyperscan_patterns, load, rules_from_ir};
 use strata_hs::{AlignedBuf, HS_MODE_BLOCK, MappedDb, Pattern, compile_mode};
 
 type Result<T> = std::result::Result<T, String>;
+
+/// hs_compile.h: compile an approximation that reports a superset of the
+/// matches (prefilter mode).
+const HS_FLAG_PREFILTER: u32 = 128;
 
 /// Values sampled from the corpus at most (distinct).
 const MAX_VALUES: usize = 4000;
@@ -461,6 +468,26 @@ fn minus(args: &[String]) -> Result<()> {
         }
     }
     let mut images = vec![];
+    if let Some(srcs) = opt(args, "--prefilter-sources") {
+        let srcs: Vec<&str> = srcs.split(',').collect();
+        let pats: Vec<Pattern> = all
+            .iter()
+            .enumerate()
+            .map(|(i, p)| Pattern {
+                expression: p.expression.clone(),
+                flags: if srcs.contains(&source(rule_of(i))) {
+                    p.flags | HS_FLAG_PREFILTER
+                } else {
+                    p.flags
+                },
+                id: p.id,
+            })
+            .collect();
+        let img = compile_mode(&pats, HS_MODE_BLOCK).map_err(|(i, m)| format!("{i}: {m}"))?;
+        let label = format!("prefilter-{}", srcs.join("+"));
+        eprintln!("{label}: {} patterns", pats.len());
+        images.push((label, img));
+    }
     for (label, out) in sets {
         let kept: Vec<Pattern> = all
             .iter()
