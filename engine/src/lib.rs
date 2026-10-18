@@ -22,6 +22,7 @@ pub mod geo;
 pub mod guard;
 pub mod json;
 pub mod multipart;
+pub mod openapi;
 pub mod operators;
 pub mod privacy;
 pub mod rulecost;

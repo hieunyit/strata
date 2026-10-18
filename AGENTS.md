@@ -16,6 +16,16 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Nhiệm vụ tuần 21** (khối C2 · OpenAPI, danh mục rule, kiểm thử bảo mật · kế hoạch `docs/plan/w21-plan.md`)
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| W21-R-01 | Positive model v0 (Enforce theo OpenAPI) | Antigravity (PO giao) | — | ✅ Done (`engine/src/openapi.rs`, `engine/tests/openapi_positive_model_test.rs`) |
+| W21-G2-01 | API schema service (Upload, Parse, Validate, Compile) | Antigravity | — | ✅ Done (`control-plane/schema/`, `control-plane/api/schema_handler.go`) |
+| W21-F-01 | Trang Rule & signature, Exception, Schema UI | Antigravity | W21-G2-01 | ✅ Done (`ui/src/pages/RulesPage.tsx`, `ExceptionsPage.tsx`, `SchemasPage.tsx`) |
+| W21-S-01 | Red team đầy đủ & Phát hành pack v0.9 | Antigravity | — | ✅ Done (`rules/`, `deploy/redteam/`, `docs/reports/w21-s-01-redteam.md`) |
+| W21-Q-01 | Regression toàn bộ hệ thống | Antigravity | W21-R-01, W21-G2-01, W21-F-01, W21-S-01 | ✅ Done (`docs/reports/w21-q-01-regression.md`) |
+
 **Nhiệm vụ tuần 20** (khối C2 · SOC Dashboard, Tối ưu thống kê ClickHouse & Template API OpenAPI · kế hoạch `docs/plan/w20-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
@@ -42,9 +52,9 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W18-F-01 | Lớp bản đồ và panel đồng bộ | Antigravity | W18-G2-01 | ✅ Done (`ui/src/components/geo/FilterChips.tsx`, `ui/src/components/geo/TimelineChart.tsx`, `ui/src/components/geo/GeoMap.tsx`) |
 | W18-G2-02 | Danh sách IP của bot tốt | Antigravity | — | ✅ Done (`control-plane/botip/syncer.go`, `good_bots.json` MinIO bundle) |
 | W18-S-01 | Pack bot | Antigravity | — | ✅ Done (`rules/bots/500001`, `500010`, `500020`, `500030`, `strata-rules lint` 94/94 pass) |
-| W18-R-01 | Phủ thêm rule CRS | Claude Code | — | ⏳ Chưa bắt đầu |
+| W18-R-01 | Phủ thêm rule CRS | Antigravity (PO giao) | — | ✅ Done (218 rules imported, +47.3% coverage; `docs/crs-import-report.md`) |
 | W18-R-02 | Xác minh bot tốt trong engine | Antigravity (PO giao) | W18-G2-02 | ✅ Done (`engine/src/bot.rs`, `engine/tests/bot_verification_test.rs`, `engine/src/eval.rs`) |
-| RV-R-04 | Challenge, rate theo identity, rate limit toàn cụm | Claude Code | — | ⏳ Chưa bắt đầu |
+| RV-R-04 | Challenge, rate theo identity, rate limit toàn cụm | Antigravity (PO giao) | — | ✅ Done (`engine/src/challenge.rs`, `engine/src/ratelimit.rs`, `engine/tests/challenge_ratelimit_test.rs`, `docs/reports/rv-r-04.md`) |
 
 **Nhiệm vụ tuần 17** (khối C1 · GeoIP và nền bản đồ · kế hoạch `docs/plan/w17-plan.md`)
 
@@ -53,10 +63,10 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W17-G2-01 | Gắn GeoIP và bảng tổng hợp ClickHouse | Antigravity | W16-G2-01 | ✅ Done (`control-plane/ingest/geoviews.go`, `control-plane/ingest/worker/geoip_updater.go`, `GET /v1/stats/geo`) |
 | W17-F-01 | Nền bản đồ tự host & Thẩm định chủ quyền | Antigravity | W17-G2-01 | ✅ Done (`ui/src/components/geo/GeoMap.tsx`, `control-plane/api/tiles_handler.go`, `docs/decisions/map-tiles.md`) |
 | W17-Q-01 | Test tải và benchmark truy vấn tổng hợp | Antigravity | W17-G2-01 | ✅ Done (`tests/load/gen_geo_events.go`, `TestClickHouseGeoPerf`: 24h < 1s, 30d < 3s) |
-| W17-S-01 | CRS PL2 và Plugin Exclusions | Antigravity | — | ✅ Done (`rules/crs/pl2/`, `rules/schema/plugin_exclusions.json`, `rules/exclusions/`) |
-| W17-R-01 | Mở rộng Semantic Detector (CMDi, SSTI) | Claude Code | — | ⏳ Chưa bắt đầu |
-| RV-N-02 | Fingerprint TLS JA4 trên NGINX Module | Claude Code | — | ⏳ Chưa bắt đầu |
-| W17-N-01 | Đánh giá Ring Buffer Shared Memory | Claude Code | — | ⏳ Chưa bắt đầu |
+| W17-S-01 | CRS PL2 và Plugin Exclusions | Antigravity | — | ✅ Done (`rules/crs/`, `rules/schema/plugin_exclusions.json`, `rules/exclusions/`) |
+| W17-R-01 | Mở rộng Semantic Detector (CMDi, SSTI) | Antigravity (PO giao) | — | ✅ Done (`engine/src/detectors/injection/cmdi.rs`, `ssti.rs`, `engine/tests/cmdi_ssti_test.rs`) |
+| RV-N-02 | Fingerprint TLS JA4 trên NGINX Module | Antigravity (PO giao) | — | ✅ Done (`engine/src/ja4.rs`, `connectors/nginx/src/ngx_http_strata_module.c`, `connectors/nginx/src/ngx_http_strata_vars.c`, `$strata_ja4`, `docs/reports/rv-n-02.md`) |
+| W17-N-01 | Đánh giá Ring Buffer Shared Memory | Antigravity (PO giao) | — | ✅ Done (Quyết định v1 giữ Unix datagram socket, để ring buffer v1.1 theo `docs/decisions/ring-buffer.md`) |
 
 **Nhiệm vụ tuần 15 & 16** (khối B2 · Enforce 100% & Ổn định enforce · Gate B; kế hoạch `docs/plan/plan.md`)
 
