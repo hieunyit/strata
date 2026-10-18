@@ -122,7 +122,7 @@
             "response_status", "response_headers", "response_body",
             "matched_vars", "request_line", "query_string", "xml", "xml_attributes", "body_processor",
             "multipart_part_headers", "geo_country", "geo_asn",
-            "bot_verified", "bot_name"
+            "bot_verified", "bot_name", "tls_ja4", "ja4"
           ]
         },
         "key": { "description": "Only this name (header, argument, cookie), case-insensitive for headers.", "type": "string", "minLength": 1 },
@@ -139,7 +139,7 @@
           "enum": [
             "rx", "pm", "contains", "begins_with", "ends_with", "streq",
             "eq", "ne", "gt", "ge", "lt", "le",
-            "detect_sqli", "detect_xss",
+            "detect_sqli", "detect_xss", "detect_cmdi", "detect_ssti",
             "validate_byte_range", "validate_url_encoding", "validate_utf8_encoding",
             "ip_match", "geo_match", "asn_match"
           ]
@@ -167,7 +167,7 @@
           "then": { "required": ["value"], "properties": { "value": { "type": "integer" } } }
         },
         {
-          "if": { "properties": { "type": { "enum": ["detect_sqli", "detect_xss", "validate_url_encoding", "validate_utf8_encoding"] } } },
+          "if": { "properties": { "type": { "enum": ["detect_sqli", "detect_xss", "detect_cmdi", "detect_ssti", "validate_url_encoding", "validate_utf8_encoding"] } } },
           "then": { "not": { "required": ["value"] } }
         }
       ]

@@ -78,7 +78,15 @@ fn decode(s: &str) -> Vec<u8> {
 
 #[test]
 fn transformations_match_coraza_vectors() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza");
+    let dir = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza"),
+        PathBuf::from("/workspace/engine/tests/vectors/coraza"),
+        PathBuf::from("engine/tests/vectors/coraza"),
+        PathBuf::from("tests/vectors/coraza"),
+    ]
+    .into_iter()
+    .find(|p| p.exists())
+    .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza"));
     let files = [
         ("urlDecodeUni", transform::URL_DECODE_UNI),
         ("htmlEntityDecode", transform::HTML_ENTITY_DECODE),

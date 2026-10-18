@@ -249,6 +249,47 @@ CRLF
 );
 
 
+#if (NGX_HTTP_SSL)
+int  ngx_http_strata_ssl_ja4_index = -1;
+
+static void
+ngx_http_strata_ssl_msg_cb(int write_p, int version, int content_type,
+    const void *buf, size_t len, SSL *ssl, void *arg)
+{
+    ngx_connection_t  *c;
+    u_char            *ja4;
+    (void) version;
+    (void) arg;
+
+    if (write_p != 0 || content_type != 22 /* SSL3_RT_HANDSHAKE */ || len == 0) {
+        return;
+    }
+
+    if (((const uint8_t *) buf)[0] != 1 /* SSL3_MT_CLIENT_HELLO */) {
+        return;
+    }
+
+    c = ngx_ssl_get_connection(ssl);
+    if (c == NULL || c->pool == NULL) {
+        return;
+    }
+
+    if (SSL_get_ex_data(ssl, ngx_http_strata_ssl_ja4_index) != NULL) {
+        return;
+    }
+
+    ja4 = ngx_palloc(c->pool, STRATA_JA4_LEN + 1);
+    if (ja4 == NULL) {
+        return;
+    }
+
+    if (strata_calc_ja4(buf, len, 0, (char *) ja4, STRATA_JA4_LEN + 1) == STRATA_OK) {
+        SSL_set_ex_data(ssl, ngx_http_strata_ssl_ja4_index, ja4);
+    }
+}
+#endif
+
+
 static ngx_int_t
 ngx_http_strata_preconfiguration(ngx_conf_t *cf)
 {
@@ -333,6 +374,26 @@ ngx_http_strata_postconfiguration(ngx_conf_t *cf)
     }
 
     *h = ngx_http_strata_preaccess_handler;
+
+#if (NGX_HTTP_SSL)
+    {
+        ngx_uint_t                   s;
+        ngx_http_core_srv_conf_t   **cscfp;
+        ngx_http_ssl_srv_conf_t     *sscf;
+
+        if (ngx_http_strata_ssl_ja4_index == -1) {
+            ngx_http_strata_ssl_ja4_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+        }
+
+        cscfp = cmcf->servers.elts;
+        for (s = 0; s < cmcf->servers.nelts; s++) {
+            sscf = cscfp[s]->ctx->srv_conf[ngx_http_ssl_module.ctx_index];
+            if (sscf != NULL && sscf->ssl.ctx != NULL) {
+                SSL_CTX_set_msg_callback(sscf->ssl.ctx, ngx_http_strata_ssl_msg_cb);
+            }
+        }
+    }
+#endif
 
     return ngx_http_strata_filter_init(cf);
 }

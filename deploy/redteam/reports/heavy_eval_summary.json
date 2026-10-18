@@ -1,0 +1,141 @@
+{
+  "SQL Injection": {
+    "total_requests": 3228,
+    "blocked_403": 2452,
+    "rejected_400": 0,
+    "passed_200": 776,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 75.96,
+    "latency_p50_ms": 26.59,
+    "latency_p90_ms": 53.15,
+    "latency_p99_ms": 1052.62
+  },
+  "Command Injection": {
+    "total_requests": 2395,
+    "blocked_403": 2068,
+    "rejected_400": 0,
+    "passed_200": 327,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 86.35,
+    "latency_p50_ms": 33.7,
+    "latency_p90_ms": 53.44,
+    "latency_p99_ms": 83.47
+  },
+  "Cross-Site Scripting": {
+    "total_requests": 2116,
+    "blocked_403": 1557,
+    "rejected_400": 0,
+    "passed_200": 559,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 73.58,
+    "latency_p50_ms": 26.97,
+    "latency_p90_ms": 51.7,
+    "latency_p99_ms": 1037.74
+  },
+  "Path Traversal": {
+    "total_requests": 2330,
+    "blocked_403": 1467,
+    "rejected_400": 311,
+    "passed_200": 537,
+    "error_50x": 0,
+    "network_err": 15,
+    "protection_rate_pct": 76.31,
+    "latency_p50_ms": 30.37,
+    "latency_p90_ms": 54.23,
+    "latency_p99_ms": 82.14
+  },
+  "TC-EXP-01 Timing Budget Probe": {
+    "total_requests": 1000,
+    "blocked_403": 119,
+    "rejected_400": 0,
+    "passed_200": 881,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 11.9,
+    "latency_p50_ms": 118.41,
+    "latency_p90_ms": 142.11,
+    "latency_p99_ms": 160.76
+  },
+  "TC-EXP-02 Profile A (fail-open)": {
+    "total_requests": 500,
+    "blocked_403": 0,
+    "rejected_400": 0,
+    "passed_200": 500,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 0.0,
+    "latency_p50_ms": 72.97,
+    "latency_p90_ms": 101.8,
+    "latency_p99_ms": 127.04
+  },
+  "TC-EXP-02 Profile B (oversize: block)": {
+    "total_requests": 500,
+    "blocked_403": 0,
+    "rejected_400": 0,
+    "passed_200": 0,
+    "error_50x": 500,
+    "network_err": 0,
+    "protection_rate_pct": 0.0,
+    "latency_p50_ms": 60.38,
+    "latency_p90_ms": 71.8,
+    "latency_p99_ms": 81.15
+  },
+  "TC-EXP-03 ReDoS Backtracking": {
+    "total_requests": 1000,
+    "blocked_403": 0,
+    "rejected_400": 0,
+    "passed_200": 400,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 0.0,
+    "latency_p50_ms": 41.42,
+    "latency_p90_ms": 68.78,
+    "latency_p99_ms": 104.35
+  },
+  "TC-PAR-02 JSON Deep Nesting": {
+    "total_requests": 1000,
+    "blocked_403": 459,
+    "rejected_400": 0,
+    "passed_200": 541,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 45.9,
+    "latency_p50_ms": 17.03,
+    "latency_p90_ms": 36.41,
+    "latency_p99_ms": 1074.38
+  },
+  "TC-OPS-01 Botnet Fallback": {
+    "total_requests": 5000,
+    "blocked_403": 0,
+    "rejected_400": 0,
+    "passed_200": 5000,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 0.0,
+    "latency_p50_ms": 24.15,
+    "latency_p90_ms": 40.18,
+    "latency_p99_ms": 1281.38
+  },
+  "TC-OPS-02 Canary Identity Spoofing": {
+    "total_identities_tested": 2000,
+    "unique_buckets_mapped": 100,
+    "min_bucket_count": 9,
+    "max_bucket_count": 34,
+    "vulnerability": "Predictable MD5 modulo without HMAC allows client-side shadow group forcing"
+  },
+  "TC-OPS-03 Event Socket Flooding": {
+    "total_requests": 5000,
+    "blocked_403": 5000,
+    "rejected_400": 0,
+    "passed_200": 0,
+    "error_50x": 0,
+    "network_err": 0,
+    "protection_rate_pct": 100.0,
+    "latency_p50_ms": 39.58,
+    "latency_p90_ms": 67.43,
+    "latency_p99_ms": 103.89
+  }
+}

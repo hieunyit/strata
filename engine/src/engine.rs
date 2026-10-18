@@ -45,6 +45,8 @@ pub struct Engine {
     counters: crate::counters::PolicyCounters,
     /// sampled time by rule (W13-R-02)
     rule_costs: crate::rulecost::RuleCosts,
+    /// Sliding window rate limiter for identity & IP (RV-R-04)
+    rate_limiter: std::sync::Arc<crate::rate::RateLimiter>,
 }
 
 /// Most rule IDs `set_disabled_rules` takes at once.
@@ -184,6 +186,7 @@ impl Engine {
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
+            rate_limiter: std::sync::Arc::new(crate::rate::RateLimiter::new()),
         };
         // map runs off the request path (the connector's thread pool): the
         // first request no longer compiles them, which made it fail open
@@ -200,6 +203,11 @@ impl Engine {
     /// Sampled time by rule (W13-R-02).
     pub fn rule_costs(&self) -> &crate::rulecost::RuleCosts {
         &self.rule_costs
+    }
+
+    /// Sliding window rate limiter for identity & IP (RV-R-04).
+    pub fn rate_limiter(&self) -> &std::sync::Arc<crate::rate::RateLimiter> {
+        &self.rate_limiter
     }
 
     /// Privacy settings of the policy at `index`, if it has some.

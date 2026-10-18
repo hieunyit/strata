@@ -55,6 +55,7 @@ fn conn() -> strata_conn_t {
         node_id: s(b"edge-01"),
         identity: s(b""),
         request_id: s(b""),
+        ja4: s(b""),
     }
 }
 

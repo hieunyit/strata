@@ -1,0 +1,98 @@
+# deploy/redteam/compose.yaml
+# Adversarial Security Evaluation Lab Infrastructure (docs/plan/redteam-plan.md § 2.1)
+name: strata-redteam
+
+networks:
+  net-attacker:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.1.0/24
+  net-waf-dmz:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.2.0/24
+  net-internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.3.0/24
+  net-management:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.4.0/24
+
+volumes:
+  run-redteam:
+
+services:
+  backend-permissive:
+    image: python:3.12-slim-bookworm
+    restart: unless-stopped
+    networks:
+      net-internal:
+        ipv4_address: 172.28.3.10
+    volumes:
+      - ./backends/permissive_app.py:/app/permissive_app.py:ro
+    command: ["python3", "/app/permissive_app.py", "8001"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/')"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  backend-strict:
+    image: python:3.12-slim-bookworm
+    restart: unless-stopped
+    networks:
+      net-internal:
+        ipv4_address: 172.28.3.11
+    volumes:
+      - ./backends/strict_app.py:/app/strict_app.py:ro
+    command: ["python3", "/app/strict_app.py", "8002"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/')"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  waf-proxy:
+    image: strata-nginx:1.30.5-0.11.0-rc.3
+    restart: unless-stopped
+    networks:
+      net-waf-dmz:
+        ipv4_address: 172.28.2.10
+      net-internal:
+        ipv4_address: 172.28.3.2
+      net-management:
+        ipv4_address: 172.28.4.2
+    ports:
+      - "127.0.0.1:48080:8080" # Profile A
+      - "127.0.0.1:48081:8081" # Profile B
+      - "127.0.0.1:48082:8082" # Profile C
+    entrypoint: []
+    volumes:
+      - ./nginx/nginx.conf:/etc/strata/nginx.conf:ro
+      - ./bundles:/var/lib/strata/bundles
+      - run-redteam:/run/strata
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p /tmp/nginx/logs /tmp/nginx/body /tmp/nginx/proxy /run/strata
+        exec /usr/sbin/nginx -p /tmp/nginx -c /etc/strata/nginx.conf
+    depends_on:
+      backend-permissive: { condition: service_healthy }
+      backend-strict: { condition: service_healthy }
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    restart: unless-stopped
+    networks:
+      net-management:
+        ipv4_address: 172.28.4.5
+    ports:
+      - "127.0.0.1:48474:8474"

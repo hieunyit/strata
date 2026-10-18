@@ -36,6 +36,7 @@ _Static_assert(STRATA_ABI_VERSION_MAJOR == 1, "abi major");
 _Static_assert(sizeof(strata_engine_info_t) == 24, "engine info size");
 _Static_assert(offsetof(strata_engine_info_t, flags) == 16, "engine info.flags");
 _Static_assert(sizeof(strata_policy_info_t) == 8, "policy info size");
+_Static_assert(STRATA_JA4_LEN == 36, "ja4 len");
 
 static int failures;
 
@@ -225,6 +226,43 @@ main(int argc, char **argv)
         CHECK(strata_engine_set_replay(NULL, S("k1"), key, 32, 100) == STRATA_E_INVALID);
         CHECK(strata_engine_set_replay(e, S(""), NULL, 0, 0) == STRATA_OK);
         CHECK(strata_tx_sample(NULL, NULL, 0) == 0);
+    }
+
+    /* JA4 computation and setting */
+    {
+        char ja4_out[STRATA_JA4_LEN + 1];
+        /* Chrome reference vector ClientHello */
+        static const uint8_t raw_ch[] = {
+            0x16, 0x03, 0x01, 0x00, 0x5a, /* Record header: Handshake, TLS 1.0, length 90 */
+            0x01, 0x00, 0x00, 0x56,       /* Handshake: ClientHello, length 86 */
+            0x03, 0x03,                   /* Client version: TLS 1.2 */
+            /* Random: 32 bytes */
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0x00,                         /* Session ID len: 0 */
+            0x00, 0x04,                   /* Cipher suites len: 4 bytes (2 ciphers) */
+            0x13, 0x01,                   /* TLS_AES_128_GCM_SHA256 */
+            0x13, 0x02,                   /* TLS_AES_256_GCM_SHA384 */
+            0x01, 0x00,                   /* Compression len: 1, method 0 */
+            0x00, 0x27,                   /* Extensions len: 39 bytes */
+            /* ext 0x0000 (SNI): len 16 */
+            0x00, 0x00, 0x00, 0x10,
+            0x00, 0x0e, 0x00, 0x00, 0x0b, 'e','x','a','m','p','l','e','.','c','o','m',
+            /* ext 0x002b (supported_versions): len 5 */
+            0x00, 0x2b, 0x00, 0x05, 0x04, 0x03, 0x04, 0x03, 0x03,
+            /* ext 0x000d (sig algorithms): len 6 */
+            0x00, 0x0d, 0x00, 0x06, 0x00, 0x04, 0x04, 0x03, 0x08, 0x04
+        };
+        memset(ja4_out, 0, sizeof(ja4_out));
+        CHECK(strata_calc_ja4(raw_ch, sizeof(raw_ch), 0, ja4_out, sizeof(ja4_out)) == STRATA_OK);
+        CHECK(strlen(ja4_out) == STRATA_JA4_LEN);
+        CHECK(ja4_out[0] == 't' && ja4_out[1] == '1' && ja4_out[2] == '3' && ja4_out[3] == 'd');
+        CHECK(strata_calc_ja4(NULL, 10, 0, ja4_out, sizeof(ja4_out)) == STRATA_E_INVALID);
+        CHECK(strata_calc_ja4(raw_ch, sizeof(raw_ch), 0, ja4_out, 36) == STRATA_E_INVALID); /* cap < 37 */
+        CHECK(strata_tx_set_ja4(NULL, S("t13d...")) == STRATA_E_INVALID);
+
+        tx = start(e, 0, S("/"));
+        CHECK(strata_tx_set_ja4(tx, (strata_str_t){ (const uint8_t*)ja4_out, STRATA_JA4_LEN }) == STRATA_OK);
+        strata_tx_free(tx);
     }
 
     /* default block page, read in place from the bundle */

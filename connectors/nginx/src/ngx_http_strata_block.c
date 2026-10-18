@@ -48,7 +48,26 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
     id.data = (u_char *) ctx->verdict.block_id;
     id.len = ngx_strlen(id.data);
 
-    if (ctx->verdict.flags & STRATA_VF_JSON) {
+    b = NULL;
+
+    if (ctx->verdict.action == STRATA_ACTION_CHALLENGE && ctx->tx != NULL) {
+        size_t  cap = 4096;
+        size_t  ch_len = 0;
+
+        b = ngx_create_temp_buf(r->pool, cap);
+        if (b == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        if (strata_tx_challenge_page(ctx->tx, (char *) b->pos, cap, &ch_len) == STRATA_OK) {
+            b->last = b->pos + ch_len;
+            ngx_str_set(&r->headers_out.content_type, "text/html; charset=utf-8");
+        } else {
+            b = NULL;
+        }
+    }
+
+    if (b == NULL && (ctx->verdict.flags & STRATA_VF_JSON)) {
         len = sizeof("{\"error\":\"blocked\",\"block_id\":\"\"}") - 1 + id.len;
 
         b = ngx_create_temp_buf(r->pool, len);
@@ -64,7 +83,7 @@ ngx_http_strata_send_block(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 
         ngx_str_set(&r->headers_out.content_type, "application/json");
 
-    } else {
+    } else if (b == NULL) {
         slcf = ngx_http_get_module_loc_conf(r, ngx_http_strata_module);
         smcf = ngx_http_get_module_main_conf(r, ngx_http_strata_module);
 

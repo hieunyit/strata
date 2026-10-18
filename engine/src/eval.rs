@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use strata_hs::MappedDb;
 
 use crate::detectors::Violation;
-use crate::detectors::injection::{detect_sqli, detect_xss};
+use crate::detectors::injection::{detect_cmdi, detect_sqli, detect_ssti, detect_xss};
 use crate::operators::{self, CompiledOperators};
 use crate::rules::{
     BLOCK_SCAN_MAX, CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS,
@@ -339,6 +339,8 @@ pub fn supported() -> (Vec<&'static str>, Vec<&'static str>) {
                         | "le"
                         | "detect_sqli"
                         | "detect_xss"
+                        | "detect_cmdi"
+                        | "detect_ssti"
                         | "validate_byte_range"
                         | "validate_url_encoding"
                         | "validate_utf8_encoding"
@@ -373,6 +375,7 @@ pub struct Request<'a> {
     /// W13-R-02: for a sampled transaction, where the time of each rule
     /// visited (by index) and of the prefilter's scans (None) goes
     pub costs: Option<&'a crate::rulecost::Samples>,
+    pub ja4: &'a [u8],
 }
 
 /// The body processor for a Content-Type, named as ModSecurity's
@@ -1455,6 +1458,11 @@ fn values<'d>(
             name: None,
             val: d.bot_res.bot_name_bytes(),
         })
+    } else if v == const { var("ja4") } || v == const { var("tls_ja4") } {
+        TargetVals::One(TargetVal {
+            name: None,
+            val: r.ja4,
+        })
     } else if v == const { var("args") }
         || v == const { var("args_get") }
         || v == const { var("args_post") }
@@ -1719,7 +1727,7 @@ fn condition(
         .unwrap_or("");
     let numeric = matches!(op, "eq" | "ne" | "gt" | "ge" | "lt" | "le");
     let pattern = HS_OPERATORS.contains(&c.op);
-    let detect = matches!(op, "detect_sqli" | "detect_xss");
+    let detect = matches!(op, "detect_sqli" | "detect_xss" | "detect_cmdi" | "detect_ssti");
     let operator_v2 = matches!(
         op,
         "validate_byte_range"
@@ -1832,12 +1840,12 @@ fn condition(
                         compare(op, x, y)
                     })
                 } else if detect {
-                    tv.as_deref().is_some_and(|tv_ref| {
-                        if op == "detect_sqli" {
-                            detect_sqli(tv_ref).is_some()
-                        } else {
-                            detect_xss(tv_ref)
-                        }
+                    tv.as_deref().is_some_and(|tv_ref| match op {
+                        "detect_sqli" => detect_sqli(tv_ref).is_some(),
+                        "detect_xss" => detect_xss(tv_ref),
+                        "detect_cmdi" => detect_cmdi(tv_ref),
+                        "detect_ssti" => detect_ssti(tv_ref),
+                        _ => false,
                     })
                 } else if operator_v2 {
                     tv.as_deref().is_some_and(|tv_ref| match op {
@@ -2541,6 +2549,8 @@ mod tests {
             "eq",
             "detect_sqli",
             "detect_xss",
+            "detect_cmdi",
+            "detect_ssti",
             "validate_byte_range",
             "validate_url_encoding",
             "validate_utf8_encoding",

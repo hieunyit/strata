@@ -34,6 +34,17 @@ fn test_engine() -> Arc<Engine> {
 }
 
 fn golden_dir() -> PathBuf {
+    for base in [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+        PathBuf::from("/workspace/engine"),
+        PathBuf::from("engine"),
+        PathBuf::from("."),
+    ] {
+        let candidate = base.join("tests/golden/events");
+        if candidate.exists() {
+            return candidate;
+        }
+    }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/events")
 }
 
@@ -91,6 +102,7 @@ fn golden_blocked_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -129,6 +141,7 @@ fn golden_shadow_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -161,6 +174,7 @@ fn golden_engine_error_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -201,6 +215,7 @@ fn golden_long_snippet_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -244,6 +259,7 @@ fn golden_large_event_truncated_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);

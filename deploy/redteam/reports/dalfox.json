@@ -1,0 +1,3 @@
+[
+{"type":"V","inject_type":"inHTML-none(1)-URL","poc_type":"plain","method":"GET","data":"http://127.0.0.1:48080/search?search=FUZZ%3Cdalfox+class%3Ddalfox%3E","param":"search","payload":"\u003cdalfox class=dalfox\u003e","evidence":"1 line:  \u003chtml\u003e\u003cbody\u003eSearch Results: FUZZ\u003cdalfox class=dalfox\u003e\u003c/body\u003e\u003c/html\u003e","cwe":"CWE-79","severity":"High","message_id":668,"message_str":"Triggered XSS Payload (found DOM Object): search=\u003cdalfox class=dalfox\u003e"},
+{}]

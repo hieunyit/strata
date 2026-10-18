@@ -1,0 +1,118 @@
+{
+  "TC-EXP-01": {
+    "name": "Timing Attack D\u00f2 Ng\u01b0\u1ee1ng CPU Budget",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "Latencies across payload sizes: [(250, 16.658495005685836, 200), (500, 15.572038013488054, 200), (1000, 16.044960008002818, 200)] ms. Latency bounded by budget.",
+      "measurements": [
+        [
+          10,
+          101.0573280218523,
+          403
+        ],
+        [
+          50,
+          10.016695014201105,
+          403
+        ],
+        [
+          100,
+          13.207645009970292,
+          403
+        ],
+        [
+          250,
+          16.658495005685836,
+          200
+        ],
+        [
+          500,
+          15.572038013488054,
+          200
+        ],
+        [
+          1000,
+          16.044960008002818,
+          200
+        ]
+      ]
+    }
+  },
+  "TC-EXP-02": {
+    "name": "Payload Tail-Padding & Fail-Open",
+    "status": "BYPASS_FOUND",
+    "details": {
+      "summary": "Profile A (fail-open) returned 200 (BYPASS). Profile B (oversize block) returned 503.",
+      "profile_a_status": 200,
+      "profile_b_status": 503,
+      "latency_ms": 27.159860997926444
+    }
+  },
+  "TC-EXP-03": {
+    "name": "ReDoS Catastrophic Backtracking",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "ReDoS payload handled in 2.46 ms (no catastrophic worker hang). Worker safe.",
+      "elapsed_ms": 2.464832999976352,
+      "status_code": 414
+    }
+  },
+  "TC-PAR-01": {
+    "name": "Body Request Compressed gzip Evasion",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "WAF blocked or rejected compressed request with HTTP 403.",
+      "status_code": 403,
+      "backend_reflected": false
+    }
+  },
+  "TC-PAR-02": {
+    "name": "JSON Differentials & Deep Nesting",
+    "status": "BYPASS_FOUND",
+    "details": {
+      "summary": "JSON Comment Injection: 200, Deep Nesting (100 levels): 200 (Issue #97 gap).",
+      "subtests": {
+        "comment_injection": 200,
+        "deep_nesting": 200
+      }
+    }
+  },
+  "TC-PAR-03": {
+    "name": "Path Matrix Parameter Smuggling",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "DEFENDED: WAF rule 100012 normalized or blocked matrix parameter.",
+      "status_code": 403,
+      "executed": false
+    }
+  },
+  "TC-PAR-04": {
+    "name": "HTTP Request Smuggling Desynchronization",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "DEFENDED: NGINX connector rejected CL.TE smuggling with 400 Bad Request."
+    }
+  },
+  "TC-OPS-01": {
+    "name": "Botnet Fallback Degradation",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "VERIFIED: Circuit breaker counts by IP source (Poisson test #65/#74); distributed botnet does not force global node fallback."
+    }
+  },
+  "TC-OPS-02": {
+    "name": "Canary Hash Routing Manipulation",
+    "status": "BYPASS_FOUND",
+    "details": {
+      "summary": "Demonstrated: 100 identity candidates map into 63 distinct buckets. Recommends HMAC with proxy secret.",
+      "detail": "If strata_identity is unauthenticated client input, routing bucket is manipulable."
+    }
+  },
+  "TC-OPS-03": {
+    "name": "Event Socket Flooding (Log DoS)",
+    "status": "DEFENDED",
+    "details": {
+      "summary": "VERIFIED: UDS datagram queue bounded at 8192; high score / block action events prioritised over telemetry."
+    }
+  }
+}

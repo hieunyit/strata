@@ -4,10 +4,17 @@ use std::path::PathBuf;
 use libstrata::detectors::injection::{detect_sqli, detect_xss};
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("repo root")
-        .to_path_buf()
+    for base in [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."),
+        PathBuf::from("/workspace"),
+        PathBuf::from("."),
+        PathBuf::from(".."),
+    ] {
+        if base.join("corpus/fp/semantic/sqli_benign.txt").exists() {
+            return base;
+        }
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
 fn simple_url_decode(s: &str) -> String {
@@ -15,12 +22,13 @@ fn simple_url_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16) {
-                out.push(b);
-                i += 3;
-                continue;
-            }
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(b) = u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16)
+        {
+            out.push(b);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;

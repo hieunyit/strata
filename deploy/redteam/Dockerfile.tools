@@ -1,0 +1,46 @@
+# deploy/redteam/Dockerfile.tools
+# Containerized Security Assessment & Red Team Tooling Stack
+# Specified in docs/plan/redteam-plan.md § 3
+
+FROM python:3.12-slim-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    git \
+    tar \
+    gzip \
+    unzip \
+    ca-certificates \
+    procps \
+    net-tools \
+    iputils-ping \
+    jq \
+    nikto \
+    golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install sqlmap 1.8.10
+RUN git clone --depth 1 --branch 1.8.10 https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap \
+    && ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap
+
+# Install commix v3.9-stable
+RUN git clone --depth 1 --branch v3.9-stable https://github.com/commixproject/commix.git /opt/commix \
+    && ln -s /opt/commix/commix.py /usr/local/bin/commix
+
+# Install ffuf v2.1.0
+RUN curl -sSL https://github.com/ffuf/ffuf/releases/download/v2.1.0/ffuf_2.1.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin ffuf
+
+# Install dalfox v2.9.3
+RUN curl -sSL https://github.com/hahwul/dalfox/releases/download/v2.9.3/dalfox_2.9.3_linux_amd64.tar.gz | tar -xz -C /usr/local/bin dalfox
+
+# Python testing dependencies (schemathesis, requests, urllib3, psutil)
+RUN pip install --no-cache-dir \
+    requests==2.32.3 \
+    urllib3==2.2.3 \
+    schemathesis==3.25.4 \
+    psutil==6.0.0
+
+WORKDIR /workspace
+ENTRYPOINT ["/bin/bash"]

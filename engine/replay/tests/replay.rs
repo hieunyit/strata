@@ -163,10 +163,10 @@ fn replays_anonymized_samples() {
     assert_eq!(got[0], "block", "{:?}", evaluate(&e, &samples[0], None));
     assert_eq!(got[1], "block", "{:?}", evaluate(&e, &samples[1], None));
     assert_ne!(got[2], "block");
-    // the vector has no Host and no Content-Length: only those protocol
-    // rules (920180, 920280), logged on the shadow policy
+    // the vector has no Host and no Content-Length (and no User-Agent): only those protocol
+    // rules (920180, 920280, 920320), logged on the shadow policy
     let o = evaluate(&e, &samples[3], None);
-    assert_eq!((o.action, o.rules), ("log", vec![920180, 920280]));
+    assert_eq!((o.action, o.rules), ("log", vec![920180, 920280, 920320]));
     // the draft runs under another policy name: example-web is shadow
     assert_eq!(evaluate(&e, &samples[0], Some("example-web")).action, "log");
 

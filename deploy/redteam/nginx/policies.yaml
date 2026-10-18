@@ -1,0 +1,16 @@
+# deploy/redteam/nginx/policies.yaml
+# WAF Policies for Red Team Evaluation Profiles (docs/plan/redteam-plan.md § 2.3)
+policies:
+  - name: profile-a
+    mode: enforce
+    oversize: pass
+  - name: profile-b
+    mode: enforce
+    oversize: block
+  - name: profile-c
+    mode: enforce
+    oversize: pass
+
+block_page:
+  html_file: block.html
+  support_contact: "Security: redteam-eval@strata.test"

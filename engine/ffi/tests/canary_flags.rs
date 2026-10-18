@@ -25,6 +25,7 @@ fn flags(e: *mut EngineHandle, policy: &[u8], addr: &str) -> (u32, u16) {
         node_id: s(b"edge-1"),
         identity: s(b""),
         request_id: s(b""),
+        ja4: s(b""),
     };
     unsafe {
         let tx = strata_tx_new(e, s(policy), &conn, 0);

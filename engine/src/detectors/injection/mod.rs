@@ -5,11 +5,15 @@
 //! library on the sample corpora (`make libinjection-diff`).
 #![forbid(unsafe_code)]
 
+pub mod cmdi;
 pub mod html5;
 pub mod sqli;
 #[rustfmt::skip]
 mod sqli_data;
+pub mod ssti;
 pub mod xss;
 
+pub use cmdi::detect as detect_cmdi;
 pub use sqli::detect as detect_sqli;
+pub use ssti::detect as detect_ssti;
 pub use xss::detect as detect_xss;

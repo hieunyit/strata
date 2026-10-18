@@ -85,7 +85,15 @@ fn decode(s: &str) -> Vec<u8> {
 }
 
 fn vectors_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza/operators")
+    [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza/operators"),
+        PathBuf::from("/workspace/engine/tests/vectors/coraza/operators"),
+        PathBuf::from("engine/tests/vectors/coraza/operators"),
+        PathBuf::from("tests/vectors/coraza/operators"),
+    ]
+    .into_iter()
+    .find(|p| p.exists())
+    .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/coraza/operators"))
 }
 
 fn load_cases(filename: &str) -> Vec<TestCase> {

@@ -380,3 +380,20 @@ name=example
 X-Action: allow
 --- response_body
 backend uri=/backend/ len=12
+
+
+
+=== TEST 20: $strata_ja4 is empty on plain HTTP
+--- config
+    location /t {
+        strata on;
+        add_header X-JA4 "[$strata_ja4]" always;
+        proxy_pass http://127.0.0.1:$TEST_NGINX_SERVER_PORT/backend/;
+    }
+--- request
+GET /t?ja4_check
+--- response_headers
+X-JA4: []
+--- response_body
+backend uri=/backend/?ja4_check len=
+

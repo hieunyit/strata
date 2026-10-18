@@ -53,6 +53,31 @@ rules:
       source: crs
       upstream_id: "920120"
       upstream_version: 4.25.2
+  - id: 920121
+    name: Attempted multipart/form-data bypass
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: '[''\";=\x5c]'
+          targets:
+            - var: files_names
+            - var: files
+          transforms:
+            - url_decode_uni
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920121"
+      upstream_version: 4.25.2
   - id: 920160
     name: Content-Length HTTP header is not numeric
     layer: protocol
@@ -234,6 +259,59 @@ rules:
       source: crs
       upstream_id: "920210"
       upstream_version: 4.25.2
+  - id: 920230
+    name: Multiple URL Encoding Detected
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: '%[0-9a-fA-F]{2}'
+          targets:
+            - var: args
+    score: 60
+    action_mode: score
+    severity: warning
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920230"
+      upstream_version: 4.25.2
+  - id: 920240
+    name: URL Encoding Abuse Attack Attempt
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: streq
+            value: URLENCODED
+          targets:
+            - var: body_processor
+        - operator:
+            type: rx
+            value: \x25
+          targets:
+            - var: request_body
+        - operator:
+            type: validate_url_encoding
+          targets:
+            - var: request_body
+    score: 60
+    action_mode: score
+    severity: warning
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920240"
+      upstream_version: 4.25.2
   - id: 920260
     name: Unicode Full/Half Width Abuse Attack Attempt
     layer: protocol
@@ -283,6 +361,33 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920270"
+      upstream_version: 4.25.2
+  - id: 920271
+    name: Invalid character in request (non printable characters)
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: validate_byte_range
+            value: 9,10,13,32-126,128-255
+          targets:
+            - var: uri_raw
+            - var: request_headers
+            - var: args
+            - var: args_names
+          transforms:
+            - url_decode_uni
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920271"
       upstream_version: 4.25.2
   - id: 920280
     name: Request Missing a Host Header
@@ -407,6 +512,30 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920311"
+      upstream_version: 4.25.2
+  - id: 920320
+    name: Missing User Agent Header
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: eq
+            value: 0
+          targets:
+            - count: true
+              key: User-Agent
+              var: request_headers
+    score: 40
+    action_mode: score
+    severity: notice
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920320"
       upstream_version: 4.25.2
   - id: 920330
     name: Empty User Agent Header
@@ -589,6 +718,30 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "920450"
+      upstream_version: 4.25.2
+  - id: 920451
+    name: HTTP header is restricted by policy (%{MATCHED_VAR})
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: ^(?:accept-charset)$
+          targets:
+            - var: request_headers_names
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920451"
       upstream_version: 4.25.2
   - id: 920470
     name: Illegal Content-Type header

@@ -76,6 +76,7 @@ fn request(e: *mut EngineHandle, uri: &[u8]) -> Option<Vec<u8>> {
         node_id: s(b"edge-01"),
         identity: s(b""),
         request_id: s(b""),
+        ja4: s(b""),
     };
     let headers = [
         (&b"Host"[..], &b"api.example.test"[..]),
@@ -287,6 +288,7 @@ fn the_sample_fits_one_datagram() {
         node_id: s(b"edge-01"),
         identity: s(b""),
         request_id: s(b""),
+        ja4: s(b""),
     };
     let body: Vec<u8> = (0..800).flat_map(|_| *b"0912345678 ").collect(); // every phone becomes a 23-byte token
     unsafe {

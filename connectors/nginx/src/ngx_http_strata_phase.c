@@ -70,6 +70,7 @@ ngx_http_strata_preaccess_handler(ngx_http_request_t *r)
 
     if (v.error != STRATA_OK
         || v.action == STRATA_ACTION_BLOCK
+        || v.action == STRATA_ACTION_CHALLENGE
         || !(v.flags & STRATA_VF_NEED_BODY)
         || slcf->body_mode == NGX_HTTP_STRATA_BODY_STREAM)
     {
@@ -212,13 +213,11 @@ ngx_http_strata_apply_verdict(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx)
         return NGX_DECLINED;
     }
 
-    if (v->action == STRATA_ACTION_BLOCK) {
+    if (v->action == STRATA_ACTION_BLOCK || v->action == STRATA_ACTION_CHALLENGE) {
         return ngx_http_strata_send_block(r, ctx,
                                           v->status ? v->status
                                                     : NGX_HTTP_FORBIDDEN);
     }
-
-    /* TODO(challenge): not produced by the stub; treated as allow */
 
     return NGX_DECLINED;
 }
@@ -312,6 +311,16 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
 #if (NGX_HTTP_SSL)
     if (r->connection->ssl) {
         conn.flags |= STRATA_TXF_TLS;
+        if (ngx_http_strata_ssl_ja4_index != -1 && r->connection->ssl->connection) {
+            u_char *ja4 = SSL_get_ex_data(r->connection->ssl->connection,
+                                          ngx_http_strata_ssl_ja4_index);
+            if (ja4 != NULL) {
+                conn.ja4.ptr = ja4;
+                conn.ja4.len = STRATA_JA4_LEN;
+                ctx->ja4.data = ja4;
+                ctx->ja4.len = STRATA_JA4_LEN;
+            }
+        }
     }
 #endif
 

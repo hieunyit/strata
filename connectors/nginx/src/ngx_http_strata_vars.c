@@ -17,6 +17,7 @@ static ngx_int_t ngx_http_strata_variable(ngx_http_request_t *r,
 #define NGX_HTTP_STRATA_VAR_POLICY    4
 #define NGX_HTTP_STRATA_VAR_BUNDLE    5
 #define NGX_HTTP_STRATA_VAR_TIME_US   6
+#define NGX_HTTP_STRATA_VAR_JA4       7
 
 
 static ngx_http_variable_t  ngx_http_strata_variables[] = {
@@ -41,6 +42,9 @@ static ngx_http_variable_t  ngx_http_strata_variables[] = {
 
     { ngx_string("strata_time_us"), NULL, ngx_http_strata_variable,
       NGX_HTTP_STRATA_VAR_TIME_US, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
+    { ngx_string("strata_ja4"), NULL, ngx_http_strata_variable,
+      NGX_HTTP_STRATA_VAR_JA4, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
       ngx_http_null_variable
 };
@@ -185,6 +189,15 @@ ngx_http_strata_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         v->data = p;
         v->len = ngx_slprintf(p, p + NGX_INT64_LEN, "%uL",
                               (uint64_t) strata_tx_time_us(ctx->tx)) - p;
+        break;
+
+    case NGX_HTTP_STRATA_VAR_JA4:
+        if (ctx->ja4.len == 0 || ctx->ja4.data == NULL) {
+            v->not_found = 1;
+            break;
+        }
+        v->data = ctx->ja4.data;
+        v->len = ctx->ja4.len;
         break;
 
     default: /* NGX_HTTP_STRATA_VAR_POLICY */

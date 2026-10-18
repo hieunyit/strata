@@ -8,6 +8,16 @@ use std::path::PathBuf;
 use libstrata::anon::{Anonymizer, Request};
 
 fn repo() -> PathBuf {
+    for base in [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."),
+        PathBuf::from("/workspace"),
+        PathBuf::from("."),
+        PathBuf::from(".."),
+    ] {
+        if base.join("docs/spec/examples/replay-anon-v1.json").exists() {
+            return base;
+        }
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 

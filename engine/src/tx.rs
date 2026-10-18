@@ -27,6 +27,9 @@ const STUB_SCORE: i32 = 100;
 /// Total score that blocks. Provisional: policies will carry per-route
 /// thresholds.
 pub const BLOCK_THRESHOLD: i32 = 100;
+pub const CHALLENGE_THRESHOLD: i32 = 50;
+/// Rule id reported for rate limiting (RV-R-04).
+pub const RULE_RATE_LIMIT: u32 = 900_001;
 const TAIL: usize = NEEDLE.len() - 1;
 
 #[cfg(feature = "test-hooks")]
@@ -136,6 +139,8 @@ pub struct Tx {
     identity_len: usize,
     request_id: [u8; 64],
     request_id_len: usize,
+    ja4: [u8; 36],
+    ja4_len: usize,
     host: [u8; 255],
     host_len: usize,
     method: [u8; 16],
@@ -160,6 +165,10 @@ pub struct Tx {
     has_body_rules: bool,
     buffer_body: bool,
     tail_has_s: bool,
+    challenged: bool,
+    challenge_cleared: bool,
+    rate_limited: bool,
+    time_secs: Option<u64>,
 }
 
 /// Body bytes a replay sample keeps: a sample travels as one datagram of
@@ -311,6 +320,8 @@ impl Tx {
             identity_len: 0,
             request_id: [0u8; 64],
             request_id_len: 0,
+            ja4: [0u8; 36],
+            ja4_len: 0,
             host: [0u8; 255],
             host_len: 0,
             method: [0u8; 16],
@@ -331,6 +342,10 @@ impl Tx {
             has_body_rules,
             buffer_body: has_body_rules,
             tail_has_s: false,
+            challenged: false,
+            challenge_cleared: false,
+            rate_limited: false,
+            time_secs: None,
         };
         if missing {
             tx.fail(E_BUNDLE);
@@ -506,6 +521,17 @@ impl Tx {
         let len = request_id.len().min(self.request_id.len());
         self.request_id[..len].copy_from_slice(&request_id[..len]);
         self.request_id_len = len;
+    }
+
+    /// TLS JA4 client fingerprint for event reporting and rule conditions (RV-N-02).
+    pub fn set_ja4(&mut self, ja4: &[u8]) {
+        let len = ja4.len().min(self.ja4.len());
+        self.ja4[..len].copy_from_slice(&ja4[..len]);
+        self.ja4_len = len;
+    }
+
+    pub fn ja4(&self) -> &[u8] {
+        &self.ja4[..self.ja4_len]
     }
 
     /// The connector inspected only part of the body: `bytes` were not
@@ -853,6 +879,20 @@ impl Tx {
         {
             self.json = true;
         }
+        if key.eq_ignore_ascii_case(b"cookie")
+            && let Some(cookie_val) = extract_cookie(val, crate::challenge::CHALLENGE_COOKIE_NAME.as_bytes())
+        {
+            let now = self.time_secs.unwrap_or_else(|| {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs())
+            });
+            let client_ip = std::str::from_utf8(&self.client_addr[..self.client_addr_len]).unwrap_or("");
+            let identity = std::str::from_utf8(&self.identity[..self.identity_len]).unwrap_or("");
+            if crate::challenge::verify_token(cookie_val, &crate::challenge::DEFAULT_CHALLENGE_KEY, client_ip, identity, now).is_ok() {
+                self.challenge_cleared = true;
+            }
+        }
         OK
     }
 
@@ -900,6 +940,7 @@ impl Tx {
                 body: b"",
                 max_args: self.max_args,
                 costs: self.cost_sampled.then_some(&self.costs),
+                ja4: &self.ja4[..self.ja4_len],
             };
             let stage = crate::rules::code(crate::rules::STAGES, "request_headers").unwrap_or(0);
             let mut found = vec![];
@@ -968,6 +1009,7 @@ impl Tx {
             body,
             max_args: self.max_args,
             costs: self.cost_sampled.then_some(&self.costs),
+            ja4: &self.ja4[..self.ja4_len],
         };
         let stage = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(0);
         let mut found = vec![];
@@ -1171,6 +1213,93 @@ impl Tx {
         self.id = Some(id);
     }
 
+    /// Overrides current time for deterministic testing
+    pub fn set_time_for_test(&mut self, ts_secs: u64) {
+        self.time_secs = Some(ts_secs);
+    }
+
+    /// Triggers a security challenge for this request.
+    pub fn trigger_challenge(&mut self) {
+        self.challenged = true;
+        if self.id.is_none() {
+            self.id = Some(block_id::generate(Kind::Block, self.node));
+        }
+    }
+
+    /// True if the transaction is challenged.
+    pub fn is_challenged(&self) -> bool {
+        self.challenged
+    }
+
+    /// True if the challenge was verified and cleared.
+    pub fn is_challenge_cleared(&self) -> bool {
+        self.challenge_cleared
+    }
+
+    /// Explicitly sets challenge clearance state.
+    pub fn set_challenge_cleared(&mut self, cleared: bool) {
+        self.challenge_cleared = cleared;
+    }
+
+    /// Evaluates sliding window rate limit for this request's identity (or client IP).
+    pub fn check_rate_limit(&mut self, limit: u32, window_secs: u32) {
+        let now = self.time_secs.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs())
+        });
+        let key = if self.identity_len > 0 {
+            &self.identity[..self.identity_len]
+        } else {
+            &self.client_addr[..self.client_addr_len]
+        };
+        if key.is_empty() {
+            return;
+        }
+        let res = if let Some(e) = &self.engine {
+            e.rate_limiter().check_and_inc(key, now, limit, window_secs)
+        } else {
+            crate::rate::RateResult::Allowed { count: 1, limit }
+        };
+        if let crate::rate::RateResult::Limited { .. } = res {
+            self.rate_limited = true;
+            self.matched = true;
+            self.record(RULE_RATE_LIMIT);
+            if self.id.is_none() {
+                self.id = Some(block_id::generate(Kind::Block, self.node));
+            }
+        }
+    }
+
+    /// Generates HTML JS challenge page if verdict is ACTION_CHALLENGE.
+    pub fn challenge_page(&self) -> Option<String> {
+        let v = self.verdict();
+        if v.action != ACTION_CHALLENGE {
+            return None;
+        }
+        let now = self.time_secs.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs())
+        });
+        let client_ip = std::str::from_utf8(&self.client_addr[..self.client_addr_len]).unwrap_or("");
+        let identity = std::str::from_utf8(&self.identity[..self.identity_len]).unwrap_or("");
+        let nonce = now ^ 0x5a5a5a5a;
+        let token = crate::challenge::generate_token(
+            &crate::challenge::DEFAULT_CHALLENGE_KEY,
+            client_ip,
+            identity,
+            now,
+            crate::challenge::DEFAULT_CHALLENGE_TTL_SECS,
+            nonce,
+        );
+        let block_id_str = v.id.map_or_else(
+            || "STR-0000-0000-0000-0000".to_string(),
+            |id| std::str::from_utf8(&id).unwrap_or("").to_string(),
+        );
+        Some(crate::challenge::render_challenge_page(&token, &block_id_str))
+    }
+
     pub fn verdict(&self) -> Verdict {
         let mut v = Verdict::allow();
         v.error = self.error;
@@ -1178,11 +1307,25 @@ impl Tx {
         v.score = self.score;
         v.n_rules = self.n_rules as u32;
         v.rules = self.rules;
-        if self.matched {
+        if self.rate_limited {
             if self.shadow {
                 v.action = ACTION_LOG;
             } else {
                 v.action = ACTION_BLOCK;
+                v.status = 429;
+            }
+        } else if self.matched {
+            if self.shadow {
+                v.action = ACTION_LOG;
+            } else {
+                v.action = ACTION_BLOCK;
+                v.status = 403;
+            }
+        } else if self.challenged && !self.challenge_cleared {
+            if self.shadow {
+                v.action = ACTION_LOG;
+            } else {
+                v.action = ACTION_CHALLENGE;
                 v.status = 403;
             }
         } else {
@@ -1486,6 +1629,7 @@ impl Tx {
             // a would-be block of the signature pack in shadow counts too
             would_block: self.matched || self.sig_matched,
             canary: self.canary,
+            ja4: std::str::from_utf8(&self.ja4[..self.ja4_len]).unwrap_or(""),
         };
 
         let mut out = crate::event::encode(&ev);
@@ -1560,6 +1704,19 @@ impl Drop for Tx {
             }
         }
     }
+}
+
+fn extract_cookie<'a>(header_val: &'a [u8], cookie_name: &[u8]) -> Option<&'a str> {
+    let s = std::str::from_utf8(header_val).ok()?;
+    for pair in s.split(';') {
+        let mut parts = pair.trim().splitn(2, '=');
+        if let (Some(k), Some(v)) = (parts.next(), parts.next())
+            && k.trim().as_bytes() == cookie_name
+        {
+            return Some(v.trim());
+        }
+    }
+    None
 }
 
 #[cfg(test)]

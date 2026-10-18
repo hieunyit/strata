@@ -723,7 +723,7 @@ mod tests {
             asn: 12345,
         }];
 
-        let encoded = encode_section(&[pol.clone()], &compact, None);
+        let encoded = encode_section(std::slice::from_ref(&pol), &compact, None);
         assert!(encoded.starts_with(GEO_SECTION_MAGIC));
 
         let decoded = GeoResolver::parse(&encoded, 1).expect("failed to parse encoded section");

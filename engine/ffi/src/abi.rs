@@ -90,6 +90,8 @@ pub const STRATA_BLOCK_ID_SIZE: usize = 24;
 pub const STRATA_ERR_MSG_SIZE: usize = 256;
 /// Length in bytes of the Ed25519 public key passed to `strata_engine_map`.
 pub const STRATA_PUBKEY_LEN: usize = 32;
+/// Length in bytes of the FoxIO JA4 TLS client fingerprint (RV-N-02).
+pub const STRATA_JA4_LEN: usize = 36;
 
 /// `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
 /// and may replace a newer version.
@@ -132,6 +134,8 @@ pub struct strata_conn_t {
     pub identity: strata_str_t,
     /// Host request id (`$request_id`), may be empty.
     pub request_id: strata_str_t,
+    /// TLS client JA4 fingerprint (36 chars), may be empty.
+    pub ja4: strata_str_t,
 }
 
 /// Decision for a transaction, filled by `strata_tx_verdict`.

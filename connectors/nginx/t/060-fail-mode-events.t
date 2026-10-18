@@ -203,6 +203,7 @@ sub listen_events {
     unlink "$root/events.sock";
     $sock = IO::Socket::UNIX->new(Type => SOCK_DGRAM, Local => "$root/events.sock")
         or die "event socket: $!";
+    chmod 0777, "$root/events.sock";
 }
 
 # --- requests, events, metrics ----------------------------------------------

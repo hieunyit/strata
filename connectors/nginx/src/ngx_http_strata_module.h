@@ -185,11 +185,15 @@ typedef struct {
     unsigned                    degraded:1;     /* breaker open: minimal
                                                    checks only */
     uint16_t                    status;         /* response status (403, 503...) */
+    ngx_str_t                   ja4;            /* TLS JA4 fingerprint */
 } ngx_http_strata_ctx_t;
 
 
 extern ngx_module_t  ngx_http_strata_module;
 extern ngx_module_t  ngx_http_strata_filter_module;
+#if (NGX_HTTP_SSL)
+extern int           ngx_http_strata_ssl_ja4_index;
+#endif
 
 
 /* metrics file layout: docs/design/control-file.md, "Metrics file" */

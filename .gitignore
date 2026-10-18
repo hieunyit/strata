@@ -12,3 +12,6 @@ deploy/lab/.state/
 # staging passwords, state and the deployed release
 deploy/staging/.state/
 deploy/staging/.state-prod-sim/
+
+# redteam external tools and binaries
+deploy/redteam/tools/

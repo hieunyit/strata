@@ -505,8 +505,8 @@ pub unsafe extern "C" fn strata_tx_new(
                 Some(Arc::from_raw(engine.cast_const().cast::<Engine>()))
             }
         };
-        let (node, flags, client, identity, request_id) = if conn.is_null() {
-            (&[][..], 0, &[][..], &[][..], &[][..])
+        let (node, flags, client, identity, request_id, ja4) = if conn.is_null() {
+            (&[][..], 0, &[][..], &[][..], &[][..], &[][..])
         } else {
             // SAFETY: conn is non-NULL and valid for the call.
             let c = unsafe { &*conn };
@@ -516,6 +516,7 @@ pub unsafe extern "C" fn strata_tx_new(
                 unsafe { bytes(c.client_addr) }.unwrap_or(&[]),
                 unsafe { bytes(c.identity) }.unwrap_or(&[]),
                 unsafe { bytes(c.request_id) }.unwrap_or(&[]),
+                unsafe { bytes(c.ja4) }.unwrap_or(&[]),
             )
         };
         let mut tx = Tx::new(engine, node, flags);
@@ -523,6 +524,7 @@ pub unsafe extern "C" fn strata_tx_new(
         tx.set_client_addr(client);
         tx.set_identity(identity);
         tx.set_request_id(request_id);
+        tx.set_ja4(ja4);
         // SAFETY: policy is valid for the call.
         tx.set_policy(unsafe { bytes(policy) }.unwrap_or(&[]));
         tx.warm_engine();
@@ -860,6 +862,151 @@ pub unsafe extern "C" fn strata_tx_sample(tx: *const TxHandle, dst: *mut u8, cap
         // SAFETY: cap >= len and dst is non-NULL and writable per contract.
         unsafe { std::ptr::copy_nonoverlapping(b.as_ptr(), dst, b.len()) };
         b.len()
+    })
+}
+
+/// Sets the TLS JA4 fingerprint for the transaction (RV-N-02).
+///
+/// # Safety
+/// `tx` must be NULL or a live pointer from `strata_tx_new`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_set_ja4(
+    tx: *mut TxHandle,
+    ja4: strata_str_t,
+) -> strata_rc_t {
+    // SAFETY: caller guarantees tx is a live pointer or NULL.
+    unsafe {
+        with_tx(tx, |t| {
+            let b = bytes(ja4)?;
+            t.set_ja4(b);
+            Ok(STRATA_OK)
+        })
+    }
+}
+
+/// Calculates FoxIO JA4 TLS client fingerprint from raw ClientHello bytes (RV-N-02).
+///
+/// `raw`: pointer to raw ClientHello (pure Handshake or TLS Record-wrapped).
+/// `len`: length in bytes of `raw`.
+/// `is_quic`: non-zero if QUIC (HTTP/3), 0 for TCP (TLS).
+/// `out`: output buffer, at least 37 bytes (36 characters + NUL terminator).
+/// `out_cap`: capacity of `out` buffer in bytes.
+///
+/// Returns `STRATA_OK` (0) on success with `out` NUL-terminated.
+/// Returns `STRATA_E_INVALID` if parameters are invalid or parsing fails.
+///
+/// # Safety
+/// `raw` must point to at least `len` readable bytes, and `out` must be writable
+/// for at least `out_cap` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_calc_ja4(
+    raw: *const u8,
+    len: usize,
+    is_quic: u8,
+    out: *mut std::os::raw::c_char,
+    out_cap: usize,
+) -> strata_rc_t {
+    if raw.is_null() || len == 0 || out.is_null() || out_cap < libstrata::ja4::JA4_STRING_LEN + 1 {
+        return STRATA_E_INVALID;
+    }
+    guard(STRATA_E_INTERNAL, || {
+        let slice = unsafe { std::slice::from_raw_parts(raw, len) };
+        match libstrata::ja4::calculate_ja4_from_raw(slice, is_quic != 0) {
+            Some(ja4) => {
+                let ja4_bytes = ja4.as_bytes();
+                unsafe {
+                    std::ptr::copy_nonoverlapping(ja4_bytes.as_ptr(), out.cast::<u8>(), ja4_bytes.len());
+                    *out.add(ja4_bytes.len()) = 0;
+                }
+                STRATA_OK
+            }
+            None => STRATA_E_INVALID,
+        }
+    })
+}
+
+/// Triggers an explicit security challenge on the transaction.
+///
+/// # Safety
+/// `tx` must be a live pointer from `strata_tx_new`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_trigger_challenge(tx: *mut TxHandle) -> strata_rc_t {
+    if tx.is_null() {
+        return STRATA_E_INVALID;
+    }
+    let t = unsafe { &mut *tx.cast::<Tx>() };
+    guard(STRATA_E_INTERNAL, || {
+        t.trigger_challenge();
+        STRATA_OK
+    })
+}
+
+/// Evaluates sliding window rate limit for this request's identity (or client IP).
+///
+/// # Safety
+/// `tx` must be a live pointer from `strata_tx_new`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_check_rate_limit(
+    tx: *mut TxHandle,
+    limit: u32,
+    window_secs: u32,
+) -> strata_rc_t {
+    if tx.is_null() {
+        return STRATA_E_INVALID;
+    }
+    let t = unsafe { &mut *tx.cast::<Tx>() };
+    guard(STRATA_E_INTERNAL, || {
+        t.check_rate_limit(limit, window_secs);
+        STRATA_OK
+    })
+}
+
+/// Returns 1 if the challenge was cleared, 0 if not.
+///
+/// # Safety
+/// `tx` must be NULL or a live pointer from `strata_tx_new`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_challenge_cleared(tx: *const TxHandle) -> i32 {
+    if tx.is_null() {
+        return 0;
+    }
+    let t = unsafe { &*tx.cast::<Tx>() };
+    guard(0, || if t.is_challenge_cleared() { 1 } else { 0 })
+}
+
+/// Renders HTML JS challenge page for a challenged transaction.
+///
+/// # Safety
+/// `tx` must be a live pointer from `strata_tx_new`.
+/// `out` must be writable for at least `out_cap` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_challenge_page(
+    tx: *const TxHandle,
+    out: *mut std::os::raw::c_char,
+    out_cap: usize,
+    out_len: *mut usize,
+) -> strata_rc_t {
+    if tx.is_null() || out.is_null() || out_cap == 0 {
+        return STRATA_E_INVALID;
+    }
+    let t = unsafe { &*tx.cast::<Tx>() };
+    guard(STRATA_E_INTERNAL, || {
+        let page = match t.challenge_page() {
+            Some(p) => p,
+            None => return STRATA_E_INVALID,
+        };
+        let bytes = page.as_bytes();
+        if bytes.len() + 1 > out_cap {
+            return STRATA_E_INVALID;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), out.cast::<u8>(), bytes.len());
+            *out.add(bytes.len()) = 0;
+            if !out_len.is_null() {
+                *out_len = bytes.len();
+            }
+        }
+        STRATA_OK
     })
 }
 

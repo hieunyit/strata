@@ -6,12 +6,22 @@
 use std::fs;
 use std::path::PathBuf;
 
-fn spec_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs/spec")
+fn repo_root() -> PathBuf {
+    for base in [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."),
+        PathBuf::from("/workspace"),
+        PathBuf::from("."),
+        PathBuf::from(".."),
+    ] {
+        if base.join("docs/spec/ir.schema.json").exists() {
+            return base;
+        }
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+fn spec_dir() -> PathBuf {
+    repo_root().join("docs/spec")
 }
 
 fn load(path: &PathBuf) -> serde_json::Value {

@@ -135,6 +135,11 @@
 #define STRATA_PUBKEY_LEN 32
 
 /**
+ * Length in bytes of the FoxIO JA4 TLS client fingerprint (RV-N-02).
+ */
+#define STRATA_JA4_LEN 36
+
+/**
  * `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
  * and may replace a newer version.
  */
@@ -242,6 +247,10 @@ typedef struct {
    * Host request id (`$request_id`), may be empty.
    */
   strata_str_t request_id;
+  /**
+   * TLS client JA4 fingerprint (36 chars), may be empty.
+   */
+  strata_str_t ja4;
 } strata_conn_t;
 
 /**
@@ -632,6 +641,72 @@ size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
  * NULL if cap is 0).
  */
 size_t strata_tx_sample(const strata_tx_t *tx, uint8_t *dst, size_t cap);
+
+/**
+ * Sets the TLS JA4 fingerprint for the transaction (RV-N-02).
+ *
+ * # Safety
+ * `tx` must be NULL or a live pointer from `strata_tx_new`.
+ */
+strata_rc_t strata_tx_set_ja4(strata_tx_t *tx, strata_str_t ja4);
+
+/**
+ * Calculates FoxIO JA4 TLS client fingerprint from raw ClientHello bytes (RV-N-02).
+ *
+ * `raw`: pointer to raw ClientHello (pure Handshake or TLS Record-wrapped).
+ * `len`: length in bytes of `raw`.
+ * `is_quic`: non-zero if QUIC (HTTP/3), 0 for TCP (TLS).
+ * `out`: output buffer, at least 37 bytes (36 characters + NUL terminator).
+ * `out_cap`: capacity of `out` buffer in bytes.
+ *
+ * Returns `STRATA_OK` (0) on success with `out` NUL-terminated.
+ * Returns `STRATA_E_INVALID` if parameters are invalid or parsing fails.
+ *
+ * # Safety
+ * `raw` must point to at least `len` readable bytes, and `out` must be writable
+ * for at least `out_cap` bytes.
+ */
+strata_rc_t strata_calc_ja4(const uint8_t *raw,
+                            size_t len,
+                            uint8_t is_quic,
+                            char *out,
+                            size_t out_cap);
+
+/**
+ * Triggers an explicit security challenge on the transaction.
+ *
+ * # Safety
+ * `tx` must be a live pointer from `strata_tx_new`.
+ */
+strata_rc_t strata_tx_trigger_challenge(strata_tx_t *tx);
+
+/**
+ * Evaluates sliding window rate limit for this request's identity (or client IP).
+ *
+ * # Safety
+ * `tx` must be a live pointer from `strata_tx_new`.
+ */
+strata_rc_t strata_tx_check_rate_limit(strata_tx_t *tx, uint32_t limit, uint32_t window_secs);
+
+/**
+ * Returns 1 if the challenge was cleared, 0 if not.
+ *
+ * # Safety
+ * `tx` must be NULL or a live pointer from `strata_tx_new`.
+ */
+int32_t strata_tx_challenge_cleared(const strata_tx_t *tx);
+
+/**
+ * Renders HTML JS challenge page for a challenged transaction.
+ *
+ * # Safety
+ * `tx` must be a live pointer from `strata_tx_new`.
+ * `out` must be writable for at least `out_cap` bytes.
+ */
+strata_rc_t strata_tx_challenge_page(const strata_tx_t *tx,
+                                     char *out,
+                                     size_t out_cap,
+                                     size_t *out_len);
 
 /**
  * Frees a transaction. NULL is ignored; set your pointer to NULL afterwards.

@@ -107,6 +107,9 @@ pub const VARS: &[&str] = &[
     // appended (W18-R-02): Good Bot Verification
     "bot_verified",
     "bot_name",
+    // appended (RV-N-02): TLS JA4 Fingerprint
+    "tls_ja4",
+    "ja4",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -143,6 +146,8 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("geo_asn") => "GEO_ASN",
         Some("bot_verified") => "BOT_VERIFIED",
         Some("bot_name") => "BOT_NAME",
+        Some("tls_ja4") => "TLS_JA4",
+        Some("ja4") => "JA4",
         _ => "",
     }
 }
@@ -189,6 +194,9 @@ pub const OPERATORS: &[&str] = &[
     // appended (W19-R-01): GeoIP & ASN
     "geo_match",
     "asn_match",
+    // appended (W17-R-01): Semantic CMDi & SSTI
+    "detect_cmdi",
+    "detect_ssti",
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;

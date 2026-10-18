@@ -71,6 +71,7 @@ stamp="$cc_opt|$ld_opt|$root|$(cksum < "$root/connectors/nginx/config")"
 if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$stamp" ]; then
     ./configure \
         --with-compat --with-threads $debug \
+        --with-http_ssl_module \
         --with-http_v2_module --with-http_auth_request_module $v3 \
         --with-cc-opt="$cc_opt" --with-ld-opt="$ld_opt" \
         --add-dynamic-module="$root/connectors/nginx"

@@ -106,7 +106,15 @@ fn actual(family: &str, input: &[u8]) -> Vec<u8> {
 
 #[test]
 fn original_suite_matches() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/libinjection");
+    let dir = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/libinjection"),
+        PathBuf::from("/workspace/engine/tests/libinjection"),
+        PathBuf::from("engine/tests/libinjection"),
+        PathBuf::from("tests/libinjection"),
+    ]
+    .into_iter()
+    .find(|p| p.exists())
+    .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/libinjection"));
     let mut files: Vec<_> = fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().path())

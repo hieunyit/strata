@@ -347,7 +347,7 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 		return nil, "SecAction (sets variables)"
 	}
 	if pl := r.ParanoiaLevel(); pl > opts.MaxPL {
-		return nil, fmt.Sprintf("paranoia level %d (PL2 and above come with W17)", pl)
+		return nil, fmt.Sprintf("paranoia level %d", pl)
 	}
 	if !hasAction(r, "block") && !hasAction(r, "deny") {
 		return nil, "does not block or score (control flow)"
