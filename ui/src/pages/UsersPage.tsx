@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { ServiceAccountTokens as ManageTokensModal } from '../components/users/ServiceAccountTokens';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, X } from 'lucide-react';
-import { apiClient, ApiError, LocalUser } from '../api/client';
+import { UserPlus, X, Bot, Key, Trash2 } from 'lucide-react';
+import { apiClient, ApiError, LocalUser, ServiceAccount, CreateServiceAccountRequest } from '../api/client';
 import { useAuth, UserRole } from '../context/AuthContext';
 import { PageShell } from './PageShell';
 import { PageHeader, ErrorBanner, formatTime } from '../components/ui';
@@ -158,19 +159,35 @@ const EditUser: React.FC<{ user: LocalUser; self: boolean; onDone: () => void; o
   );
 };
 
-// Local accounts (control plane -local-auth): admins create them, set
-// roles, disable, unlock or reset a password. Every change is in the
-// audit log. Accounts of the OIDC provider are managed there.
 export const UsersPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { username, roles, methods } = useAuth();
   const canWrite = roles.includes('admin');
+  const [activeTab, setActiveTab] = useState<'users' | 'service_accounts'>('users');
+
+  // Users State
   const [users, setUsers] = useState<LocalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<{ kind: 'none' } | { kind: 'create' } | { kind: 'edit'; name: string }>({ kind: 'none' });
 
-  const load = useCallback(async () => {
+  // Service Accounts State
+  const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
+  const [saLoading, setSaLoading] = useState(false);
+  const [saError, setSaError] = useState('');
+  const [createSaOpen, setCreateSaOpen] = useState(false);
+  const [saName, setSaName] = useState('');
+  const [saDesc, setSaDesc] = useState('');
+ const [saRoles,setSaRoles]=useState<UserRole[]>(['viewer']);
+  const [saBusy,setSaBusy]=useState(false);
+  const [saPending,setSaPending]=useState(false);
+  const saInFlight=useRef(false);
+  const createCommand=useRef<CreateServiceAccountRequest>();
+  const deleteCommands=useRef(new Map<string,{etag:string;requestId:string}>());
+  const [activeSaForTokens, setActiveSaForTokens] = useState<ServiceAccount | null>(null);
+  const saReadVersion=useRef(0);
+
+  const loadUsers = useCallback(async () => {
     try {
       setUsers(await apiClient.listUsers());
       setError('');
@@ -181,83 +198,292 @@ export const UsersPage: React.FC = () => {
     }
   }, [t]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const loadServiceAccounts = useCallback(async (quiet=false) => {
+    const version=++saReadVersion.current;
+    if(!quiet)setSaLoading(true);
+    try {
+      const result=await apiClient.listServiceAccounts();
+      if(version!==saReadVersion.current)return;
+      setServiceAccounts(result);
+      setSaError('');
+    } catch (err) {
+      if(version===saReadVersion.current)setSaError(errorText(err));
+    } finally {
+      if(version===saReadVersion.current)setSaLoading(false);
+    }
+  }, []);
 
-  const done = () => {
+  useEffect(() => {void loadUsers();},[loadUsers]);
+  useEffect(() => {if(canWrite)void loadServiceAccounts();},[loadServiceAccounts,canWrite]);
+
+  const doneUser = () => {
     setMode({ kind: 'none' });
-    void load();
+    void loadUsers();
   };
+
+  const handleCreateSa = async (e: React.FormEvent) => {
+    e.preventDefault();if(saInFlight.current || !saName.trim())return;
+    saInFlight.current=true;setSaBusy(true);setSaError('');
+    try {
+      createCommand.current??={id:`sa-${crypto.randomUUID()}`,name:saName.trim(),description:saDesc.trim(),roles:[...saRoles],request_id:crypto.randomUUID()};
+      setSaPending(true);
+      await apiClient.createServiceAccount(createCommand.current);
+      createCommand.current=undefined;setSaPending(false);setSaName('');setSaDesc('');setCreateSaOpen(false);void loadServiceAccounts();
+    } catch(e) {
+      setSaError(errorText(e));
+      if(e instanceof ApiError && e.code===400){createCommand.current=undefined;setSaPending(false);}
+    } finally{saInFlight.current=false;setSaBusy(false);}
+  };
+  const handleDeleteSa = async (sa:ServiceAccount) => {
+    if(saInFlight.current || !window.confirm(t('machine.deleteConfirm',{name:sa.name})))return;
+    saInFlight.current=true;setSaBusy(true);setSaError('');
+    try{
+      let cmd=deleteCommands.current.get(sa.id);
+      if(!cmd){cmd={etag:sa.etag,requestId:crypto.randomUUID()};deleteCommands.current.set(sa.id,cmd);}
+      await apiClient.deleteServiceAccount(sa.id,cmd.etag,cmd.requestId);
+      deleteCommands.current.delete(sa.id);void loadServiceAccounts();
+    }catch(e){setSaError(errorText(e));}
+    finally{saInFlight.current=false;setSaBusy(false);}
+  };
+
   const editing = mode.kind === 'edit' ? users.find((u) => u.username === mode.name) : undefined;
   const never = t('users.never');
 
   return (
     <PageShell active="users">
       <PageHeader
-        title={t('users.title')}
-        description={methods.oidc ? t('users.subtitleBoth') : t('users.subtitle')}
+        title={t(activeTab==='service_accounts'?'machine.accountsTab':'users.title')}
+        description={activeTab==='service_accounts'?t('machine.subtitle'):methods.oidc ? t('users.subtitleBoth') : t('users.subtitle')}
         actions={
-          canWrite && mode.kind === 'none' && (
-            <button type="button" data-testid="new-user-btn" className="btn-primary" onClick={() => setMode({ kind: 'create' })}>
-              <UserPlus className="w-3.5 h-3.5" />
-              {t('users.create')}
-            </button>
+          canWrite && (
+            <div className="flex gap-2">
+              {activeTab === 'users' && mode.kind === 'none' && (
+                <button type="button" data-testid="new-user-btn" className="btn-primary" onClick={() => setMode({ kind: 'create' })}>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  {t('users.create')}
+                </button>
+              )}
+              {activeTab === 'service_accounts' && !createSaOpen && (
+                <button type="button" data-testid="new-sa-btn" className="btn-primary" onClick={() => setCreateSaOpen(true)}>
+                  <Bot className="w-3.5 h-3.5" />
+                  {t('machine.new')}
+                </button>
+              )}
+            </div>
           )
         }
       />
-      <ErrorBanner message={error} />
-      {mode.kind === 'create' && <CreateUser onDone={done} onCancel={() => setMode({ kind: 'none' })} />}
-      {editing && (
-        <EditUser key={editing.username} user={editing} self={editing.username === username} onDone={done} onCancel={() => setMode({ kind: 'none' })} />
-      )}
-      {loading && <p className="text-[13px] text-muted">{t('users.loading')}</p>}
-      {!loading && !error && (
-        <div className="panel overflow-x-auto">
-          <table className="w-full text-[13px]" data-testid="users-table">
-            <thead>
-              <tr className="border-b border-line bg-sunken/50">
-                <th className="th">{t('users.col.user')}</th>
-                <th className="th">{t('users.col.roles')}</th>
-                <th className="th">{t('users.col.status')}</th>
-                <th className="th">{t('users.col.lastLogin')}</th>
-                <th className="th">{t('users.col.created')}</th>
-                {canWrite && <th className="th"><span className="sr-only">{t('users.col.actions')}</span></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 && (
-                <tr><td colSpan={6} className="td py-6 text-center text-muted" data-testid="users-empty">{t('users.empty')}</td></tr>
-              )}
-              {users.map((u) => {
-                const state = u.disabled ? 'disabled' : u.locked ? 'locked' : 'active';
-                return (
-                  <tr key={u.username} data-testid="user-row" data-user={u.username} data-state={state} className="border-b border-line last:border-0">
-                    <td className="td font-medium">
-                      {u.username}
-                      {u.username === username && <span className="ml-2 text-xs font-normal text-muted">{t('users.you')}</span>}
-                    </td>
-                    <td className="td text-muted">{u.roles.map((r) => t(`header.roles.${r}`)).join(', ') || t('header.roles.none')}</td>
-                    <td className="td">
-                      <span className={state === 'active' ? 'text-ok' : 'text-block'} data-testid="user-state">{t(`users.state.${state}`)}</span>
-                    </td>
-                    <td className="td text-muted whitespace-nowrap">{formatTime(u.last_login_at, i18n.language, never)}</td>
-                    <td className="td text-muted whitespace-nowrap">
-                      {formatTime(u.created_at, i18n.language, never)}
-                      <div className="text-xs text-faint">{u.created_by}</div>
-                    </td>
-                    {canWrite && (
-                      <td className="td text-right">
-                        <button type="button" data-testid="edit-user-btn" className="btn" onClick={() => setMode({ kind: 'edit', name: u.username })}>
-                          {t('users.editBtn')}
-                        </button>
-                      </td>
-                    )}
+
+      {/* Account Type Tabs */}
+      <div className="flex gap-2 border-b border-line mb-4 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab('users')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-t border-b-2 transition-colors ${
+            activeTab === 'users'
+              ? 'border-accent text-ink font-semibold'
+              : 'border-transparent text-muted hover:text-ink'
+          }`}
+          data-testid="tab-users"
+        >
+          {t('machine.usersTab')}
+        </button>
+        {canWrite && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('service_accounts');
+              void loadServiceAccounts();
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-t border-b-2 transition-colors ${
+              activeTab === 'service_accounts'
+                ? 'border-accent text-ink font-semibold'
+                : 'border-transparent text-muted hover:text-ink'
+            }`}
+            data-testid="tab-service-accounts"
+          >
+            {t('machine.accountsTab')}
+          </button>
+        )}
+      </div>
+
+      <ErrorBanner message={activeTab === 'users' ? error : saError} />
+
+      {/* Tab 1: User Accounts */}
+      {activeTab === 'users' && (
+        <>
+          {mode.kind === 'create' && <CreateUser onDone={doneUser} onCancel={() => setMode({ kind: 'none' })} />}
+          {editing && (
+            <EditUser key={editing.username} user={editing} self={editing.username === username} onDone={doneUser} onCancel={() => setMode({ kind: 'none' })} />
+          )}
+          {loading && <p className="text-[13px] text-muted">{t('users.loading')}</p>}
+          {!loading && !error && (
+            <div className="panel overflow-x-auto">
+              <table className="w-full text-[13px]" data-testid="users-table">
+                <thead>
+                  <tr className="border-b border-line bg-sunken/50">
+                    <th className="th">{t('users.col.user')}</th>
+                    <th className="th">{t('users.col.roles')}</th>
+                    <th className="th">{t('users.col.status')}</th>
+                    <th className="th">{t('users.col.lastLogin')}</th>
+                    <th className="th">{t('users.col.created')}</th>
+                    {canWrite && <th className="th"><span className="sr-only">{t('users.col.actions')}</span></th>}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {users.length === 0 && (
+                    <tr><td colSpan={6} className="td py-6 text-center text-muted" data-testid="users-empty">{t('users.empty')}</td></tr>
+                  )}
+                  {users.map((u) => {
+                    const state = u.disabled ? 'disabled' : u.locked ? 'locked' : 'active';
+                    return (
+                      <tr key={u.username} data-testid="user-row" data-user={u.username} data-state={state} className="border-b border-line last:border-0">
+                        <td className="td font-medium">
+                          {u.username}
+                          {u.username === username && <span className="ml-2 text-xs font-normal text-muted">{t('users.you')}</span>}
+                        </td>
+                        <td className="td text-muted">{u.roles.map((r) => t(`header.roles.${r}`)).join(', ') || t('header.roles.none')}</td>
+                        <td className="td">
+                          <span className={state === 'active' ? 'text-ok' : 'text-block'} data-testid="user-state">{t(`users.state.${state}`)}</span>
+                        </td>
+                        <td className="td text-muted whitespace-nowrap">{formatTime(u.last_login_at, i18n.language, never)}</td>
+                        <td className="td text-muted whitespace-nowrap">
+                          {formatTime(u.created_at, i18n.language, never)}
+                          <div className="text-xs text-faint">{u.created_by}</div>
+                        </td>
+                        {canWrite && (
+                          <td className="td text-right">
+                            <button type="button" data-testid="edit-user-btn" className="btn" onClick={() => setMode({ kind: 'edit', name: u.username })}>
+                              {t('users.editBtn')}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tab 2: Service Accounts */}
+      {activeTab === 'service_accounts' && canWrite && (
+        <div className="space-y-4">
+          {createSaOpen && (
+            <form onSubmit={handleCreateSa} className="panel p-4 space-y-3" data-testid="create-sa-form">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[15px] font-semibold">{t('machine.new')}</h2>
+                <button type="button" disabled={saBusy} aria-label={t('machine.close')} onClick={() => setCreateSaOpen(false)} className="p-1 text-muted hover:text-ink">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="sa-name" className="label">{t('machine.name')}</label>
+                  <input
+                    disabled={saBusy || saPending}
+                    maxLength={128}
+                    id="sa-name"
+                    data-testid="sa-name"
+                    className="field text-xs"
+                    placeholder={t('machine.nameExample')}
+                    value={saName}
+                    onChange={(e) => setSaName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="sa-desc" className="label">{t('machine.description')}</label>
+                  <input
+                    disabled={saBusy || saPending}
+ maxLength={2048}
+ id="sa-desc"
+                    data-testid="sa-description"
+                    className="field text-xs"
+                    placeholder={t('machine.descriptionExample')}
+                    value={saDesc}
+                    onChange={(e) => setSaDesc(e.target.value)}
+                  />
+                </div>
+              </div>
+              <fieldset disabled={saBusy || saPending}><RoleChecks value={saRoles} onChange={roles=>setSaRoles(roles as UserRole[])} idPrefix="machine"/></fieldset>
+              <div className="flex gap-2">
+                <button type="submit" className="btn-primary text-xs" disabled={saBusy || !saName.trim() || !saRoles.length} data-testid="create-sa-submit">
+                  {t(saPending?'machine.retry':'machine.create')}
+                </button>
+                <button type="button" className="btn text-xs" onClick={() => setCreateSaOpen(false)}>
+                  {t('machine.cancel')}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {saLoading && <p className="text-[13px] text-muted">{t('machine.loadingAccounts')}</p>}
+
+          {!saLoading && (
+            <div className="panel overflow-x-auto">
+              <table className="w-full text-[13px]" data-testid="sa-table">
+                <thead>
+                  <tr className="border-b border-line bg-sunken/50">
+                    <th className="th">{t('machine.account')}</th>
+                    <th className="th hidden md:table-cell">{t('machine.description')}</th>
+                    <th className="th hidden md:table-cell">{t('machine.created')}</th>
+                    <th className="th hidden md:table-cell">{t('machine.createdBy')}</th>
+                    <th className="th text-right">{t('machine.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serviceAccounts.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="td py-6 text-center text-muted" data-testid="sa-empty">
+                        {t('machine.emptyAccounts')}
+                      </td>
+                    </tr>
+                  )}
+                  {serviceAccounts.map((sa) => (
+                    <tr key={sa.id} data-testid="sa-row" className="border-b border-line last:border-0 hover:bg-sunken/20">
+                      <td className="td font-medium">
+                        <div className="flex items-center gap-2"><Bot className="w-4 h-4 shrink-0 text-accent" />
+                        <span className="max-w-[12rem] break-all">{sa.name}</span></div>
+                      </td>
+                      <td className="td text-muted hidden md:table-cell">{sa.description || '—'}</td>
+                      <td className="td text-muted whitespace-nowrap hidden md:table-cell">{formatTime(sa.created_at, i18n.language, never)}</td>
+                      <td className="td text-muted hidden md:table-cell">{sa.created_by}</td>
+                      <td className="td text-right">
+                        <span className="inline-flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSaForTokens(sa)}
+                            className="btn inline-flex items-center gap-1.5 text-xs"
+                            data-testid="manage-tokens-btn"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                            {t('machine.tokens',{count:sa.token_count ?? 0})}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saBusy}
+ onClick={() => handleDeleteSa(sa)}
+                            className="btn text-block text-xs"
+                            aria-label={t('machine.deleteConfirm',{name:sa.name})}
+                            data-testid="delete-sa-btn"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {canWrite && activeSaForTokens && (
+            <ManageTokensModal key={activeSaForTokens.id} sa={activeSaForTokens} onClose={() => { setActiveSaForTokens(null); void loadServiceAccounts(true); }} />
+          )}
         </div>
       )}
     </PageShell>
