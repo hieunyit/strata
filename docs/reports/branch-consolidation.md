@@ -1,6 +1,6 @@
 # Hợp nhất nhánh — 18/10/2026
 
-Nhánh tích hợp: `codex/branch-consolidation` (PR được ghi sau khi push).
+Nhánh tích hợp: `codex/branch-consolidation` · [PR #220](https://github.com/hieunyit/strata/pull/220).
 
 Phạm vi do PO giao: kiểm kê mọi nhánh local/remote, review, sửa, chọn phần đúng, merge main và xóa nhánh đã xử lý. PO cho phép merge và không chờ hosted CI. Không triển khai staging/production, không coi merge là nghiệm thu Gate A/B hay mở tuần mới.
 
