@@ -17,7 +17,8 @@ func TestRuleAnnotationsInPostgres(t *testing.T) {
 	if err := db.Migrate(ctx, p, 18); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.MarkEventFalsePositive(ctx, "legacy", "normal", "", store.Audit{Actor: "operator", Subject: "example-operator"}); err != nil {
+	// Seed using the historical schema, not a newer application's audit writer.
+	if _, err := p.Exec(ctx, `INSERT INTO event_annotations(block_id,reason,marked_by,marked_subject,etag) VALUES('legacy','normal','operator','example-operator','legacy-etag')`); err != nil {
 		t.Fatal(err)
 	}
 	latest, err := db.Latest()

@@ -5,6 +5,13 @@
 
 
 export interface paths {
+  "/v1/audit": {
+    /**
+     * Read the newest matching administrative audit records
+     * @description Requires audit:read. Filters run in PostgreSQL before limiting; action/resource are literal case-insensitive substrings. Time bounds are from-inclusive/to-exclusive RFC3339 timestamps. Unknown/repeated parameters and invalid bounds are rejected. Old rows without a recorded immutable subject leave that field empty; no identity is inferred. has_more indicates the matching set exceeds the returned limit.
+     */
+    get: operations["listAudit"];
+  };
   "/v1/rules/staging-actions": {
     /**
      * Read durable automatic staging notices for reviewers
@@ -151,6 +158,24 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    AuditEntry: {
+      /** Format: date-time */
+      at?: string;
+      actor: string;
+      /** @description Immutable authenticated subject when recorded. */
+      subject?: string;
+      channel: string;
+      action: string;
+      resource: string;
+      request_id?: string;
+      before?: unknown;
+      after?: unknown;
+    };
+    AuditListResponse: {
+      entries: components["schemas"]["AuditEntry"][];
+      has_more: boolean;
+      limit: number;
+    };
     ServiceAccount: {
       id: string;
       etag: string;
@@ -692,6 +717,42 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /**
+   * Read the newest matching administrative audit records
+   * @description Requires audit:read. Filters run in PostgreSQL before limiting; action/resource are literal case-insensitive substrings. Time bounds are from-inclusive/to-exclusive RFC3339 timestamps. Unknown/repeated parameters and invalid bounds are rejected. Old rows without a recorded immutable subject leave that field empty; no identity is inferred. has_more indicates the matching set exceeds the returned limit.
+   */
+  listAudit: {
+    parameters: {
+      query?: {
+        limit?: number;
+        /** @description Exact display actor. */
+        actor?: string;
+        channel?: string;
+        action?: string;
+        resource?: string;
+        from?: string;
+        to?: string;
+      };
+    };
+    responses: {
+      /** @description Newest matching records; never a complete-history claim when has_more is true. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuditListResponse"];
+        };
+      };
+      /** @description Invalid filters. */
+      400: {
+        content: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Audit search unavailable; no database details returned. */
+      503: {
+        content: never;
+      };
+    };
+  };
   /**
    * Read durable automatic staging notices for reviewers
    * @description Requires policies:approve (approver or admin). Historical signed-bundle intent and rollout state, not current runtime protection or proof of node activation. Read-only; no acknowledgment or re-enforcement. Decimal strings preserve 64-bit counts and versions. Keyset pagination is independent of audit traffic. Maximum 1024-byte query; unknown/repeated parameters rejected.

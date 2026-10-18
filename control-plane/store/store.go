@@ -68,8 +68,8 @@ func writeAudit(ctx context.Context, tx pgx.Tx, a Audit) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO audit_log (actor, channel, action, resource, request_id, before, after)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`, a.Actor, a.Channel, a.Action, a.Resource, a.RequestID, before, after)
+	_, err = tx.Exec(ctx, `INSERT INTO audit_log (actor, subject, channel, action, resource, request_id, before, after)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, a.Actor, a.Subject, a.Channel, a.Action, a.Resource, a.RequestID, before, after)
 	return err
 }
 
@@ -312,21 +312,5 @@ func (s *Store) RevokeNode(ctx context.Context, id string, at time.Time, a Audit
 
 // AuditEntries returns the newest audit rows (for tests and GET /v1/audit).
 func (s *Store) AuditEntries(ctx context.Context, limit int) ([]Audit, error) {
-	rows, err := s.pool.Query(ctx, `SELECT at, actor, channel, action, resource, request_id, before, after
-		FROM audit_log ORDER BY id DESC LIMIT $1`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("store: audit: %w", err)
-	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Audit, error) {
-		var a Audit
-		var before, after []byte
-		err := r.Scan(&a.At, &a.Actor, &a.Channel, &a.Action, &a.Resource, &a.RequestID, &before, &after)
-		if before != nil {
-			a.Before = json.RawMessage(before)
-		}
-		if after != nil {
-			a.After = json.RawMessage(after)
-		}
-		return a, err
-	})
+	return s.SearchAudit(ctx, AuditFilter{Limit: limit})
 }

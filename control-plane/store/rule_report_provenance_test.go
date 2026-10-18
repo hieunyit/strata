@@ -17,8 +17,9 @@ func TestRuleFPReportProvenanceInPostgres(t *testing.T) {
 	if err := db.Migrate(ctx, p, 19); err != nil {
 		t.Fatal(err)
 	}
-	old, err := s.MarkEventFalsePositive(ctx, "legacy", "normal", "", store.Audit{Subject: "operator", Actor: "operator"})
-	if err != nil {
+	// Seed version-19 data directly; the current writer requires the current schema.
+	old := store.EventAnnotation{Etag: "legacy-etag"}
+	if _, err := p.Exec(ctx, `INSERT INTO event_annotations(block_id,reason,marked_by,marked_subject,etag) VALUES('legacy','normal','operator','operator','legacy-etag')`); err != nil {
 		t.Fatal(err)
 	}
 	latest, err := db.Latest()
