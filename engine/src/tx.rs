@@ -266,11 +266,11 @@ static EPHEMERAL_CHALLENGE_KEY: std::sync::LazyLock<[u8; 32]> = std::sync::LazyL
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(b"strata:ephemeral:challenge:key:");
-    hasher.update(&std::process::id().to_le_bytes());
+    hasher.update(std::process::id().to_le_bytes());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    hasher.update(&now.to_le_bytes());
+    hasher.update(now.to_le_bytes());
     let mut key = [0u8; 32];
     key.copy_from_slice(&hasher.finalize());
     key
