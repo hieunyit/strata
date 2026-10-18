@@ -14,6 +14,7 @@
     "policies": "Policies",
     "fleet": "Fleet",
     "users": "Users",
+    "reviews": "Reviews",
     "audit": "Audit"
   },
   "header": {
@@ -596,5 +597,26 @@
       "DONE": "Done",
       "FAILED": "Failed"
     }
+  },
+  "reviews": {
+    "title": "Policy reviews",
+    "subtitle": "Submitted versions, their exact changes and replay evidence.",
+    "refresh": "Reload review",
+    "unavailable": "Review data is unavailable. Reload before making a decision.",
+    "loading": "Loading review…",
+    "author": "Drafted by {{name}}",
+    "submitter": "Submitted by {{name}}",
+    "fourEyes": "The author and submitter cannot approve their own version. The server checks account identity.",
+    "diffBaseline": "Changes against approved/deployed policy version v{{version}}. Replay separately records the bundle it compared.",
+    "firstVersion": "No other approved version exists. Proposed settings for this version:",
+    "policy": "Policy resource ID",
+    "version": "Version",
+    "submittedBy": "Submitted by",
+    "submittedAt": "Submitted at",
+    "inspect": "Inspect version",
+    "empty": "No versions are awaiting approval.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}}/{{pages}} · {{total}} versions"
   }
 }

@@ -9,15 +9,18 @@ import { SectionTitle } from '../ui';
 // two versions, see each field of each block side by side, the changed
 // ones marked. The versions come from listPolicyVersions, which carries
 // every version's spec.
-export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onClose: () => void }> = ({
+export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onClose: () => void; fromVersion?: number; toVersion?: number; fixed?: boolean }> = ({
   name,
   versions,
   onClose,
+  fromVersion, toVersion, fixed = false,
 }) => {
   const { t } = useTranslation();
   const nums = useMemo(() => versions.map((v) => v.version ?? 0).sort((a, b) => b - a), [versions]);
-  const [to, setTo] = useState(nums[0] ?? 0);
-  const [from, setFrom] = useState(nums[1] ?? nums[0] ?? 0);
+  const [chosenTo, setTo] = useState(toVersion ?? nums[0] ?? 0);
+  const to = fixed ? toVersion ?? chosenTo : chosenTo;
+  const [chosenFrom, setFrom] = useState(fromVersion ?? nums[1] ?? nums[0] ?? 0);
+  const from = fixed ? fromVersion ?? chosenFrom : chosenFrom;
   const spec = (n: number) => versions.find((v) => v.version === n)?.spec ?? {};
   const blocks = diffSpecs(spec(from), spec(to));
   const changed = blocks.reduce((n, b) => n + b.changed, 0);
@@ -25,7 +28,7 @@ export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onC
   const pick = (id: string, value: number, set: (n: number) => void, testId: string) => (
     <label className="flex items-center gap-2 text-[13px]">
       <span className="label">{t(`diff.${id}`)}</span>
-      <select className="field" value={value} onChange={(e) => set(Number(e.target.value))} data-testid={testId}>
+      <select className="field" disabled={fixed} value={value} onChange={(e) => set(Number(e.target.value))} data-testid={testId}>
         {nums.map((n) => (
           <option key={n} value={n}>
             v{n}
@@ -39,7 +42,7 @@ export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onC
     <section className="panel" data-testid="policy-diff">
       <SectionTitle
         aside={
-          <button type="button" className="btn" onClick={onClose} data-testid="diff-close">
+          !fixed && <button type="button" className="btn" onClick={onClose} data-testid="diff-close">
             <X className="w-3.5 h-3.5" />
             {t('diff.close')}
           </button>
