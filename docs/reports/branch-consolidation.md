@@ -39,7 +39,7 @@ Không đổi budget 10 ms, fail mode, oversize, max_args hoặc hành vi rate-l
 
 ## Kiểm chứng tích hợp
 
-Đang chạy lại test/lint local trên cây kết hợp với 3 candidate rule được loại ra. Đã PASS toàn control plane và agent với -race, PostgreSQL cho CP, lint 0 issues; importer Go/race/lint và 5 test fetch integrity PASS. Rust/FFI/compiler 318 test PASS, 3 stress test có sẵn ignored; clippy/fmt PASS. Có thêm regression && PASS bằng Cargo, candidate red/green qua cùng bộ test. Differential pack không có ba candidate: 11.590 requests, 7.997 có rule khớp, 0 khác action/score/tập rule giữa reference/fast/block, PASS 352,72 giây. UI trước thao tác FP: 138 PASS; thêm FP: 144 PASS. Sau sửa key React/focus/lỗi tạo request ID: 14 test FP + exception PASS, lint/build UI PASS. Native được build lại trước mỗi lượt: NGINX 1.30.5: 595 TAP PASS/153 s; NGINX 1.31.6: 595 TAP PASS/154 s; không có ASan/UBSan report. HTTP/3 skip vì chưa cấp binary H3; LSan tắt theo harness, không gọi đây là leak/soak test. Chromium local auth/API/PostgreSQL thật: hai kịch bản PASS (14,5 s trong browser; toàn Go -race 22,888 s). Kiểm scoped exception DRAFT và một phân loại FP/audit, giữ receipt qua reload/đổi ngôn ngữ; viewer/approver gọi thẳng API đều 403. Ảnh mobile và JSON receipt ở evidence. Browser fixture dùng seeded event store, không suy thành nghiệm thu ingress/deploy. Bằng chứng sanitizer/differential tại `a71046e` là kết quả lịch sử có phạm vi SHA/pack, không ghi là vừa chạy trên bản hợp nhất.
+Kết quả chạy lại test/lint local cho #220 trên cây kết hợp với 3 candidate rule được loại ra: Đã PASS toàn control plane và agent với -race, PostgreSQL cho CP, lint 0 issues; importer Go/race/lint và 5 test fetch integrity PASS. Rust/FFI/compiler 318 test PASS, 3 stress test có sẵn ignored; clippy/fmt PASS. Có thêm regression && PASS bằng Cargo, candidate red/green qua cùng bộ test. Differential pack không có ba candidate: 11.590 requests, 7.997 có rule khớp, 0 khác action/score/tập rule giữa reference/fast/block, PASS 352,72 giây. UI trước thao tác FP: 138 PASS; thêm FP: 144 PASS. Sau sửa key React/focus/lỗi tạo request ID: 14 test FP + exception PASS, lint/build UI PASS. Native được build lại trước mỗi lượt: NGINX 1.30.5: 595 TAP PASS/153 s; NGINX 1.31.6: 595 TAP PASS/154 s; không có ASan/UBSan report. HTTP/3 skip vì chưa cấp binary H3; LSan tắt theo harness, không gọi đây là leak/soak test. Chromium local auth/API/PostgreSQL thật: hai kịch bản PASS (14,5 s trong browser; toàn Go -race 22,888 s). Kiểm scoped exception DRAFT và một phân loại FP/audit, giữ receipt qua reload/đổi ngôn ngữ; viewer/approver gọi thẳng API đều 403. Ảnh mobile và JSON receipt ở evidence. Browser fixture dùng seeded event store, không suy thành nghiệm thu ingress/deploy. Bằng chứng sanitizer/differential tại `a71046e` là kết quả lịch sử có phạm vi SHA/pack, không ghi là vừa chạy trên bản hợp nhất.
 
 ## Việc còn lại
 
@@ -61,3 +61,26 @@ Chưa kết luận mọi nhánh đạt chuẩn. Giữ nhánh có phần độc l
 Phát hiện khi tích hợp W20: cả ClickHouse Overview và widget fallback gán cứng latency 120/250/450 µs rồi báo SLA OK; MockStore còn có 120/260/480. Không nhập các số này. Bản sửa phải giữ latency absent khi chưa có telemetry và UI hiển thị thiếu dữ liệu, không gán số mẫu từ tổng sự kiện.
 
 Trong lúc thao tác, worktree W21 tự có commit mới `6550059` (không do phiên hợp nhất tạo), thay cho SHA 65d0ce2 lúc kiểm kê. Worktree đó sạch sau commit, vẫn giữ nguyên branch/ref/nội dung; commit mới là phạm vi review tiếp, chưa được nhập vào #220. Rule mới trong đó dùng ID 300011 trùng candidate header được bảo toàn ở #221; cần đối chiếu và cấp ID duy nhất trước khi nhận cả hai nguồn.
+
+## Disposition of independent prototype heads
+
+The follow-up records the following sources as superseded, preserving their commits while selecting the reviewed replacements. It does not claim the source implementations were production-ready.
+
+| Source | Selected / excluded content |
+|---|---|
+| b1927c27, 1b34970a | FP UI ported to durable generated API in #220; narrow exception draft/replay/approval replaces RAM exception approval. Old block-target UI has no accepted runtime mitigation workflow and is not presented as active protection. |
+| 44575cce | Signed M2 codec/compiler/runtime replaces wildcard/non-expiring resolver helpers. Generic override resolver remains unimplemented; unused helpers are not imported as a completed feature. |
+| 3f2e4e7e | Durable health API and M4 source guards replace RAM counters/callbacks; exact route tests preserve Fleet actions. |
+| 6d19ae96 | Explicit-version review UI, report pin and immutable approved proof replace the earlier queue. Old unpinned latest-replay approve behavior is not restored. |
+| 444f51a2 | Existing corrected virtual-patch runbook (#131) replaces the obsolete workflow. |
+| eaff8d27 | Replace false five-scenario wrapper with actual native component runner; retain a truthful game-day checklist and links to real fault chains. |
+| f4c06848 | Preserve prepared 25% observation procedure; correct metric names, Spec-vs-REST context, opt-in staging and unsupported automatic percentage changes. No rollout performed. |
+| 298eee70 | Preserve C4/guide intent, rewrite around verified main boundaries; remove invented directives/packages and absolute security/production acceptance claims. |
+| 99dc4007 | Preserve diagnostic --prefilter-sources and dated no-gain evidence; no policy behavior change. |
+| 61380252 | Four patch-equivalent commits already exist in main; no independent implementation to recover. |
+
+## Follow-up verification
+
+The compatibility native-fault entry point was executed after rebuilding each version: NGINX 1.30.5: Files=3, Tests=70, PASS (71 s); 1.31.6: Files=3, Tests=70, PASS (72 s). No skips or ASan/UBSan reports; test-hooks build, LSan disabled. This is component regression coverage, not a completed five-scenario operational Game Day. Shell syntax and relative documentation links were checked. Compiler diagnostic fmt/Clippy/release build and two-pattern prefilter execution passed; the installed header defines flag 128. An optional trailing diagnostic command failed because rg is absent in the dev image; the separate header/output checks passed. No benchmark improvement or policy change is claimed.
+
+Explicit history acknowledgement uses the ours merge strategy for the eleven sources listed above, after selecting their replacements. This deliberately keeps the reviewed tree: it does not import the RAM credentials/approval/counters, unused wildcard resolver, stale UI, fabricated game-day assertions or unsupported operational claims from those source trees. Source commits remain recoverable. Weekly feature and rate/challenge heads are excluded from this acknowledgement.
