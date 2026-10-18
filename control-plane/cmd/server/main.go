@@ -211,6 +211,12 @@ func main() {
 		go svc.CleanExpired(ctx, 10*time.Minute)
 		log.Printf("[INFO] local accounts enabled (sessions last %s)", *localTTL)
 	}
+	var machineAccounts auth.ServiceAccountStore
+	if pg != nil {
+		machineAccounts = pg
+		dispatch.ServiceAccountPrefix = auth.ServiceAccountTokenPrefix
+		dispatch.ServiceAccount = auth.NewServiceAccountAuthenticator(pg)
+	}
 	verifier := dispatch
 
 	var adminOpts []grpc.ServerOption
@@ -375,20 +381,21 @@ func main() {
 		}
 	}
 	srv := api.NewServer(api.ServerConfig{
-		Annotations:    annotations,
-		Exceptions:     exceptions,
-		Health:         health,
-		StagingNotices: notices,
-		ReplayKick:     deps.ReplayKick,
-		Addr:           *addr,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		Auth:           verifier,
-		Admin:          adm.Gateway,
-		Rules:          catalog,
-		Local:          local,
-		Audit:          auditReader(pg),
-		OIDC:           dispatch.OIDC != nil,
+		ServiceAccounts: machineAccounts,
+		Annotations:     annotations,
+		Exceptions:      exceptions,
+		Health:          health,
+		StagingNotices:  notices,
+		ReplayKick:      deps.ReplayKick,
+		Addr:            *addr,
+		ReadTimeout:     10 * time.Second,
+		WriteTimeout:    10 * time.Second,
+		Auth:            verifier,
+		Admin:           adm.Gateway,
+		Rules:           catalog,
+		Local:           local,
+		Audit:           auditReader(pg),
+		OIDC:            dispatch.OIDC != nil,
 	}, store)
 
 	allowedOrigins := map[string]bool{}
@@ -404,7 +411,7 @@ func main() {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-Match, Idempotency-Key, X-Requested-With")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
