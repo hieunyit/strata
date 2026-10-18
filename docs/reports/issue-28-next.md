@@ -1,5 +1,7 @@
 # #28: hướng tiếp theo cho body lớn (cần PO quyết)
 
+> Historical proposal from 16/10. The owner subsequently chose measurement/optimization only; the adaptive-budget proposal below is not approved or implemented. Current fail-on-findings behavior and measurements are documented in the remediation tracker. Preserving this report does not change policy or close #28.
+
 Ngày: 16/10/2026 · Người viết: Claude Code. PO giao ngày 16/10: "bạn thấy cái nào hợp lý nhất bạn làm".
 
 ## 1. Hiện trạng sau #85, #87, #99

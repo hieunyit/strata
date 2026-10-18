@@ -32,10 +32,10 @@ Không đổi budget 10 ms, fail mode, oversize, max_args hoặc hành vi rate-l
 | `6d19ae96a` | Queue UI cũ | Thay bằng generated client, explicit version, replay pin atomic và proof duyệt trong remediation. Kiểm tra phần độc lập trước dọn. |
 | `eaff8d27f` | Game day cũ | Không đạt: chạy unit test/grep và có thể zero selected tests nhưng in ALL PASSED cho outage/rate isolation. Harness thật H6 trong remediation thay thế. Không coi 5/5 giả này là Gate evidence. |
 | `444f51a2a` | Virtual-patch runbook | Bản sửa #131 dùng API/tool thật thay thế. Đối chiếu nội dung độc lập trước dọn. |
-| `f4c068481` | Canary 25% docs | Chưa đạt: JSON canary_percent/fail_on_findings và tự quarantine/rollback không đúng interface/opt-in hiện tại. Đây là kế hoạch chờ Gate, không phải quan sát 72 giờ đã chạy. |
+| `f4c068481` | Canary 25% docs | Chưa đạt: `canary_percent: 25.0` và `fail_on_findings: "block"` hợp lệ trong Spec/IR (đính chính nhận định interface ban đầu); phải phân biệt với enum JSON của REST/proto. Tuyên bố tự quarantine/hạ canary không đúng opt-in và luồng duyệt hiện tại; metric cũng cần đối chiếu tên thật. Đây là kế hoạch chờ Gate, không phải quan sát 72 giờ đã chạy. |
 | `298eee70e` | C4/audit/operations docs | Cần sửa: có directive/config/package giả định; audit suy rộng memory safety và crypto thành loại bỏ hoàn toàn rủi ro. Chọn diagram đúng, sửa guide theo code, không dùng câu kết luận thiếu chứng cứ. |
-| `61380252b` | Args-limit / args DB experiment | max_args đã có main qua commit tương đương; report khuyên không nhận prototype section10. Giữ nhận định experiment, không thêm section xung đột hoặc đổi policy để che budget. |
-| `99dc4007f` | Pattern-cost prefilter experiment #113 | Chỉ công cụ đo (không đổi enforcement), báo cáo không có gain. Review rồi nhận phần đo hữu ích; không nhận claim đóng #28. |
+| `61380252b` | Args-limit / args DB experiment | `git cherry -v main 61380252` xác nhận cả 4 commit đều patch-equivalent, kể cả report prototype; không có thay đổi độc lập cần nhập. Report khuyên không nhận prototype section10. Giữ nhận định experiment, không thêm section xung đột hoặc đổi policy để che budget. |
+| `99dc4007f` | Pattern-cost prefilter experiment #113 | Chỉ công cụ đo (không đổi enforcement), báo cáo không có gain. Nhận công cụ đo qua cherry-pick 99dc400: fmt/Clippy PASS, binary chạy thật với hai pattern và tạo DB prefilter. Header cài sẵn xác minh HS_FLAG_PREFILTER=128. Không đổi đường enforcement hay budget; giữ báo cáo cũ kèm ghi rõ đề xuất adaptive-budget chưa được duyệt, không đóng #28. |
 
 ## Kiểm chứng tích hợp
 
