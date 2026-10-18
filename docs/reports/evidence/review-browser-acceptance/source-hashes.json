@@ -1,0 +1,13 @@
+{
+  "ui_commit": "59c191a",
+  "sha256": {
+    "control-plane/api/review_browser_test.go": "8e458fc39cd97b77de8a69b9af140aa95677a01c4d5b8fdf284acb8ebefc6861",
+    "ui/tests-lab/review-queue.spec.ts": "42383a72dc02e5cd9e77c20c8a2652906455ecea7e4e1c89ef311fa02eba0888",
+    "ui/playwright.reviews.config.ts": "3298eb676557879b63ac87bf0d996762e112657709ef1e931ddde394f2a62d67",
+    "build/review-decisions-final-dist/index.html": "9254fe9aa7693031e3d9383ce9f58a87c5cb2f1fe9f91f53ee2a3e8ffa734a61",
+    "build/review-decisions-final-dist/assets/index-Bl3MUuxJ.js": "48064d6533ea01ce7d75bbc832fed86fe48e8761ee77b701813dcdf31b9f82ea",
+    "build/review-decisions-final-dist/assets/index-Ch25RMYk.css": "e5c3e767b9196c84d353c34bcf36fad93301bf000d8d6caa37979c2ef1ff2fdd",
+    "build/m4-runtime-target/release/strata-compile": "adce22e1532a10fe71e5141eb700ed792ab7a9a9ee17c14a97e96a4a2e4d058a",
+    "build/m4-runtime-target/release/strata-replay": "489a88f325acaf16c1058c136d65cd5347f273951d92a14a2eb9c6a57d114847"
+  }
+}
