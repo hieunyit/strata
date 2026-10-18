@@ -10,15 +10,29 @@ type Principal struct {
 	Subject string // the token's sub
 	Name    string // preferred_username, for audit
 	Roles   []Role
+	Scopes  []Permission // explicit scopes (e.g. service account token scopes)
 }
 
-// Can reports whether any of the caller's roles grants p.
+// Can intersects an explicit scope ceiling with the caller's role privileges.
+// Nil scopes retain ordinary session RBAC; a nonnil empty ceiling grants none.
 func (p *Principal) Can(perm Permission) bool {
 	if p == nil {
 		return false
 	}
-	for _, r := range p.Roles {
-		if r.Allows(perm) {
+	if p.Scopes != nil {
+		permitted := false
+		for _, scope := range p.Scopes {
+			if scope == perm {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			return false
+		}
+	}
+	for _, role := range p.Roles {
+		if role.Allows(perm) {
 			return true
 		}
 	}
