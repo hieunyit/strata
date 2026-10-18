@@ -35,6 +35,7 @@ import (
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/replay"
+	"github.com/strata/strata/control-plane/rulehealth"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -269,6 +270,7 @@ func main() {
 	}
 	deps := admin.Deps{Presence: presence}
 	var objects *policy.S3
+	var stagingWriter *policy.StagingDeployer
 	var rollouts *fleet.Rollouts
 	var canary *fleet.CanaryMonitor
 	if pg != nil {
@@ -302,7 +304,9 @@ func main() {
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
-				runner := &replay.Runner{Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
+				d.VerifyReplay = (replay.Gate{Store: pg}).Check
+				stagingWriter = &policy.StagingDeployer{Store: pg, Compiler: d.Builder.(*policy.Compiler), Objects: objects, PubKey: pub, VerifySource: (replay.Gate{Store: pg}).CheckStaging}
+				runner := &replay.Runner{Prepare: d.Builder.(*policy.Compiler).Prepare, Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
 					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
 					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
 				if err := runner.Init(); err != nil {
@@ -347,16 +351,44 @@ func main() {
 		log.Printf("[INFO] rule catalog: %d rules", catalog.Len())
 	}
 
+	var annotations api.EventAnnotationStore
+	var exceptions api.ExceptionPolicyStore
+	var health api.HealthReader
+	var notices api.StagingNoticeReader
+	if pg != nil {
+		annotations = pg
+		notices = pg
+		exceptions = pg
+		contextAge := ingest.MaxEventAge
+		if *ttlDays > 0 && *ttlDays < int(ingest.MaxEventAge/(24*time.Hour)) {
+			contextAge = time.Duration(*ttlDays) * 24 * time.Hour
+		}
+		go (rulehealth.ContextRetention{Store: pg, MaxAge: contextAge}).Run(ctx)
+		if source, ok := store.(rulehealth.EventReader); ok {
+			service := rulehealth.NewService(source, pg)
+			health = service
+			if stagingWriter != nil {
+				stagingWriter.Observe = service.Observe
+				worker := &rulehealth.StagingWorker{Store: pg, Writer: stagingWriter, Evaluate: service.Evaluate, Publish: rollouts.StartStaging}
+				go worker.Run(ctx)
+			}
+		}
+	}
 	srv := api.NewServer(api.ServerConfig{
-		Addr:         *addr,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		Auth:         verifier,
-		Admin:        adm.Gateway,
-		Rules:        catalog,
-		Local:        local,
-		Audit:        pg,
-		OIDC:         dispatch.OIDC != nil,
+		Annotations:    annotations,
+		Exceptions:     exceptions,
+		Health:         health,
+		StagingNotices: notices,
+		ReplayKick:     deps.ReplayKick,
+		Addr:           *addr,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		Auth:           verifier,
+		Admin:          adm.Gateway,
+		Rules:          catalog,
+		Local:          local,
+		Audit:          auditReader(pg),
+		OIDC:           dispatch.OIDC != nil,
 	}, store)
 
 	allowedOrigins := map[string]bool{}
@@ -406,6 +438,9 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
+		if pg != nil {
+			ingestSvc.Gate = pg
+		}
 		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
 		// requests per policy from the heartbeats (RV-N-01)
 		if sink, ok := store.(fleet.PolicyRequestsSink); ok {
@@ -416,6 +451,9 @@ func main() {
 			fcfg.Objects = objects
 			// replay samples from the nodes, as sample files (W12-N-01)
 			samples := replay.NewCollector(&replay.Store{Objects: objects})
+			if pg != nil {
+				samples.Authorize = pg.ReplaySampleScope
+			}
 			fcfg.Samples = samples
 			go samples.Run(ctx)
 		}
@@ -451,6 +489,7 @@ func main() {
 		if pg != nil {
 			src.Enrolled, src.Active = pg.EnrolledNodes, pg.ActiveRollouts
 			src.CanaryTrips, src.OpenTrips = canary.Trips, pg.OpenCanaryTrips
+			src.CanarySourceSaturations = canary.SourceSaturations
 		}
 		if ingestSvc != nil {
 			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors
@@ -488,6 +527,13 @@ func main() {
 	log.Println("[INFO] Server stopped")
 }
 
+func auditReader(pg *store.Store) api.AuditStore {
+	if pg == nil {
+		return nil
+	}
+	return pg
+}
+
 // connectS3 connects to the bundle bucket, waiting for it to come up.
 func connectS3(ctx context.Context, cfg policy.S3Config) *policy.S3 {
 	sctx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -517,7 +563,7 @@ func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer
 	log.Printf("[INFO] Deploys: %s, %d rule files", bin, len(ruleFiles))
 	return &policy.Deployer{
 		Store: pg,
-		Builder: &policy.Compiler{Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
+		Builder: &policy.Compiler{StagingStore: pg, Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
 			SupportContact: contact, CostBudget: budget,
 			// P-01 §1: from a secret manager, or kept by the control plane
 			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key},

@@ -177,6 +177,9 @@ main(int argc, char **argv)
     free(bad);
 
     e = strata_engine_map(bundle, bundle_len, pubkey, &err);
+    CHECK(strata_engine_prepare_thread(NULL) == STRATA_E_INVALID);
+    CHECK(strata_engine_prepare_thread(e) == STRATA_OK);
+    CHECK(strata_engine_prepare_thread(e) == STRATA_OK);
     CHECK(e != NULL && err.code == STRATA_OK);
 
     strata_engine_info(e, &info);

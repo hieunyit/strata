@@ -1,0 +1,15 @@
+{
+  "base_commit": "17c9711dfc9e20a8a43a00976d1376fc1fe39174",
+  "baseline_eval_sha256": "2ce72413b0523ae4b62d408a8dd61c28e23772ae09ebcd488e258c38754e978b",
+  "final_source_and_artifacts_sha256": {
+    "engine/src/eval.rs": "cf892c0745dc0da25f788baaddfa6f68b3dbbad8fb76a39e360043d11df312a9",
+    "engine/compiler/tests/repeated_values.rs": "62df19b7e53461d16aea4f39b3b8d988c3eac4c60601a667ccd558079a7d2a92",
+    "build/h2-intern-before-bench": "fa905993e74e668608bec601c45b54e214be60b9bfe5a3b9d9883339ef7f2e04",
+    "build/h2-json-after-bench": "d7eba69b96a149314f175b8cf2d6efb982c8503cb1260dba1251895ba19a4b1f",
+    "build/current-pack/header-v4.sbn": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a",
+    "connectors/nginx/t/fixtures/bundle.pub": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e"
+  },
+  "bundle_rules": 9067,
+  "scope": "engine-only, synthetic workloads, test-key signed candidate bundle; no policy changes",
+  "frozen_source": true
+}

@@ -1,0 +1,6 @@
+{
+  "scope": "offline diagnostic C ABI; unlimited budget and 100% rule-cost sampling, not proxy latency",
+  "source_sha256": "28ef494349fce782fa1656b271ddc4635edf71b7a8b01a5b1a91bb51bdded40b",
+  "baseline": "a37d576",
+  "bundle_sha256": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a"
+}

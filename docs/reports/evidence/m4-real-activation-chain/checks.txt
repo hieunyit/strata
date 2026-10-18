@@ -1,0 +1,139 @@
+Build real replay binary
+   Compiling libc v0.2.190
+   Compiling find-msvc-tools v0.1.14
+   Compiling libm v0.2.16
+   Compiling shlex v2.0.1
+   Compiling num-traits v0.2.19
+   Compiling pkg-config v0.3.34
+   Compiling jobserver v0.1.35
+   Compiling cc v1.8.0
+   Compiling zstd-sys v2.1.1+zstd.1.5.7
+   Compiling zerocopy v0.8.62
+   Compiling zerocopy-derive v0.8.62
+   Compiling serde_core v1.0.229
+   Compiling zstd-safe v8.1.0
+   Compiling ahash v0.8.12
+   Compiling getrandom v0.3.4
+   Compiling num-integer v0.1.47
+   Compiling syn v3.0.7
+   Compiling serde_json v1.0.151
+   Compiling iana-time-zone v0.1.65
+   Compiling serde v1.0.229
+   Compiling chrono v0.4.45
+   Compiling serde_derive v1.0.229
+   Compiling num-bigint v0.5.1
+   Compiling half v2.7.1
+   Compiling bytes v1.12.1
+   Compiling hashbrown v0.17.1
+   Compiling seq-macro v0.3.6
+   Compiling twox-hash v2.1.5
+   Compiling libstrata v0.1.0 (/src/engine)
+   Compiling zstd v0.14.2
+   Compiling parquet v60.0.0
+   Compiling strata-replay v0.1.0 (/src/engine/replay)
+    Finished `release` profile [optimized + debuginfo] target(s) in 3m 24s
+
+
+Initial corpus fixture failure
+=== RUN   TestAutomaticStagingInRealNginx
+2026/10/17 14:43:45 [INFO] fleet: node node-fxncsgeej3jmz7sp enrolled in group lab (certificate 466e56bceb209d78a0b56df1c82cb6a0, until 2026-10-18T14:43:45Z)
+2026/10/17 14:43:47 [INFO] replay: op-9df0a5242e4a43ea8b675a92 (policy example-api version 1): 4300 samples in 102 ms
+    automatic_staging_test.go:316: real proof: {InputDigest:10b47cc92e09821d3accf40677744a3d21ca1a5a17ee8a069058e8e5c74e4fb9 DraftSHA256:750b5dfb4e2e09c2eda744fb3731963b0dc10f1390ed63dfaaf623391fa9e702 BaselineSHA256:3106be4d6274a5374c301c12bd19a3717210c52593d1e1aba2f9dfa6c3c0140c ReplaySHA256:489a88f325acaf16c1058c136d65cd5347f273951d92a14a2eb9c6a57d114847 SampleSHA256:[3ae8fdd786fc11ec425512d56e75f4946a5147f5ba2ccd7c39db9a42af31d410] ElapsedMs:102 BaselineBundle:0 SampleFiles:0 SampleBytes:0 Truncated:false Traffic:<nil> Corpus:0xc000c0e180} <nil>
+--- FAIL: TestAutomaticStagingInRealNginx (20.47s)
+FAIL
+exit status 1
+FAIL	github.com/strata/strata/tests/e2e	20.630s
+
+
+Initial socket fixture failure
+=== RUN   TestAutomaticStagingInRealNginx
+2026/10/17 14:46:21 [INFO] fleet: node node-wrw6qujsog6pndon enrolled in group lab (certificate 5a51582b2045fbfb102b53620e331eac, until 2026-10-18T14:46:21Z)
+2026/10/17 14:46:23 [INFO] replay: op-7366fd5366418bdb4554f8b4 (policy example-api version 1): 4300 samples in 131 ms
+2026/10/17 14:46:24 [INFO] fleet: rollout 1 of bundle 1: waves [1] over 1 nodes
+2026/10/17 14:46:24 [INFO] fleet: node node-wrw6qujsog6pndon bundle 1 DOWNLOADING
+2026/10/17 14:46:24 [INFO] fleet: node node-wrw6qujsog6pndon bundle 1 VERIFIED
+2026/10/17 14:46:26 [INFO] fleet: node node-wrw6qujsog6pndon bundle 1 ACTIVE
+2026/10/17 14:46:26 [INFO] fleet: rollout 1 of bundle 1 done
+    automatic_staging_test.go:331: native listener: not within 10s
+    automatic_staging_test.go:267: NGINX: exit status 1
+--- FAIL: TestAutomaticStagingInRealNginx (31.41s)
+FAIL
+exit status 1
+FAIL	github.com/strata/strata/tests/e2e	31.604s
+
+
+Missing private schema fixture failure
+=== RUN   TestAutomaticStagingInRealNginx
+2026/10/17 14:48:33 [INFO] fleet: node node-gfadq6cq3m2ffujo enrolled in group lab (certificate 15a6d13d77972bb2dcb0c3d0fa87ff, until 2026-10-18T14:48:33Z)
+2026/10/17 14:48:35 [INFO] replay: op-75bb3459c27341a7f487a085 (policy example-api version 1): 4300 samples in 124 ms
+2026/10/17 14:48:35 [INFO] fleet: rollout 1 of bundle 1: waves [1] over 1 nodes
+2026/10/17 14:48:35 [INFO] fleet: node node-gfadq6cq3m2ffujo bundle 1 DOWNLOADING
+2026/10/17 14:48:35 [INFO] fleet: node node-gfadq6cq3m2ffujo bundle 1 VERIFIED
+2026/10/17 14:48:37 [INFO] fleet: node node-gfadq6cq3m2ffujo bundle 1 ACTIVE
+2026/10/17 14:48:37 [INFO] fleet: rollout 1 of bundle 1 done
+2026/10/17 14:48:48 [INFO] fleet: node node-gfadq6cq3m2ffujo bundle 1 ACTIVE
+    automatic_staging_test.go:364: 100 actual matched events through socket/agent/mTLS/ClickHouse: not within 30s
+--- FAIL: TestAutomaticStagingInRealNginx (52.75s)
+FAIL
+exit status 1
+FAIL	github.com/strata/strata/tests/e2e	52.923s
+
+
+Final 1.30.5
+=== RUN   TestAutomaticStagingInRealNginx
+2026/10/17 14:52:25 [INFO] fleet: node node-lzzz5h2otjogaln2 enrolled in group lab (certificate 7770ded3e30a2fecdb8b58572d163e66, until 2026-10-18T14:52:25Z)
+2026/10/17 14:52:27 [INFO] replay: op-265ed928df4f6494d0357693 (policy example-api version 1): 4300 samples in 141 ms
+2026/10/17 14:52:28 [INFO] fleet: rollout 1 of bundle 1: waves [1] over 1 nodes
+2026/10/17 14:52:28 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 1 DOWNLOADING
+2026/10/17 14:52:28 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 1 VERIFIED
+2026/10/17 14:52:30 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 1 ACTIVE
+2026/10/17 14:52:30 [INFO] fleet: rollout 1 of bundle 1 done
+2026/10/17 14:52:41 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 1 ACTIVE
+2026/10/17 14:52:42 [INFO] rule-health: staging recorded action=7deb2c7f339dcd26a47b1cf6b7b1158fc0799ead21e899e77a0e9d841c272539 source=1 bundle=2 rule=700011
+2026/10/17 14:52:42 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 2 DOWNLOADING
+2026/10/17 14:52:42 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 2 VERIFIED
+2026/10/17 14:52:43 [INFO] fleet: node node-lzzz5h2otjogaln2 bundle 2 ACTIVE
+2026/10/17 14:52:43 [INFO] fleet: rollout 2 of bundle 2 done
+    automatic_staging_test.go:469: PASS real FP → signed hot reload: 11.079373795s, SQLi 403/block → 200/log/EVT; XSS stays 403/block; real metrics ACK and reviewer notice
+--- PASS: TestAutomaticStagingInRealNginx (39.95s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	41.246s
+
+
+Final 1.31.6 plus full e2e lint
+=== RUN   TestAutomaticStagingInRealNginx
+2026/10/17 14:55:27 [INFO] fleet: node node-lecgko7kcnzrndza enrolled in group lab (certificate 3ead1df53a47c8a91c19be281fd709c, until 2026-10-18T14:55:27Z)
+2026/10/17 14:55:29 [INFO] replay: op-cf434e63634bfec16fd423b9 (policy example-api version 1): 4300 samples in 101 ms
+2026/10/17 14:55:30 [INFO] fleet: rollout 1 of bundle 1: waves [1] over 1 nodes
+2026/10/17 14:55:30 [INFO] fleet: node node-lecgko7kcnzrndza bundle 1 DOWNLOADING
+2026/10/17 14:55:30 [INFO] fleet: node node-lecgko7kcnzrndza bundle 1 VERIFIED
+2026/10/17 14:55:32 [INFO] fleet: node node-lecgko7kcnzrndza bundle 1 ACTIVE
+2026/10/17 14:55:32 [INFO] fleet: rollout 1 of bundle 1 done
+2026/10/17 14:55:43 [INFO] fleet: node node-lecgko7kcnzrndza bundle 1 ACTIVE
+2026/10/17 14:55:44 [INFO] rule-health: staging recorded action=7deb2c7f339dcd26a47b1cf6b7b1158fc0799ead21e899e77a0e9d841c272539 source=1 bundle=2 rule=700011
+2026/10/17 14:55:44 [INFO] fleet: node node-lecgko7kcnzrndza bundle 2 DOWNLOADING
+2026/10/17 14:55:44 [INFO] fleet: node node-lecgko7kcnzrndza bundle 2 VERIFIED
+2026/10/17 14:55:45 [INFO] fleet: node node-lecgko7kcnzrndza bundle 2 ACTIVE
+2026/10/17 14:55:45 [INFO] fleet: rollout 2 of bundle 2 done
+    automatic_staging_test.go:469: PASS real FP → signed hot reload: 11.906453312s, SQLi 403/block → 200/log/EVT; XSS stays 403/block; real metrics ACK and reviewer notice
+--- PASS: TestAutomaticStagingInRealNginx (39.84s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	41.134s
+0 issues.
+
+
+Old migration inventory assertion
+=== RUN   TestMigrationsUpDownOnEmptyDatabase
+    migrations_test.go:91: tables after up: [audit_log bundles canary_trips connector_groups disabled_rules enrollment_tokens event_annotation_requests event_annotations ingest_sequences local_sessions local_users node_commands nodes operations policies policy_edit_requests policy_versions replay_sampling role_bindings rollout_nodes rollouts rule_annotation_context rule_staging_actions secrets service_accounts]
+--- FAIL: TestMigrationsUpDownOnEmptyDatabase (6.14s)
+FAIL
+exit status 1
+FAIL	github.com/strata/strata/tests/e2e	6.293s
+
+
+Updated exact inventory + rollback checks
+=== RUN   TestMigrationsUpDownOnEmptyDatabase
+--- PASS: TestMigrationsUpDownOnEmptyDatabase (6.89s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	8.056s
+0 issues.

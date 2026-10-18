@@ -876,16 +876,28 @@ impl Prefilter {
         v
     }
 
-    /// Conditions of the rules evaluated on every request (not gated):
-    /// their fallback regexes are needed by the first request already.
-    pub fn ungated_conditions<'t>(
+    /// Conditions needed without a selective input gate. A method-only
+    /// gate is common traffic too: GET must not compile its secondary
+    /// regexes on the first request after a worker starts.
+    pub fn startup_conditions<'t>(
         &'t self,
         tables: &'t Tables<'_>,
     ) -> impl Iterator<Item = u32> + 't {
-        self.stages
+        self.rule_gate
             .iter()
-            .flat_map(|(ungated, _)| ungated.iter())
-            .filter_map(|&ri| tables.rule(ri as usize))
+            .enumerate()
+            .filter(|(_, gate)| match gate {
+                Gate::None => true,
+                Gate::One(ci) => tables.cond(*ci).is_some_and(|c| {
+                    (c.target_first..c.target_first + c.target_count).all(|ti| {
+                        tables
+                            .target(ti)
+                            .is_some_and(|t| t.var == const { var("method") })
+                    })
+                }),
+                Gate::AnyOf => false,
+            })
+            .filter_map(|(ri, _)| tables.rule(ri))
             .flat_map(|r| r.cond_first..r.cond_first + r.cond_count)
     }
 
@@ -998,6 +1010,12 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
     tsets.sort_unstable();
     tsets.dedup();
     let mut vals: Vec<&[u8]> = vec![];
+    // Repeated JSON values can share transformations as well as scans.
+    // Keep every address in Pass for later field-specific evaluation. Other
+    // workloads keep the address-only path: hashing unique values adds work.
+    let mut by_bytes: Option<HashMap<&[u8], u32>> = (d.processor == b"JSON"
+        && !d.req.body.is_empty())
+    .then(|| HashMap::with_hasher(ctx.operators.content_hasher.clone()));
     // the values of each target the sets read, as value indexes
     let mut target_vals: Vec<Option<Vec<u32>>> = vec![None; pf.targets.len()];
     let mut tset_vals: Vec<(u32, Vec<u32>)> = Vec::with_capacity(tsets.len());
@@ -1020,7 +1038,11 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
                             .pass
                             .index
                             .entry((v.val.as_ptr() as usize, v.val.len()))
-                            .or_insert(next);
+                            .or_insert_with(|| {
+                                by_bytes
+                                    .as_mut()
+                                    .map_or(next, |cache| *cache.entry(v.val).or_insert(next))
+                            });
                         if vi == next {
                             vals.push(v.val);
                             need.resize(need.len() + n_nodes, false);
@@ -1041,6 +1063,7 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
         }
         tset_vals.push((ts, idxs));
     }
+    drop(by_bytes);
     ctx.pass.slot = vec![NOT_SCANNED; vals.len() * n_nodes];
 
     // value by value, node by node (a parent before its children)
@@ -1269,6 +1292,10 @@ fn may_match(
     }
 }
 
+// Raw request bytes are hostile keys. Keep the keyed standard hasher here;
+// FastBuildHasher is reserved for internally generated pointer/index keys.
+type ContentScans = HashMap<Box<[u8]>, Vec<u32>>;
+
 struct Ctx<'t, 'b, 'a> {
     engine_id: u64,
     tables: &'t Tables<'b>,
@@ -1278,7 +1305,8 @@ struct Ctx<'t, 'b, 'a> {
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
     /// transformed values (owned) -> conditions matched by the scan
-    scans_by_bytes: HashMap<Box<[u8]>, Vec<u32>, FastBuildHasher>,
+    scans_by_bytes: ContentScans,
+    active_exceptions: Vec<&'t crate::exceptions::Exception>,
     /// per scan group of the prefilter: the gates that hold, once computed
     groups: Vec<Option<Vec<u32>>>,
     /// #28: what the prefilter scanned, value by value
@@ -1646,6 +1674,7 @@ fn condition(
     ctx: &mut Ctx<'_, '_, '_>,
     d: &Data<'_>,
     ci: u32,
+    rule_id: u32,
     c: &CondView<'_>,
     prev: &Matched,
     mut collect: Option<&mut Matched>,
@@ -1702,7 +1731,7 @@ fn condition(
         // values of matched_vars are owned by the previous condition: their
         // addresses are not stable keys for the scan cache
         let from_prev = t.var == const { var("matched_vars") };
-        let vals = if from_prev {
+        let mut vals = if from_prev {
             TargetVals::Many(
                 prev.iter()
                     .map(|v| TargetVal {
@@ -1714,6 +1743,50 @@ fn condition(
         } else {
             values(d, &t, &excluded)
         };
+        let namespace =
+            if t.var == var("args") || t.var == var("args_get") || t.var == var("args_post") {
+                "ARGS"
+            } else if t.var == var("request_headers") {
+                "REQUEST_HEADERS"
+            } else {
+                ""
+            };
+        if !namespace.is_empty()
+            && ctx.active_exceptions.iter().any(|e| e.rule_id == rule_id)
+            && let TargetVals::Many(ref mut values) = vals
+        {
+            values.retain(|value| {
+                if ctx.budget_exceeded {
+                    return true;
+                }
+                if ctx
+                    .budget
+                    .as_mut()
+                    .is_some_and(|budget| budget.check_cheap().is_err())
+                {
+                    ctx.budget_exceeded = true;
+                    return true;
+                }
+                let Some(name) = value.name else { return true };
+                // Only decoder-owned names are aliases. A real parameter named
+                // "Name|base64" is a different field from decoded "Name".
+                let name = if namespace == "ARGS"
+                    && d.b64_args
+                        .iter()
+                        .any(|(key, _)| key.as_ptr() == name.as_ptr() && key.len() == name.len())
+                {
+                    crate::b64::base_name(name)
+                } else {
+                    name
+                };
+                !ctx.active_exceptions
+                    .iter()
+                    .any(|e| e.rule_id == rule_id && e.matches_field(namespace, name))
+            });
+        }
+        if ctx.budget_exceeded {
+            return Outcome::Match(false, None);
+        }
         if numeric && t.count {
             // a count always has a value
             if compare(op, vals.len() as i64, y) != neg {
@@ -2003,7 +2076,7 @@ fn rule_matches(
             });
         let mut kept = Matched::new();
         let collect = if next_reads { Some(&mut kept) } else { None };
-        match condition(ctx, d, ci, &c, &prev, collect) {
+        match condition(ctx, d, ci, r.id, &c, &prev, collect) {
             Outcome::Unsupported => return None,
             Outcome::Match(m, cand) => {
                 if ctx.budget_exceeded {
@@ -2078,6 +2151,7 @@ pub fn evaluate(
         true,
         &[],
         None,
+        None,
         report,
     );
 }
@@ -2113,6 +2187,7 @@ pub fn evaluate_with_budget(
     degraded: bool,
     signatures: bool,
     disabled: &[u32],
+    exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
     mut budget: Option<&mut crate::budget::TxBudget>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), crate::budget::BudgetExceeded> {
@@ -2267,6 +2342,30 @@ pub fn evaluate_with_budget(
             .map(|b| MappedDb::assume_valid_with_id(b.image, db.id() | BLOCK_DB_ID));
         (map, db, block)
     });
+    let active_exceptions = exception_policy.map_or_else(Vec::new, |(index, entries)| {
+        if entries.is_empty() {
+            return vec![];
+        }
+        let mut hosts = req
+            .headers
+            .iter()
+            .filter(|(name, _)| name.eq_ignore_ascii_case(b"Host"));
+        let Some((_, host)) = hosts.next() else {
+            return vec![];
+        };
+        if hosts.next().is_some() {
+            return vec![];
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .and_then(|d| u64::try_from(d.as_millis()).ok())
+            .unwrap_or(0);
+        entries
+            .iter()
+            .filter(|e| e.matches_scope(index, req.method, host, req.uri, now))
+            .collect()
+    });
     let mut ctx = Ctx {
         engine_id,
         tables,
@@ -2274,7 +2373,8 @@ pub fn evaluate_with_budget(
         operators,
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
-        scans_by_bytes: HashMap::with_hasher(FastBuildHasher::default()),
+        scans_by_bytes: ContentScans::with_hasher(operators.content_hasher.clone()),
+        active_exceptions,
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
         pass: Pass::default(),
         budget,
@@ -2374,6 +2474,31 @@ pub fn evaluate_with_budget(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn raw_content_hash_resists_repeated_xor_pairs() {
+        use std::hash::BuildHasher;
+        // Equal-length inputs whose differing bytes are 64 apart collide under
+        // rotate-left(5) XOR. A hostile body can supply all 1024 distinct values.
+        let operators = crate::operators::CompiledOperators::default();
+        let cache = super::ContentScans::with_hasher(operators.content_hasher.clone());
+        let mut hashes = std::collections::HashSet::new();
+        for mask in 0..1024u16 {
+            let mut value = vec![b'a'; 128];
+            for bit in 0..10 {
+                if mask & (1 << bit) != 0 {
+                    value[bit] ^= 1;
+                    value[bit + 64] ^= 1;
+                }
+            }
+            hashes.insert(cache.hasher().hash_one(value.as_slice()));
+        }
+        assert!(
+            hashes.len() >= 1000,
+            "only {} hash values for 1024 hostile keys",
+            hashes.len()
+        );
+    }
+
     use super::*;
 
     #[test]

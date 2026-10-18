@@ -1,0 +1,3 @@
+ok  	github.com/strata/strata/control-plane/admin	4.971s
+ok  	github.com/strata/strata/control-plane/policy	1.978s
+0 issues.

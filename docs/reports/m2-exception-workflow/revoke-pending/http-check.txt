@@ -1,0 +1,2 @@
+{"valid_measurement": true, "measured_pairs": 3, "measured_http_attempts": 6, "proxy_status_counts": {"200": 2, "403": 1}, "classifications": {"backend_sql_oracle_reached": 1, "signature_block": 1, "benign_pass": 1}}
+exception HTTP assertions PASS; expected=exempt; no sanitizer reports

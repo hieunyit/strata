@@ -46,6 +46,12 @@ message ReplayReport {
   // absent without traffic samples, and without a corpus
   ReplayComparison traffic = 7;
   ReplayComparison corpus = 8;
+  // SHA-256 of the prepared compiler inputs and exact compared artifacts.
+  string input_digest = 9;
+  string draft_sha256 = 10;
+  string baseline_sha256 = 11;
+  string replay_sha256 = 12;
+  repeated string sample_sha256 = 13;
 }
 
 message ReplayComparison {

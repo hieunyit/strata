@@ -145,6 +145,17 @@ jobs:
           deploy/dev/run.sh sh -c 'make crs-import crs-inventory crs-ftw'
           git diff --exit-code -- rules/crs docs/crs-import-report.md docs/crs-inventory.csv corpus/crs-ftw docs/crs-ftw-unconverted.md
 
+      - name: Restore pinned signature archives
+        uses: actions/cache@v4
+        with:
+          path: build/signatures/cache
+          key: signatures-${{ hashFiles('tools/strata-import-signatures/sources.lock') }}
+
+      - name: Signature fetch integrity and failure propagation
+        run: deploy/dev/run.sh python3 tools/strata-import-signatures/test-fetch.py
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
       - name: rules/sigma, rules/et-open, rules/bots are generated from the pinned sources
         run: |
           deploy/dev/run.sh make signatures-import
@@ -283,7 +294,9 @@ jobs:
 
       - name: C connector within its line budget (CLAUDE.md)
         if: matrix.nginx == '1.30.5'
-        run: connectors/nginx/scripts/count-lines.sh 3000
+        run: deploy/dev/run.sh make check-c-lines
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
 
       - name: clang-tidy (bugprone, cert, clang-analyzer; .clang-tidy)
         run: deploy/dev/run.sh make clang-tidy NGINX_VERSION=${{ matrix.nginx }}

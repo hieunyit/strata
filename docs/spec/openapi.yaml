@@ -7,6 +7,88 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login.'
 paths:
+  /v1/rules/staging-actions:
+    get:
+      operationId: listRuleStagingNotices
+      summary: Read durable automatic staging notices for reviewers
+      description: Requires policies:approve (approver or admin). Historical signed-bundle intent and rollout state, not current runtime protection or proof of node activation. Read-only; no acknowledgment or re-enforcement. Decimal strings preserve 64-bit counts and versions. Keyset pagination is independent of audit traffic. Maximum 1024-byte query; unknown/repeated parameters rejected.
+      parameters:
+      - name: limit
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      - name: cursor
+        in: query
+        schema: {type: string, minLength: 1, maxLength: 512}
+      responses:
+        '200':
+          description: Durable notices with Cache-Control no-store.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleStagingNoticePage'}
+        '400': {description: Invalid cursor, limit or query parameters.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Optional durable store is not configured.}
+        '405': {description: GET required.}
+        '503': {description: Durable notices unavailable; no database details returned.}
+  /v1/rules/{rule_id}/health:
+    get:
+      operationId: getRuleHealth
+      summary: Read observed rule telemetry
+      description: Requires events:read and both ClickHouse and PostgreSQL. Read-only; no quarantine or enforcement changes. Counts deduplicated events containing the rule and human-reported FP events containing it, which does not attribute blame to an individual rule. Cost covers only top-eight timings received in sampled security events, not all traffic. Unknown/empty telemetry is insufficient, not healthy. Each replica permits four concurrent queries with a shared five-second deadline. Query string at most 2048 bytes; unknown/repeated parameters and malformed URL encoding are rejected.
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+      - name: policy_id
+        in: query
+        description: Empty or omitted means all policies.
+        schema: {type: string, maxLength: 55, pattern: '^[a-z0-9._-]{0,55}$'}
+      - name: from
+        in: query
+        description: Inclusive RFC3339 boundary; default five minutes before to. Window must be positive and at most 24 hours.
+        schema: {type: string, format: date-time}
+      - name: to
+        in: query
+        description: Exclusive RFC3339 boundary; default now.
+        schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Observations returned with Cache-Control no-store; status describes data consistency, not protection health.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleHealth'}
+        '400': {description: Invalid rule ID, timestamp, window or query parameters.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Optional telemetry service is not configured.}
+        '405': {description: GET required.}
+        '503':
+          description: Telemetry source unavailable or query capacity reached; busy responses include Retry-After 1. Errors are not returned as zero counts.
+  /v1/exceptions:fromBlockId:
+    post:
+      operationId: createExceptionFromBlock
+      summary: Create a policy exception draft from a blocked event
+      description: Requires exceptions:write. Select the exact recorded Rule ID and field; method, Host, path and policy are derived from the stored event. Only managed rules and unambiguous ARGS or REQUEST_HEADERS fields are accepted. TTL is mandatory. Draft, audit, idempotent response and replay queue commit together. Creation does not activate the exception; use the returned policy version in the normal submit/four-eyes/deploy flow. Retry with identical request_id and body returns the original draft even after event retention. Duplicate active scope and decoder alias fields are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionFromBlockRequest'}
+      responses:
+        '200':
+          description: Draft and replay queue persisted; original response on retry.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ExceptionDraftResponse'}
+        '400': {description: Invalid, missing or excessive input.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Event or policy not found.}
+        '405': {description: POST required.}
+        '409': {description: Stale etag, reused request_id, duplicate active scope, unmanaged rule or ambiguous/mismatched field.}
+        '503': {description: Durable store or replay runner unavailable.}
   /v1/events/{block_id}:
     get:
       summary: Get Event by Block ID
@@ -49,6 +131,50 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/events/{block_id}:markFalsePositive:
+    post:
+      summary: Mark an event as a false positive
+      description: Requires exceptions:write and durable PostgreSQL annotations. Creation uses an empty etag; editing requires the current annotation etag. request_id makes retries idempotent per authenticated subject. Classification does not change enforcement.
+      operationId: markFalsePositive
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
+                request_id: {type: string, maxLength: 128}
+                etag: {type: string}
+      responses:
+        '200':
+          description: Annotation and audit persisted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [block_id, false_positive, reason, marked_by, marked_at, etag]
+                properties:
+                  block_id: {type: string}
+                  false_positive: {type: boolean}
+                  reason: {type: string}
+                  marked_by: {type: string}
+                  marked_at: {type: string, format: date-time}
+                  etag: {type: string}
+        '400': {description: Invalid body or reused request_id with different content.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Event not found.}
+        '405': {description: POST required.}
+        '409': {description: Annotation etag changed.}
+        '503': {description: Durable store unavailable or not configured.}
   /v1/events:search:
     post:
       summary: Search Security Events
@@ -88,7 +214,7 @@ paths:
       summary: Overview Statistics
       description: 'Events of a window by time bucket and action, totals, top rules, top routes and, for callers who
         may read full client IPs, top clients (W10-F-01). Needs events:read; top_clients is left out without
-        events:read_sensitive. Counts are rows: an event the agent resent counts twice until ClickHouse merges it away.'
+        events:read_sensitive. Event queries collapse retries with the same block_id and timestamp before counting.'
       operationId: getOverview
       parameters:
       - name: from
@@ -388,6 +514,96 @@ paths:
           $ref: '#/components/responses/Forbidden'
 components:
   schemas:
+    RuleStagingNoticePage:
+      type: object
+      required: [notices, next_cursor]
+      properties:
+        notices:
+          type: array
+          maxItems: 50
+          items: {$ref: '#/components/schemas/RuleStagingNotice'}
+        next_cursor: {type: string, description: Empty means end of history.}
+    RuleStagingNotice:
+      type: object
+      required: [id, policy_id, policy_name, policy_version, rule_id, source_bundle, bundle_version, matches, reports, window_from, window_to, created_at, rollout_id, rollout_state]
+      properties:
+        id: {type: string, maxLength: 128}
+        policy_id: {type: string}
+        policy_name: {type: string}
+        policy_version: {type: integer, minimum: 1}
+        rule_id: {type: integer, minimum: 1, maximum: 4294967295}
+        source_bundle: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        bundle_version: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        matches: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        reports: {type: string, pattern: '^[0-9]+$', maxLength: 20}
+        window_from: {type: string, format: date-time}
+        window_to: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        rollout_id: {type: string, description: Empty before rollout creation.}
+        rollout_state:
+          type: string
+          enum: [PENDING, RUNNING, PAUSED, FAILED, DONE, ABORTED]
+          description: Publication history only. DONE is not a claim of current runtime protection.
+    RuleHealth:
+      type: object
+      required: [rule_id, from, to, status, matched_events, reported_fp_events, reported_fp_share, cost_source, cost_samples, cost_total_ns, cost_mean_ns]
+      properties:
+        rule_id: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+        policy_id: {type: string}
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        status: {type: string, enum: [observing, insufficient_telemetry, inconsistent_snapshot]}
+        matched_events: {type: integer, format: int64, minimum: 0}
+        reported_fp_events:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Annotated FP events containing this rule; multi-rule events do not prove this rule caused the FP. Legacy annotations lacking source snapshots are not counted.
+        reported_fp_share:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Reported FP events divided by matched events; null for no matches or inconsistent snapshots. Not a ground-truth FP rate.
+        cost_source: {type: string, enum: [sampled_security_events_top8]}
+        cost_samples: {type: string, pattern: '^[0-9]+$', description: Exact observed sample sum as a decimal string.}
+        cost_total_ns: {type: string, pattern: '^[0-9]+$', description: Exact observed nanosecond sum as a decimal string.}
+        cost_mean_ns: {type: number, nullable: true, minimum: 0, description: Approximate mean in the received top-eight event samples; null when no samples were received.}
+    ExceptionFromBlockRequest:
+      type: object
+      additionalProperties: false
+      required: [block_id, rule_id, field, reason, ttl_seconds, etag, request_id]
+      properties:
+        block_id: {type: string, pattern: '^STR-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$'}
+        rule_id: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+        field: {type: string, minLength: 1, maxLength: 160}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        ttl_seconds: {type: integer, format: int64, minimum: 60, maximum: 2592000}
+        etag: {type: string, minLength: 1, maxLength: 128}
+        request_id: {type: string, minLength: 1, maxLength: 128}
+    PolicyException:
+      type: object
+      required: [id, rule_id, method, host, path, field, expires_unix_ms, reason]
+      properties:
+        id: {type: string, pattern: '^exc-[a-f0-9]{32}$'}
+        rule_id: {type: integer, format: int64, minimum: 1, maximum: 4294967295}
+        method: {type: string}
+        host: {type: string}
+        path: {type: string}
+        field: {type: string}
+        expires_unix_ms: {type: integer, format: int64, minimum: 1}
+        reason: {type: string}
+        source_block_id: {type: string}
+    ExceptionDraftResponse:
+      type: object
+      required: [exception, policy_id, policy_version, etag, state, replay_url]
+      properties:
+        exception: {$ref: '#/components/schemas/PolicyException'}
+        policy_id: {type: string}
+        policy_version: {type: integer, minimum: 1}
+        etag: {type: string}
+        state: {type: string, enum: [DRAFT]}
+        replay_url: {type: string}
     Violation:
       type: object
       required:
@@ -530,6 +746,11 @@ components:
           - full
           - partial
           - body_skipped
+        false_positive: {type: boolean, readOnly: true}
+        false_positive_reason: {type: string, readOnly: true}
+        false_positive_by: {type: string, readOnly: true}
+        false_positive_at: {type: string, format: date-time, readOnly: true}
+        annotation_etag: {type: string, readOnly: true}
     Header:
       type: object
       required:

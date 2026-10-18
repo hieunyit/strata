@@ -1,0 +1,25 @@
+2026/10/17 14:55:32 [notice] 298#298: using the "epoll" event method
+2026/10/17 14:55:32 [notice] 298#298: nginx/1.31.6
+2026/10/17 14:55:32 [notice] 298#298: built by gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+2026/10/17 14:55:32 [notice] 298#298: OS: Linux 6.8.0-85-generic
+2026/10/17 14:55:32 [notice] 298#298: getrlimit(RLIMIT_NOFILE): 1024:524288
+2026/10/17 14:55:32 [notice] 298#298: start worker processes
+2026/10/17 14:55:32 [notice] 298#298: start worker process 300
+2026/10/17 14:55:32 [notice] 298#298: start worker process 308
+2026/10/17 14:55:45 [notice] 300#300: strata: bundle version 2 active (generation 4)
+2026/10/17 14:55:45 [notice] 300#300: strata: bundle version 1 released, unmapping
+2026/10/17 14:55:45 [notice] 308#308: strata: bundle version 2 active (generation 4)
+2026/10/17 14:55:45 [notice] 308#308: strata: bundle version 1 released, unmapping
+2026/10/17 14:55:49 [notice] 298#298: signal 3 (SIGQUIT) received from 75, shutting down
+2026/10/17 14:55:49 [notice] 300#300: gracefully shutting down
+2026/10/17 14:55:49 [notice] 300#300: exiting
+2026/10/17 14:55:49 [notice] 308#308: gracefully shutting down
+2026/10/17 14:55:49 [notice] 308#308: exiting
+2026/10/17 14:55:49 [notice] 308#308: exit
+2026/10/17 14:55:49 [notice] 300#300: exit
+2026/10/17 14:55:49 [notice] 298#298: signal 17 (SIGCHLD) received from 308
+2026/10/17 14:55:49 [notice] 298#298: worker process 308 exited with code 0
+2026/10/17 14:55:49 [notice] 298#298: signal 29 (SIGIO) received
+2026/10/17 14:55:49 [notice] 298#298: signal 17 (SIGCHLD) received from 300
+2026/10/17 14:55:49 [notice] 298#298: worker process 300 exited with code 0
+2026/10/17 14:55:49 [notice] 298#298: exit

@@ -28,6 +28,10 @@ type Builder interface {
 
 // Deployer builds and publishes bundles.
 type Deployer struct {
+	// VerifyReplay checks the exact approved operations against prepared inputs.
+	// When set, builders without snapshot support cannot deploy.
+	VerifyReplay func(context.Context, map[string]int, string) error
+
 	Store   Store
 	Builder Builder
 	Objects Objects
@@ -81,10 +85,31 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			if err != nil {
 				return fmt.Errorf("policy %s version %d: %w", p.ID, p.CurrentVersion, err)
 			}
-			named = append(named, Named{Name: p.Name, Spec: spec})
+			named = append(named, Named{ResourceID: p.ID, Version: p.CurrentVersion, Name: p.Name, Spec: spec})
 			contents[p.ID] = p.CurrentVersion
 		}
-		data, err := d.Builder.Build(ctx, next, named)
+		var data []byte
+		inputDigest := ""
+		if d.VerifyReplay != nil {
+			compiler, ok := d.Builder.(interface {
+				Prepare(context.Context, []Named) (*Prepared, error)
+			})
+			if !ok {
+				return &ReplayError{Msg: "policy: replay gate requires a snapshot compiler"}
+			}
+			prepared, e := compiler.Prepare(ctx, named)
+			if e != nil {
+				return e
+			}
+			defer prepared.Close()
+			inputDigest = prepared.Digest
+			if err := d.VerifyReplay(ctx, contents, inputDigest); err != nil {
+				return err
+			}
+			data, err = prepared.Build(ctx, next)
+		} else {
+			data, err = d.Builder.Build(ctx, next, named)
+		}
 		if err != nil {
 			return err
 		}
@@ -101,7 +126,7 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			return err
 		}
 		out, err = d.Store.RecordBundle(ctx, store.Bundle{
-			Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
+			InputDigest: inputDigest, Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
 		}, a)
 		return err
 	})

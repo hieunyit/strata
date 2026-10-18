@@ -1,0 +1,13 @@
+{
+  "valid_measurement": true,
+  "measured_pairs": 4,
+  "measured_http_attempts": 8,
+  "proxy_status_counts": {
+    "403": 3,
+    "200": 1
+  },
+  "classifications": {
+    "signature_block": 3,
+    "benign_pass": 1
+  }
+}

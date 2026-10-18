@@ -1,0 +1,38 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: browser/WAF failures; see browser-results.json
++ actual - expected
+
++ [
++   "benign/proxy: Expected values to be strictly equal:\n\n'error' !== 'allow'\n",
++   'URL-escaped/proxy: Expected values to be strictly equal:\n' +
++     '\n' +
++     "'error' !== 'allow'\n",
++   'Base64Flat-strip/proxy: Expected values to be strictly equal:\n' +
++     '\n' +
++     "'error' !== 'allow'\n"
++ ]
+- []
+
+    at file:///src/tests/security/header_xss_browser_probe.mjs:75:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    'benign/proxy: Expected values to be strictly equal:\n' +
+      '\n' +
+      "'error' !== 'allow'\n",
+    'URL-escaped/proxy: Expected values to be strictly equal:\n' +
+      '\n' +
+      "'error' !== 'allow'\n",
+    'Base64Flat-strip/proxy: Expected values to be strictly equal:\n' +
+      '\n' +
+      "'error' !== 'allow'\n"
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

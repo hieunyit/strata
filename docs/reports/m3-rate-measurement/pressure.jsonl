@@ -1,0 +1,6 @@
+{"case":"live_slot_collision","capacity":256,"target_requests":20,"expected_allowed":3,"observed_allowed":20,"excess_allowed":17,"last_count":1}
+{"case":"table_pressure","capacity":256,"unique_keys":512,"occupied_home_buckets":226,"requests":5120,"expected_allowed":1536,"observed_allowed":4518,"excess_allowed":2982}
+{"case":"concurrent_first_use","threads":8,"trials":2000,"requests_per_trial":8,"limit":1,"extra_allows":16,"wrong_allow_trials":16,"lost_count_trials":16}
+{"case":"concurrent_rollover","threads":8,"trials":2000,"requests_per_trial":8,"limit":1,"extra_allows":13,"wrong_allow_trials":13,"lost_count_trials":13}
+{"case":"key_normalization","case_sensitive_paths_collapsed":true,"equivalent_ipv6_same_hash":false}
+{"case":"forwarded_chain","selected_leftmost":true,"accepted_malformed_ip":true,"scope":"standalone_helper_only"}

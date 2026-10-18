@@ -1,0 +1,7 @@
+{
+  "base_commit": "b0fc4c7",
+  "sha256": {
+    "tests/e2e/control_plane_restart_test.go": "ddfaa31ab87c471e74528e1c92d9aeebdb6fd6afbb0d1cba52b44ceab7183c92",
+    "control-plane/store/ingest.go": "40ee7c3150ec218dc588f1424899c5a22eb83205bea064a847f0f4d0ec990ee6"
+  }
+}

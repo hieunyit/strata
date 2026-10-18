@@ -53,8 +53,11 @@ pub mod kind {
     pub const HYPERSCAN_BLOCK: u32 = 8;
     /// Privacy settings of the policies (P-01 §1, `crate::privacy`).
     pub const PRIVACY: u32 = 9;
+    pub const EXCEPTIONS: u32 = 10;
+    /// Signed per-policy managed-rule log-only overlay.
+    pub const STAGING: u32 = 11;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 9;
+    pub const KNOWN: u32 = 11;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.
@@ -105,6 +108,10 @@ const PRIVACY_BIT: u8 = 1 << 2;
 /// fail mode closed (503) instead of following its fail mode. Engines
 /// from before it refuse a bundle with this bit set.
 const FAIL_ON_FINDINGS_BIT: u8 = 1 << 3;
+// Mandatory compatibility bit: old engines reject exception-bearing policies.
+const EXCEPTIONS_BIT: u8 = 1 << 4;
+// Old engines reject policies requiring per-rule log-only staging.
+const STAGING_BIT: u8 = 1 << 5;
 
 /// Last byte of the policy entry (#28): the arguments the policy inspects,
 /// in fours; 0 (bundles written before it) is the engine's limit,
@@ -174,6 +181,10 @@ pub struct Policy<'a> {
     pub snippet: SnippetSize,
     /// the policy has privacy settings (section PRIVACY)
     pub privacy: bool,
+    /// Requires section EXCEPTIONS and field-scoped runtime exclusion support.
+    pub exceptions: bool,
+    /// Requires the signed STAGING section and log-only rule support.
+    pub staging: bool,
     /// arguments inspected (query and body fields): see ARGS_BYTE
     pub max_args: usize,
     /// #98: budget exhausted with findings: fail closed (FAIL_ON_FINDINGS_BIT)
@@ -220,6 +231,10 @@ pub struct PolicySpec<'a> {
     /// bit 2 of EVENT_BYTE: the policy has privacy settings; engines that do not
     /// read section PRIVACY refuse the bundle rather than ignore them
     pub privacy: bool,
+    /// Requires section EXCEPTIONS and field-scoped runtime exclusion support.
+    pub exceptions: bool,
+    /// Requires the signed STAGING section and log-only rule support.
+    pub staging: bool,
     /// See `Policy::max_args`; 0 = the default. Rounded up to four.
     pub max_args: usize,
     /// See `Policy::fail_on_findings`.
@@ -238,6 +253,8 @@ impl<'a> PolicySpec<'a> {
             signatures: Signatures::Shadow,
             snippet: SnippetSize::Small,
             privacy: false,
+            exceptions: false,
+            staging: false,
             max_args: 0,
             fail_on_findings: false,
         }
@@ -324,7 +341,9 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
         && valid_canary(entry_mode(entry), entry_canary(entry))
         && Signatures::from_byte(entry[POLICY_NAME_LEN + 5]).is_some()
-        && entry[EVENT_BYTE] & !(SNIPPET_MASK | PRIVACY_BIT | FAIL_ON_FINDINGS_BIT) == 0
+        && entry[EVENT_BYTE]
+            & !(SNIPPET_MASK | PRIVACY_BIT | FAIL_ON_FINDINGS_BIT | EXCEPTIONS_BIT | STAGING_BIT)
+            == 0
         && entry[EVENT_BYTE] & SNIPPET_MASK <= SnippetSize::Kb4 as u8
         && entry[ARGS_BYTE + 1..].iter().all(|&c| c == 0)
 }
@@ -482,6 +501,8 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             signatures: Signatures::from_byte(e[POLICY_NAME_LEN + 5]).unwrap_or_default(),
             snippet: SnippetSize::of(e[EVENT_BYTE] & SNIPPET_MASK),
             privacy: e[EVENT_BYTE] & PRIVACY_BIT != 0,
+            exceptions: e[EVENT_BYTE] & EXCEPTIONS_BIT != 0,
+            staging: e[EVENT_BYTE] & STAGING_BIT != 0,
             fail_on_findings: e[EVENT_BYTE] & FAIL_ON_FINDINGS_BIT != 0,
             max_args: match e[ARGS_BYTE] {
                 0 => MAX_ARGS_DEFAULT,
@@ -564,6 +585,8 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
         out[at + POLICY_NAME_LEN + 5] = p.signatures as u8;
         out[at + EVENT_BYTE] = p.snippet as u8
             | if p.privacy { PRIVACY_BIT } else { 0 }
+            | if p.exceptions { EXCEPTIONS_BIT } else { 0 }
+            | if p.staging { STAGING_BIT } else { 0 }
             | if p.fail_on_findings {
                 FAIL_ON_FINDINGS_BIT
             } else {
@@ -774,7 +797,7 @@ mod tests {
             Err(Error::BadLayout("bad policy entry"))
         );
 
-        // fail_on_findings (#98): bit 3 of byte 62; bit 4 is not known
+        // fail_on_findings (#98): bit 3 of byte 62; bit 6 remains unknown (M4 uses bit 5)
         let ff = PolicySpec {
             fail_on_findings: true,
             ..p
@@ -792,7 +815,7 @@ mod tests {
         );
         let mut bad5 = fb.clone();
         bad5.truncate(bad5.len() - SIG_LEN);
-        bad5[HEADER_LEN + EVENT_BYTE] |= 1 << 4;
+        bad5[HEADER_LEN + EVENT_BYTE] |= 1 << 6;
         let sig = SigningKey::from_bytes(&SEED).sign(&bad5);
         bad5.extend_from_slice(&sig.to_bytes());
         assert_eq!(
@@ -828,15 +851,15 @@ mod tests {
             Err(Error::BadLayout("bad policy entry"))
         );
 
-        // privacy flag: bit 2 of byte 62 (P-01 §1); bit 5 is not known (bit 3
-        // is fail_on_findings since #98)
+        // privacy flag: bit 2 of byte 62 (P-01 §1); bit 6 is not known
+        // (bit 3 is fail_on_findings; bit 5 is staging since M4)
         let pv = PolicySpec { privacy: true, ..p };
         let pb = build(&spec(&[pv]), &SEED).unwrap();
         let info = verify(&pb, &public_key(&SEED)).unwrap();
         assert!(find_policy(&pb, &info, b"example-api").unwrap().privacy);
         let mut bad4 = pb;
         bad4.truncate(bad4.len() - SIG_LEN);
-        bad4[HEADER_LEN + EVENT_BYTE] = 1 << 5;
+        bad4[HEADER_LEN + EVENT_BYTE] = 1 << 6;
         let sig = SigningKey::from_bytes(&SEED).sign(&bad4);
         bad4.extend_from_slice(&sig.to_bytes());
         assert_eq!(

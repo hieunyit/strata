@@ -32,13 +32,18 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // Audit is one audit_log row.
 type Audit struct {
-	At        time.Time `json:"at"`
-	Actor     string    `json:"actor"`
+	// ReplayOperation is populated by the admin service, never from user JSON.
+	ReplayOperation string `json:"-"`
+	// RuleContext is populated from a looked-up event by the API, never JSON.
+	RuleContext *EventRuleContext `json:"-"`
+
+	At    time.Time `json:"at"`
+	Actor string    `json:"actor"`
 	// Subject: the caller's token subject (sub), which the user cannot
 	// change, unlike the name in Actor; the four-eyes rule compares it.
 	Subject   string `json:"subject,omitempty"`
-	Channel   string `json:"channel"` // ui, api, gitops, system
-	Action    string `json:"action"`  // full method name, e.g. /strata.admin.v1.FleetAdminService/RevokeNode
+	Channel   string `json:"channel"`  // ui, api, gitops, system
+	Action    string `json:"action"`   // full method name, e.g. /strata.admin.v1.FleetAdminService/RevokeNode
 	Resource  string `json:"resource"` // e.g. nodes/node-abc
 	RequestID string `json:"request_id,omitempty"`
 	Before    any    `json:"before,omitempty"` // marshalled to JSON; nil for none

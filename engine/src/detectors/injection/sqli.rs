@@ -1470,6 +1470,23 @@ impl Fingerprint {
 }
 
 #[cfg(test)]
+mod consolidation_regressions {
+    #[test]
+    fn logical_and_conditions_remain_detectable() {
+        // An unquoted && is also SQL syntax. It cannot exempt an otherwise
+        // malicious fingerprint merely because programming examples use it.
+        for input in [
+            &b"1 && 1=1"[..],
+            b"1 && 1=1 && 2=2",
+            b"0 && 0=0",
+            b"1 && 1=1 or 1=1",
+        ] {
+            assert!(super::detect(input).is_some(), "{}", input.escape_ascii());
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

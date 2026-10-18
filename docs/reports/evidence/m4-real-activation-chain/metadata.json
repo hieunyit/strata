@@ -1,0 +1,21 @@
+{
+  "source_sha256": {
+    "tests/e2e/automatic_staging_test.go": "1692adb3517f60e5f098ff242035b3a342e55110f48f6b25e072008fb23ce67a",
+    "tests/e2e/migrations_test.go": "20e2c86b4e00b21aed1e2e3040c25f40b88c1d233fc6e483118f4118e3f5076f",
+    "engine/src/tx.rs": "8221abe8c02c00033010aa79b911a16e74c35ecac85d74ca080131532a45b8e6",
+    "engine/src/staging.rs": "4e2b8251df912619948d8252878e689f530a68468647ce01c401bea3edbb87fa",
+    "control-plane/policy/staging_writer.go": "9c70865f40a430e0a9f01c4ed019fcb96105d3f3c061984d8364a88bb53adaca",
+    "control-plane/rulehealth/staging_worker.go": "87c6d9b0eb0416b95ec168e364eb0b7642e51d882486af813ecb9a8a774de46e",
+    "control-plane/store/staging.go": "c94e4b5af127345fcd4e7cbfdc71c25a1533db74570050d54f3612fe9183e219",
+    "control-plane/fleet/staging_rollout.go": "c99398b41c420f590dc1b35c994ac2d31387f4844738118a51d838429bf9975b"
+  },
+  "ack_scope": "initial agent bootstrap before NGINX starts uses existing missing-metrics delay; both derived bundle 2 activations require existing real worker metrics and reject any additional fallback log",
+  "sanitizers": "ASan/UBSan native binaries; no reports; LeakSanitizer disabled as in the HTTP probe",
+  "limits": [
+    "one enrolled node, two NGINX workers",
+    "two synthetic managed rules",
+    "100 actual SQLi events and 5 simulated human FP classifications",
+    "not traffic accuracy or production/cardinality/load SLO"
+  ],
+  "credentials": "no private key, certificate key, session token or Docker password exported"
+}

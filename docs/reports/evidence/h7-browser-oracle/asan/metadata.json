@@ -1,0 +1,24 @@
+{
+  "nginx_sha256": "4708c7c5929190cbb3345e3e4bdda9eddb719438f3a472447127409bca724a0e",
+  "module_sha256": "3cd0516563c166681aeed8875efac0670cb1eecfe2c385b0022dd709673eb77d",
+  "mkbundle_sha256": "3d5abe4d30034db29adb7a8548c5ac3661bd96130289b338502f214e20c73d8c",
+  "bundle_sha256": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a",
+  "pubkey_sha256": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e",
+  "harness_sha256": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21",
+  "cases_sha256": "b932c7fbc247c2f976dbfa0a4ebbefb77ddaa41f49a31eba7f4e88b2aa5f0a63",
+  "scope": "actual paired Header browser contexts; explicit synthetic tag stripping; no production-context claim",
+  "policy": "example-api",
+  "rounds": 1,
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "not_tested": [
+    "real application sanitizer/CSP",
+    "production accuracy",
+    "performance SLO",
+    "rule release approval"
+  ],
+  "configuration_sha256": "ef834a17a32feb3492c813121a97eb233bd2f23687e35123942ab84004d3568a",
+  "variant": "asan",
+  "wrapper_sha256": "781b470d57038adf3ae18f7148d3ce95e038c3dda7eb5a95df50537b2341383a",
+  "browser_script_sha256": "644a3b09f2bba96eec86fb3e1d76abb08cdc5900c3a12525c9ff83b663f68def"
+}

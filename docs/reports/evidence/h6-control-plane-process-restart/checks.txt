@@ -1,0 +1,12 @@
+=== RUN   TestControlPlaneProcessRestartWithRealNginx
+    control_plane_restart_test.go:376: PASS CP process SIGKILL/restart: 120/120 native event IDs persisted, physical rows=120, outage=2.446794554s, last-known-good bundle unchanged
+--- PASS: TestControlPlaneProcessRestartWithRealNginx (36.11s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	37.446s
+=== RUN   TestControlPlaneProcessRestartWithRealNginx
+    control_plane_restart_test.go:376: PASS CP process SIGKILL/restart: 120/120 native event IDs persisted, physical rows=120, outage=2.500440262s, last-known-good bundle unchanged
+--- PASS: TestControlPlaneProcessRestartWithRealNginx (35.83s)
+PASS
+ok  	github.com/strata/strata/tests/e2e	37.103s
+ok  	github.com/strata/strata/tests/e2e	11.048s
+0 issues.

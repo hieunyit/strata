@@ -21,6 +21,13 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	// Annotations persists event classifications; nil disables writes.
+	Annotations    EventAnnotationStore
+	Exceptions     ExceptionPolicyStore
+	ReplayKick     func()
+	StagingNotices StagingNoticeReader
+	Health         HealthReader // nil leaves the optional rule health route out
+
 	Addr         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
@@ -87,6 +94,7 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 
 	eventHandler := NewEventHandler(store, cfg.Rules)
+	eventHandler.annotations = cfg.Annotations
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -114,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
+	v1.HandleFunc("/v1/exceptions:fromBlockId", auth.RequireHTTP(auth.PermExceptionsWrite, s.HandleExceptionFromBlock))
 	search := auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleSearchEvents)
 	v1.HandleFunc("/v1/events:search", search)
 	// Handles /v1/events/{block_id}
@@ -122,9 +131,29 @@ func (s *Server) registerRoutes() {
 			search(w, r)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
+			auth.RequireHTTP(auth.PermExceptionsWrite, s.handler.HandleMarkFalsePositive)(w, r)
+			return
+		}
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	if s.cfg.StagingNotices != nil {
+		v1.HandleFunc("/v1/rules/staging-actions", auth.RequireHTTP(auth.PermPoliciesApprove, s.handleStagingNotices))
+	}
+	if s.cfg.Health != nil {
+		v1.HandleFunc("/v1/rules/", func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := healthPath(r.URL.Path); ok {
+				auth.RequireHTTP(auth.PermEventsRead, s.handleRuleHealth)(w, r)
+				return
+			}
+			if s.cfg.Admin != nil {
+				s.cfg.Admin.ServeHTTP(w, r)
+				return
+			}
+			http.NotFound(w, r)
+		})
+	}
 	v1.HandleFunc("/v1/auth/me", func(w http.ResponseWriter, r *http.Request) {
 		p := auth.FromContext(r.Context())
 		roles := make([]string, len(p.Roles))

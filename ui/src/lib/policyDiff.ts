@@ -3,12 +3,12 @@
 // oversize) and the response layer. Values are shown as the YAML of the
 // editor writes them (shadow, block, true...), after normalizeSpec, so a
 // field the API leaves out and its default compare equal.
-import { DATA_GUARDS, PolicySpec, normalizeSpec } from './policyYaml';
+import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec } from './policyYaml';
 
-export type DiffBlock = 'general' | 'response';
+export type DiffBlock = 'general' | 'response' | 'advanced';
 
 export interface FieldDiff {
-  key: 'mode' | 'oversize' | 'canary_percent' | 'allowed_codes_check' | 'db_errors' | 'data_guard';
+  key: 'mode' | 'oversize' | 'canary_percent' | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
   from: string;
   to: string;
   changed: boolean;
@@ -52,8 +52,24 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
     field('db_errors', String(!!a.response?.db_errors), String(!!b.response?.db_errors)),
     guards,
   ];
-  return [
+  const blocks: BlockDiff[] = [
     { block: 'general', fields: general, changed: general.filter((f) => f.changed).length },
     { block: 'response', fields: response, changed: response.filter((f) => f.changed).length },
   ];
+  const from = stable(advancedSpec(a));
+  const to = stable(advancedSpec(b));
+  if (from !== '{}' || to !== '{}') {
+    const entry = field('advanced', from, to);
+    blocks.push({ block: 'advanced', fields: [entry], changed: Number(entry.changed) });
+  }
+  return blocks;
+}
+
+function stable(value: unknown): string {
+  const sort = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(sort);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([key, val]) => [key, sort(val)]));
+    return v;
+  };
+  return JSON.stringify(sort(value), null, 2);
 }

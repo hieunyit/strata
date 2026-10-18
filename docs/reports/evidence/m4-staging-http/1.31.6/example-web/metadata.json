@@ -1,0 +1,30 @@
+{
+  "nginx_sha256": "1fd43b9f0d41d2a806327969f7b47eac2fba3ecbff5e775d7d0d8eccc625d067",
+  "module_sha256": "c6e5c2ba8bde16f344ba6fc5109c5a72485c992ff07303dad481da1786811e86",
+  "mkbundle_sha256": "3d5abe4d30034db29adb7a8548c5ac3661bd96130289b338502f214e20c73d8c",
+  "bundle_sha256": "a2508219df1baa26534787c7292dd493347a1e04da7bfdb08d84755493d0d159",
+  "pubkey_sha256": "fe812c12f3ab4ce6ac5db69ac352f906cb1b11ef43fb33e252ef7ff552263889",
+  "harness_sha256": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21",
+  "cases_sha256": "9af609b722ebaa9a66200c7017088cb52cefe56afd22f14b68fe41a10620fde3",
+  "scope": "synthetic_staging_policy_isolation_and_healthy_rule_enforcement",
+  "policy": "example-web",
+  "rounds": 1,
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "not_tested": [
+    "botnet fallback",
+    "canary hashing",
+    "event delivery",
+    "browser XSS"
+  ],
+  "configuration_sha256": "2e0421629359cf7e9016e5a29a0a135e4302cb4b7d739c080bd79455b1b63a19",
+  "staging_probe_sha256": "95ee6376bb2fa2be19efe2a1d2ece6b3bd542d7c2263d2ef761e3c06718d1745",
+  "compiler_sha256": "adce22e1532a10fe71e5141eb700ed792ab7a9a9ee17c14a97e96a4a2e4d058a",
+  "not_proven": [
+    "automatic writer",
+    "five-minute SLA",
+    "Fleet/event delivery",
+    "browser XSS",
+    "accuracy corpus"
+  ]
+}

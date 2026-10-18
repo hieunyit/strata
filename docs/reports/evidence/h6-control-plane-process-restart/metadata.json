@@ -1,0 +1,23 @@
+{
+  "source_sha256": {
+    "tests/e2e/control_plane_restart_test.go": "c680e680577ada5eea3724c4b135c6e34642075616f33c3d123bce58451eec89",
+    "tests/e2e/lossless_store_test.go": "2b14b4940a785dab6f47bb7b5b076cf583d414f14b0ca8b8751d5d9f761f132d",
+    "tests/e2e/automatic_staging_test.go": "1692adb3517f60e5f098ff242035b3a342e55110f48f6b25e072008fb23ce67a",
+    "control-plane/cmd/server/main.go": "b81e3ad9d6459be4ec11c9c59a5bb758a0dca7a97ff478dbb91fd947f3d79a86",
+    "control-plane/store/ingest.go": "40ee7c3150ec218dc588f1424899c5a22eb83205bea064a847f0f4d0ec990ee6",
+    "control-plane/ingest/service.go": "bdb201521e52d13d83436d132485b3c4eb48820cc7aa0d97d1d9eff6a4c5d4d3",
+    "agent/internal/eventsock/eventsock.go": "38fa9b008428f0c3313a5851f51bc5a732a58f93914fb4730a4902ca276086c9",
+    "agent/internal/pusher/pusher.go": "87a3dac7a0d71407029bcdb4bdf68c1775640c108bc14aa20a00099a209fa08c"
+  },
+  "base_commit": "504f7b0",
+  "credentials": "all fixtures owned; no private keys, cert keys, tokens, DSN or ClickHouse password exported",
+  "limits": [
+    "one node, two workers, signed preinstalled one-rule bundle",
+    "serial 20/80/20 attacks and one benign per phase",
+    "CP SIGKILL after initial cohort was fully ACKed; does not inject crash between ClickHouse commit and PostgreSQL watermark",
+    "short measured process outage, not 5-minute outage or production SLO",
+    "not panic/corruption game-day acceptance or staging operations"
+  ],
+  "native_sources_unchanged": true,
+  "sanitizers": "NGINX ASan/UBSan, no report files; LeakSanitizer disabled; both Go child binaries and parent use -race"
+}

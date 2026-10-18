@@ -85,8 +85,9 @@ func TestMigrationsUpDownOnEmptyDatabase(t *testing.T) {
 		t.Fatalf("up: %v", err)
 	}
 	want := []string{"audit_log", "bundles", "canary_trips", "connector_groups", "disabled_rules", "enrollment_tokens",
-		"local_sessions", "local_users", "node_commands", "nodes", "operations", "policies", "policy_versions",
-		"replay_sampling", "role_bindings", "rollout_nodes", "rollouts", "secrets", "service_accounts"}
+		"event_annotation_requests", "event_annotations", "ingest_sequences", "local_sessions", "local_users", "node_commands", "nodes", "operations",
+		"policies", "policy_edit_requests", "policy_versions", "replay_sampling", "role_bindings", "rollout_nodes", "rollouts",
+		"rule_annotation_context", "rule_staging_actions", "secrets", "service_accounts"}
 	if got := userTables(t, pool); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tables after up: %v", got)
 	}

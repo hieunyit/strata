@@ -1,0 +1,6 @@
+=== RUN   TestRuleCosts_ClickHouseMigrationAndRetry
+    rulecost_clickhouse_test.go:114: fractional lower bound broadened: {MatchedEvents:1 CostSamples:3 CostTotalNS:1000 CostMeanNS:0xc000152bb8} <nil>
+--- FAIL: TestRuleCosts_ClickHouseMigrationAndRetry (0.78s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/ingest	0.869s
+FAIL

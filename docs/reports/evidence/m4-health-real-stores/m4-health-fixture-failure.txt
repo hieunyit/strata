@@ -1,0 +1,6 @@
+Isolated SQL fixtures ready: strata-health-1792209162-2092479
+unknown flag: --strata-cleanup-probe-invalid-flag
+
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+Run 'docker run --help' for more information

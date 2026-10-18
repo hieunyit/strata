@@ -1,0 +1,6 @@
+=== RUN   TestAuditWithoutPostgresDoesNotRegisterNilReader
+    audit_test.go:28: audit without a database returned 500, want 404
+--- FAIL: TestAuditWithoutPostgresDoesNotRegisterNilReader (0.00s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/cmd/server	0.155s
+FAIL

@@ -7,17 +7,20 @@ import { EventTrace, CopyButton } from '../components/events/EventTrace';
 import { apiClient, ApiError, GetEventResponse } from '../api/client';
 import { href } from '../router';
 import { buildCurlFromEvent } from '../lib/curl';
+import { FalsePositive } from '../components/events/FalsePositive';
+import { ExceptionDraft } from '../components/events/ExceptionDraft';
 
 type State =
   | { kind: 'loading' }
   | { kind: 'found'; data: GetEventResponse }
   | { kind: 'missing' }
-  | { kind: 'failed'; message: string };
+  | { kind: 'failed'; apiMessage?: string };
 
 // One event, opened from the table, the top bar's Block ID lookup or a
 // link (#/events/STR-...): the helpdesk's page.
 export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
   const { t, i18n } = useTranslation();
+  const [reload, setReload] = useState(0);
   const [state, setState] = useState<State>({ kind: 'loading' });
   const id = blockId.trim().toUpperCase();
 
@@ -30,13 +33,13 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       .catch((err: unknown) => {
         if (!alive) return;
         if (err instanceof ApiError && err.code === 404) setState({ kind: 'missing' });
-        else if (err instanceof ApiError) setState({ kind: 'failed', message: t('errors.blockIdLookup', { error: err.message }) });
-        else setState({ kind: 'failed', message: t('errors.blockIdConnection', { id }) });
+        else if (err instanceof ApiError) setState({ kind: 'failed', apiMessage: err.message });
+        else setState({ kind: 'failed' });
       });
     return () => {
       alive = false;
     };
-  }, [id, t]);
+  }, [id, reload]);
 
   const ev = state.kind === 'found' ? state.data.event : undefined;
 
@@ -67,7 +70,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       </div>
 
       {state.kind === 'loading' && <p className="text-[13px] text-muted">{t('detail.loading')}</p>}
-      {state.kind === 'failed' && <ErrorBanner message={state.message} testId="error-banner" />}
+      {state.kind === 'failed' && <ErrorBanner message={state.apiMessage !== undefined ? t('errors.blockIdLookup', { error: state.apiMessage }) : t('errors.blockIdConnection', { id })} testId="error-banner" />}
       {state.kind === 'missing' && (
         <div className="panel px-6 py-10 text-center" data-testid="event-missing">
           <SearchX className="mx-auto mb-3 w-8 h-8 text-faint" />
@@ -75,6 +78,8 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
           <p className="mt-1 text-[13px] text-muted max-w-[60ch] mx-auto">{t('detail.missingHelp')}</p>
         </div>
       )}
+      {state.kind === 'found' && <FalsePositive key={`classification:${state.data.event.block_id}`} event={state.data.event} onReload={() => setReload((n) => n + 1)} />}
+      {state.kind === 'found' && <ExceptionDraft key={state.data.event.block_id} event={state.data.event} rules={state.data.rules} />}
       {state.kind === 'found' && <EventTrace event={state.data.event} rules={state.data.rules} />}
     </AppShell>
   );

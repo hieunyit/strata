@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +30,14 @@ import (
 // samples and on the corpus apart. It is stored with the operation and
 // served by the admin API.
 type Report struct {
+	// Inputs identifies the snapshotted compiler inputs; hashes identify artifacts
+	// actually passed to compare, without recording secrets or sample content.
+	InputDigest    string   `json:"input_digest,omitempty"`
+	DraftSHA256    string   `json:"draft_sha256,omitempty"`
+	BaselineSHA256 string   `json:"baseline_sha256,omitempty"`
+	ReplaySHA256   string   `json:"replay_sha256,omitempty"`
+	SampleSHA256   []string `json:"sample_sha256,omitempty"`
+
 	ElapsedMs uint64 `json:"elapsed_ms"`
 	// The bundle in force the draft is compared with; 0 when there is none
 	// yet (the baseline is then built from the policies as they are).
@@ -103,6 +113,8 @@ type SampleObjects interface {
 // against the bundle in force on the policy's samples of the last days
 // and the corpus.
 type Runner struct {
+	Prepare func(context.Context, []policy.Named) (*policy.Prepared, error)
+
 	Store RunnerStore
 	// Deployable: the policies a deploy would build now (each at the
 	// version it would take).
@@ -272,14 +284,16 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		if err != nil {
 			return nil, fmt.Errorf("policy %s version %d: %w", x.ID, x.CurrentVersion, err)
 		}
-		base = append(base, policy.Named{Name: x.Name, Spec: spec})
+		base = append(base, policy.Named{ResourceID: x.ID, Version: x.CurrentVersion, Name: x.Name, Spec: spec})
+		version := x.CurrentVersion
 		if x.ID == p.ID {
+			version = op.Version
 			spec, found = draftSpec, true
 		}
-		draft = append(draft, policy.Named{Name: x.Name, Spec: spec})
+		draft = append(draft, policy.Named{ResourceID: x.ID, Version: version, Name: x.Name, Spec: spec})
 	}
 	if !found { // a policy no deploy has taken yet
-		draft = append(draft, policy.Named{Name: p.Name, Spec: draftSpec})
+		draft = append(draft, policy.Named{ResourceID: p.ID, Version: op.Version, Name: p.Name, Spec: draftSpec})
 	}
 	sort.Slice(draft, func(i, j int) bool { return draft[i].Name < draft[j].Name })
 	sort.Slice(base, func(i, j int) bool { return base[i].Name < base[j].Name })
@@ -297,7 +311,22 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 	if err := os.WriteFile(pub, r.key.Public().(ed25519.PublicKey), 0o600); err != nil {
 		return nil, err
 	}
-	data, err := r.Build(ctx, seed, draft)
+	rep := &Report{}
+	var data []byte
+	buildBaseline := r.Build
+	if r.Prepare != nil {
+		snapshot, e := r.Prepare(ctx, draft)
+		if e != nil {
+			return nil, e
+		}
+		defer snapshot.Close()
+		buildBaseline = snapshot.ReplayBuildPolicies
+		rep.InputDigest = snapshot.Digest
+		data, err = snapshot.ReplayBuild(ctx, seed)
+	} else {
+		data, err = r.Build(ctx, seed, draft)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("building the draft bundle: %w", err)
 	}
@@ -306,7 +335,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		return nil, err
 	}
 
-	rep := &Report{}
+	rep.DraftSHA256 = digest(data)
 	baseFile, basePub := filepath.Join(dir, "baseline.sbn"), filepath.Join(dir, "baseline.pub")
 	bdata, bver, err := r.Baseline(ctx)
 	switch {
@@ -315,7 +344,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		if len(base) == 0 {
 			base = []policy.Named{{Name: p.Name, Spec: policy.Spec{Mode: "shadow"}}}
 		}
-		if bdata, err = r.Build(ctx, seed, base); err != nil {
+		if bdata, err = buildBaseline(ctx, seed, base); err != nil {
 			return nil, fmt.Errorf("building the baseline bundle: %w", err)
 		}
 		basePub = pub
@@ -327,6 +356,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 			return nil, err
 		}
 	}
+	rep.BaselineSHA256 = digest(bdata)
 	if err := os.WriteFile(baseFile, bdata, 0o600); err != nil {
 		return nil, err
 	}
@@ -338,10 +368,37 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 	if len(files) == 0 && r.Corpus == "" {
 		return nil, errors.New("no traffic samples of the policy and no corpus to replay")
 	}
+	replayBin := r.Binary
+	if r.Prepare != nil {
+		bin, e := exec.LookPath(r.Binary)
+		if e != nil {
+			return nil, e
+		}
+		replayBin = filepath.Join(dir, "replay-bin")
+		if rep.ReplaySHA256, err = copyReplayInput(ctx, bin, replayBin, 256<<20, 0700); err != nil {
+			return nil, err
+		}
+	}
+	corpus := r.Corpus
+	if corpus != "" {
+		corpus = filepath.Join(dir, "corpus.parquet")
+		sum, e := copyReplayInput(ctx, r.Corpus, corpus, 1<<30, 0600)
+		if e != nil {
+			return nil, e
+		}
+		rep.SampleSHA256 = append(rep.SampleSHA256, sum)
+	}
+	for _, file := range files {
+		sum, e := hashReplayInput(ctx, file)
+		if e != nil {
+			return nil, e
+		}
+		rep.SampleSHA256 = append(rep.SampleSHA256, sum)
+	}
 	compare := func(files []string) (*Route, uint64, error) {
 		args := []string{"compare", "--bundle", draftFile, "--baseline", baseFile, "--pubkey", pub,
 			"--baseline-pubkey", basePub, "--policy", p.Name, "--threads", strconv.Itoa(r.Threads)}
-		cmd := exec.CommandContext(ctx, r.Binary, append(args, files...)...)
+		cmd := exec.CommandContext(ctx, replayBin, append(args, files...)...)
 		var out bytes.Buffer
 		var stderr tail
 		cmd.Stdout, cmd.Stderr = &limited{w: &out, n: 64 << 20}, &stderr
@@ -370,7 +427,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		rep.Traffic, rep.ElapsedMs = rt, rep.ElapsedMs+ms
 	}
 	if r.Corpus != "" {
-		rt, ms, err := compare([]string{r.Corpus})
+		rt, ms, err := compare([]string{corpus})
 		if err != nil {
 			return nil, err
 		}
@@ -454,4 +511,63 @@ func ReplayBuilder(c policy.Compiler) func(context.Context, string, []policy.Nam
 		c.Signer, c.KeyFile = nil, keyFile
 		return c.Build(ctx, 1, ps)
 	}
+}
+
+func digest(b []byte) string { sum := sha256.Sum256(b); return hex.EncodeToString(sum[:]) }
+
+// replayReader makes file hashing/copying cancellable between bounded reads.
+type replayReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r replayReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
+}
+func copyReplayInput(ctx context.Context, src, dst string, max int64, mode os.FileMode) (string, error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() || info.Size() > max {
+		return "", fmt.Errorf("replay: input is not a bounded regular file")
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	n, copyErr := io.Copy(io.MultiWriter(out, h), io.LimitReader(replayReader{ctx, in}, max+1))
+	closeErr := out.Close()
+	if copyErr != nil {
+		return "", copyErr
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if n > max {
+		return "", fmt.Errorf("replay: input too large")
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+func hashReplayInput(ctx context.Context, file string) (string, error) {
+	in, err := os.Open(file)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	h := sha256.New()
+	_, err = io.Copy(h, replayReader{ctx, in})
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

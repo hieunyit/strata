@@ -1,0 +1,9 @@
+# M4 — Additive snapshot derivation without weakening normal replay gates
+
+Base PR #189 (`9a235c2`), branch `codex/m4-staging-derivation`. Refactors the private captured manifest so an internal additive staging delta can derive a full effective-input digest. The helper requires the captured source digest, rehashes its private manifest (does not trust a writable exported Digest field), validates enabled scoped delegation and all existing bounds, and preserves every existing staged ID. Errors leave both map and digest unchanged; repeated additions are idempotent.
+
+A derived digest equals a fresh capture of the complete effective inputs, including compiler/rule/privacy/page/cost inputs and the new overlay; it is not merely a hash of an unauthenticated delta. Tests cover stale-parent reuse, forged public digest, invalid/unknown scope/IDs, failed-change atomicity, monotone additions, idempotency and nil snapshots. This package-private helper cannot authorize a deployment: the forthcoming writer must bind the source to the current approved bundle/versions and durable state, then audit and publish the derivation. Normal replay Gate.Check is unchanged.
+
+Validation with real PostgreSQL gates and STRATA_TEST_COMPILER enabled: `go test -race -count=1 ./policy ./replay` → policy **2.829 s**, replay **4.179 s**; scoped golangci-lint **0 issues** ([output](evidence/m4-staging-derivation/checks.txt)). Existing snapshot/deploy/replay regressions remain and pass.
+
+Self-review: no I/O, unsafe code or dependencies added; additions bounded and validated before commit; no PII/secrets; only snapshot/helper/tests and related evidence/status changed; no tests disabled, main merge, staging/production access or hosted CI wait. Remaining M4 is the source-bundle-authorized durable writer/job/outbox, publication recovery/ACK, reviewer-visible notification and under-five-minute automatic activation proof. No automatic removal or re-enforcement.

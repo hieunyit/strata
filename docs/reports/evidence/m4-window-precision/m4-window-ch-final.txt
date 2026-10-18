@@ -1,0 +1,4 @@
+=== RUN   TestRuleCosts_ClickHouseMigrationAndRetry
+--- PASS: TestRuleCosts_ClickHouseMigrationAndRetry (0.73s)
+PASS
+ok  	github.com/strata/strata/control-plane/ingest	1.815s

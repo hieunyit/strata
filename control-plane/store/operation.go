@@ -66,29 +66,38 @@ func newOpID() (string, error) {
 // CreateReplayOperation queues the replay of a policy version; ErrNotFound
 // when the version does not exist.
 func (s *Store) CreateReplayOperation(ctx context.Context, policyID string, version int, a Audit) (Operation, error) {
+	var o Operation
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		o, err = createReplayOperationTx(ctx, tx, policyID, version, a)
+		return err
+	})
+	return o, err
+}
+
+func createReplayOperationTx(ctx context.Context, tx pgx.Tx, policyID string, version int, a Audit) (Operation, error) {
 	id, err := newOpID()
 	if err != nil {
 		return Operation{}, err
 	}
-	var o Operation
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM policy_versions WHERE policy_id = $1 AND version = $2`,
-			policyID, version).Scan(&n); err != nil {
-			return fmt.Errorf("store: replay operation: %w", err)
-		}
-		if n == 0 {
-			return ErrNotFound
-		}
-		o, err = scanOp(tx.QueryRow(ctx, `INSERT INTO operations (id, kind, policy_id, version, created_by)
-			VALUES ($1, $2, $3, $4, $5) RETURNING `+opCols, id, OpReplay, policyID, version, a.Actor))
-		if err != nil {
-			return fmt.Errorf("store: replay operation: %w", err)
-		}
-		a.After = o
-		return writeAudit(ctx, tx, a)
-	})
-	return o, err
+	// Serialize new replays with decisions on this version. A replay queued
+	// after approval cannot replace the proof saved by that approval.
+	var lockedVersion int
+	if err := tx.QueryRow(ctx, `SELECT version FROM policy_versions WHERE policy_id=$1 AND version=$2 FOR UPDATE`, policyID, version).Scan(&lockedVersion); errors.Is(err, pgx.ErrNoRows) {
+		return Operation{}, ErrNotFound
+	} else if err != nil {
+		return Operation{}, fmt.Errorf("store: replay operation lock: %w", err)
+	}
+	o, err := scanOp(tx.QueryRow(ctx, `INSERT INTO operations (id,kind,policy_id,version,created_by,created_at)
+ VALUES ($1,$2,$3,$4,$5,clock_timestamp()) RETURNING `+opCols, id, OpReplay, policyID, version, a.Actor))
+	if err != nil {
+		return Operation{}, fmt.Errorf("store: replay operation: %w", err)
+	}
+	a.After = o
+	if err := writeAudit(ctx, tx, a); err != nil {
+		return Operation{}, err
+	}
+	return o, nil
 }
 
 // GetOperation returns one operation.

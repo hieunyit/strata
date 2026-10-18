@@ -1,0 +1,23 @@
+=== RUN   TestPolicyEditRequestInPostgres
+--- PASS: TestPolicyEditRequestInPostgres (0.61s)
+=== RUN   TestPolicyEditRequestRejectsInvalidInputBeforeIO
+--- PASS: TestPolicyEditRequestRejectsInvalidInputBeforeIO (0.01s)
+PASS
+ok  	github.com/strata/strata/control-plane/store	1.718s
+ok  	github.com/strata/strata/control-plane/admin	(cached)
+ok  	github.com/strata/strata/control-plane/api	2.622s
+ok  	github.com/strata/strata/control-plane/auth	(cached)
+?   	github.com/strata/strata/control-plane/auth/authtest	[no test files]
+?   	github.com/strata/strata/control-plane/cmd/server	[no test files]
+ok  	github.com/strata/strata/control-plane/db	1.087s
+ok  	github.com/strata/strata/control-plane/fleet	35.245s
+?   	github.com/strata/strata/control-plane/gen/strata/admin/v1	[no test files]
+ok  	github.com/strata/strata/control-plane/ingest	(cached)
+ok  	github.com/strata/strata/control-plane/localauth	2.903s
+?   	github.com/strata/strata/control-plane/localauth/localauthtest	[no test files]
+ok  	github.com/strata/strata/control-plane/metrics	1.288s
+ok  	github.com/strata/strata/control-plane/policy	1.422s
+ok  	github.com/strata/strata/control-plane/replay	4.465s
+ok  	github.com/strata/strata/control-plane/rulecat	(cached)
+ok  	github.com/strata/strata/control-plane/store	1.069s
+0 issues.

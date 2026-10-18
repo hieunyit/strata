@@ -1,0 +1,24 @@
+{
+  "nginx_sha256": "79058bf38ac2499bc68e934bf3a1df99d184c2c1edfbdbc813aeb1b345501f15",
+  "module_sha256": "1be3cdaedac64e9789919d81343caf485430c85870f6cab8f8298ba77aa7ab98",
+  "mkbundle_sha256": "3d5abe4d30034db29adb7a8548c5ac3661bd96130289b338502f214e20c73d8c",
+  "bundle_sha256": "b9e6fafc4c5b7f4f401f6bac335a42d7cc565dbf48a544337b98dbb3e3fa1d0a",
+  "pubkey_sha256": "34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e",
+  "harness_sha256": "946b4e3976e75a832c4ac6d7ab28792a178f33ed597700b2e8e60d9e013b3f21",
+  "cases_sha256": "b932c7fbc247c2f976dbfa0a4ebbefb77ddaa41f49a31eba7f4e88b2aa5f0a63",
+  "scope": "actual paired Header browser contexts; explicit synthetic tag stripping; no production-context claim",
+  "policy": "example-api",
+  "rounds": 1,
+  "cpu_budget_us": 10000,
+  "fail_mode": "open",
+  "not_tested": [
+    "real application sanitizer/CSP",
+    "production accuracy",
+    "performance SLO",
+    "rule release approval"
+  ],
+  "configuration_sha256": "a4aa6dcb37cd8246d200ac98be88f7934c6b84297375752b095a148ad5d50339",
+  "variant": "release",
+  "wrapper_sha256": "781b470d57038adf3ae18f7148d3ce95e038c3dda7eb5a95df50537b2341383a",
+  "browser_script_sha256": "644a3b09f2bba96eec86fb3e1d76abb08cdc5900c3a12525c9ff83b663f68def"
+}

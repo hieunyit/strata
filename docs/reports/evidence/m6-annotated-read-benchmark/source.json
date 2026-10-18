@@ -1,0 +1,17 @@
+{
+  "commit": "95b48eeb25f596cf3416929388d70121e56cfbbf",
+  "cpuset": "6-10",
+  "recent_rows": 10000000,
+  "older_rows": 10000000,
+  "cost_bearing_events": 200922,
+  "annotated_lookup_ids": 20,
+  "lookup_ids": 195,
+  "sha256": {
+    "tests/perf/clickhouse.sh": "b8b5fc0398461fde260b4fb0d1977900e0e96ee1a4a73ac558e11cdf240cf1d7",
+    "control-plane/api/clickhouse_perf_test.go": "4e3d6c7e1303212750ffac0903a6984031973bd29b044a4512ab3a8c0d4c1f14",
+    "control-plane/ingest/store.go": "af046f69ee0109eb33648652375d75d92c1ba1f8d3d3daca82ab520b8341d835",
+    "control-plane/ingest/schema.sql": "bc2991ffd632feed81dfb6c6cf5bf5f876ac62196b4d1ee99964a63d2fa0456d",
+    "control-plane/api/event_annotations.go": "c00a03fdf18df90ad3a32b06579806c28bdf30f2526f30ab10379cbd8b8a4afd",
+    "control-plane/store/event_annotations.go": "309709ebab48e42709a5149e19f17b8583fe88e816238b8726e284e525b00b5e"
+  }
+}

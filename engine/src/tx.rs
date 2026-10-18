@@ -153,6 +153,9 @@ pub struct Tx {
     signatures: crate::bundle::Signatures,
     sig_score: i32,
     sig_matched: bool,
+    staged_score: i32,
+    staged_any: bool,
+    staged_block_alone: bool,
     /// rules switched off on the engine when the transaction started
     disabled: Arc<[u32]>,
     /// what a sampled transaction keeps for replay (W12-N-01)
@@ -326,6 +329,9 @@ impl Tx {
             signatures: crate::bundle::Signatures::Shadow,
             sig_score: 0,
             sig_matched: false,
+            staged_score: 0,
+            staged_any: false,
+            staged_block_alone: false,
             disabled,
             sample: None,
             has_body_rules,
@@ -641,6 +647,31 @@ impl Tx {
             self.n_rules += 1;
         }
         let sig_shadow = v.signature && self.signatures == crate::bundle::Signatures::Shadow;
+        let staged = !sig_shadow
+            && v.layer == "managed"
+            && self
+                .engine
+                .as_ref()
+                .zip(self.policy_index)
+                .is_some_and(|(e, p)| e.is_staged(p, v.rule));
+        if staged {
+            self.staged_any = true;
+            self.staged_score = self.staged_score.saturating_add(v.score);
+            self.staged_block_alone |= v.block_alone;
+            if self.matches.len() < MAX_RULES {
+                let snippet = self.event_snippet(&v.field, &v.snippet);
+                self.matches.push(MatchEntry {
+                    rule_id: v.rule,
+                    layer: v.layer,
+                    field: v.field,
+                    snippet,
+                });
+            }
+            if self.id.is_none() {
+                self.id = Some(block_id::generate(Kind::Event, self.node));
+            }
+            return;
+        }
         if sig_shadow {
             // reported, never blocks: a would-be block of the signature
             // pack is logged with an Event ID, like a shadow policy
@@ -915,6 +946,8 @@ impl Tx {
                 self.degraded,
                 self.signatures != crate::bundle::Signatures::Off,
                 &self.disabled,
+                self.policy_index
+                    .map(|index| (index, engine.exceptions(index))),
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -983,6 +1016,8 @@ impl Tx {
             self.degraded,
             self.signatures != crate::bundle::Signatures::Off,
             &self.disabled,
+            self.policy_index
+                .map(|index| (index, engine.exceptions(index))),
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );
@@ -1186,7 +1221,7 @@ impl Tx {
                 v.status = 403;
             }
         } else {
-            if self.sig_matched {
+            if self.sig_matched || self.staged_any {
                 v.action = ACTION_LOG;
             }
             if self.error == OK && self.stage < Stage::BodyDone {
@@ -1274,6 +1309,17 @@ impl Tx {
                 return None;
             }
             max /= 2;
+        }
+    }
+
+    /// Inspection completeness, using the same classification as emitted events.
+    pub fn inspection(&self) -> crate::event::Inspection {
+        if self.error == E_BUDGET || self.args_left_out {
+            crate::event::Inspection::Partial
+        } else if self.body_skipped || self.error == E_INCOMPLETE {
+            crate::event::Inspection::BodySkipped
+        } else {
+            crate::event::Inspection::Full
         }
     }
 
@@ -1454,13 +1500,7 @@ impl Tx {
             .unwrap_or_else(|| identity_str.to_string());
         let ctx_headers: Vec<(&[u8], &[u8])> =
             ctx.headers.iter().map(|(k, v)| (&k[..], &v[..])).collect();
-        let inspection = if self.error == E_BUDGET || self.args_left_out {
-            crate::event::Inspection::Partial
-        } else if self.body_skipped || self.error == E_INCOMPLETE {
-            crate::event::Inspection::BodySkipped
-        } else {
-            crate::event::Inspection::Full
-        };
+        let inspection = self.inspection();
 
         let ev = crate::event::EventData {
             block_id: block_id_str,
@@ -1483,8 +1523,12 @@ impl Tx {
             referer: &ctx.referer,
             headers: &ctx_headers,
             inspection,
-            // a would-be block of the signature pack in shadow counts too
-            would_block: self.matched || self.sig_matched,
+            // Include log-only signatures and the combined score before staging.
+            would_block: self.matched
+                || self.sig_matched
+                || self.staged_block_alone
+                || self.staged_any
+                    && self.score.saturating_add(self.staged_score) >= BLOCK_THRESHOLD,
             canary: self.canary,
         };
 

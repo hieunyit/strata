@@ -1,0 +1,30 @@
+New writer integration cases:
+=== RUN   TestAuthorizedStagingWriterRealCompilerAndPostgres
+--- PASS: TestAuthorizedStagingWriterRealCompilerAndPostgres (2.49s)
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/disabled
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/fraction_below_threshold
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/wrong_evidence_bundle
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/changed_compiler_inputs
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/invalid_source_signature
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/source_not_active
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/query_error
+=== RUN   TestStagingWriterRejectsUnsafeOrUnboundInputs/missing_verifier
+--- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs (13.44s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/disabled (1.34s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/fraction_below_threshold (1.93s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/wrong_evidence_bundle (2.10s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/changed_compiler_inputs (2.21s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/invalid_source_signature (1.09s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/source_not_active (1.39s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/query_error (1.87s)
+    --- PASS: TestStagingWriterRejectsUnsafeOrUnboundInputs/missing_verifier (1.49s)
+PASS
+ok  	github.com/strata/strata/control-plane/policy	17.057s
+
+Final suite, also includes UInt64 threshold boundary/guard-order assertions:
+go test -race ./policy ./replay -count=1
+golangci-lint run ./policy/... ./replay/...
+ok  	github.com/strata/strata/control-plane/policy	21.528s
+ok  	github.com/strata/strata/control-plane/replay	4.869s
+0 issues.

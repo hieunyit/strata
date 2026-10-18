@@ -1,0 +1,6 @@
+=== RUN   TestRuleAnnotationsInPostgres
+    rule_annotations_test.go:48: FP count=1 want=0: <nil>
+--- FAIL: TestRuleAnnotationsInPostgres (0.62s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/store	0.711s
+FAIL

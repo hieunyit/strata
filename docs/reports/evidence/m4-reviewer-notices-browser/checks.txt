@@ -1,0 +1,15 @@
+Actual Chromium + private PostgreSQL/local-auth, race-enabled Go fixture:
+=== RUN   TestStagingNoticeBrowserLab
+    staging_notices_browser_test.go:74:
+        Running 1 test using 1 worker
+
+          ✓  1 [chromium] › tests-lab/staging-notices.spec.ts:6:1 › reviewer sees durable history in English/Vietnamese and on mobile; viewer cannot read it (5.2s)
+
+          1 passed (8.8s)
+--- PASS: TestStagingNoticeBrowserLab (15.46s)
+PASS
+ok  	github.com/strata/strata/control-plane/api	16.699s
+
+Full API race area + lint (native browser opt-in separate):
+ok  	github.com/strata/strata/control-plane/api	9.320s
+0 issues.

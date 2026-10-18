@@ -1,0 +1,18 @@
+ClickHouse fixture: strata-ch-perf-1792205616-1256155 at 127.0.0.1:32868
+filled in 222 s: 20000000 rows, 812.72 MiB active disk
+=== RUN   TestClickHouseAPIPerf
+    clickhouse_perf_test.go:101: GET /v1/events/{id}, 200 IDs: p50 138.773128ms, p99 1.543403678s, max 1.606902796s; unknown ID 254.262469ms (404)
+    clickhouse_perf_test.go:104: Block ID lookup over 1 s
+    clickhouse_perf_test.go:142: POST /v1/events:search, 24 hours (count + first 50):
+        all                      total   9966167  p50   1.098s  p99   1.324s
+        policy                   total   5979329  p50   1.191s  p99   1.541s
+        action block             total   7974205  p50    995ms  p99   1.085s
+        rule 942100              total   3213971  p50    1.53s  p99   1.769s
+        client IP                total    996380  p50   1.501s  p99   1.677s
+        node + method            total    355892  p50   1.175s  p99   1.416s
+        policy + rule + action   total   1287363  p50   1.491s  p99   1.807s
+        all, page 41             total   9966167  p50   1.138s  p99     1.4s
+--- FAIL: TestClickHouseAPIPerf (169.54s)
+FAIL
+FAIL	github.com/strata/strata/control-plane/api	169.597s
+FAIL

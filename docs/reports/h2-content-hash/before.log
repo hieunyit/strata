@@ -1,0 +1,22 @@
+   Compiling libstrata v0.1.0 (/src/engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.09s
+     Running unittests src/lib.rs (target/debug/deps/libstrata-bcbe370fa331890b)
+
+running 1 test
+test eval::tests::raw_content_hash_resists_repeated_xor_pairs ... FAILED
+
+failures:
+
+---- eval::tests::raw_content_hash_resists_repeated_xor_pairs stdout ----
+
+thread 'eval::tests::raw_content_hash_resists_repeated_xor_pairs' (301) panicked at engine/src/eval.rs:2398:9:
+only 1 hash values for 1024 hostile keys
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    eval::tests::raw_content_hash_resists_repeated_xor_pairs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 192 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p libstrata --lib`

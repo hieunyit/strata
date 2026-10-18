@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.30s
+running 196 tests
+test exceptions::tests::hostile_sizes_and_invalid_scopes ... ok
+test exceptions::tests::round_trip_and_every_truncation ... ok
+test exceptions::tests::scope_is_exact_and_expires_without_a_reload ... ok
+test result: ok. 195 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 7.22s
+    Checking libstrata v0.1.0 (/src/engine)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.88s

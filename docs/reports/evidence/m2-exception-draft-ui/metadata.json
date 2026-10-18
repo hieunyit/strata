@@ -1,0 +1,15 @@
+{
+  "source_sha256": {
+    "ui/src/components/events/ExceptionDraft.tsx": "7937363f369890ff0c9b3fa5b26c629edc5d0876c936c2f237ff6be178ab7787",
+    "ui/src/pages/EventDetailPage.tsx": "9e76f7fd18d551a25b45cde21466635b43ecca4ddc8f403815f396f97653cddc",
+    "ui/src/__tests__/ExceptionDraft.test.tsx": "6a222807dca0bc7fbbc1300b455c78a7850be9b6630d6cb1b2e4517e1889bfa8",
+    "ui/src/i18n/locales/en.json": "3bbb73448a6cffa15f1ec677d42f987b4961ae37b8c851097f1ac667aa0d2d3c",
+    "ui/src/i18n/locales/vi.json": "de7b449011b24702df8ee9574ae5e1195ca8a1d29a7002a6d97c627bb340e30e"
+  },
+  "ui_build_sha256": {
+    "index.html": "ca770b04c8761542d41f500fe45b47a8c833efbd72ff7c0e9d976d8afb44a6cb",
+    "index-F0489AVO.js": "c9d0ddaa5ba5295c5c5da022d90c1c32565b9aca166a4f4d1e1564202f13dce3"
+  },
+  "tests": "106/106 overall; 7/7 focused after final field styling/policy-version label; APIs mocked in component tests",
+  "scope": "component and UI build; actual browser/API acceptance follows separately; no replay or deployment claim"
+}

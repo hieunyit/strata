@@ -1,0 +1,8 @@
+Nhiệm vụ: M2 · draft và replay nguyên tử
+Nhánh: codex/m2-atomic-draft-replay; base kỹ thuật: codex/m2-exception-integration (kết hợp #143/#145–#148, không merge main).
+
+EditPolicyAndReplayOnce ghi draft/version, audit thay đổi, replay PENDING, audit replay và response request_id trong một PostgreSQL transaction. Cùng request/subject/command chỉ chạy một lần; semantics có/không queue replay cũng nằm trong fingerprint. GetPolicyReplayEditResult trả response đã commit trước khi endpoint tra event có thể hết retention; vẫn kiểm toàn bộ fingerprint và subject. GetPolicyByName phân biệt resource ID với tên bundle trong event.
+
+Kiểm chứng thật, không skip: go test -race -count=1 -v ./store -run 'Test(PolicyDraftAndReplayAtomic|DerivedPolicyDraftRunsOnce|PolicyEditRequest)' → 4 tests PASS, package 2.866s; golangci-lint run ./store/... → 0 issues. Output ở m2-atomic-draft-replay-checks.txt. Test tiêm lỗi PostgreSQL trigger khi insert operations sau khi đã ghi version/audit: tất cả rollback; retry cùng request_id vẫn dùng được. 12 concurrent requests tạo đúng một draft, một replay, hai audit tương ứng. Cached response chịu được policy edit về sau; thay nội dung/subject bị từ chối.
+
+Tự review: không I/O ngoài DB trong callback/transaction; reuse helper tạo operation của API hiện có, tất cả error trả lên; JSON/count/request bounds giữ nguyên. Không dependency/migration mới, thay đổi chỉ store/tests/docs. Bước này chưa expose endpoint từ Block ID, chưa tuyên bố luồng exception hoàn tất; policy/runtime/contract đã có ở các base. Không đổi policy body/CPU/fail mode, không merge/deploy, không chờ hosted CI.

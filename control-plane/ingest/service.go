@@ -22,8 +22,17 @@ type IngestStats struct {
 	InvalidEventsByNode  map[string]uint64
 }
 
+// BatchGate serializes a node's writes and commits its watermark across replicas.
+// A failed write or watermark commit must return an error, never a successful ACK.
+type BatchGate interface {
+	WithIngestBatch(context.Context, string, uint64, func(context.Context) error) (bool, error)
+}
+
 // IngestService coordinates deduplication, schema validation, batching, and persistence.
 type IngestService struct {
+	// Gate must be configured before serving when PostgreSQL is available.
+	Gate BatchGate
+
 	dedup   *NodeDeduplicator
 	batcher *Batcher
 	store   EventStore
@@ -64,6 +73,23 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 	s.batchesReceived.Add(1)
 	s.eventsReceived.Add(uint64(len(batch.Events)))
 
+	if s.Gate != nil {
+		bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		duplicate, err := s.Gate.WithIngestBatch(bounded, batch.NodeID, batch.Seq, func(ctx context.Context) error {
+			return s.persistBatch(ctx, batch)
+		})
+		if err != nil {
+			return &EventAck{NodeID: batch.NodeID, Success: false}, fmt.Errorf("ingest transaction: %w", err)
+		}
+		if duplicate {
+			s.batchesDropped.Add(1)
+		} else {
+			s.batchesAccepted.Add(1)
+		}
+		return &EventAck{NodeID: batch.NodeID, AckedSeq: batch.Seq, Success: true, Duplicate: duplicate}, nil
+	}
+
 	mu, _ := s.nodeLocks.LoadOrStore(batch.NodeID, &sync.Mutex{})
 	mu.(*sync.Mutex).Lock()
 	defer mu.(*sync.Mutex).Unlock()
@@ -81,10 +107,17 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 		}, nil
 	}
 
-	// 2. Validate and normalize schema for each event
+	if err := s.persistBatch(ctx, batch); err != nil {
+		return &EventAck{NodeID: batch.NodeID, AckedSeq: lastSeq, Success: false, Error: err.Error()}, err
+	}
+	s.dedup.Commit(ctx, batch.NodeID, batch.Seq)
+	s.batchesAccepted.Add(1)
+	return &EventAck{NodeID: batch.NodeID, AckedSeq: batch.Seq, Success: true}, nil
+}
+
+func (s *IngestService) persistBatch(ctx context.Context, batch EventBatch) error {
 	now := time.Now().UTC()
 	validEvents := make([]Event, 0, len(batch.Events))
-
 	for i := range batch.Events {
 		evt := &batch.Events[i]
 		if err := ValidateEvent(evt, now); err != nil {
@@ -98,28 +131,12 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 		s.eventsValid.Add(1)
 		validEvents = append(validEvents, *evt)
 	}
-
-	// 3. Submit valid events and wait for persistence before acking!
 	if len(validEvents) > 0 {
 		if err := s.batcher.SubmitAndAwait(ctx, validEvents); err != nil {
-			return &EventAck{
-				NodeID:   batch.NodeID,
-				AckedSeq: lastSeq,
-				Success:  false,
-				Error:    "failed to persist events: " + err.Error(),
-			}, fmt.Errorf("persisting events: %w", err)
+			return fmt.Errorf("persisting events: %w", err)
 		}
 	}
-
-	// 4. Update sequence watermark ONLY after persistence succeeded!
-	s.dedup.Commit(ctx, batch.NodeID, batch.Seq)
-	s.batchesAccepted.Add(1)
-
-	return &EventAck{
-		NodeID:   batch.NodeID,
-		AckedSeq: batch.Seq,
-		Success:  true,
-	}, nil
+	return nil
 }
 
 // StoreErrors counts the writes to the event store that failed.

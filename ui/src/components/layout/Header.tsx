@@ -6,6 +6,7 @@ import { apiClient } from '../../api/client';
 import { navigate } from '../../router';
 import { useTheme } from '../../lib/theme';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
+import { RuleStagingNotifications } from './RuleStagingNotifications';
 
 interface HeaderProps {
   /** default: open the event's page */
@@ -98,6 +99,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchBlockId, onOpenMenu }) =
       </form>
 
       <div className="ml-auto flex items-center gap-1">
+        <RuleStagingNotifications key={username} />
         {version && (
           <span data-testid="cp-version" className="hidden xl:inline mr-2 text-xs text-faint">
             {t('header.version', { version })}

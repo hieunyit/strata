@@ -1,0 +1,11 @@
+=== RUN   TestAuditWithoutPostgresDoesNotRegisterNilReader
+--- PASS: TestAuditWithoutPostgresDoesNotRegisterNilReader (0.00s)
+=== RUN   TestConfiguredAuditReaderIsKept
+--- PASS: TestConfiguredAuditReaderIsKept (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/cmd/server	1.171s
+=== RUN   TestAuditEndpoint_RBAC
+--- PASS: TestAuditEndpoint_RBAC (0.00s)
+PASS
+ok  	github.com/strata/strata/control-plane/api	1.101s
+0 issues.

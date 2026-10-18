@@ -43,3 +43,13 @@ export function canReadAudit(roles: UserRole[]): boolean {
 export function knownRoles(roles: string[]): UserRole[] {
   return known.filter((r) => roles.includes(r));
 }
+
+// UI visibility only; policies:approve is enforced again by the API.
+export function canApprovePolicies(roles: UserRole[]): boolean {
+  return roles.includes('approver') || roles.includes('admin');
+}
+
+// UI visibility only; events:write is enforced again by the API.
+export function canWriteEvents(roles: UserRole[]): boolean {
+  return roles.includes('operator') || roles.includes('admin');
+}
