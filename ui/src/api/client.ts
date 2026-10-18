@@ -329,8 +329,12 @@ export const apiClient = {
 
   /** GET /v1/audit: list newest audit log entries */
   async listAuditLogs(limit = 100): Promise<AuditEntry[]> {
-    const r = await call<ListAuditResponse>(`/audit?limit=${limit}`, { method: 'GET' }, 'Failed to list audit log');
-    return r.entries ?? [];
+    return (await apiClient.searchAuditLogs({limit})).entries ?? [];
+  },
+  async searchAuditLogs(query: AuditQuery, signal?: AbortSignal): Promise<ListAuditResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));
+    return call<ListAuditResponse>(`/audit?${params}`, {method:'GET', signal}, 'Failed to search audit log');
   },
   /** GET /v1/service-accounts */
   async listServiceAccounts(): Promise<ServiceAccount[]> {
@@ -371,19 +375,6 @@ export type CreateTokenResponse = components['schemas']['MachineTokenResponse'];
 export type CreateServiceAccountRequest = components['schemas']['ServiceAccountCreateRequest'];
 export type CreateServiceAccountTokenRequest = components['schemas']['MachineTokenRequest'];
 
-export interface AuditEntry {
-  at?: string;
-  actor: string;
-  subject?: string;
-  channel: string;
-  action: string;
-  resource: string;
-  request_id?: string;
-  before?: unknown;
-  after?: unknown;
-}
-
-export interface ListAuditResponse {
-  entries: AuditEntry[];
-}
-
+export type AuditEntry = components['schemas']['AuditEntry'];
+export type ListAuditResponse = components['schemas']['AuditListResponse'];
+export type AuditQuery = NonNullable<operations['listAudit']['parameters']['query']>;

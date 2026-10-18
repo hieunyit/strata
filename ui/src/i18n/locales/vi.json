@@ -354,7 +354,7 @@
   "audit": {
     "title": "Nhật ký kiểm toán",
     "subtitle": "Lịch sử tuần tự các thao tác quản trị, phát hành policy và vận hành node.",
-    "searchPlaceholder": "Lọc theo người thực hiện, tài nguyên hoặc thao tác…",
+    "searchPlaceholder": "Tìm trong các dòng đang hiển thị…",
     "allActions": "Tất cả thao tác",
     "loading": "Đang tải nhật ký kiểm toán…",
     "empty": "Không có bản ghi kiểm toán nào khớp bộ lọc.",
@@ -367,8 +367,27 @@
       "channel": "Kênh",
       "action": "Thao tác",
       "resource": "Tài nguyên",
-      "details": "Chi tiết"
-    }
+      "details": "Chi tiết",
+      "requestID": "Mã yêu cầu",
+      "subject": "Định danh đã xác thực"
+    },
+    "filter": {
+      "actor": "Người thực hiện (đúng tên)",
+      "resource": "Đối tượng chứa",
+      "action": "Thao tác chứa",
+      "channel": "Kênh",
+      "from": "Từ (giờ địa phương)",
+      "to": "Đến, không bao gồm (giờ địa phương)"
+    },
+    "applyFilters": "Áp dụng bộ lọc",
+    "clearFilters": "Xóa bộ lọc",
+    "filterNote": "Tìm trong lịch sử đã lưu. Thời gian dùng múi giờ địa phương.",
+    "invalidRange": "Nhập thời gian hợp lệ, thời điểm Từ phải trước Đến.",
+    "loadError": "Không thể tra cứu audit. Làm mới để thử lại.",
+    "truncated": "Đã tải {{count}} bản ghi khớp mới nhất; thu hẹp bộ lọc để tìm các bản ghi cũ hơn.",
+    "newestMatching": "Đã tải {{count}} bản ghi khớp mới nhất.",
+    "onResource": "trên {{resource}}",
+    "noState": "(không có)"
   },
   "account": {
     "title": "Đổi mật khẩu",
