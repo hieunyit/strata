@@ -1,6 +1,6 @@
 module github.com/strata/strata/tools/coraza-diff
 
-go 1.25.0
+go 1.26.9
 
 require github.com/corazawaf/coraza/v3 v3.8.1
 

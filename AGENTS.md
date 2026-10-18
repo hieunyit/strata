@@ -239,7 +239,7 @@ Mỗi phiên chỉ làm một mã nhiệm vụ. Không làm trước nhiệm v�
 
 **Môi trường** (máy dev hiện tại)
 - Host không có `make` và `sudo`: chạy mọi lệnh Makefile qua image dev, `deploy/dev/run.sh make <đích> ...`. Image mount repo tại `/src` và **không thấy `/tmp` của host**: file tạm cho công cụ chạy trong image để ở `build/` (đã gitignore).
-- Go trên host là 1.22, module cần 1.25: chạy Go trên host bằng `GOTOOLCHAIN=auto go ...`, hoặc trong image dev.
+- Go trên host là 1.22, module cần 1.26.9: chạy Go trên host bằng `GOTOOLCHAIN=auto go ...`, hoặc trong image dev.
 - Node/npm (UI) chạy trên host, trong `ui/`.
 - `make test-nginx-asan` **không tự build lại**: luôn chạy `make nginx-asan NGINX_VERSION=<bản>` trước, nếu không sẽ test module cũ và ra lỗi giả. Tương tự `make nginx` trước `make test-nginx-valgrind`.
 - Lab: `deploy/dev/run.sh deploy/lab/build.sh`, rồi `docker compose -f deploy/lab/compose.yaml --env-file deploy/lab/.state/env up -d --wait`; kiểm bằng `deploy/lab/smoke.sh` và `tests/e2e/lab-chain.sh`.
