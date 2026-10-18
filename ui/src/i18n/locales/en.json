@@ -360,7 +360,7 @@
   "audit": {
     "title": "Audit Trail",
     "subtitle": "Chronological log of administrative actions, policy releases, and node operations.",
-    "searchPlaceholder": "Filter by actor, resource, or action…",
+    "searchPlaceholder": "Search the displayed rows…",
     "allActions": "All Actions",
     "loading": "Loading audit log…",
     "empty": "No audit log entries match your filter.",
@@ -373,8 +373,27 @@
       "channel": "Channel",
       "action": "Action",
       "resource": "Resource",
-      "details": "Details"
-    }
+      "details": "Details",
+      "requestID": "Request ID",
+      "subject": "Authenticated subject"
+    },
+    "filter": {
+      "actor": "Actor (exact name)",
+      "resource": "Resource contains",
+      "action": "Action contains",
+      "channel": "Channel",
+      "from": "From (local time)",
+      "to": "To, exclusive (local time)"
+    },
+    "applyFilters": "Apply filters",
+    "clearFilters": "Clear filters",
+    "filterNote": "Filters search stored history. Times use your local timezone.",
+    "invalidRange": "Enter valid dates with From earlier than To.",
+    "loadError": "Audit search unavailable. Refresh to retry.",
+    "truncated": "Loaded the newest {{count}} matching records; narrow the filters to see older matches.",
+    "newestMatching": "Loaded {{count}} newest matching records.",
+    "onResource": "on {{resource}}",
+    "noState": "(none)"
   },
   "account": {
     "title": "Change password",
