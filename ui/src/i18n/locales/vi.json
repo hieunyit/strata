@@ -14,6 +14,7 @@
     "policies": "Policy",
     "fleet": "Fleet",
     "users": "Người dùng",
+    "reviews": "Duyệt policy",
     "audit": "Kiểm toán"
   },
   "header": {
@@ -590,5 +591,26 @@
       "DONE": "Hoàn tất",
       "FAILED": "Thất bại"
     }
+  },
+  "reviews": {
+    "title": "Duyệt policy",
+    "subtitle": "Version đã gửi duyệt, thay đổi cụ thể và bằng chứng replay.",
+    "refresh": "Tải lại xét duyệt",
+    "unavailable": "Chưa tải được dữ liệu xét duyệt. Hãy tải lại trước khi quyết định.",
+    "loading": "Đang tải xét duyệt…",
+    "author": "Người soạn: {{name}}",
+    "submitter": "Người gửi duyệt: {{name}}",
+    "fourEyes": "Người soạn và người gửi không thể tự duyệt version của mình. Máy chủ kiểm tra định danh tài khoản.",
+    "diffBaseline": "Thay đổi so với version policy APPROVED/DEPLOYED v{{version}}. Replay ghi riêng bundle đối chiếu thực tế.",
+    "firstVersion": "Chưa có version đã duyệt nào khác. Cấu hình đề xuất của version này:",
+    "policy": "ID tài nguyên policy",
+    "version": "Version",
+    "submittedBy": "Người gửi duyệt",
+    "submittedAt": "Thời điểm gửi",
+    "inspect": "Xem xét version",
+    "empty": "Không có version đang chờ duyệt.",
+    "previous": "Trang trước",
+    "next": "Trang sau",
+    "page": "Trang {{page}}/{{pages}} · {{total}} version"
   }
 }
