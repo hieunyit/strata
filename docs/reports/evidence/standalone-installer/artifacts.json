@@ -1,0 +1,29 @@
+{
+  "binary_source_commit": "a635da104ad67bd45f1c1ccef0c9389d4cbca339",
+  "version": "0.0.0~lab.1",
+  "trusted_key": "existing public test fixture only; never production trust",
+  "sha256": {
+    "build/packages/nginx-module-strata_1.30.5+0.0.0~lab.1-1_amd64.deb": "0e197842c1ce69d0ac1162ecee6bf24a85a9ea29097902efdd400b99f632e302",
+    "build/packages/strata-agent_0.0.0~lab.1-1_amd64.deb": "73f8745ec395f4a3abc3ea8f3e8833ac2342dfced1a048cf55f4d71411cf9717",
+    "build/packages/strata-agent-0.0.0~lab.1-1.x86_64.rpm": "53fdbb5a9c43c91eba59ebcee0bde12b2dcab044cbfc1d4e9a4278955392249f",
+    "build/packages/nginx-module-strata-1.30.5+0.0.0~lab.1-1.x86_64.rpm": "18f7ef55f1447eaa05e791a15e7e6ab55ac47ee49361086b5231533194676406",
+    "deploy/packaging/install.sh": "43ff33539f242344d238ebb83d05fc8415d2029481cab634a7a80e2cd6edb631",
+    "deploy/packaging/install-standalone.sh": "b83d3952bce60695d9594be16d3a314706fa47d7021d46a0c464d403bad15eb5",
+    "deploy/packaging/test/test-standalone-install.py": "81fbbd5f6809e4d035a558cc41bbc5621db9df66325321d939e09ae0f4ffd5e8",
+    "build/packages/bin/strata-agent": "5a47fe7609bb9b81a4fac14992ca9f09895dac3be6d08a0031721964846bb87d",
+    "build/packages/bin/ngx_http_strata_module-1.30.5.so": "422a08b2fba9223eb13d1495a873f6d09d5fa79fd4a2a74038372cd2a52ce003",
+    "build/m4-runtime-target/release/strata-compile": "0ca50f3517db17ebe440beeea66eab647f19f1d2514312cb8f45d632bcd91e1e",
+    "build/m4-runtime-target/release/strata-eval": "5a9f8d75caf34acfaaa23365cd6ef59962353300b996926b6daa59c13071f538",
+    "build/standalone-packaging/strata-rules": "e795446dfd1bb9110183ca6cc86ca84c5d158fbbc4b43b350f09cf1289d3b5cd",
+    "build/standalone-packaging/invalid/canary.sbn": "b8f3066153934d5f1666776364cf36c8d3c73053e8213da467a4c280af92c242",
+    "build/standalone-packaging/invalid/layout.sbn": "875da0ba042db80339f4d1c18fa5ec96c29c6312a531dcb41e66b13bf26baa07",
+    "build/standalone-packaging/invalid/tamper.sbn": "18771b78197fe91ce63bfb6301308cc3fe9cf9a63d63b94af289cac44a39094c",
+    "build/standalone-packaging/invalid/shadow.sbn": "d2ee2e89346951c656b1777eca09d544bd431e67c8490d644024b8de4e2ecb7a"
+  },
+  "images": {
+    "strata-pkgtest:ubuntu-24.04": "sha256:e611d91953dd83d26944d54ab41cd8b46af4f25b598050bb9621d1fca76c3443",
+    "strata-pkgtest:rockylinux-9": "sha256:b3131c42c0f2445f8c0091ccddf4e358353bff6f4b6b1b58b15d6cba82d6ef52",
+    "strata-dev:go1.26.9-review": "sha256:ac48c76de34f7c20bfab2e61f9cf57c83f9d7035084e9479461f75f58b6d6e2a",
+    "strata-pkg-builder:rocky9": "sha256:ac8f9baefe0f25af627ee2ec406ab340bdece430d39004557bd4af916304167c"
+  }
+}

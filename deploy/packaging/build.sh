@@ -93,7 +93,7 @@ for p in deb rpm; do
     nfpm "$out/nfpm-agent.yaml" "$p"
     for n in "$@"; do nfpm "$out/nfpm-module-$n.yaml" "$p"; done
 done
-cp deploy/packaging/install.sh "$out/"
-(cd "$out" && sha256sum ./*.deb ./*.rpm install.sh > SHA256SUMS)
+cp deploy/packaging/install.sh deploy/packaging/install-standalone.sh "$out/"
+(cd "$out" && sha256sum ./*.deb ./*.rpm install.sh install-standalone.sh > SHA256SUMS)
 echo "packaging: $STRATA_VERSION"
 ls -l "$out"/*.deb "$out"/*.rpm
