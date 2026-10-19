@@ -132,6 +132,89 @@ type target struct {
 	count bool
 }
 
+// literalNames reads a selector pattern /.../ that spells a finite set of
+// names: literal characters, \xHH and \-escaped punctuation, each optionally
+// followed by ?. Anything else (alternation, classes, repetition, anchors,
+// groups) is refused, as are more than 16 names.
+func literalNames(sel string) ([]string, bool) {
+	if len(sel) < 3 || sel[0] != '/' || sel[len(sel)-1] != '/' {
+		return nil, false
+	}
+	p := sel[1 : len(sel)-1]
+	type atom struct {
+		c   byte
+		opt bool
+	}
+	var atoms []atom
+	for i := 0; i < len(p); {
+		var c byte
+		switch {
+		case p[i] == '\\' && i+3 < len(p) && p[i+1] == 'x':
+			v, err := strconv.ParseUint(p[i+2:i+4], 16, 8)
+			if err != nil {
+				return nil, false
+			}
+			c, i = byte(v), i+4
+		case p[i] == '\\' && i+1 < len(p) && strings.IndexByte(`$.-_"'/`, p[i+1]) >= 0:
+			c, i = p[i+1], i+2
+		case (p[i] >= 'a' && p[i] <= 'z') || (p[i] >= 'A' && p[i] <= 'Z') || (p[i] >= '0' && p[i] <= '9') || p[i] == '_' || p[i] == '-':
+			c, i = p[i], i+1
+		default:
+			return nil, false
+		}
+		a := atom{c: c}
+		if i < len(p) && p[i] == '?' {
+			a.opt, i = true, i+1
+		}
+		atoms = append(atoms, a)
+	}
+	names := []string{""}
+	for _, a := range atoms {
+		var next []string
+		for _, n := range names {
+			next = append(next, n+string(a.c))
+			if a.opt {
+				next = append(next, n)
+			}
+		}
+		if len(next) > 16 {
+			return nil, false
+		}
+		names = next
+	}
+	out := names[:0]
+	for _, n := range names {
+		if n != "" {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out, len(out) > 0
+}
+
+// disabledByDefault: a rule whose first link is &TX:x @eq 1 or TX:x @eq 1
+// runs only when crs-setup sets tx.x, which REQUEST-901 does not by
+// default (argument limits, file sizes, UTF-8 validation): not active
+// detection in a default CRS. Returns the variable.
+func disabledByDefault(r seclang.Rule, defs map[string]string) (string, bool) {
+	if len(r.Chain) < 2 {
+		return "", false
+	}
+	l := r.Chain[0]
+	if len(l.Variables) != 1 || l.Operator != "eq" || strings.TrimSpace(l.Argument) != "1" || l.Negated {
+		return "", false
+	}
+	name, ok := strings.CutPrefix(strings.TrimPrefix(l.Variables[0], "&"), "TX:")
+	if !ok {
+		return "", false
+	}
+	name = strings.ToLower(name)
+	if _, set := defs[name]; set {
+		return "", false
+	}
+	return name, true
+}
+
 // convertLink turns one chain link into an IR condition.
 func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *[]string) (map[string]any, string) {
 	if l.Operator == "within" {
@@ -139,12 +222,24 @@ func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *
 	}
 	var ts []*target
 	excludes := map[string][]string{} // IR var -> names
+	bodyLength := false
 	for _, raw := range l.Variables {
 		neg := strings.HasPrefix(raw, "!")
 		raw = strings.TrimPrefix(raw, "!")
 		count := strings.HasPrefix(raw, "&")
 		raw = strings.TrimPrefix(raw, "&")
 		name, sel, _ := strings.Cut(raw, ":")
+		// REQUEST_BODY_LENGTH: the length of the body as read, the IR's
+		// request_body with transformation length (one target only: the
+		// transformation applies to the whole condition)
+		if name == "REQUEST_BODY_LENGTH" && sel == "" && !neg && !count {
+			if len(l.Variables) != 1 {
+				return nil, "variable REQUEST_BODY_LENGTH with other targets"
+			}
+			ts = append(ts, &target{v: "request_body"})
+			bodyLength = true
+			continue
+		}
 		if name == "XML" {
 			v, ok := xmlSelectors[sel]
 			if !ok || neg || count {
@@ -167,7 +262,18 @@ func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *
 			continue
 		}
 		if strings.HasPrefix(sel, "/") {
-			return nil, "pattern selector " + name + ":" + sel
+			// a pattern spelling a few names only (literals, optional
+			// characters) becomes those names; the IR has no name patterns
+			names, ok := literalNames(sel)
+			if !ok {
+				return nil, "pattern selector " + name + ":" + sel
+			}
+			*notes = append(*notes, fmt.Sprintf("selector %s:%s read as the names %s (exact: a name merely containing it no longer matches)",
+				name, sel, strings.Join(names, ", ")))
+			for _, n := range names {
+				ts = append(ts, &target{v: v, key: n, count: count})
+			}
+			continue
 		}
 		ts = append(ts, &target{v: v, key: sel, count: count})
 	}
@@ -244,6 +350,9 @@ func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *
 			return nil, "transformation " + t
 		}
 		chain = append(chain, ir)
+	}
+	if bodyLength {
+		chain = append(chain, "length")
 	}
 	targets := make([]map[string]any, 0, len(ts))
 	for _, t := range ts {
@@ -351,6 +460,9 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 	}
 	if !hasAction(r, "block") && !hasAction(r, "deny") {
 		return nil, "does not block or score (control flow)"
+	}
+	if v, off := disabledByDefault(r, opts.Defaults); off {
+		return nil, "disabled by default (crs-setup tx." + v + ")"
 	}
 	stage := map[string]string{"1": "request_headers", "request": "request_headers", "2": "request_body"}[r.Phase]
 	if stage == "" {

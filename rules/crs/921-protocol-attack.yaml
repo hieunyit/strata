@@ -242,6 +242,33 @@ rules:
       source: crs
       upstream_id: "921240"
       upstream_version: 4.25.2
+  - id: 921250
+    name: Old Cookies V1 usage attempt detected
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: streq
+            value: "1"
+          targets:
+            - key: '"$Version'
+              var: request_cookies
+            - key: $Version
+              var: request_cookies
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "921250"
+      upstream_version: 4.25.2
   - id: 921421
     name: 'Content-Type header: Dangerous content type outside the mime type declaration'
     layer: protocol

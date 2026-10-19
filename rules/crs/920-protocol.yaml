@@ -828,6 +828,37 @@ rules:
       source: crs
       upstream_id: "920620"
       upstream_version: 4.25.2
+  - id: 920640
+    name: Content-Type header missing from request with body
+    layer: protocol
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: gt
+            value: 0
+          targets:
+            - var: request_body
+          transforms:
+            - length
+        - operator:
+            type: eq
+            value: 0
+          targets:
+            - count: true
+              key: Content-Type
+              var: request_headers
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 1
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "920640"
+      upstream_version: 4.25.2
   - id: 920660
     name: Obsolete Request-Range header detected
     layer: protocol

@@ -476,3 +476,112 @@ func TestTuneProseFalsePositives(t *testing.T) {
 		t.Errorf("942190: %v %v", got, notes)
 	}
 }
+
+// W18-R-01: REQUEST_BODY_LENGTH, selector patterns spelling a few names,
+// rules off unless crs-setup sets an option.
+const confW18 = `SecRule REQUEST_BODY_LENGTH "@gt 0" \
+    "id:920640,phase:2,block,t:none,msg:'Content-Type header missing from request with body',\
+    tag:'paranoia-level/1',severity:'CRITICAL',chain"
+    SecRule &REQUEST_HEADERS:Content-Type "@eq 0" "t:none"
+
+SecRule REQUEST_COOKIES:/\x22?\x24Version/ "@streq 1" \
+    "id:921250,phase:1,block,t:none,t:lowercase,msg:'Old Cookies V1 usage attempt detected',\
+    tag:'paranoia-level/1',severity:'CRITICAL'"
+
+SecRule &TX:ARG_NAME_LENGTH "@eq 1" \
+    "id:920360,phase:2,block,t:none,tag:'paranoia-level/1',severity:'CRITICAL',chain"
+    SecRule ARGS_NAMES "@gt %{tx.arg_name_length}" "t:none,t:length"
+
+SecRule TX:CRS_VALIDATE_UTF8_ENCODING "@eq 1" \
+    "id:920250,phase:2,block,t:none,tag:'paranoia-level/1',severity:'WARNING',chain"
+    SecRule ARGS "@validateUtf8Encoding" "t:none"
+
+SecRule &TX:EXAMPLE_ON "@eq 1" \
+    "id:920251,phase:2,block,t:none,tag:'paranoia-level/1',severity:'WARNING',chain"
+    SecRule ARGS "@rx x" "t:none"
+
+SecRule REQUEST_BODY_LENGTH|ARGS "@gt 0" "id:920641,phase:2,block,severity:'CRITICAL',tag:'paranoia-level/1'"
+SecRule ARGS:/^id/ "@rx a" "id:942107,phase:2,block,severity:'CRITICAL'"
+`
+
+func TestBodyLengthNamePatternsAndOptions(t *testing.T) {
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(rules, "x.conf"), []byte(confW18), 0o644)
+	res, err := Import([]Group{{File: "x.conf", Out: "x.yaml", Ruleset: "crs-x", AttackType: "protocol", Layer: "managed"}},
+		Options{CRSDir: dir, Version: "4.25.2", Defaults: map[string]string{"example_on": "1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := conds(rule(t, res, 920640))
+	want := []any{
+		map[string]any{"targets": []map[string]any{{"var": "request_body"}}, "transforms": []string{"length"},
+			"operator": map[string]any{"type": "gt", "value": 0}},
+		map[string]any{"targets": []map[string]any{{"var": "request_headers", "key": "Content-Type", "count": true}},
+			"operator": map[string]any{"type": "eq", "value": 0}},
+	}
+	for i := range want {
+		if !reflect.DeepEqual(body[i], want[i]) {
+			t.Errorf("920640 condition %d: %#v", i, body[i])
+		}
+	}
+	cookie := conds(rule(t, res, 921250))[0].(map[string]any)
+	keys := []string{}
+	for _, tg := range cookie["targets"].([]map[string]any) {
+		keys = append(keys, tg["var"].(string)+":"+tg["key"].(string))
+	}
+	if strings.Join(keys, ",") != `request_cookies:"$Version,request_cookies:$Version` {
+		t.Errorf("921250 targets %v", keys)
+	}
+	got := map[int]string{}
+	for _, s := range res.Sorted() {
+		got[s.Rule] = s.Reason
+	}
+	for id, w := range map[int]string{
+		920360: "disabled by default (crs-setup tx.arg_name_length)",
+		920250: "disabled by default (crs-setup tx.crs_validate_utf8_encoding)",
+		920641: "variable REQUEST_BODY_LENGTH with other targets",
+		942107: "pattern selector ARGS:/^id/",
+	} {
+		if got[id] != w {
+			t.Errorf("%d: %q, want %q", id, got[id], w)
+		}
+	}
+	// an option crs-setup does set is not "disabled": the rule goes on
+	// (and stops at its TX target)
+	if !strings.HasPrefix(got[920251], "variable TX") {
+		t.Errorf("920251: %q", got[920251])
+	}
+	var notes string
+	for _, n := range res.Groups[0].Notes {
+		if n.Rule == 921250 {
+			notes += n.Text
+		}
+	}
+	if !strings.Contains(notes, `read as the names "$Version, $Version`) {
+		t.Errorf("921250 notes: %q", notes)
+	}
+}
+
+func TestLiteralNames(t *testing.T) {
+	for sel, want := range map[string]string{
+		`/\x22?\x24Version/`: `"$Version|$Version`,
+		`/__utm/`:            `__utm`,
+		`/a-b_c/`:            `a-b_c`,
+		`/x?y?/`:             `x|xy|y`,
+	} {
+		got, ok := literalNames(sel)
+		if !ok || strings.Join(got, "|") != want {
+			t.Errorf("%s: %v %v, want %s", sel, got, ok, want)
+		}
+	}
+	for _, sel := range []string{`/^id/`, `/a|b/`, `/[ab]/`, `/a*/`, `/(a)/`, `/a+/`, `/a.b/`, `/a$/`, `//`, `/?/`, `/\d/`,
+		`/a?b?c?d?e?/`, `/\xZZ/`, `^a`} {
+		if got, ok := literalNames(sel); ok {
+			t.Errorf("%s accepted: %v", sel, got)
+		}
+	}
+}
