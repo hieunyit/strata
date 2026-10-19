@@ -5,6 +5,8 @@
 //! library on the sample corpora (`make libinjection-diff`).
 #![forbid(unsafe_code)]
 
+/// CMDi lexical component used by the opt-in `detect_cmdi` rule operator.
+pub mod cmdi;
 pub mod html5;
 pub mod sqli;
 /// SSTI lexical component used by the opt-in `detect_ssti` rule operator.

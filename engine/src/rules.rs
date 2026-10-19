@@ -178,6 +178,7 @@ pub const OPERATORS: &[&str] = &[
     "ip_match",
     // Append only: signed bundles persist these numeric operator codes.
     "detect_ssti",
+    "detect_cmdi",
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;

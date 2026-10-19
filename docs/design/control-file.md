@@ -60,6 +60,10 @@ Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES
 mới bị engine cũ từ chối lúc nạp; nâng module trước khi phát bundle đó. Không tự
 bật rule trong policy. Không thêm section hoặc thay layout bản ghi.
 
+**W17-R-01, operator CMDi:** `detect_cmdi` nối tiếp ở mã 19, cùng quy tắc như
+`detect_ssti` (không `value`, transform/negate như `detect_sqli`, engine cũ từ chối
+bundle chứa nó, không tự bật rule, không đổi section hay layout).
+
 
 ### Section 11 `STAGING` (M4)
 
