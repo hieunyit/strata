@@ -10,5 +10,17 @@
   "geoip-contract.log": {
     "bytes": 1031,
     "sha256": "7078100ad9a00343390e6d0106119cfb2833f8a36c8121fed29d6527168c1ce9"
+  },
+  "geoip-combined-cp.log": {
+    "bytes": 1336,
+    "sha256": "3cc6ca9075e3496aaf3a8e7d224780caa08b99877cfc447993a5a990f7e93e2d"
+  },
+  "geoip-combined-scan.json": {
+    "bytes": 584629,
+    "sha256": "bf8e06b583e982997c696537477738f9788eeb33904ef04a95dd0f4fd52d606f"
+  },
+  "geoip-combined-scan.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   }
 }
