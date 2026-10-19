@@ -279,7 +279,7 @@ không build lại.
 
 | Rủi ro | Giảm thiểu |
 | --- | --- |
-| **Hiện có**: principal OIDC dùng nguyên `sub` của token (`auth/oidc.go`), còn tài khoản local là `local:<tên>`. Một IdP cấp `sub` dạng `local:admin` (IdP ngoài cho phép đặt sub, hoặc IdP bị chiếm) sẽ trùng định danh với admin local: qua mặt bốn mắt, audit sai người, chiếm session | Namespace hóa OIDC: subject = `oidc:<issuer-id>:<sub>`; từ chối token có `sub` bắt đầu bằng `local:`; migration chuyển `created_subject`, `submitted_subject`, `decided_subject` cũ sang dạng mới; test riêng |
+| **Hiện có**: principal OIDC dùng nguyên `sub` của token (`auth/oidc.go`), còn tài khoản local là `local:<tên>` và service account `sa:<id>`. Một IdP cấp `sub` dạng `local:admin` (IdP ngoài cho phép đặt sub, hoặc IdP bị chiếm) sẽ trùng định danh với tài khoản đó: audit ghi nhầm người, dùng chung khóa chống trùng request (`subject, request_id`) nên có thể nhận lại kết quả request của người kia, và quyết định bốn mắt dựa trên định danh sai. Không cho một người tự duyệt bản của chính mình | `oidc:<sub>` cho mọi subject OIDC; token không có `sub` bị từ chối; migration chuyển các cột subject đã lưu (trừ `audit_log`, giữ nguyên lịch sử); test riêng. Làm ở **CP-SEC-01** |
 | Tên hiển thị (`preferred_username`) dùng nhầm cho quyết định phân quyền | Chỉ dùng subject cho phân quyền và bốn mắt (đã đúng); test giữ nguyên |
 | Token có audience khác (của ứng dụng khác cùng IdP) được nhận | Bắt buộc `audience`; test token sai audience |
 | Redirect URI mở sau đăng nhập | UI chỉ quay về đường dẫn nội bộ (bắt đầu bằng `/`, không `//`) |
