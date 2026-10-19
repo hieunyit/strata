@@ -56,8 +56,12 @@ pub mod kind {
     pub const EXCEPTIONS: u32 = 10;
     /// Signed per-policy managed-rule log-only overlay.
     pub const STAGING: u32 = 11;
+    /// Published IP ranges of the big crawlers (W18-R-02,
+    /// `crate::goodbots`). Optional: engines before it skip the section,
+    /// and their rules on bot_verified cannot exist (unknown target).
+    pub const GOOD_BOTS: u32 = 12;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 11;
+    pub const KNOWN: u32 = 12;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

@@ -38,6 +38,8 @@ pub struct Engine {
     privacy: Vec<Option<crate::privacy::Privacy>>,
     exceptions: Vec<Vec<crate::exceptions::Exception>>,
     staging: Vec<Vec<u32>>,
+    /// published crawler ranges (section GOOD_BOTS, W18-R-02)
+    good_bots: crate::goodbots::GoodBots,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -171,6 +173,8 @@ impl Engine {
                 staging[entry.policy_index as usize].push(entry.rule_id);
             }
         }
+        let good_bots = crate::goodbots::parse(info.section(bytes, bundle::kind::GOOD_BOTS))
+            .map_err(|e| (E_BUNDLE, e.message()))?;
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -248,6 +252,7 @@ impl Engine {
             disabled: std::sync::RwLock::new(std::sync::Arc::from([])),
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
+            good_bots,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -265,6 +270,11 @@ impl Engine {
     /// Sampled time by rule (W13-R-02).
     pub fn rule_costs(&self) -> &crate::rulecost::RuleCosts {
         &self.rule_costs
+    }
+
+    /// Published crawler ranges of the bundle (W18-R-02).
+    pub fn good_bots(&self) -> &crate::goodbots::GoodBots {
+        &self.good_bots
     }
 
     /// Privacy settings of the policy at `index`, if it has some.

@@ -22,6 +22,10 @@ import (
 type Tools struct {
 	CompileBin string // strata-compile
 	EvalBin    string // strata-eval
+	// GoodBots: crawler ranges compiled into every test bundle
+	// (strata-compile --good-bots), so rules on bot_verified can be tested:
+	// <repo>/rules/testdata/good-bots.json, documentation addresses only.
+	GoodBots string
 }
 
 // Find locates the binaries: $STRATA_COMPILE / $STRATA_EVAL, then
@@ -48,7 +52,16 @@ func Find(repo string) (Tools, error) {
 	if err != nil {
 		return Tools{}, err
 	}
-	return Tools{CompileBin: c, EvalBin: e}, nil
+	t := Tools{CompileBin: c, EvalBin: e}
+	if p := filepath.Join(repo, "rules", "testdata", "good-bots.json"); fileExists(p) {
+		t.GoodBots = p
+	}
+	return t, nil
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.Mode().IsRegular()
 }
 
 func isExec(p string) bool {
@@ -121,6 +134,9 @@ func (t Tools) Build(irDocs [][]byte) (*Bundle, error) {
 		return nil, err
 	}
 	args := []string{"--policies", pol, "--key", keyFile, "--version", "1", "--created-at", "1", "--out", b.Path}
+	if t.GoodBots != "" {
+		args = append(args, "--good-bots", t.GoodBots)
+	}
 	for i, doc := range irDocs {
 		f := filepath.Join(dir, "rules-"+strconv.Itoa(i)+".json")
 		if err := os.WriteFile(f, doc, 0o644); err != nil {

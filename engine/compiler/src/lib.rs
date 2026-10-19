@@ -260,6 +260,34 @@ pub struct Policies {
     /// the installation's identity key, for policies with `identity: hmac`
     /// (strata-compile --identity-key; the control plane keeps it)
     pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
+    /// published crawler ranges for section GOOD_BOTS (W18-R-02;
+    /// strata-compile --good-bots, the control plane's latest list)
+    pub good_bots: Vec<libstrata::goodbots::Crawler>,
+}
+
+/// Reads the crawler ranges the control plane stores (W18-G2-02):
+/// `{"version": "...", "crawlers": {"googlebot": ["66.249.64.0/27", ...]}}`.
+pub fn good_bots_from_json(bytes: &[u8]) -> Result<Vec<libstrata::goodbots::Crawler>> {
+    let doc: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|e| format!("good bots: {e}"))?;
+    let crawlers = doc["crawlers"]
+        .as_object()
+        .ok_or("good bots: no \"crawlers\" object")?;
+    let mut out = vec![];
+    for (name, prefixes) in crawlers {
+        let list: Vec<&str> = prefixes
+            .as_array()
+            .ok_or_else(|| format!("good bots: {name}: not a list"))?
+            .iter()
+            .map(|p| {
+                p.as_str()
+                    .ok_or_else(|| format!("good bots: {name}: not a string"))
+            })
+            .collect::<Result<_>>()?;
+        out.push(libstrata::goodbots::crawler(name, &list).map_err(|e| format!("good bots: {e}"))?);
+    }
+    libstrata::goodbots::encode(&out).map_err(|e| format!("good bots: {e}"))?;
+    Ok(out)
 }
 
 /// Reads an identity key file: 32 raw bytes, or 64 hex digits (a final
@@ -473,6 +501,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         exceptions,
         staging,
         identity_key: None,
+        good_bots: vec![],
     })
 }
 
@@ -985,6 +1014,10 @@ fn compile_unsigned_with(
             }
         }
         sections.push((libstrata::bundle::kind::EXCEPTIONS, exception_bytes));
+    }
+    let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
+    if !good_bots.is_empty() {
+        sections.push((libstrata::bundle::kind::GOOD_BOTS, good_bots));
     }
     let stage_bytes = libstrata::staging::encode(&policies.staging, policies.policies.len() as u32)
         .map_err(|e| format!("policy staging: {}", e.message()))?;

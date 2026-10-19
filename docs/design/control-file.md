@@ -60,6 +60,21 @@ Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES
 mới bị engine cũ từ chối lúc nạp; nâng module trước khi phát bundle đó. Không tự
 bật rule trong policy. Không thêm section hoặc thay layout bản ghi.
 
+**W18-R-02, section 12 `GOOD_BOTS` và target `bot_claim` / `bot_verified`:** dải IP mà
+chủ crawler (Google, Bing, Apple) công bố, do control plane tải (W18-G2-02) và
+`strata-compile --good-bots` đóng vào bundle. Codec `SGB1` (little-endian): magic, `u32`
+số crawler (1–16), rồi mỗi crawler: `u8` độ dài tên, tên (`[a-z0-9_-]`, ≤ 32, tăng
+dần), `u32` số dải IPv4, `u32` số dải IPv6 (mỗi loại ≤ 65.536), các dải IPv4
+`(u32 đầu, u32 cuối)` rồi IPv6 `(u128 đầu, u128 cuối)`, mỗi danh sách tăng dần, không
+chồng cũng không liền kề; sai bất kỳ điều nào thì engine từ chối bundle. Compiler từ
+chối prefix rộng hơn /8 (IPv4) hay /16 (IPv6). Biến mã 28 `bot_claim`: crawler mà
+User-Agent tự nhận (`googlebot`: token Googlebot, Google-InspectionTool, GoogleOther;
+`bingbot`: bingbot, adidxbot, BingPreview; `applebot`); mã 29 `bot_verified`: `true`
+khi địa chỉ client (sau realip) nằm trong dải của crawler đó, `false` khi không,
+`unknown` khi bundle không có dải của nó; cả hai vắng khi User-Agent không tự nhận
+crawler. Section tùy chọn: engine cũ bỏ qua section lạ, nhưng từ chối bundle có rule
+trên hai biến mới (mã lạ), nên nâng module trước.
+
 **RV-N-02, target `tls_ja4`:** biến mã 27 nối cuối danh mục target (mã 0–26 giữ
 nguyên): JA4 của kết nối TLS do connector gắn qua `strata_tx_set_ja4`; không TLS thì
 không có giá trị (điều kiện phủ định không khớp). Engine cũ từ chối bundle dùng nó.
