@@ -1,7 +1,7 @@
-// Package bundlefmt reads the signed header of a Strata bundle
+// Package bundlefmt verifies the signed header and optional policy selection of a Strata bundle
 // (docs/design/control-file.md › Bundle v1): a 64-byte header, sections,
 // and an Ed25519 signature over everything before the last 64 bytes. It
-// checks the signature only; the engine checks the layout.
+// checks signature/header and, with VerifyPolicy, bounded policy metadata; the engine checks full layout.
 package bundlefmt
 
 import (

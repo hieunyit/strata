@@ -2,6 +2,7 @@ package standalone
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,19 @@ import (
 // VerifyBundle checks the signing key and signed header without activating it.
 // As with fleet installation, the engine separately validates section layout.
 func VerifyBundle(ctx context.Context, file, keyFile string) (bundlefmt.Header, error) {
+	return verifyBundle(ctx, file, keyFile, "", false)
+}
+
+// VerifyBundlePolicy also requires a named signed policy without activating it.
+// The engine still has to validate the remaining bundle layout.
+func VerifyBundlePolicy(ctx context.Context, file, keyFile, policy string, enforce bool) (bundlefmt.Header, error) {
+	if policy == "" {
+		return bundlefmt.Header{}, errors.New("policy is required")
+	}
+	return verifyBundle(ctx, file, keyFile, policy, enforce)
+}
+
+func verifyBundle(ctx context.Context, file, keyFile, policy string, enforce bool) (bundlefmt.Header, error) {
 	if err := ctx.Err(); err != nil {
 		return bundlefmt.Header{}, err
 	}
@@ -25,6 +39,9 @@ func VerifyBundle(ctx context.Context, file, keyFile string) (bundlefmt.Header, 
 	}
 	if err := ctx.Err(); err != nil {
 		return bundlefmt.Header{}, err
+	}
+	if policy != "" {
+		return bundlefmt.VerifyPolicy(data, key, policy, enforce)
 	}
 	return bundlefmt.Verify(data, key)
 }
