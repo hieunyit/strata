@@ -52,6 +52,17 @@ type Event struct {
 	MatchedRules  []uint32    `json:"matched_rules" ch:"matched_rules"`
 	Violations    []Violation `json:"violations" ch:"violations"`
 	ReceivedAt    time.Time   `json:"received_at" ch:"received_at"`
+	// GeoIP metadata is resolved by the control plane; producer values are discarded.
+	CountryISO   string   `json:"country_iso,omitempty" ch:"country_iso"`
+	Region       string   `json:"region,omitempty" ch:"region"`
+	City         string   `json:"city,omitempty" ch:"city"`
+	Lat          *float64 `json:"lat,omitempty" ch:"lat"`
+	Lon          *float64 `json:"lon,omitempty" ch:"lon"`
+	AccuracyKM   *uint16  `json:"accuracy_km,omitempty" ch:"accuracy_km"`
+	ASN          uint32   `json:"asn,omitempty" ch:"asn"`
+	ASOrg        string   `json:"as_org,omitempty" ch:"as_org"`
+	GeoIPVersion string   `json:"geoip_version,omitempty" ch:"geoip_version"`
+
 	// RV-G2-01: the request's context, masked by the engine; read by the
 	// event lookup (GetEvent), not by searches.
 	UserAgent string   `json:"user_agent,omitempty" ch:"user_agent"`
