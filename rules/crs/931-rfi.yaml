@@ -63,7 +63,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: ^(?i:file|ftps?|https?).*?\?+$
+            value: (?s)^(?i:file|ftps?|https?).*?\?+$
           targets:
             - var: args
     score: 100

@@ -215,6 +215,37 @@ func disabledByDefault(r seclang.Rule, defs map[string]string) (string, bool) {
 	return name, true
 }
 
+// dotAll gives a CRS pattern its ModSecurity meaning: PCRE with DOTALL,
+// so `.` also matches a newline (Strata's rx, like RE2 and Hyperscan by
+// default, does not; without the flag a newline in the value slips past
+// `.*`, CRS test 942522-7). Only patterns with a `.` outside a class get
+// the prefix.
+func dotAll(re string) string {
+	for i := 0; i < len(re); i++ {
+		switch re[i] {
+		case '\\':
+			i++
+		case '[':
+			i++
+			if i < len(re) && re[i] == '^' {
+				i++
+			}
+			if i < len(re) && re[i] == ']' {
+				i++
+			}
+			for i < len(re) && re[i] != ']' {
+				if re[i] == '\\' {
+					i++
+				}
+				i++
+			}
+		case '.':
+			return "(?s)" + re
+		}
+	}
+	return re
+}
+
 // convertLink turns one chain link into an IR condition.
 func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *[]string) (map[string]any, string) {
 	if l.Operator == "within" {
@@ -294,7 +325,7 @@ func convertLink(l seclang.Link, dataDir string, defs map[string]string, notes *
 		if _, err := regexp.Compile(arg); err != nil {
 			return nil, "regex is not RE2: " + err.Error()
 		}
-		opm["value"] = arg
+		opm["value"] = dotAll(arg)
 	case "pm":
 		opm["value"] = strings.Fields(arg)
 	case "pmFromFile", "pmf":

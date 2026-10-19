@@ -75,7 +75,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: content-transfer-encoding:(.*)
+            value: (?s)content-transfer-encoding:(.*)
           targets:
             - var: multipart_part_headers
           transforms:

@@ -282,6 +282,8 @@ Of the 392 rules, 239 are CRS plumbing (paranoia level checks, initialization: n
 
 ## Changes to imported rules
 
+Every regex with a `.` outside a class gets `(?s)`: ModSecurity compiles CRS patterns with PCRE DOTALL, so `.` also matches a newline there; without it a newline in a value slips past `.*`.
+
 | Rule | Change |
 | --- | --- |
 | 920420 | list of crs-setup checked with its REQUEST-901 default |

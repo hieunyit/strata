@@ -658,7 +658,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: \.[^.~]+~(?:/.*|)$
+            value: (?s)\.[^.~]+~(?:/.*|)$
           targets:
             - var: path
           transforms:
@@ -708,7 +708,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: charset.*?charset
+            value: (?s)charset.*?charset
           targets:
             - key: Content-Type
               var: request_headers

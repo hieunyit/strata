@@ -106,7 +106,9 @@ func (r *Result) Report(w io.Writer, version string) {
 	for _, s := range r.Sorted() {
 		fmt.Fprintf(w, "| %s | %d | %s |\n", strings.TrimSuffix(s.Group, ".conf"), s.Rule, strings.ReplaceAll(s.Reason, "|", "\\|"))
 	}
-	fmt.Fprintf(w, "\n## Changes to imported rules\n\n| Rule | Change |\n| --- | --- |\n")
+	fmt.Fprintf(w, "\n## Changes to imported rules\n\n"+
+		"Every regex with a `.` outside a class gets `(?s)`: ModSecurity compiles CRS patterns with PCRE DOTALL, so `.` also matches a newline there; without it a newline in a value slips past `.*`.\n\n"+
+		"| Rule | Change |\n| --- | --- |\n")
 	for _, g := range r.Groups {
 		for _, n := range g.Notes {
 			fmt.Fprintf(w, "| %d | %s |\n", n.Rule, strings.ReplaceAll(n.Text, "|", "\\|"))

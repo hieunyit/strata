@@ -223,7 +223,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: .*\.(?:jsp|jspx)[./]*$
+            value: (?s).*\.(?:jsp|jspx)[./]*$
           targets:
             - var: files
             - key: X-Filename

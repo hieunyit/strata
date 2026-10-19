@@ -585,3 +585,18 @@ func TestLiteralNames(t *testing.T) {
 		}
 	}
 }
+
+func TestDotAll(t *testing.T) {
+	for re, want := range map[string]string{
+		`union.*?select`: `(?s)union.*?select`,
+		`(?i)a.b`:        `(?s)(?i)a.b`,
+		`a\.b[.]c`:       `a\.b[.]c`, // no `.` outside a class
+		`[^].]x\\.`:      `(?s)[^].]x\\.`,
+		`[\].]y`:         `[\].]y`,
+		`^(?:GET|HEAD)$`: `^(?:GET|HEAD)$`,
+	} {
+		if got := dotAll(re); got != want {
+			t.Errorf("dotAll(%q) = %q, want %q", re, got, want)
+		}
+	}
+}
