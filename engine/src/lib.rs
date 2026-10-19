@@ -18,6 +18,7 @@ pub mod engine;
 pub mod eval;
 pub mod event;
 pub mod exceptions;
+pub mod goodbots;
 pub mod guard;
 pub mod ja4;
 pub mod json;

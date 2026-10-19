@@ -39,7 +39,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | GraphQL protection | 3 | **Thiết kế** | — |
 | gRPC protection | 3 | **Thiết kế** | `nginx-module.md`, mục "Traffic gRPC qua NGINX"; module chưa tách message gRPC |
 | Brute force | 3 | **Thiết kế** | Chưa có rate limit nào (RV-R-03, tuần 14) |
-| Bot signatures + fingerprint | 3 | **Một phần** | 1.454 rule User-Agent từ crawler-user-agents (`rules/bots`). [JA4 TLS](reports/rv-n-02.md): `$strata_ja4`, target rule `tls_ja4`, field sự kiện `ja4` (RV-N-02); fingerprint HTTP/2 không làm được trên NGINX; JA4 làm key rate limit chờ RV-R-03. Chưa có challenge (RV-R-04), chưa xác minh bot tốt (W18) |
+| Bot signatures + fingerprint | 3 | **Một phần** | 1.454 rule User-Agent từ crawler-user-agents (`rules/bots`). [JA4 TLS](reports/rv-n-02.md): `$strata_ja4`, target rule `tls_ja4`, field sự kiện `ja4` (RV-N-02); fingerprint HTTP/2 không làm được trên NGINX; JA4 làm key rate limit chờ RV-R-03. Chưa có challenge (RV-R-04), [xác minh bot tốt](reports/w18-r-02.md): biến `bot_claim`/`bot_verified`, rule 500001 trong gói core (W18-R-02, W18-S-01), dải IP do control plane tải (W18-G2-02) |
 | Geolocation, IP intelligence | 3 | **Thiết kế** | W17–W19 |
 | Threat campaigns | 3 | **Thiết kế** | Rule ET Open có CVE nhưng không có feed chiến dịch |
 

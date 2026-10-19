@@ -319,6 +319,8 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "xml_attributes",
     "body_processor",
     "tls_ja4",
+    "bot_claim",
+    "bot_verified",
     "multipart_part_headers",
 ];
 
@@ -369,6 +371,8 @@ pub struct Request<'a> {
     pub client_addr: &'a [u8],
     /// JA4 of the TLS connection (RV-N-02), empty without one
     pub ja4: &'a [u8],
+    /// published crawler ranges of the bundle (W18-R-02)
+    pub good_bots: &'a crate::goodbots::GoodBots,
     pub headers: &'a [(&'a [u8], &'a [u8])],
     /// The request body as inspected (empty at stage request_headers).
     pub body: &'a [u8],
@@ -1464,6 +1468,25 @@ fn values<'d>(
             name: None,
             val: r.client_addr,
         })
+    } else if v == const { var("bot_claim") } || v == const { var("bot_verified") } {
+        // the first User-Agent header, as the event's context takes it
+        let ua = r
+            .headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(b"user-agent"))
+            .map(|(_, v)| *v)
+            .unwrap_or_default();
+        match crate::goodbots::verify(r.good_bots, ua, r.client_addr) {
+            Some((name, verified)) => TargetVals::One(TargetVal {
+                name: None,
+                val: if v == const { var("bot_claim") } {
+                    name.as_bytes()
+                } else {
+                    verified
+                },
+            }),
+            None => TargetVals::Empty,
+        }
     } else if v == const { var("tls_ja4") } {
         if r.ja4.is_empty() {
             TargetVals::Empty
