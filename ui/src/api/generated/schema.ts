@@ -61,6 +61,27 @@ export interface paths {
      */
     get: operations["getOverview"];
   };
+  "/v1/stats/geo": {
+    /**
+     * GeoIP Statistics
+     * @description Distinct events of the window by country, geohash cell or ASN, most first, from the GeoIP aggregates (W18-G2-01). Counts are exact for small sets and about 1% off for large ones (HyperLogLog); exact counts come from the event search. Holds no IP address: needs events:read.
+     */
+    get: operations["getGeoStats"];
+  };
+  "/v1/stats/timeline": {
+    /**
+     * Event Timeline
+     * @description Distinct events per step by action over the window, from the GeoIP aggregates (W18-G2-01); every bucket present, aligned in UTC. Needs events:read.
+     */
+    get: operations["getTimeline"];
+  };
+  "/v1/stats/geo:watch": {
+    /**
+     * Live GeoIP Statistics
+     * @description Server-sent events over a window sliding to now: event `snapshot` (GeoSnapshot) first, then `delta` (GeoDelta) with the rows that changed or left, checked every interval; a comment line every 15 s when nothing changed. A stream lasts at most 15 minutes (the client reconnects; `retry: 3000`); at most 32 streams per control plane. Credentials in the Authorization header only (EventSource cannot send it: read the stream with fetch). Needs events:read.
+     */
+    get: operations["watchGeoStats"];
+  };
   "/v1/auth/methods": {
     /**
      * Sign-in Methods
@@ -158,6 +179,78 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    /** @enum {string} */
+    AttackType: "none" | "sqli" | "xss" | "rce" | "lfi" | "rfi" | "injection_other" | "scanner" | "virtual_patch" | "signature" | "bot" | "protocol" | "custom" | "other";
+    GeoCount: {
+      /** @description Country code, geohash cell or ASN (decimal). */
+      key: string;
+      /** @description City name of a cell, organization of an ASN. */
+      label?: string;
+      /** Format: int64 */
+      events: number;
+      /** Format: int64 */
+      blocked: number;
+      top_attack_type: components["schemas"]["AttackType"];
+      /** @description Center of the geohash cell (groupBy=city). */
+      lat?: number;
+      lon?: number;
+    };
+    GeoResponse: {
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** @enum {string} */
+      group_by: "country" | "city" | "asn";
+      rows: components["schemas"]["GeoCount"][];
+      approximate: boolean;
+    };
+    GeoBucket: {
+      /** Format: date-time */
+      start: string;
+      /** Format: int64 */
+      block: number;
+      /** Format: int64 */
+      shadow: number;
+      /**
+       * Format: int64
+       * @description pass and error.
+       */
+      other: number;
+    };
+    TimelineResponse: {
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** @description Go duration, e.g. 1h0m0s. */
+      step: string;
+      buckets: components["schemas"]["GeoBucket"][];
+      approximate: boolean;
+    };
+    GeoSnapshot: {
+      /** Format: date-time */
+      at: string;
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      /** @enum {string} */
+      group_by: "country" | "city" | "asn";
+      rows: components["schemas"]["GeoCount"][];
+      approximate: boolean;
+    };
+    GeoDelta: {
+      /** Format: date-time */
+      at: string;
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      changed?: components["schemas"]["GeoCount"][];
+      /** @description Keys of rows gone from the window or the top. */
+      removed?: string[];
+    };
     AuditEntry: {
       /** Format: date-time */
       at?: string;
@@ -1066,6 +1159,167 @@ export interface operations {
       };
       /** @description The event store does not aggregate. */
       501: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * GeoIP Statistics
+   * @description Distinct events of the window by country, geohash cell or ASN, most first, from the GeoIP aggregates (W18-G2-01). Counts are exact for small sets and about 1% off for large ones (HyperLogLog); exact counts come from the event search. Holds no IP address: needs events:read.
+   */
+  getGeoStats: {
+    parameters: {
+      query?: {
+        /** @description Start of the window, RFC 3339. Default 24 hours before to; rounded down to the bucket. */
+        from?: string;
+        /** @description End of the window (exclusive), RFC 3339. Default now. The window is at most 400 days. */
+        to?: string;
+        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates) or asn (0: unknown). */
+        groupBy?: "country" | "city" | "asn";
+        limit?: number;
+        policy_id?: string;
+        action?: "block" | "shadow" | "pass" | "error";
+        /** @description Family of the rules the event matched (ingest.AttackTypeSQL). */
+        attack_type?: components["schemas"]["AttackType"];
+        /** @description ISO 3166 alpha-2 code, or INTERNAL for private addresses. */
+        country?: string;
+        asn?: number;
+      };
+    };
+    responses: {
+      /** @description Rows of the window. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GeoResponse"];
+        };
+      };
+      /** @description Invalid parameter. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Internal server error. */
+      500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description The event store has no GeoIP aggregates. */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Event Timeline
+   * @description Distinct events per step by action over the window, from the GeoIP aggregates (W18-G2-01); every bucket present, aligned in UTC. Needs events:read.
+   */
+  getTimeline: {
+    parameters: {
+      query?: {
+        /** @description Start of the window, RFC 3339. Default 24 hours before to; rounded down to the bucket. */
+        from?: string;
+        /** @description End of the window (exclusive), RFC 3339. Default now. The window is at most 400 days. */
+        to?: string;
+        policy_id?: string;
+        action?: "block" | "shadow" | "pass" | "error";
+        /** @description Family of the rules the event matched (ingest.AttackTypeSQL). */
+        attack_type?: components["schemas"]["AttackType"];
+        /** @description ISO 3166 alpha-2 code, or INTERNAL for private addresses. */
+        country?: string;
+        asn?: number;
+        /** @description Default 1m up to 2 hours, 5m up to 12 hours, 1h up to 8 days, 6h up to 62 days, 24h beyond. At most 1,500 buckets. */
+        step?: "1m" | "5m" | "1h" | "6h" | "24h";
+      };
+    };
+    responses: {
+      /** @description The series. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TimelineResponse"];
+        };
+      };
+      /** @description Invalid parameter. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Internal server error. */
+      500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description The event store has no GeoIP aggregates. */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Live GeoIP Statistics
+   * @description Server-sent events over a window sliding to now: event `snapshot` (GeoSnapshot) first, then `delta` (GeoDelta) with the rows that changed or left, checked every interval; a comment line every 15 s when nothing changed. A stream lasts at most 15 minutes (the client reconnects; `retry: 3000`); at most 32 streams per control plane. Credentials in the Authorization header only (EventSource cannot send it: read the stream with fetch). Needs events:read.
+   */
+  watchGeoStats: {
+    parameters: {
+      query?: {
+        /** @description Length of the sliding window, 1m to 168h. from/to are refused. */
+        window?: string;
+        /** @description How often the rows are read, 2s to 5s. */
+        interval?: string;
+        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates) or asn (0: unknown). */
+        groupBy?: "country" | "city" | "asn";
+        limit?: number;
+        policy_id?: string;
+        action?: "block" | "shadow" | "pass" | "error";
+        /** @description Family of the rules the event matched (ingest.AttackTypeSQL). */
+        attack_type?: components["schemas"]["AttackType"];
+        /** @description ISO 3166 alpha-2 code, or INTERNAL for private addresses. */
+        country?: string;
+        asn?: number;
+      };
+    };
+    responses: {
+      /** @description The stream. */
+      200: {
+        content: {
+          "text/event-stream": string;
+        };
+      };
+      /** @description Invalid parameter. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Internal server error. */
+      500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description The event store has no GeoIP aggregates. */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Too many open streams; Retry-After. */
+      503: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
