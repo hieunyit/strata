@@ -283,3 +283,199 @@ rules:
       source: crs
       upstream_id: "944150"
       upstream_version: 4.25.2
+  - id: 944151
+    name: 'Potential Remote Command Execution: Log4j / Log4shell'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?i)(?:\$|&dollar;?)(?:\{|&l(?:brace|cub);?)(?:[^\}]*(?:\$|&dollar;?)(?:\{|&l(?:brace|cub);?)|jndi|ctx)
+          targets:
+            - var: request_line
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+          transforms:
+            - url_decode_uni
+            - js_decode
+            - html_entity_decode
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944151"
+      upstream_version: 4.25.2
+  - id: 944200
+    name: Magic bytes Detected, probable java serialization in use
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: \xac\xed\x00\x05
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944200"
+      upstream_version: 4.25.2
+  - id: 944210
+    name: Magic bytes Detected Base64 Encoded, probable java serialization in use
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?:rO0ABQ|KztAAU|Cs7QAF)
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944210"
+      upstream_version: 4.25.2
+  - id: 944240
+    name: 'Remote Command Execution: Java serialization (CVE-2015-4852)'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?:clonetransform|xmldecod)er|f(?:orclosure|ilewriter)|in(?:stantiate(?:factory|transformer)|vokertransformer)|(?:prototype(?:clone|serialization)factor|getpropert)y|whileclosure
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944240"
+      upstream_version: 4.25.2
+  - id: 944250
+    name: 'Remote Command Execution: Suspicious Java method detected'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?s)java\b.+(?:runtime|processbuilder)
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944250"
+      upstream_version: 4.25.2
+  - id: 944260
+    name: 'Remote Command Execution: Malicious class-loading payload'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: class\.module\.classLoader\.resources\.context\.parent\.pipeline|springframework\.context\.support\.FileSystemXmlApplicationContext
+          targets:
+            - var: args
+            - var: args_names
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: request_body
+            - exclude:
+                - Cookie
+              var: request_headers
+            - var: xml
+            - var: xml_attributes
+          transforms:
+            - url_decode_uni
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "944260"
+      upstream_version: 4.25.2

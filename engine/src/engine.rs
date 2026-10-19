@@ -40,6 +40,8 @@ pub struct Engine {
     staging: Vec<Vec<u32>>,
     /// published crawler ranges (section GOOD_BOTS, W18-R-02)
     good_bots: crate::goodbots::GoodBots,
+    /// CRS paranoia levels per policy index (section PARANOIA, W17-S-01)
+    paranoia: Vec<crate::paranoia::Levels>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -175,6 +177,16 @@ impl Engine {
         }
         let good_bots = crate::goodbots::parse(info.section(bytes, bundle::kind::GOOD_BOTS))
             .map_err(|e| (E_BUNDLE, e.message()))?;
+        let paranoid: Vec<u32> = bundle::policies(bytes, &info)
+            .filter(|p| p.paranoia)
+            .map(|p| p.index)
+            .collect();
+        let paranoia = crate::paranoia::parse(
+            info.section(bytes, bundle::kind::PARANOIA),
+            info.n_policies,
+            &paranoid,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -253,6 +265,7 @@ impl Engine {
             replay: std::sync::RwLock::new(None),
             counters: crate::counters::PolicyCounters::new(n_policies),
             good_bots,
+            paranoia,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -270,6 +283,14 @@ impl Engine {
     /// Sampled time by rule (W13-R-02).
     pub fn rule_costs(&self) -> &crate::rulecost::RuleCosts {
         &self.rule_costs
+    }
+
+    /// CRS paranoia levels of the policy at `index` (W17-S-01).
+    pub fn paranoia(&self, index: u32) -> crate::paranoia::Levels {
+        self.paranoia
+            .get(index as usize)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Published crawler ranges of the bundle (W18-R-02).

@@ -22,7 +22,7 @@ MKBUNDLE := target/release/mkbundle
 COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
-.PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test poc clean \
+.PHONY: FORCE fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test test-crs-ftw-pl2 poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind mutate coraza-diff bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines test-alerts
 
@@ -294,7 +294,7 @@ crs-ftw:
 
 # rules/crs/ and docs/crs-import-report.md (W05-S-01, W06-S-01); CI checks that they are current.
 crs-import: rules-tools
-	cd tools/strata-import-crs && go run . import --crs "$$(./fetch-crs.sh)" --out ../../rules/crs --report ../../docs/crs-import-report.md --compile ../../target/release/strata-compile
+	cd tools/strata-import-crs && go run . import --crs "$$(./fetch-crs.sh)" --max-pl 2 --out ../../rules/crs --report ../../docs/crs-import-report.md --compile ../../target/release/strata-compile
 
 # go-ftw tests through libstrata (W06-S-01, W08-S-01): every CRS test together
 # passes at least 95% (the result is docs/crs-ftw-report.md), and each
@@ -307,6 +307,11 @@ test-crs-ftw: rules-tools
 	# Strata's tests of the CRS rules upstream has none for (W09-S-01)
 	cd tools/strata-rules && go run . ftw --repo ../.. --tests ../../rules/crs/tests --rules ../../rules/crs --min 100 > ../../build/ftw-crs-strata.md || \
 		{ cat ../../build/ftw-crs-strata.md; exit 1; }
+
+# The same at paranoia level 2 (W17-R-01): a policy with crs_paranoia 2,
+# every test of rules up to PL2 together at least 95%.
+test-crs-ftw-pl2: rules-tools
+	cd tools/strata-rules && go run . ftw --repo ../.. --pl 2 --min-total $(CRS_FTW_MIN) > ../../docs/crs-ftw-report-pl2.md
 
 # Signature package (W08-S-01): all rules in one signed bundle, with a
 # manifest, changelog and NOTICE. Needs a key: make signatures-release

@@ -41,6 +41,41 @@ rules:
       source: crs
       upstream_id: "934100"
       upstream_version: 4.25.2
+  - id: 934101
+    name: Node.js Injection Attack 2/2
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - multi_match: true
+          operator:
+            type: rx
+            value: (?:close|exists|fork|(?:ope|spaw)n|re(?:ad|quire)|w(?:atch|rite))[\s\x0b]*\(
+          targets:
+            - var: path
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: args_names
+            - var: args
+            - var: xml
+            - var: xml_attributes
+          transforms:
+            - url_decode_uni
+            - js_decode
+            - base64_decode
+            - url_decode_uni
+            - js_decode
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "934101"
+      upstream_version: 4.25.2
   - id: 934110
     name: 'Possible Server Side Request Forgery (SSRF) Attack: Cloud provider metadata URL in Parameter'
     layer: managed
@@ -172,6 +207,34 @@ rules:
       source: crs
       upstream_id: "934110"
       upstream_version: 4.25.2
+  - id: 934120
+    name: 'Possible Server Side Request Forgery (SSRF) Attack: URL Parameter using IP Address'
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?s)(?i)(?:a(?:cap|f[ps]|ttachment)|b(?:eshare|itcoin|lob)|c(?:a(?:llto|p)|id|vs|ompress.(?:zlib|bzip2))|d(?:a(?:v|ta)|ict|n(?:s|tp))|e(?:d2k|xpect)|f(?:(?:ee)?d|i(?:le|nger|sh)|tps?)|g(?:it|o(?:pher)?|lob)|h(?:323|ttps?)|i(?:ax|cap|(?:ma|p)ps?|rc[6s]?)|ja(?:bbe)?r|l(?:dap[is]?|ocal_file)|m(?:a(?:ilto|ven)|ms|umble)|n(?:e(?:tdoc|ws)|fs|ntps?)|ogg|p(?:aparazzi|h(?:ar|p)|op(?:2|3s?)|r(?:es|oxy)|syc)|r(?:mi|sync|tm(?:f?p)?|ar)|s(?:3|ftp|ips?|m(?:[bs]|tps?)|n(?:ews|mp)|sh(?:2(?:.(?:s(?:hell|(?:ft|c)p)|exec|tunnel))?)?|vn(?:\+ssh)?)|t(?:e(?:amspeak|lnet)|ftp|urns?)|u(?:dp|nreal|t2004)|v(?:entrilo|iew-source|nc)|w(?:ebcal|ss?)|x(?:mpp|ri)|zip):/?/?(?:[0-9]{7,10}|(?:0x[0-9a-f]{2}\.){3}0x[0-9a-f]{2}|0x(?:[0-9a-f]{8}|[0-9a-f]{16})|(?:0{1,4}[0-9]{1,3}\.){3}0{1,4}[0-9]{1,3}|[0-9]{1,3}\.(?:[0-9]{1,3}\.[0-9]{5}|[0-9]{8})|(?:\x5c\x5c[\-0-9a-z]\.?_?)+|\[[0-:a-f]+(?:[\.0-9]+|%[0-9A-Z_a-z]+)?\]|[a-z][\-\.0-9A-Z_a-z]{1,255}:[0-9]{1,5}(?:#?[\s\x0b]*&?@(?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[a-z][\-\.0-9A-Z_a-z]{1,255}):[0-9]{1,5}/?)+|[\.0-9]{0,11}(?:\x{e2}(?:\x91[\xa0-\x{bf}]|\x92[\x80-\x{bf}]|\x93[\x80-\x{a9}\x{ab}-\x{bf}])|\x{e3}\x80\x82)+)
+          targets:
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: path
+            - var: args_names
+            - var: args
+            - var: xml
+            - var: xml_attributes
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "934120"
+      upstream_version: 4.25.2
   - id: 934130
     name: JavaScript Prototype Pollution
     layer: managed
@@ -202,6 +265,33 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "934130"
+      upstream_version: 4.25.2
+  - id: 934140
+    name: Perl Injection Attack
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: '@+\{[\s\x0b]*\['
+          targets:
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: args_names
+            - var: args
+            - var: xml
+            - var: xml_attributes
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "934140"
       upstream_version: 4.25.2
   - id: 934150
     name: Ruby Injection Attack
@@ -295,6 +385,33 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "934170"
+      upstream_version: 4.25.2
+  - id: 934180
+    name: SSTI Attack
+    layer: managed
+    stage: request_body
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?:\{%[^%}]*%}|<%=?[^%>]*%>)
+          targets:
+            - var: request_cookies
+            - var: request_cookies_names
+            - var: args_names
+            - var: args
+            - var: xml
+            - var: xml_attributes
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: rce
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "934180"
       upstream_version: 4.25.2
   - id: 934190
     name: 'Possible Server Side Request Forgery (SSRF) Attack: Scheme-less localhost or internal hostname detected'

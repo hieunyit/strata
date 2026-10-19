@@ -24,6 +24,7 @@ pub mod ja4;
 pub mod json;
 pub mod multipart;
 pub mod operators;
+pub mod paranoia;
 pub mod privacy;
 pub mod rulecost;
 pub mod rules;

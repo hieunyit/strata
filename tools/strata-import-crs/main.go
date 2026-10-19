@@ -135,6 +135,7 @@ func importCmd() {
 	out := fs.String("out", "rules/crs", "directory for the IR files")
 	rep := fs.String("report", "docs/crs-import-report.md", "import report")
 	compile := fs.String("compile", "", "strata-compile, to drop the rules it refuses (recommended)")
+	maxPL := fs.Int("max-pl", 1, "highest paranoia level imported (rules carry their level; a policy runs those up to its crs_paranoia, W17-S-01)")
 	_ = fs.Parse(os.Args[2:])
 	die := func(err error) {
 		fmt.Fprintln(os.Stderr, "strata-import-crs:", err)
@@ -147,7 +148,10 @@ func importCmd() {
 	if err != nil {
 		die(err)
 	}
-	res, err := importer.Import(groups, importer.Options{CRSDir: *crs, Version: inv.Version, Compile: *compile})
+	if *maxPL < 1 || *maxPL > 4 {
+		die(errors.New("--max-pl must be 1..4"))
+	}
+	res, err := importer.Import(groups, importer.Options{CRSDir: *crs, Version: inv.Version, Compile: *compile, MaxPL: *maxPL})
 	if err != nil {
 		die(err)
 	}
