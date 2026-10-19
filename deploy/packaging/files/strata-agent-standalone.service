@@ -9,9 +9,11 @@ ConditionPathExists=/etc/strata/standalone.env
 [Service]
 User=strata
 Group=strata
+Environment=STRATA_REQUIRED_POLICY= STRATA_REQUIRE_FULL_ENFORCE=false
 EnvironmentFile=/etc/strata/standalone.env
 ExecStart=/usr/bin/strata-agent run --standalone \
     ${STRATA_BUNDLE_SOURCE} \
+    --required-policy=${STRATA_REQUIRED_POLICY} --require-full-enforce=${STRATA_REQUIRE_FULL_ENFORCE} \
     --bundle-pubkey=/etc/strata/bundle.pub \
     --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
     --event-socket=unix:/run/strata/events.sock --metrics-file=/run/strata/metrics \
