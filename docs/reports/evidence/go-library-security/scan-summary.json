@@ -1,0 +1,126 @@
+{
+  "agent": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "control-plane": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": [
+      [
+        "GO-2026-5932",
+        "golang.org/x/crypto",
+        false,
+        false
+      ]
+    ]
+  },
+  "tests-e2e": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "tools-coraza-diff": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "conformance-differential": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "tools-strata-import-crs": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "tools-strata-import-signatures": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "tools-strata-mutate": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  },
+  "tools-strata-rules": {
+    "config": {
+      "protocol_version": "v1.0.0",
+      "scanner_name": "govulncheck",
+      "scanner_version": "v1.1.4",
+      "db": "https://vuln.go.dev",
+      "db_last_modified": "2026-10-08T22:31:09Z",
+      "go_version": "go1.26.9",
+      "scan_level": "symbol",
+      "scan_mode": "source"
+    },
+    "findings": []
+  }
+}

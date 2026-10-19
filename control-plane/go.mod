@@ -5,17 +5,17 @@ go 1.26.9
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.49.0
 	github.com/coreos/go-oidc/v3 v3.11.0
-	github.com/go-jose/go-jose/v4 v4.0.4
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0
-	github.com/jackc/pgx/v5 v5.7.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/minio/minio-go/v7 v7.0.77
 	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	github.com/parquet-go/parquet-go v0.25.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/strata/strata/agent v0.0.0-00010101000000-000000000000
-	golang.org/x/crypto v0.55.0
-	google.golang.org/grpc v1.66.3
-	google.golang.org/protobuf v1.34.2
+	golang.org/x/crypto v0.57.0
+	google.golang.org/grpc v1.83.2
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -50,13 +50,13 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/oauth2 v0.22.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
 
 replace github.com/strata/strata/agent => ../agent
