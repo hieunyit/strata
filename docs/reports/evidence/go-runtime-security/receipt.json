@@ -1,0 +1,38 @@
+{
+  "control-plane.log": {
+    "bytes": 1251,
+    "sha256": "032fc5a8609955b2e6ebbabe13068528823c2d317d4f474ead4aba4dbce49fa8"
+  },
+  "agent.log": {
+    "bytes": 1557,
+    "sha256": "5c6804b687baa83bef3d63acc097e0abc756ea9ebbc30a520887ac32e43a4cf4"
+  },
+  "tools-initial.log": {
+    "bytes": 919,
+    "sha256": "4b5dff1bfc83355eca4e3d3e7a748c9096865daadb652c019010d25b39a158c8"
+  },
+  "tools-fixtured.log": {
+    "bytes": 1789,
+    "sha256": "2413af6911e6f4efc9833942322e69ba1e887b4c00ae7e9e8dea1709311fcb91"
+  },
+  "e2e-initial.log": {
+    "bytes": 11416,
+    "sha256": "a8d2b51735dbb43fb0dc4f2b97ad64ad484f1ae9fe4be153fc648399f8f2d678"
+  },
+  "e2e-final.log": {
+    "bytes": 10866,
+    "sha256": "11f788014994034ff2531b440a953e2fcd94339c198d17e29e2f3c28bf71e2ce"
+  },
+  "image-build.log": {
+    "bytes": 20473,
+    "sha256": "4b8b82efb7c54f216fa00f28268ed074c7de415c098ca4551b85e9f0af4e24f3"
+  },
+  "before-go125-ingest.json": {
+    "bytes": 1362400,
+    "sha256": "6235469eccc85dc8e82b80c5ea0961cf32df1225aec67172945957a1f692472f"
+  },
+  "after-go126-control-plane.json": {
+    "bytes": 1266313,
+    "sha256": "f3224edc569a4003c54b87174bf320520527547b361aaa8b8aeb75a02a85c0d5"
+  }
+}
