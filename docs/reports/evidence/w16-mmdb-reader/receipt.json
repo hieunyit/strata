@@ -10,5 +10,9 @@
   "mmdb-lookup-error-red.log": {
     "bytes": 212,
     "sha256": "1aef3e9b7b203f2e5d06859ca71e16ef593eb072911d33507e08fc54bfca72af"
+  },
+  "mmdb-reader-current-main.log": {
+    "bytes": 8157,
+    "sha256": "f7571954ae8709307f5b7c45a896544c005071b141c13ae8838a969ed86057c8"
   }
 }
