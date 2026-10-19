@@ -1,0 +1,18 @@
+{
+  "mmdb-cache-final.log": {
+    "bytes": 1437,
+    "sha256": "801ad754e7ef3315f23f1f02f6ec7b98b1e1629ccc30d48d08602a9ad771299b"
+  },
+  "geoip-source-red.log": {
+    "bytes": 663,
+    "sha256": "68470cbd9536da1b7a2473e98bb13889513bdc1b21f528ebec5a3b37fa12bdfc"
+  },
+  "source-red-harness.tar.gz": {
+    "bytes": 2494,
+    "sha256": "097ca56a821e2697330951cf6d492f2743799789184e93f0887524b7f4c95b09"
+  },
+  "geoip-cache-current-main.log": {
+    "bytes": 8862,
+    "sha256": "3360cc851c34aa73c0a19a2c52395bed203b4ed418b3946753e95a43fc3646cd"
+  }
+}
