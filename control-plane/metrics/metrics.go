@@ -210,6 +210,11 @@ type Sources struct {
 
 	// CanarySourceSaturations counts incomplete source buckets across groups.
 	CanarySourceSaturations func() uint64
+
+	// GeoIP database updates (W17-G2-01): time of the last good one (zero
+	// before one), failed ones.
+	GeoIPLastUpdate     func() time.Time
+	GeoIPUpdateFailures func() uint64
 }
 
 // Watch registers a collector over s.
@@ -235,6 +240,8 @@ var (
 	dTrips        = prometheus.NewDesc("strata_cp_canary_trips_total", "Canary fallbacks this control plane made (canary policies of a connector group forced into shadow), by reason.", []string{"reason"}, nil)
 	dSourceFull   = prometheus.NewDesc("strata_cp_canary_source_saturations_total", "Canary source buckets that overflowed; block-rate decisions and learning pause until their windows expire.", nil, nil)
 	dTripOpen     = prometheus.NewDesc("strata_cp_canary_fallback_active", "1 while a connector group's canary policies are held in shadow by the canary fallback.", []string{"group", "reason"}, nil)
+	dGeoUpdated   = prometheus.NewDesc("strata_cp_geoip_update_last_success_timestamp_seconds", "Unix time of the last GeoIP database update that ended well, unchanged included (0 before one).", nil, nil)
+	dGeoFailures  = prometheus.NewDesc("strata_cp_geoip_update_failures_total", "GeoIP database updates or loads that failed; the active version stays.", nil, nil)
 	scrapeTimeout = 3 * time.Second
 )
 
@@ -242,7 +249,8 @@ type stateCollector struct{ s Sources }
 
 func (c stateCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dConnected, dEnrolled, dRollouts, dRolloutAge, dStoreUp,
-		dBatches, dEvents, dFlushed, dGeoIPErrors, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull} {
+		dBatches, dEvents, dFlushed, dGeoIPErrors, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull,
+		dGeoUpdated, dGeoFailures} {
 		ch <- d
 	}
 }
@@ -255,6 +263,14 @@ func (c stateCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(d, prometheus.CounterValue, float64(v), l...)
 	}
 	s := c.s
+	if s.GeoIPLastUpdate != nil {
+		ts := 0.0
+		if t := s.GeoIPLastUpdate(); !t.IsZero() {
+			ts = float64(t.UnixNano()) / 1e9
+		}
+		gauge(dGeoUpdated, ts)
+		counter(dGeoFailures, s.GeoIPUpdateFailures())
+	}
 	if s.CanarySourceSaturations != nil {
 		counter(dSourceFull, s.CanarySourceSaturations())
 	}

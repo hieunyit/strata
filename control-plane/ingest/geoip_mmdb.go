@@ -41,18 +41,38 @@ func NewMMDBReader(ctx context.Context, cityFile, asnFile string) (*MMDBReader, 
 	if cityFile == "" && asnFile == "" {
 		return nil, fmt.Errorf("GeoIP needs a City or ASN database")
 	}
+	var data [2][]byte
+	for i, path := range []string{cityFile, asnFile} {
+		if path == "" {
+			continue
+		}
+		b, err := readGeoIPFile(ctx, path)
+		if err != nil {
+			return nil, fmt.Errorf("GeoIP %s database: %w", []string{"city", "asn"}[i], err)
+		}
+		data[i] = b
+	}
+	return NewMMDBReaderBytes(ctx, data[0], data[1])
+}
+
+// NewMMDBReaderBytes checks and opens City and ASN databases (either may be
+// nil, not both) like NewMMDBReader; the reader keeps the slices.
+func NewMMDBReaderBytes(ctx context.Context, city, asn []byte) (*MMDBReader, error) {
+	if city == nil && asn == nil {
+		return nil, fmt.Errorf("GeoIP needs a City or ASN database")
+	}
 	r := &MMDBReader{}
 	var hashes [64]byte
 	for _, input := range []struct {
-		path   string
+		data   []byte
 		dest   **maxminddb.Reader
 		offset int
 		kind   string
-	}{{cityFile, &r.city, 0, "city"}, {asnFile, &r.asn, 32, "asn"}} {
-		if input.path == "" {
+	}{{city, &r.city, 0, "city"}, {asn, &r.asn, 32, "asn"}} {
+		if input.data == nil {
 			continue
 		}
-		db, sum, err := readGeoIPDatabase(ctx, input.path)
+		db, sum, err := openGeoIPDatabase(ctx, input.data)
 		if err != nil {
 			return nil, fmt.Errorf("GeoIP %s database: %w", input.kind, err)
 		}
@@ -73,30 +93,38 @@ func NewMMDBReader(ctx context.Context, cityFile, asnFile string) (*MMDBReader, 
 	return r, nil
 }
 
-func readGeoIPDatabase(ctx context.Context, path string) (*maxminddb.Reader, [32]byte, error) {
-	var sum [32]byte
+// Version is the fingerprint stored with each enriched event: SHA-256 of
+// the City and ASN files' SHA-256 (zeros for a missing one).
+func (r *MMDBReader) Version() string { return r.version }
+
+func readGeoIPFile(ctx context.Context, path string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, sum, err
+		return nil, err
 	}
 	st, err := os.Stat(path)
 	if err != nil {
-		return nil, sum, err
+		return nil, err
 	}
 	if !st.Mode().IsRegular() || st.Size() > MaxGeoIPDatabaseBytes {
-		return nil, sum, fmt.Errorf("database must be a regular file up to 128 MiB")
+		return nil, fmt.Errorf("database must be a regular file up to 128 MiB")
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, sum, err
+		return nil, err
 	}
 	data, readErr := io.ReadAll(io.LimitReader(f, MaxGeoIPDatabaseBytes+1))
 	closeErr := f.Close()
 	if readErr != nil {
-		return nil, sum, readErr
+		return nil, readErr
 	}
 	if closeErr != nil {
-		return nil, sum, closeErr
+		return nil, closeErr
 	}
+	return data, nil
+}
+
+func openGeoIPDatabase(ctx context.Context, data []byte) (*maxminddb.Reader, [32]byte, error) {
+	var sum [32]byte
 	if len(data) > MaxGeoIPDatabaseBytes {
 		return nil, sum, fmt.Errorf("database exceeds 128 MiB")
 	}
