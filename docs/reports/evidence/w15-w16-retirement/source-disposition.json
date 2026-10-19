@@ -1,0 +1,163 @@
+{
+  "source": "0dce6de4c0410168642eb260d9c9f8ea7e028d2c",
+  "merge_base": "e93dc0b4da55ec93ccf3c0a9421cdf8ed0f51719",
+  "replacement_base": "c3305cd5e2f141e72522bb838e28b0aaf72f30fe",
+  "changed_files": [
+    {
+      "path": "AGENTS.md",
+      "source_blob_sha256": "c5a018cae22590a9e81c5015ae23a47a7539128b18794c309b12b62ebd69e736",
+      "disposition": "exclude unverified weekly Done/Gate declarations; preserve main week pointer"
+    },
+    {
+      "path": "connectors/nginx/README.md",
+      "source_blob_sha256": "e4ebdffe7e6c98875812ade9ab24078a77acdd23e4bae8e9bd9d481f2f07c830",
+      "disposition": "replace incorrect enum/default/socket/threshold documentation with verified full directive reference in this PR"
+    },
+    {
+      "path": "control-plane/api/audit_test.go",
+      "source_blob_sha256": "ce22d1bc13a9651d607798222d907591e744726cb18d3a1a9a66309863f56ba6",
+      "disposition": "replaced by database-filtered audit API, immutable subject and real PG/browser tests #236-238"
+    },
+    {
+      "path": "control-plane/api/server.go",
+      "source_blob_sha256": "5996f15dba19be74a3fdaf5610eee3748430712799877d84dd0f20cd41bab9de",
+      "disposition": "replace RAM credential/audit wiring with durable generated API #223-229 and #236-238"
+    },
+    {
+      "path": "control-plane/api/service_account_handler.go",
+      "source_blob_sha256": "4cf07ed386c8ff264bbb4ef7f8ebe4360a5ffe851e5d4b6948bd33ceac1e3ac7",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/api/service_account_test.go",
+      "source_blob_sha256": "dd25418fce1779e4808e71261acf59b741b65b2279550419dcc5942224df62f6",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/auth/http.go",
+      "source_blob_sha256": "13da302a14d5fe2099d7bcd3777bea9e25de2430362c296c7d37b326c75ece3a",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/auth/principal.go",
+      "source_blob_sha256": "e0cc937e39bdbdf788bc705f09c547b6c913012b71e3c7130a66a68eaf35c52a",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/auth/rbac.go",
+      "source_blob_sha256": "002fb9206c6d3ebac4968966b0e2395573d9c3237cfab75c842df11733017311",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/auth/service_account.go",
+      "source_blob_sha256": "63356cb948e73eb457225cf41c0ab81ec3a91ff4f257dcf0f3b115b099327a93",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/auth/service_account_test.go",
+      "source_blob_sha256": "68020d5e594892bb18f0becf73d02e06ba8dcf00dbdd6fafdc47b92762159353",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "control-plane/ingest/event.go",
+      "source_blob_sha256": "8133ac7b63d935bbebeee824dbd5202e50f6dac22c6d34b9e46053b7a4e6429f",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/ingest/geoip.go",
+      "source_blob_sha256": "51e852e01a210c5e6df47ae12b62f2e4e0630e7de0ed53c3683ab1aa804fd1c4",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/ingest/geoip_test.go",
+      "source_blob_sha256": "79390613ad3b8e33ed3ba78b727537c84e40bf417fe8eea7f62adf9d10eb0417",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/ingest/schema.sql",
+      "source_blob_sha256": "d6d3426b00871360e77322c7afd3a6d096e556de5667d2ff442207c282e317a0",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/ingest/service.go",
+      "source_blob_sha256": "afcb75ccc90c116ed85875c48e436e46fac97139f418c050d3cefb2908598100",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/ingest/store.go",
+      "source_blob_sha256": "5289a6d12b3466073f2d9518859a22ddb27c7a26e4a762df4c7fa6cae69b53b6",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "control-plane/store/store.go",
+      "source_blob_sha256": "7cf0c3d87f38d4567cd841571dfc40bc8a8df48b645992fe7310471eb071c6c5",
+      "disposition": "replaced by database-filtered audit API, immutable subject and real PG/browser tests #236-238"
+    },
+    {
+      "path": "docs/reports/gate-b.md",
+      "source_blob_sha256": "bde52cefefdc8b2e0fa22312a4bc3e70d74ef7c1a09fd088021c6c9844d330bc",
+      "disposition": "replace unsupported campaign/operational assertions with explicit unverified status in this PR"
+    },
+    {
+      "path": "docs/reports/w15-q-01.md",
+      "source_blob_sha256": "246bea46af35a22f8b108f67061972b3369d1e5ed7ed34113dfa34abaffde7e8",
+      "disposition": "replace unsupported campaign/operational assertions with explicit unverified status in this PR"
+    },
+    {
+      "path": "docs/reports/w16-all-01.md",
+      "source_blob_sha256": "abdcb8a948d860d3c33db5a00900a636c0bd651ac4cfbcea591c0aba5a048e29",
+      "disposition": "replace unsupported campaign/operational assertions with explicit unverified status in this PR"
+    },
+    {
+      "path": "docs/reports/w16-g2-01.md",
+      "source_blob_sha256": "c8ff23955a47badfd3bcbdc56a4995aa4f698c1abe5b1107a10f49fb50fda913",
+      "disposition": "replaced by real MMDB, immutable cache, trusted enrichment, real CH persistence, startup and acceptance #241-245"
+    },
+    {
+      "path": "docs/reports/w16-s-01.md",
+      "source_blob_sha256": "76773b962c3c413490a60be9bd46555a7bf09fbc70423deb4bee1a997fa0c8b0",
+      "disposition": "replace unsupported campaign/operational assertions with explicit unverified status in this PR"
+    },
+    {
+      "path": "ui/src/__tests__/LocalAuth.test.tsx",
+      "source_blob_sha256": "352cb2d1fc41691dedc9545a5929ec1aff2271ce3171ec9e0603dd66ca5d29ca",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    },
+    {
+      "path": "ui/src/__tests__/PolicyEditor.test.tsx",
+      "source_blob_sha256": "30d931b5dc31033d26f17fcbe896e790cdb8bc171b09c228244ac4a0c082ad44",
+      "disposition": "exclude unsaved local-only controls; retain main editor and assertions preserving advanced policy data; full nine-block runtime remains open"
+    },
+    {
+      "path": "ui/src/api/client.ts",
+      "source_blob_sha256": "299914f46d98573377d7b98c37871a4aea325ddf29cafe687c553b3a789174c3",
+      "disposition": "replace RAM credential/audit wiring with durable generated API #223-229 and #236-238"
+    },
+    {
+      "path": "ui/src/components/policy/PolicyEditor.tsx",
+      "source_blob_sha256": "c981b17a0556c04e99d533493c3e8a8d2a13a0d3c08dea4adb0b867d88b42a74",
+      "disposition": "exclude unsaved local-only controls; retain main editor and assertions preserving advanced policy data; full nine-block runtime remains open"
+    },
+    {
+      "path": "ui/src/pages/UsersPage.tsx",
+      "source_blob_sha256": "7ddea482251a63afeb54cf21f98814c912dfa93a55a78a673fc6c9b4a818c056",
+      "disposition": "replaced by durable scoped credential implementation and negative/browser tests #223-229"
+    }
+  ],
+  "backup": {
+    "path": "build/branch-consolidation/refs-before-w15-retirement.bundle",
+    "sha256": "16d1b66d61077c8b98e6764eb6f6b9db470045d7e2534ab2bf8ac3c07a0e1505",
+    "complete_history_verified": true,
+    "includes_uncommitted_work": false
+  },
+  "source_runtime_imported_by_final_ours_merge": false,
+  "remaining_acceptance": [
+    "nine-block policy form/runtime",
+    "connector-group role binding",
+    "W15-Q/S campaign and pack v0.3",
+    "W15-R real traffic FP tuning",
+    "W16-S million-request/operational quality",
+    "W16 retrospective/operator fail-closed decision",
+    "Gate B"
+  ]
+}
