@@ -10,6 +10,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--image', required=True)
+parser.add_argument('--policy-pin', action='store_true')
 parser.add_argument('--format', choices=['deb', 'rpm'], required=True)
 for name in ['old', 'new', 'bundle', 'key']:
     parser.add_argument('--' + name, type=Path, required=True)
@@ -96,6 +97,8 @@ STRATA_SYSLOG_ADDR=
 STRATA_METRICS_ADDR=127.0.0.1:9469
 STRATA_NODE_ID=example-api-standalone
 ''')
+    if args.policy_pin:
+        x('sh', '-ec', 'cat >> /etc/strata/standalone.env', text='STRATA_REQUIRED_POLICY=example-api\nSTRATA_REQUIRE_FULL_ENFORCE=true\n')
     env_hash = x('sha256sum', '/etc/strata/standalone.env').stdout
     x('systemctl', 'start', 'strata-agent.socket')
     x('systemctl', 'enable', '--now', 'strata-agent-standalone.service')
@@ -116,6 +119,8 @@ ExecStart=/usr/bin/strata-agent run --standalone ${STRATA_STANDALONE_ARGS}
     argv = x('cat', '/proc/' + first_pid + '/cmdline').stdout.split('\0')
     assert '--bundle-file=/var/lib/strata/standalone/source fixture.sbn' in argv
     assert '--events-jsonl=/var/log/strata/events fixture.jsonl' in argv
+    if args.policy_pin:
+        assert '--required-policy=example-api' in argv and '--require-full-enforce=true' in argv
     inode = x('stat', '-c', '%i', '/run/strata/events.sock').stdout
     control = x('sha256sum', '/var/lib/strata/bundles/control').stdout
     x('python3', '-', text=packet_program(3, 'before-'))
@@ -191,7 +196,7 @@ ExecStart=/usr/bin/sleep infinity
                       'control_unchanged': True, 'mode_preserved': True,
                       'environment_preserved': True, 'socket_activation': True,
                       'aggregate_argument_rejected': True, 'fleet_hook_selection_with_stub': True,
-                      'loopback_url_source': True,
+                      'loopback_url_source': True, 'policy_pin': args.policy_pin,
                       'elapsed_seconds': round(time.monotonic() - started, 3),
                       'old_sha256': hashlib.sha256(args.old.read_bytes()).hexdigest(),
                       'new_sha256': hashlib.sha256(args.new.read_bytes()).hexdigest()}))

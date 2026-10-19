@@ -39,3 +39,10 @@ thư mục hoặc URL; bản không hợp lệ giữ nguyên LKG. Khi khởi đ�
 minh cả bundle đang được control trỏ tới; nếu không có LKG hợp lệ và nguồn đầu
 không đạt thì agent báo lỗi. Đây là tùy chọn riêng với lệnh preflight ở trên.
 Trong giai đoạn xoay khóa, giữ cả khóa cũ và mới (64 byte) để xác minh LKG.
+
+
+Với service đóng gói, đặt `STRATA_REQUIRED_POLICY=example-api` và
+`STRATA_REQUIRE_FULL_ENFORCE=true` trong `/etc/strata/standalone.env` để bật ràng
+buộc tương ứng. Mặc định để trống/false; file cấu hình cũ thiếu hai biến vẫn dùng
+mặc định từ unit. Cờ này kiểm metadata mode/canary, không tự bật inspection trong
+NGINX hoặc bảo đảm một rule sẽ khớp.
