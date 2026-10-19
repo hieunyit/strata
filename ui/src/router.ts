@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 
 // Hash routes, so the static build works behind any web server:
 //   #/overview?range=7d
+//   #/map?range=24h&country=VN       the attack map (W18-F-01)
 //   #/events?range=24h&action=block&rule_id=942100
 //   #/events/STR-XXXX-...          the decision trace of one event
 //   #/policies   #/fleet   #/users
-export type Page = 'overview' | 'events' | 'event' | 'policies' | 'fleet' | 'users' | 'audit' | 'reviews';
+export type Page = 'overview' | 'map' | 'events' | 'event' | 'policies' | 'fleet' | 'users' | 'audit' | 'reviews';
 
 export interface Route {
   page: Page;
@@ -14,7 +15,7 @@ export interface Route {
   query?: Record<string, string>;
 }
 
-const simple: Page[] = ['overview', 'events', 'policies', 'fleet', 'users', 'audit', 'reviews'];
+const simple: Page[] = ['overview', 'map', 'events', 'policies', 'fleet', 'users', 'audit', 'reviews'];
 
 export function parseRoute(hash: string): Route {
   const raw = hash.replace(/^#\/?/, '');

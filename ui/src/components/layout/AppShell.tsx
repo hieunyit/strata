@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, ScrollText, FileCog, GitPullRequest, Server, Users, History, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { LayoutDashboard, Globe2, ScrollText, FileCog, GitPullRequest, Server, Users, History, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { Header } from './Header';
 import { Page, href } from '../../router';
 import { readPref, writePref } from '../../lib/prefs';
@@ -25,6 +25,7 @@ interface NavItem {
 
 export const navItems: NavItem[] = [
   { page: 'overview', icon: LayoutDashboard },
+  { page: 'map', icon: Globe2 },
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
   { page: 'reviews', icon: GitPullRequest },

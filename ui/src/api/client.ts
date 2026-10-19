@@ -1,5 +1,6 @@
 import { components, operations } from './generated/schema';
 import { components as admin } from './generated/admin';
+import { SseParser, SseEvent } from '../lib/sse';
 
 export type MarkFalsePositiveRequest = operations['markFalsePositive']['requestBody']['content']['application/json'];
 export type MarkFalsePositiveResponse = operations['markFalsePositive']['responses'][200]['content']['application/json'];
@@ -36,6 +37,31 @@ export type ExceptionFromBlockRequest = components['schemas']['ExceptionFromBloc
 export type ExceptionDraftResponse = components['schemas']['ExceptionDraftResponse'];
 export type RuleStagingNotice = components['schemas']['RuleStagingNotice'];
 export type RuleStagingNoticePage = components['schemas']['RuleStagingNoticePage'];
+export type GeoCount = components['schemas']['GeoCount'];
+export type GeoResponse = components['schemas']['GeoResponse'];
+export type GeoBucket = components['schemas']['GeoBucket'];
+export type TimelineResponse = components['schemas']['TimelineResponse'];
+export type GeoSnapshot = components['schemas']['GeoSnapshot'];
+export type GeoDelta = components['schemas']['GeoDelta'];
+export type AttackType = components['schemas']['AttackType'];
+export type GeoGroupBy = GeoResponse['group_by'];
+
+/** filters of the map's statistics (W18-G2-01) */
+export interface GeoFilters {
+  policy_id?: string;
+  action?: string;
+  attack_type?: string;
+  country?: string;
+  asn?: string;
+}
+
+function geoQuery(f: GeoFilters, extra: Record<string, string | undefined>): URLSearchParams {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...f, ...extra })) {
+    if (v) q.set(k, v);
+  }
+  return q;
+}
 
 export interface OverviewParams {
   from: string;
@@ -181,6 +207,80 @@ export const apiClient = {
     const q = new URLSearchParams({ from: p.from, to: p.to });
     if (p.policy_id) q.set('policy_id', p.policy_id);
     return call(`/stats/overview?${q}`, { method: 'GET' }, 'Failed to load statistics');
+  },
+
+  /** GET /v1/stats/geo: distinct events by country, cell, ASN or attack type (W18-G2-01) */
+  getGeo(groupBy: GeoGroupBy, from: string, to: string, f: GeoFilters, limit = 20, signal?: AbortSignal): Promise<GeoResponse> {
+    const q = geoQuery(f, { groupBy, from, to, limit: String(limit) });
+    return call(`/stats/geo?${q}`, { method: 'GET', signal }, 'Failed to load map statistics');
+  },
+
+  /** GET /v1/stats/timeline: distinct events per step by action (W18-G2-01) */
+  getTimeline(from: string, to: string, f: GeoFilters, signal?: AbortSignal): Promise<TimelineResponse> {
+    return call(`/stats/timeline?${geoQuery(f, { from, to })}`, { method: 'GET', signal }, 'Failed to load the timeline');
+  },
+
+  /**
+   * GET /v1/stats/geo:watch, read with fetch (the token goes in the
+   * Authorization header). Calls onEvent for each event; reconnects when the
+   * server ends the stream (every 15 minutes) or it breaks, after the
+   * stream's retry delay; onState tells the page whether it is connected.
+   * Returns when signal aborts; a 401 ends the session, 4xx stop.
+   */
+  async watchGeo(
+    groupBy: GeoGroupBy,
+    span: string,
+    f: GeoFilters,
+    onEvent: (e: SseEvent) => void,
+    onState: (connected: boolean, error?: string) => void,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const q = geoQuery(f, { groupBy, window: span, limit: '20' });
+    let retry = 3000;
+    while (!signal.aborted) {
+      try {
+        const headers = new Headers({ Accept: 'text/event-stream' });
+        const token = await handlers.token();
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        const res = await fetch(`${API_BASE}/stats/geo:watch?${q}`, { headers, signal });
+        if (!res.ok || !res.body) {
+          if (res.status === 401) handlers.unauthorized();
+          let msg = `HTTP ${res.status}`;
+          try {
+            msg = ((await res.json()) as ErrorResponse).error || msg;
+          } catch {
+            // keep the status
+          }
+          // 503 (too many streams) and 5xx: try again; other 4xx: stop
+          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+            onState(false, msg);
+            return;
+          }
+          throw new Error(msg);
+        }
+        onState(true);
+        const parser = new SseParser();
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          for (const e of parser.push(dec.decode(value, { stream: true }))) onEvent(e);
+        }
+        retry = parser.retryMs;
+        onState(false);
+      } catch (e) {
+        if (signal.aborted) return;
+        onState(false, e instanceof Error ? e.message : String(e));
+      }
+      await new Promise<void>((done) => {
+        const t = setTimeout(done, retry);
+        signal.addEventListener('abort', () => {
+          clearTimeout(t);
+          done();
+        }, { once: true });
+      });
+    }
   },
 
   /** POST /v1/auth/logout: ends a local session */

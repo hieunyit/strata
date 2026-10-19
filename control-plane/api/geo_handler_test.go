@@ -37,6 +37,9 @@ func (f *fakeGeo) GeoByCountry(_ context.Context, flt ingest.GeoFilter) ([]inges
 func (f *fakeGeo) GeoByASN(_ context.Context, flt ingest.GeoFilter) ([]ingest.GeoCount, error) {
 	return f.read("asn", flt)
 }
+func (f *fakeGeo) GeoByAttackType(_ context.Context, flt ingest.GeoFilter) ([]ingest.GeoCount, error) {
+	return f.read("attack_type", flt)
+}
 func (f *fakeGeo) GeoByCell(_ context.Context, flt ingest.GeoFilter) ([]ingest.GeoCount, error) {
 	return f.read("city", flt)
 }
@@ -95,8 +98,10 @@ func TestGeoStats_FiltersAndGroups(t *testing.T) {
 	if g.last != want || g.group != "asn" {
 		t.Fatalf("filter %+v, want %+v", g.last, want)
 	}
-	if code := getJSON(t, s, "/v1/stats/geo?groupBy=city", "viewer", nil); code != http.StatusOK || g.group != "city" {
-		t.Fatalf("city: %d %s", code, g.group)
+	for _, by := range []string{"city", "attack_type"} {
+		if code := getJSON(t, s, "/v1/stats/geo?groupBy="+by, "viewer", nil); code != http.StatusOK || g.group != by {
+			t.Fatalf("%s: %d %s", by, code, g.group)
+		}
 	}
 	g.set()
 	if code := getJSON(t, s, "/v1/stats/geo", "viewer", &resp); code != http.StatusOK || resp.Rows == nil {

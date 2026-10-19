@@ -319,10 +319,10 @@ paths:
       - name: groupBy
         in: query
         description: 'country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4,
-          about 20-40 km, at their center; never an IP''s coordinates) or asn (0: unknown).'
+          about 20-40 km, at their center; never an IP''s coordinates), asn (0: unknown) or attack_type.'
         schema:
           type: string
-          enum: [country, city, asn]
+          enum: [country, city, asn, attack_type]
           default: country
       - name: limit
         in: query
@@ -496,10 +496,10 @@ paths:
       - name: groupBy
         in: query
         description: 'country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4,
-          about 20-40 km, at their center; never an IP''s coordinates) or asn (0: unknown).'
+          about 20-40 km, at their center; never an IP''s coordinates), asn (0: unknown) or attack_type.'
         schema:
           type: string
-          enum: [country, city, asn]
+          enum: [country, city, asn, attack_type]
           default: country
       - name: limit
         in: query
@@ -1012,7 +1012,7 @@ components:
           format: date-time
         group_by:
           type: string
-          enum: [country, city, asn]
+          enum: [country, city, asn, attack_type]
         rows:
           type: array
           items:
@@ -1021,8 +1021,12 @@ components:
           type: boolean
     GeoBucket:
       type: object
-      required: [start, block, shadow, other]
+      required: [start, block, shadow, error, other]
       properties:
+        error:
+          type: integer
+          format: int64
+          description: Of other, the events in fail mode (not inspected).
         start:
           type: string
           format: date-time
@@ -1070,7 +1074,7 @@ components:
           format: date-time
         group_by:
           type: string
-          enum: [country, city, asn]
+          enum: [country, city, asn, attack_type]
         rows:
           type: array
           items:

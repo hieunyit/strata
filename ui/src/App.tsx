@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OverviewPage } from './pages/OverviewPage';
+import { MapPage } from './pages/MapPage';
 import { EventsPage } from './pages/EventsPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { LoginPage } from './pages/LoginPage';
@@ -53,6 +54,8 @@ export const AppContent: React.FC = () => {
 
   const renderPage = () => {
     switch (route.page) {
+      case 'map':
+        return <MapPage key={JSON.stringify(route.query ?? {})} route={route} />;
       case 'events':
         return <EventsPage key={JSON.stringify(route.query ?? {})} route={route} />;
       case 'event':

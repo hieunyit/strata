@@ -15,7 +15,8 @@
     "fleet": "Fleet",
     "users": "Users",
     "reviews": "Reviews",
-    "audit": "Audit"
+    "audit": "Audit",
+    "map": "Map"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -720,5 +721,56 @@
     "copied": "Copied",
     "copyFailed": "Could not copy. Reveal and copy the secret manually before closing.",
     "subtitle": "Automation tokens with explicit permissions, expiry and audited changes."
+  },
+  "map": {
+    "title": "Attack map",
+    "subtitle": "Events by country, map cell, ASN and attack type. Click a row to filter the whole page.",
+    "action": "Verdict",
+    "countries": "Countries",
+    "cells": "Map cells (cities)",
+    "cellsNote": "Geohash cell center, ~20–40 km, never an IP's location",
+    "asns": "ASNs",
+    "attackTypes": "Attack types",
+    "columns": "Blocked · Total",
+    "timeline": "Timeline",
+    "approximate": "Distinct events, approximate when large (~1%)",
+    "noEvents": "No events in this window",
+    "unknownCountry": "Unknown location",
+    "internal": "Internal network",
+    "unknownCity": "Unknown city",
+    "unknownAsn": "Unknown ASN",
+    "removeFilter": "Remove the {{name}} filter",
+    "clearFilters": "Clear all filters",
+    "filter": {
+      "policy_id": "Policy",
+      "action": "Verdict",
+      "attack_type": "Attack type",
+      "country": "Country",
+      "asn": "ASN"
+    },
+    "liveOn": "Live",
+    "liveConnecting": "Connecting live…",
+    "liveError": "Live connection lost ({{error}}), retrying",
+    "liveUnavailable": "No live mode for 30 days",
+    "basemapPending": {
+      "title": "Base map not enabled",
+      "body": "The self-hosted tile source awaits a check of its borders (Vietnam's sovereignty over the Hoàng Sa and Trường Sa archipelagos) before it ships (W17-F-01). The country, city and ASN layers are shown as the ranked panels below."
+    },
+    "attack": {
+      "none": "No rule matched",
+      "sqli": "SQL injection",
+      "xss": "XSS",
+      "rce": "Command execution",
+      "lfi": "Local file inclusion",
+      "rfi": "Remote file inclusion",
+      "injection_other": "Other injection",
+      "scanner": "Scanner",
+      "virtual_patch": "Virtual patch",
+      "signature": "Signature (Sigma/ET)",
+      "bot": "Bot",
+      "protocol": "Protocol",
+      "custom": "Custom rule",
+      "other": "Other"
+    }
   }
 }
