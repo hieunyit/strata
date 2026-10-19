@@ -54,6 +54,13 @@ Ba loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** c
 
 Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch), 8 `HYPERSCAN_BLOCK` (bản block mode của section 7, tùy chọn, #27), 9 `PRIVACY` (cài đặt privacy của policy, P-01 §1), 10 `EXCEPTIONS` (exception có scope chính xác và hạn dùng, bắt buộc bit 4/byte 62 ở mỗi policy liên quan), 11 `STAGING` (overlay log-only từng managed request rule, bắt buộc bit 5/byte 62). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit 2 = gói signature (RV-S-01: compiler đặt cho rule có `metadata.source` là `sigma`, `et-open`, `crawler-user-agents`), bit khác phải = 0. Rule gói signature trong policy `signatures: shadow` vẫn chạy và được báo (Event ID `EVT-`, action `log`), nhưng điểm của chúng tính riêng và không bao giờ chặn; `off` bỏ qua chúng; `enforce` coi như rule thường. Libstrata trước RV-S-01 từ chối bundle có bit 2: nâng module trước. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Tương tự, libstrata trước W11-R-01 từ chối bundle có canary khác 0 (byte dự phòng khác 0): nâng module trên mọi node trước khi deploy policy có `canary_percent`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
 
+**W17-R-01, operator SSTI:** `detect_ssti` được nối cuối danh mục operator ở mã 18;
+18 mã cũ (0–17) giữ nguyên. Operator không có `value`, hỗ trợ transform/negate như
+`detect_sqli` và dùng cùng giới hạn input/budget của evaluator. Bundle chứa operator
+mới bị engine cũ từ chối lúc nạp; nâng module trước khi phát bundle đó. Không tự
+bật rule trong policy. Không thêm section hoặc thay layout bản ghi.
+
+
 ### Section 11 `STAGING` (M4)
 
 Codec `SSG1`: magic 4 byte, số entry `u32`, rồi cặp `(policy_index u32, rule_id u32)`, little-endian, tăng dần theo policy/rule. Tối đa 4.096 entry toàn bundle, 16/policy, không trùng; không có cấu hình thì không có section. Tập policy có entry phải khớp chính xác bit 5/byte 62; thiếu section/flag, dữ liệu vượt giới hạn hoặc Rule ID không trỏ duy nhất tới managed request rule có điểm 0..1000 thì từ chối (bỏ điểm âm có thể tăng mức chặn). Engine cũ từ chối bit bắt buộc, không âm thầm enforce rule đã staging. Không đổi C ABI.

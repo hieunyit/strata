@@ -37,8 +37,8 @@ const SSTI_DANGEROUS_PATTERNS: &[&[u8]] = &[
 
 /// Detects SSTI-like template expressions in arbitrary bytes.
 ///
-/// This component does not enable a rule or add an IR operator. Each closer
-/// search advances monotonically, including malformed/unclosed templates.
+/// The `detect_ssti` operator calls this component; rules remain opt-in. Each
+/// closer search advances monotonically, including malformed/unclosed templates.
 pub fn detect(input: &[u8]) -> bool {
     scan(input, |_| {})
 }

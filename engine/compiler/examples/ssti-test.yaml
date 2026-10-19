@@ -1,0 +1,16 @@
+# Test-only fixture; not a shipped or enabled rule pack.
+ir_version: 1
+ruleset: { name: example-ssti-test, version: "1" }
+rules:
+  - id: 800817
+    name: Example SSTI detector fixture
+    layer: managed
+    stage: request_body
+    score: 100
+    severity: critical
+    action_mode: block_alone
+    match:
+      all:
+        - targets: [{ var: args }]
+          operator: { type: detect_ssti }
+    metadata: { source: organization, license: Apache-2.0 }

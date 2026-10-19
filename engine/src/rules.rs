@@ -176,6 +176,8 @@ pub const OPERATORS: &[&str] = &[
     "validate_url_encoding",
     "validate_utf8_encoding",
     "ip_match",
+    // Append only: signed bundles persist these numeric operator codes.
+    "detect_ssti",
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;
