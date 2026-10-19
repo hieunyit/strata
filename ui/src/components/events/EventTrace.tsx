@@ -144,7 +144,7 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
                 {t(`detail.inspection.${event.inspection}`)}
               </p>
             )}
-            {(event.user_agent || event.referer) && (
+            {(event.user_agent || event.referer || event.ja4) && (
               <dl className="mt-3">
                 {event.user_agent && (
                   <Detail label="User-Agent" testId="detail-user-agent">
@@ -154,6 +154,11 @@ export const EventTrace: React.FC<{ event: Event; rules?: Rules }> = ({ event, r
                 {event.referer && (
                   <Detail label="Referer" testId="detail-referer">
                     <span className="font-mono text-xs break-all">{event.referer}</span>
+                  </Detail>
+                )}
+                {event.ja4 && (
+                  <Detail label="JA4" testId="detail-ja4">
+                    <span className="font-mono text-xs break-all">{event.ja4}</span>
                   </Detail>
                 )}
               </dl>

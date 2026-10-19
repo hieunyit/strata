@@ -75,7 +75,7 @@ func TestContext_ClickHouseOldTableAndLookup(t *testing.T) {
 	if err := ch.EnsureColumns(ctx); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
-	if e, err := ch.GetEvent(ctx, "STR-AAAA-AAAA-AAAA-AAAA"); err != nil || e.UserAgent != "" || len(e.Headers) != 0 {
+	if e, err := ch.GetEvent(ctx, "STR-AAAA-AAAA-AAAA-AAAA"); err != nil || e.UserAgent != "" || len(e.Headers) != 0 || e.JA4 != "" {
 		t.Fatalf("old row: %+v, %v", e, err)
 	}
 
@@ -86,6 +86,7 @@ func TestContext_ClickHouseOldTableAndLookup(t *testing.T) {
 		UserAgent:  "sqlmap/1.8", Referer: "https://app.example.test/?access_token=[MASKED]",
 		Headers:    []Header{{Name: "Authorization", Value: "[MASKED]"}, {Name: "Accept", Value: "*/*"}},
 		Inspection: "partial",
+		JA4:        "t13d1518h2_8daaf6152771_4980c97edce0",
 	}
 	if err := ch.SaveEvents(ctx, []Event{ev}); err != nil {
 		t.Fatal(err)
@@ -94,7 +95,7 @@ func TestContext_ClickHouseOldTableAndLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.UserAgent != ev.UserAgent || got.Referer != ev.Referer || got.Inspection != "partial" ||
+	if got.UserAgent != ev.UserAgent || got.Referer != ev.Referer || got.Inspection != "partial" || got.JA4 != ev.JA4 ||
 		len(got.Headers) != 2 || got.Headers[0] != ev.Headers[0] || got.Headers[1] != ev.Headers[1] ||
 		len(got.Violations) != 1 || len(got.Violations[0].Snippet) != 4096 {
 		t.Fatalf("context lost: %+v", got)

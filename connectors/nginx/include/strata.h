@@ -30,7 +30,7 @@
 /**
  * Minor ABI version: additive, backward-compatible changes only.
  */
-#define STRATA_ABI_VERSION_MINOR 7
+#define STRATA_ABI_VERSION_MINOR 8
 
 /**
  * Value returned by `strata_abi_version()`: `(major << 16) | minor`.
@@ -133,6 +133,17 @@
  * Length in bytes of the Ed25519 public key passed to `strata_engine_map`.
  */
 #define STRATA_PUBKEY_LEN 32
+
+/**
+ * Length of a JA4 TLS client fingerprint (RV-N-02, ABI 1.8): written by
+ * `strata_ja4`, not NUL-terminated.
+ */
+#define STRATA_JA4_LEN 36
+
+/**
+ * `strata_ja4` flags: the ClientHello came over QUIC (prefix `q`).
+ */
+#define STRATA_JA4_QUIC 1
 
 /**
  * `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
@@ -644,6 +655,34 @@ size_t strata_tx_event(const strata_tx_t *tx, uint8_t *dst, size_t cap);
  * NULL if cap is 0).
  */
 size_t strata_tx_sample(const strata_tx_t *tx, uint8_t *dst, size_t cap);
+
+/**
+ * JA4 TLS client fingerprint (RV-N-02, ABI 1.8) of one ClientHello
+ * handshake message (type byte, 24-bit length, body), as OpenSSL's message
+ * callback passes it. Writes `STRATA_JA4_LEN` bytes to `out` (not
+ * NUL-terminated). `flags`: `STRATA_JA4_QUIC`. Returns `STRATA_E_INVALID`
+ * for NULL pointers, unknown flags or input that is not a well-formed
+ * ClientHello; `out` is then unchanged. Needs no engine and no transaction:
+ * call it during the handshake, then `strata_tx_set_ja4` per request.
+ *
+ * # Safety
+ * `hello` must point to `len` readable bytes; `out` to `STRATA_JA4_LEN`
+ * writable bytes.
+ */
+strata_rc_t strata_ja4(const uint8_t *hello, size_t len, uint32_t flags, uint8_t *out);
+
+/**
+ * The JA4 fingerprint of the request's TLS connection (RV-N-02, ABI 1.8),
+ * from `strata_ja4`: matched by rules on `tls_ja4` and sent in the event.
+ * Call before `strata_tx_request_headers`. Anything but `STRATA_JA4_LEN`
+ * bytes of `[0-9a-z_]` is `STRATA_E_INVALID` and leaves the transaction
+ * without a fingerprint, but otherwise unchanged: unlike the request
+ * calls, a refused fingerprint does not break the transaction.
+ *
+ * # Safety
+ * `tx` must be NULL or live; `ja4` borrowed for the call.
+ */
+strata_rc_t strata_tx_set_ja4(strata_tx_t *tx, strata_str_t ja4);
 
 /**
  * Frees a transaction. NULL is ignored; set your pointer to NULL afterwards.

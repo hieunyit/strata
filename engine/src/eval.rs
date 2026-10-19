@@ -318,6 +318,7 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "xml",
     "xml_attributes",
     "body_processor",
+    "tls_ja4",
     "multipart_part_headers",
 ];
 
@@ -366,6 +367,8 @@ pub struct Request<'a> {
     pub args: &'a [u8],
     pub proto: &'a [u8],
     pub client_addr: &'a [u8],
+    /// JA4 of the TLS connection (RV-N-02), empty without one
+    pub ja4: &'a [u8],
     pub headers: &'a [(&'a [u8], &'a [u8])],
     /// The request body as inspected (empty at stage request_headers).
     pub body: &'a [u8],
@@ -1461,6 +1464,15 @@ fn values<'d>(
             name: None,
             val: r.client_addr,
         })
+    } else if v == const { var("tls_ja4") } {
+        if r.ja4.is_empty() {
+            TargetVals::Empty
+        } else {
+            TargetVals::One(TargetVal {
+                name: None,
+                val: r.ja4,
+            })
+        }
     } else if v == const { var("args") }
         || v == const { var("args_get") }
         || v == const { var("args_post") }

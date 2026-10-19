@@ -816,6 +816,7 @@ func toIngest(ev *eventv1.Event, node string, now time.Time) ingest.Event {
 		out.Headers = append(out.Headers, ingest.Header{Name: h.GetName(), Value: string(h.GetValue())})
 	}
 	out.Inspection = inspections[ev.GetInspection()]
+	out.JA4 = ev.GetJa4()
 	if costs := ev.GetRuleCosts(); len(costs) <= ingest.MaxEventRuleCosts {
 		for _, c := range costs {
 			out.RuleCosts = append(out.RuleCosts, ingest.RuleCost{RuleID: c.GetRuleId(), Samples: c.GetSamples(), TotalNS: c.GetTotalNs(), MaxNS: c.GetMaxNs()})

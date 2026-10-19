@@ -158,7 +158,7 @@ fn fields(mut b: &[u8]) -> std::collections::HashMap<u32, Vec<u8>> {
 #[test]
 fn a_sampled_request_is_anonymized() {
     let e = engine();
-    assert_eq!(strata_abi_version(), (1 << 16) | 7);
+    assert_eq!(strata_abi_version(), (1 << 16) | 8);
     // off by default
     assert!(request(e, b"/v1/verify").is_none());
     assert_eq!(

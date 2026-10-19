@@ -113,6 +113,8 @@ pub struct EventData<'a> {
     pub would_block: bool,
     /// W12-G2-01
     pub canary: CanaryGroup,
+    /// JA4 of the client's TLS connection (RV-N-02), empty without one
+    pub ja4: &'a str,
 }
 
 /// Request context of an event (RV-G2-01), masked and bounded: the
@@ -497,6 +499,8 @@ fn encode_raw(ev: &EventData<'_>, out: &mut Vec<u8>) {
     put_uint32(21, ev.would_block as u32, out);
     // 22: CanaryGroup canary (W12-G2-01)
     put_uint32(22, ev.canary as u32, out);
+    // 24: ja4 (RV-N-02)
+    put_string(24, ev.ja4, out);
 }
 
 /// The first `max` bytes of UTF-8 `b`, cut on a character boundary.
@@ -907,6 +911,7 @@ mod tests {
             inspection: Inspection::Full,
             would_block: false,
             canary: CanaryGroup::None,
+            ja4: "",
         };
         let out = encode(&ev);
         assert!(out.len() <= MAX_DATAGRAM);
@@ -996,6 +1001,7 @@ mod tests {
             inspection: Default::default(),
             would_block: false,
             canary: CanaryGroup::None,
+            ja4: "",
         };
 
         let b1 = encode(&ev);
@@ -1039,6 +1045,7 @@ mod tests {
             inspection: Default::default(),
             would_block: false,
             canary: CanaryGroup::None,
+            ja4: "",
         };
 
         let encoded = encode(&ev);
@@ -1117,6 +1124,7 @@ mod tests {
             inspection: Default::default(),
             would_block: false,
             canary: CanaryGroup::None,
+            ja4: "",
         };
 
         let encoded = encode(&ev);

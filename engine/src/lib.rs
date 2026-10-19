@@ -19,6 +19,7 @@ pub mod eval;
 pub mod event;
 pub mod exceptions;
 pub mod guard;
+pub mod ja4;
 pub mod json;
 pub mod multipart;
 pub mod operators;

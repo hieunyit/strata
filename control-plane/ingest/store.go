@@ -139,6 +139,7 @@ var contextColumns = []string{
 	"asn UInt32",
 	"as_org String CODEC(ZSTD(1))",
 	"geoip_version String CODEC(ZSTD(1))",
+	"ja4 String CODEC(ZSTD(1))",
 }
 
 // EnsureColumns adds the columns of later schemas to an events table made
@@ -173,7 +174,8 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 		received_at, user_agent, referer, headers.name, headers.value, inspection,
 		rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns,
-		country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version
+		country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version,
+		ja4
 	)`, s.tableName)
 
 	batch, err := s.conn.PrepareBatch(ctx, query)
@@ -237,6 +239,7 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			e.Inspection,
 			costIDs, costSamples, costTotals, costMax,
 			e.CountryISO, e.Region, e.City, e.Lat, e.Lon, e.AccuracyKM, e.ASN, e.ASOrg, e.GeoIPVersion,
+			e.JA4,
 		)
 		if err != nil {
 			return fmt.Errorf("appending event %s to batch: %w", e.BlockID, err)
@@ -279,7 +282,8 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at, user_agent, referer, headers.name, headers.value, inspection,
 			rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns,
-			country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version
+			country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version,
+			ja4
 		FROM %s FINAL
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
@@ -330,6 +334,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		&e.Inspection,
 		&costIDs, &costSamples, &costTotals, &costMax,
 		&e.CountryISO, &e.Region, &e.City, &e.Lat, &e.Lon, &e.AccuracyKM, &e.ASN, &e.ASOrg, &e.GeoIPVersion,
+		&e.JA4,
 	)
 	if err != nil {
 		// Any other error, ClickHouse exceptions included, is a real failure.

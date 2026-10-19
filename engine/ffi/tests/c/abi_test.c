@@ -261,6 +261,37 @@ main(int argc, char **argv)
     CHECK(v.error == STRATA_E_INVALID && id_ok(v.block_id, "EVT-"));
     strata_tx_free(tx);
 
+    /* JA4 (ABI 1.8): TLS 1.2, cipher 0x002f, no extension */
+    {
+        static const uint8_t  hello[] = {
+            1, 0, 0, 41, 3, 3,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            0, 0, 2, 0, 0x2f, 1, 0
+        };
+        uint8_t  out[STRATA_JA4_LEN];
+
+        CHECK(strata_ja4(hello, sizeof(hello), 0, out) == STRATA_OK);
+        CHECK(memcmp(out, "t12i010000_ba72b8082249_000000000000",
+                     STRATA_JA4_LEN) == 0);
+        CHECK(strata_ja4(hello, sizeof(hello), STRATA_JA4_QUIC, out)
+              == STRATA_OK && out[0] == 'q');
+        CHECK(strata_ja4(hello, sizeof(hello) - 1, 0, out) == STRATA_E_INVALID);
+        CHECK(strata_ja4(hello, sizeof(hello), 2, out) == STRATA_E_INVALID);
+        CHECK(strata_ja4(NULL, 0, 0, out) == STRATA_E_INVALID);
+        CHECK(strata_ja4(hello, sizeof(hello), 0, NULL) == STRATA_E_INVALID);
+
+        tx = start(e, 0, S("/index.html"));
+        CHECK(strata_tx_set_ja4(tx, (strata_str_t) { out, STRATA_JA4_LEN })
+              == STRATA_OK);
+        CHECK(strata_tx_set_ja4(tx, S("t12i010000")) == STRATA_E_INVALID);
+        CHECK(strata_tx_set_ja4(NULL, S("")) == STRATA_E_INVALID);
+        /* a refused fingerprint does not break the transaction */
+        strata_tx_verdict(tx, &v);
+        CHECK(v.error == STRATA_OK);
+        strata_tx_free(tx);
+    }
+
     /* calls out of order break the transaction too */
     tx = start(e, 0, S("/index.html"));
     CHECK(strata_tx_response_body_chunk(tx, NULL, 0, 1, NULL) == STRATA_E_STATE);

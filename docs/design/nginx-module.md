@@ -226,6 +226,8 @@ Module chỉ gọi `libstrata` qua một C ABI nhỏ, ổn định, có version;
 
 Cache worker (ABI 1.7, remediation #49): bundle map biên dịch sớm fallback regex của rule không có gate chọn lọc, gồm gate chỉ theo method. Connector gọi `strata_engine_prepare_thread` trên chính thread worker sau fork và trước khi publish bundle mới: cấp scratch/stream Hyperscan và prime cache regex cho đường thông dụng bằng input cố định hữu hạn. Không tạo transaction, không tăng traffic/rule-cost counters, không thay budget/fail mode. Không bảo đảm warm mọi pattern/input; fallback dưới gate theo dữ liệu vẫn lazy. Nếu chuẩn bị lỗi, module ghi warning và giữ cơ chế inspection/fail mode hiện có khi request đến. Hot activation có thêm thời gian chuẩn bị đồng bộ trên event loop, cần đo độ trễ activation và traffic dưới tải trước khi triển khai.
 
+JA4 (ABI 1.8, RV-N-02): khi module bật, postconfiguration gắn message callback của OpenSSL (`SSL_CTX_set_msg_callback`) vào SSL context của mọi server; NGINX đã dùng ClientHello callback cho SNI nên không dùng được callback đó. Với ClientHello đầu tiên của kết nối, C chỉ chuyển con trỏ + độ dài thông điệp handshake cho `strata_ja4` (libstrata parse, có giới hạn, không cấp phát heap) và lưu 36 byte vào ex_data của SSL (pool của connection). Mỗi request gọi `strata_tx_set_ja4`: rule đọc qua target `tls_ja4`, sự kiện có field 24 `ja4`. Fingerprint bị từ chối không làm hỏng transaction. HTTP/3 qua lớp tương thích OpenSSL của NGINX: lớp đó đặt callback riêng cho từng kết nối QUIC nên không có JA4. Module phải build với `--with-http_ssl_module` (như bản nginx.org); trước RV-N-02 `build.sh` thiếu cờ này nên phần TLS của module không được biên dịch. JA4 dùng làm key rate limit để sau RV-R-03.
+
 **API chính (`strata.h`)**
 
 ```c
@@ -241,6 +243,12 @@ void strata_engine_release(strata_engine_t *e);   /* bản cuối: module munmap
 
 /* ABI 1.7: chuẩn bị cache trên thread worker, trước request/activate bundle */
 strata_rc_t strata_engine_prepare_thread(const strata_engine_t *e);
+
+/* ABI 1.8 (RV-N-02): JA4 của một ClientHello (thông điệp handshake), không cần
+   engine; rồi gắn vào từng transaction trước strata_tx_request_headers */
+strata_rc_t strata_ja4(const uint8_t *hello, size_t len, uint32_t flags,
+                       uint8_t *out /* STRATA_JA4_LEN */);
+strata_rc_t strata_tx_set_ja4(strata_tx_t *tx, strata_str_t ja4);
 
 /* Transaction: một request, chỉ dùng trên một thread */
 strata_tx_t *strata_tx_new(strata_engine_t *e, strata_str_t policy,
@@ -349,6 +357,7 @@ IP client lấy từ `$remote_addr` sau module `realip`, nên cấu hình `set_r
 | `$strata_policy` | Policy đã áp dụng |
 | `$strata_bundle_version` | Phiên bản bundle đang chạy |
 | `$strata_time_us` | Thời gian xử lý của engine (micro giây) |
+| `$strata_ja4` | JA4 (FoxIO) của kết nối TLS của client, 36 ký tự; rỗng nếu không TLS hoặc qua HTTP/3; có cả ở location `strata off` (RV-N-02) |
 
 **Ví dụ cấu hình**
 

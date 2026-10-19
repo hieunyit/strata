@@ -101,6 +101,8 @@ pub const VARS: &[&str] = &[
     "body_processor",
     // appended (W08 review): codes above keep their meaning
     "multipart_part_headers",
+    // appended (RV-N-02)
+    "tls_ja4",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -130,6 +132,7 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("matched_vars") => "MATCHED_VARS",
         Some("body_processor") => "REQBODY_PROCESSOR",
         Some("multipart_part_headers") => "MULTIPART_PART_HEADERS",
+        Some("tls_ja4") => "TLS_JA4",
         Some("response_status") => "RESPONSE_STATUS",
         Some("response_headers") => "RESPONSE_HEADERS",
         Some("response_body") => "RESPONSE_BODY",

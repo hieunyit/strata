@@ -885,6 +885,69 @@ pub unsafe extern "C" fn strata_tx_sample(tx: *const TxHandle, dst: *mut u8, cap
     })
 }
 
+/// JA4 TLS client fingerprint (RV-N-02, ABI 1.8) of one ClientHello
+/// handshake message (type byte, 24-bit length, body), as OpenSSL's message
+/// callback passes it. Writes `STRATA_JA4_LEN` bytes to `out` (not
+/// NUL-terminated). `flags`: `STRATA_JA4_QUIC`. Returns `STRATA_E_INVALID`
+/// for NULL pointers, unknown flags or input that is not a well-formed
+/// ClientHello; `out` is then unchanged. Needs no engine and no transaction:
+/// call it during the handshake, then `strata_tx_set_ja4` per request.
+///
+/// # Safety
+/// `hello` must point to `len` readable bytes; `out` to `STRATA_JA4_LEN`
+/// writable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_ja4(
+    hello: *const u8,
+    len: usize,
+    flags: u32,
+    out: *mut u8,
+) -> strata_rc_t {
+    if hello.is_null() || out.is_null() || flags & !STRATA_JA4_QUIC != 0 {
+        return STRATA_E_INVALID;
+    }
+    // SAFETY: caller guarantees hello/len describe a live buffer.
+    let hello = unsafe { slice::from_raw_parts(hello, len) };
+    guard(STRATA_E_INTERNAL, || {
+        let mut fp = [0u8; STRATA_JA4_LEN];
+        if libstrata::ja4::fingerprint(hello, flags & STRATA_JA4_QUIC != 0, &mut fp).is_none() {
+            return STRATA_E_INVALID;
+        }
+        // SAFETY: out is writable for STRATA_JA4_LEN bytes per contract.
+        unsafe { std::ptr::copy_nonoverlapping(fp.as_ptr(), out, STRATA_JA4_LEN) };
+        STRATA_OK
+    })
+}
+
+/// The JA4 fingerprint of the request's TLS connection (RV-N-02, ABI 1.8),
+/// from `strata_ja4`: matched by rules on `tls_ja4` and sent in the event.
+/// Call before `strata_tx_request_headers`. Anything but `STRATA_JA4_LEN`
+/// bytes of `[0-9a-z_]` is `STRATA_E_INVALID` and leaves the transaction
+/// without a fingerprint, but otherwise unchanged: unlike the request
+/// calls, a refused fingerprint does not break the transaction.
+///
+/// # Safety
+/// `tx` must be NULL or live; `ja4` borrowed for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn strata_tx_set_ja4(tx: *mut TxHandle, ja4: strata_str_t) -> strata_rc_t {
+    if tx.is_null() {
+        return STRATA_E_INVALID;
+    }
+    // SAFETY: non-NULL and live per the contract above.
+    let t = unsafe { &mut *tx.cast::<Tx>() };
+    // SAFETY: ptr/len describe a live buffer per the contract above.
+    let Ok(v) = (unsafe { bytes(ja4) }) else {
+        return STRATA_E_INVALID;
+    };
+    guard(STRATA_E_INTERNAL, || {
+        if t.set_ja4(v) {
+            STRATA_OK
+        } else {
+            STRATA_E_INVALID
+        }
+    })
+}
+
 /// Frees a transaction. NULL is ignored; set your pointer to NULL afterwards.
 ///
 /// # Safety
