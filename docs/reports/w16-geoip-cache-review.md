@@ -11,3 +11,5 @@ Go 1.26.9: all 13 reader/cache tests passed with -race (2.029s package); ingest 
 The third original failure (forged event metadata on missing/disabled/error lookup) remains for the authoritative ingest integration. This cache is not yet activated in the running server; ClickHouse schema/projections and real DB acceptance are still pending. No Gate or rollout status changes follow.
 
 Self-review: constant cache/input/metadata bounds; no PII labels/logs; typed decoder output; immutable readers retained by outstanding generations; error paths preserved; no shared proto/C ABI/rules changes. Old in-flight requests may return the old reader's result by design, but cannot contaminate replacement generations.
+
+Combined-main acceptance after #241/#240: full ingest unit/race suite passed in 6.239s, lint 0 issues, with the current dependency pins. Raw output is attached separately.
