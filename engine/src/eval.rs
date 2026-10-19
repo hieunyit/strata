@@ -321,6 +321,7 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "tls_ja4",
     "bot_claim",
     "bot_verified",
+    "basename",
     "multipart_part_headers",
 ];
 
@@ -373,6 +374,8 @@ pub struct Request<'a> {
     pub ja4: &'a [u8],
     /// published crawler ranges of the bundle (W18-R-02)
     pub good_bots: &'a crate::goodbots::GoodBots,
+    /// the policy's CRS paranoia levels (W17-S-01)
+    pub paranoia: crate::paranoia::Levels,
     pub headers: &'a [(&'a [u8], &'a [u8])],
     /// The request body as inspected (empty at stage request_headers).
     pub body: &'a [u8],
@@ -1444,6 +1447,13 @@ fn values<'d>(
             name: None,
             val: r.uri,
         })
+    } else if v == const { var("basename") } {
+        // REQUEST_BASENAME: the file name part of the path
+        let p = r.uri;
+        TargetVals::One(TargetVal {
+            name: None,
+            val: &p[p.iter().rposition(|&c| c == b'/').map_or(0, |i| i + 1)..],
+        })
     } else if v == const { var("protocol") } {
         TargetVals::One(TargetVal {
             name: None,
@@ -2316,6 +2326,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
+            paranoia_shadow: false,
             layer: "protocol",
             field: "ARGS".to_string(),
             snippet: Vec::new(),
@@ -2329,6 +2340,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
+            paranoia_shadow: false,
             layer: "protocol",
             field: "REQUEST_BODY".to_string(),
             snippet: Vec::new(),
@@ -2342,6 +2354,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
+            paranoia_shadow: false,
             layer: "protocol",
             field: "REQUEST_HEADERS:Content-Encoding".to_string(),
             snippet: Vec::new(),
@@ -2441,7 +2454,9 @@ pub fn evaluate_with_budget(
     for i in order {
         let i = i as usize;
         let Some(r) = tables.rule(i) else { continue };
+        let role = req.paranoia.role(r.paranoia);
         if r.stage != stage
+            || role == crate::paranoia::Role::Skip
             || (r.signature && !signatures)
             || (!disabled.is_empty() && disabled.binary_search(&r.id).is_ok())
         {
@@ -2500,6 +2515,7 @@ pub fn evaluate_with_budget(
                 score: r.score,
                 block_alone: r.block_alone,
                 signature: r.signature,
+                paranoia_shadow: role == crate::paranoia::Role::Shadow,
                 layer: layer_name,
                 field,
                 snippet,

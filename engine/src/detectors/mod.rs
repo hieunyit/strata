@@ -14,6 +14,9 @@ pub struct Violation {
     pub score: i32,
     pub block_alone: bool,
     pub signature: bool,
+    /// a CRS rule above the policy's enforced paranoia level, within its
+    /// shadow level (W17-S-01): reported, kept apart, never blocks
+    pub paranoia_shadow: bool,
     pub layer: &'static str,
     pub field: String,
     pub snippet: Vec<u8>,

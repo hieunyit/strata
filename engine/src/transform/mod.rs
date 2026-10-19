@@ -18,11 +18,11 @@ use crate::budget::{BudgetExceeded, TxBudget};
 
 pub use batch2::{
     base64_decode, base64_decode_with_budget, cmd_line, cmd_line_with_budget, css_decode,
-    css_decode_with_budget, js_decode, js_decode_with_budget, normalize_path_win,
-    normalize_path_win_with_budget, remove_comments_char, remove_comments_char_with_budget,
-    remove_whitespace, remove_whitespace_with_budget, replace_comments,
-    replace_comments_with_budget, url_decode, url_decode_with_budget, utf8_to_unicode,
-    utf8_to_unicode_with_budget,
+    css_decode_with_budget, escape_seq_decode, escape_seq_decode_with_budget, js_decode,
+    js_decode_with_budget, normalize_path_win, normalize_path_win_with_budget,
+    remove_comments_char, remove_comments_char_with_budget, remove_whitespace,
+    remove_whitespace_with_budget, replace_comments, replace_comments_with_budget, url_decode,
+    url_decode_with_budget, utf8_to_unicode, utf8_to_unicode_with_budget,
 };
 
 use tables::{BEST_FIT, ENTITY, ENTITY2, LONGEST_ENTITY_WITHOUT_SEMICOLON, REPLACEMENT};
@@ -48,6 +48,8 @@ pub const REPLACE_COMMENTS: u8 = 14;
 pub const REMOVE_COMMENTS_CHAR: u8 = 15;
 /// The byte length of the value, in decimal (for numeric operators).
 pub const LENGTH: u8 = 16;
+/// appended (W17-S-01): CRS PL2 command injection rules
+pub const ESCAPE_SEQ_DECODE: u8 = 17;
 
 /// Applies one transformation with cooperative CPU budget tracking;
 /// `Ok(None)` when this engine does not implement it yet (condition skipped).
@@ -74,6 +76,7 @@ pub fn apply_with_budget<'a>(
         REPLACE_COMMENTS => replace_comments_with_budget(input, budget)?,
         REMOVE_COMMENTS_CHAR => remove_comments_char_with_budget(input, budget)?,
         LENGTH => Cow::Owned(input.len().to_string().into_bytes()),
+        ESCAPE_SEQ_DECODE => escape_seq_decode_with_budget(input, budget)?,
         _ => return Ok(None),
     }))
 }
@@ -118,7 +121,7 @@ pub fn apply_chain<'a>(codes: &[u8], input: &'a [u8]) -> Option<Cow<'a, [u8]>> {
 }
 
 pub fn is_implemented(code: u8) -> bool {
-    code <= LENGTH
+    code <= ESCAPE_SEQ_DECODE
 }
 
 pub(crate) fn hex(c: u8) -> Option<u8> {
@@ -653,7 +656,7 @@ mod tests {
         .unwrap();
         assert_eq!(&*out, b"/b/c");
         // a code past the table: not implemented, the condition is skipped
-        assert!(apply_chain(&[URL_DECODE_UNI, LENGTH + 1], b"x").is_none());
+        assert!(apply_chain(&[URL_DECODE_UNI, ESCAPE_SEQ_DECODE + 1], b"x").is_none());
     }
 
     #[test]

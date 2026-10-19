@@ -38,7 +38,7 @@ var vars = map[string]string{
 	"REQUEST_HEADERS": "request_headers", "REQUEST_HEADERS_NAMES": "request_headers_names",
 	"MULTIPART_PART_HEADERS": "multipart_part_headers",
 	"REQUEST_COOKIES":        "request_cookies", "REQUEST_COOKIES_NAMES": "request_cookies_names",
-	"REQUEST_URI": "uri", "REQUEST_URI_RAW": "uri_raw", "REQUEST_FILENAME": "path",
+	"REQUEST_URI": "uri", "REQUEST_URI_RAW": "uri_raw", "REQUEST_FILENAME": "path", "REQUEST_BASENAME": "basename",
 	"REQUEST_METHOD": "method", "REQUEST_PROTOCOL": "protocol", "REMOTE_ADDR": "remote_addr",
 	"REQUEST_BODY": "request_body", "FILES": "files", "FILES_NAMES": "files_names",
 	"REQUEST_LINE": "request_line", "QUERY_STRING": "query_string", "MATCHED_VARS": "matched_vars",
@@ -65,6 +65,8 @@ var transforms = map[string]string{
 	"urlDecode": "url_decode", "normalizePathWin": "normalize_path_win", "normalisePathWin": "normalize_path_win",
 	"replaceComments": "replace_comments", "removeCommentsChar": "remove_comments_char",
 	"length": "length",
+	// W17-S-01
+	"escapeSeqDecode": "escape_seq_decode",
 }
 
 // SecLang operators -> IR.
@@ -122,6 +124,8 @@ type Imported struct {
 type Result struct {
 	Groups  []*Imported
 	Skipped []Skip
+	// MaxPL: the highest paranoia level imported
+	MaxPL int
 }
 
 var macro = regexp.MustCompile(`%\{[^}]*\}`)
@@ -226,24 +230,102 @@ func dotAll(re string) string {
 		case '\\':
 			i++
 		case '[':
-			i++
-			if i < len(re) && re[i] == '^' {
-				i++
-			}
-			if i < len(re) && re[i] == ']' {
-				i++
-			}
-			for i < len(re) && re[i] != ']' {
-				if re[i] == '\\' {
-					i++
-				}
-				i++
-			}
+			i = skipClass(re, i)
 		case '.':
 			return "(?s)" + re
 		}
 	}
 	return re
+}
+
+// skipClass returns the index of the `]` closing the class that opens at
+// re[i] (len(re) when it is not closed).
+func skipClass(re string, i int) int {
+	i++
+	if i < len(re) && re[i] == '^' {
+		i++
+	}
+	if i < len(re) && re[i] == ']' {
+		i++
+	}
+	for i < len(re) && re[i] != ']' {
+		if re[i] == '\\' {
+			i++
+		}
+		i++
+	}
+	return i
+}
+
+// captureChain folds a chain "regex with capture, then TX:1 @rx ^X$" into
+// the first regex, its first group's content replaced by X (case flags of
+// X kept apart: (?-i:X) unless X sets its own). The rule matches when some
+// match of the regex has a group matching X; CRS checks the first match
+// only, so this can match more, never less. ok is false for any other
+// chain.
+func captureChain(r seclang.Rule) ([]seclang.Link, string, bool) {
+	if len(r.Chain) != 2 || !hasAction(r, "capture") {
+		return nil, "", false
+	}
+	first, tx := r.Chain[0], r.Chain[1]
+	if first.Operator != "rx" || first.Negated || tx.Operator != "rx" || tx.Negated ||
+		len(tx.Variables) != 1 || tx.Variables[0] != "TX:1" || macro.MatchString(tx.Argument) {
+		return nil, "", false
+	}
+	for _, t := range tx.Transforms {
+		if t != "none" {
+			return nil, "", false
+		}
+	}
+	arg := tx.Argument
+	if len(arg) < 2 || arg[0] != '^' || arg[len(arg)-1] != '$' {
+		return nil, "", false
+	}
+	inner := arg[1 : len(arg)-1]
+	if !strings.HasPrefix(inner, "(?") || strings.HasPrefix(inner, "(?:") {
+		inner = "(?-i:" + inner + ")"
+	}
+	folded, ok := replaceFirstGroup(first.Argument, inner)
+	if !ok {
+		return nil, "", false
+	}
+	if _, err := regexp.Compile(folded); err != nil {
+		return nil, "", false
+	}
+	l := first
+	l.Argument = folded
+	return []seclang.Link{l}, "capture chain on TX:1 folded into the regex's first group", true
+}
+
+// replaceFirstGroup replaces the content of the first capturing group of
+// a regex (escapes and classes skipped).
+func replaceFirstGroup(re, with string) (string, bool) {
+	start, depth := -1, 0
+	for i := 0; i < len(re); i++ {
+		switch re[i] {
+		case '\\':
+			i++
+		case '[':
+			i = skipClass(re, i)
+		case '(':
+			if start < 0 {
+				if i+1 < len(re) && re[i+1] == '?' {
+					continue
+				}
+				start, depth = i, 1
+				continue
+			}
+			depth++
+		case ')':
+			if start >= 0 {
+				depth--
+				if depth == 0 {
+					return re[:start+1] + with + re[i:], true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 // convertLink turns one chain link into an IR condition.
@@ -487,7 +569,7 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 		return nil, "SecAction (sets variables)"
 	}
 	if pl := r.ParanoiaLevel(); pl > opts.MaxPL {
-		return nil, fmt.Sprintf("paranoia level %d (PL2 and above come with W17)", pl)
+		return nil, fmt.Sprintf("paranoia level %d", pl)
 	}
 	if !hasAction(r, "block") && !hasAction(r, "deny") {
 		return nil, "does not block or score (control flow)"
@@ -511,7 +593,12 @@ func convert(g Group, r seclang.Rule, opts Options, notes *[]string) (map[string
 		conds = cs
 		*notes = append(*notes, "list of crs-setup checked with its REQUEST-901 default")
 	} else {
-		for _, l := range r.Chain {
+		chain := r.Chain
+		if folded, note, ok := captureChain(r); ok {
+			chain = folded
+			*notes = append(*notes, note+" (can match more than CRS, which checks the first match only)")
+		}
+		for _, l := range chain {
 			c, reason := convertLink(l, filepath.Join(opts.CRSDir, "rules"), opts.Defaults, notes)
 			if reason != "" {
 				return nil, reason
@@ -548,7 +635,7 @@ func Import(groups []Group, opts Options) (*Result, error) {
 	if opts.MaxPL == 0 {
 		opts.MaxPL = 1
 	}
-	res := &Result{}
+	res := &Result{MaxPL: opts.MaxPL}
 	if opts.Defaults == nil {
 		d, err := ReadDefaults(filepath.Join(opts.CRSDir, "rules", "REQUEST-901-INITIALIZATION.conf"))
 		if err != nil {

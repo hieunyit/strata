@@ -137,7 +137,11 @@ func reportCmd() {
 	maxFP := fs.Int("max-fp", -1, "fail when more benign requests than this match some rule (-1: no limit)")
 	maxFPBlock := fs.Float64("max-fp-block-pct", -1, "fail unless benign requests blocked stay under this percentage (Gate A: 1; -1: not checked)")
 	minRecall := fs.Float64("min-recall-block", -1, "fail unless SQLi, XSS, CMDi and LFI payloads are each blocked at least this percentage (Gate A: 70; -1: not checked)")
+	pl := fs.Int("pl", 1, "CRS paranoia level the test policy enforces (crs_paranoia, 1-4)")
 	_ = fs.Parse(os.Args[2:])
+	if *pl < 1 || *pl > 4 {
+		die(fmt.Errorf("--pl %d: want 1 to 4", *pl))
+	}
 	if *rules == "" {
 		*rules = filepath.Join(*repo, "rules")
 	}
@@ -148,6 +152,7 @@ func reportCmd() {
 	if err != nil {
 		die(err)
 	}
+	tools.Paranoia = *pl
 	c, err := corpus.Load(*corpusDir)
 	if err != nil {
 		die(err)

@@ -257,6 +257,9 @@ pub struct Policies {
     pub privacy: Vec<libstrata::privacy::PrivacySpec>,
     pub exceptions: Vec<libstrata::exceptions::Exception>,
     pub staging: Vec<libstrata::staging::Entry>,
+    /// CRS paranoia levels other than (1, 1) (W17-S-01: `crs_paranoia`,
+    /// `crs_paranoia_shadow`)
+    pub paranoia: Vec<libstrata::paranoia::Entry>,
     /// the installation's identity key, for policies with `identity: hmac`
     /// (strata-compile --identity-key; the control plane keeps it)
     pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
@@ -321,6 +324,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut seen = BTreeSet::new();
     let mut policies = vec![];
     let mut privacy = vec![];
+    let mut paranoia = vec![];
     let mut exceptions = vec![];
     let mut staging = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
@@ -405,6 +409,36 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 ));
             }
         };
+        // W17-S-01: CRS paranoia level enforced, and the level run in
+        // shadow above it (default: the enforced level)
+        let level = |k: &str, default: u8| -> Result<u8> {
+            match &p[k] {
+                serde_json::Value::Null => Ok(default),
+                v => match v.as_u64() {
+                    Some(n) if (1..=libstrata::paranoia::MAX_LEVEL as u64).contains(&n) => {
+                        Ok(n as u8)
+                    }
+                    _ => Err(format!("policy {name:?}: {k} must be 1..4, got {v}")),
+                },
+            }
+        };
+        let enforce = level("crs_paranoia", 1)?;
+        let levels = libstrata::paranoia::Levels {
+            enforce,
+            shadow: level("crs_paranoia_shadow", enforce)?,
+        };
+        if levels.shadow < levels.enforce {
+            return Err(format!(
+                "policy {name:?}: crs_paranoia_shadow ({}) is below crs_paranoia ({})",
+                levels.shadow, levels.enforce
+            ));
+        }
+        if levels != libstrata::paranoia::Levels::default() {
+            paranoia.push(libstrata::paranoia::Entry {
+                policy_index: policies.len() as u32,
+                levels,
+            });
+        }
         let pv = &p["privacy"];
         let strings = |k: &str| -> Vec<String> {
             pv[k]
@@ -500,6 +534,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         privacy,
         exceptions,
         staging,
+        paranoia,
         identity_key: None,
         good_bots: vec![],
     })
@@ -959,6 +994,26 @@ fn compile_unsigned_with(
             return Err(format!("duplicate rule id {}", r.id));
         }
     }
+    // W17-S-01: rules above every policy's paranoia levels never run: they
+    // are left out, so a bundle without a paranoid policy keeps its size
+    // and cost (PL2 adds about half to the CRS Hyperscan databases)
+    let highest = policies
+        .paranoia
+        .iter()
+        .map(|e| e.levels.shadow)
+        .max()
+        .unwrap_or(1);
+    let kept: Vec<RuleDef>;
+    let rules = if rules.iter().any(|r| r.paranoia > highest) {
+        kept = rules
+            .iter()
+            .filter(|r| r.paranoia <= highest)
+            .cloned()
+            .collect();
+        &kept[..]
+    } else {
+        rules
+    };
     let (lowered, mut apart) = if lower {
         lower_loose(rules)
     } else {
@@ -1015,6 +1070,11 @@ fn compile_unsigned_with(
         }
         sections.push((libstrata::bundle::kind::EXCEPTIONS, exception_bytes));
     }
+    let paranoia = libstrata::paranoia::encode(&policies.paranoia, policies.policies.len() as u32)
+        .map_err(|e| format!("policy paranoia: {}", e.message()))?;
+    if !paranoia.is_empty() {
+        sections.push((libstrata::bundle::kind::PARANOIA, paranoia));
+    }
     let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
     if !good_bots.is_empty() {
         sections.push((libstrata::bundle::kind::GOOD_BOTS, good_bots));
@@ -1059,6 +1119,7 @@ fn compile_unsigned_with(
             fail_on_findings: *f,
             privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
             staging: policies.staging.iter().any(|p| p.policy_index == i as u32),
+            paranoia: policies.paranoia.iter().any(|p| p.policy_index == i as u32),
             exceptions: policies
                 .exceptions
                 .iter()

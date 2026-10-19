@@ -106,6 +106,8 @@ pub const VARS: &[&str] = &[
     // appended (W18-R-02)
     "bot_claim",
     "bot_verified",
+    // appended (W17-S-01)
+    "basename",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.
@@ -138,6 +140,7 @@ pub fn var_to_field_name(var: u8) -> &'static str {
         Some("tls_ja4") => "TLS_JA4",
         Some("bot_claim") => "BOT_CLAIM",
         Some("bot_verified") => "BOT_VERIFIED",
+        Some("basename") => "REQUEST_BASENAME",
         Some("response_status") => "RESPONSE_STATUS",
         Some("response_headers") => "RESPONSE_HEADERS",
         Some("response_body") => "RESPONSE_BODY",
@@ -164,6 +167,8 @@ pub const TRANSFORMS: &[&str] = &[
     "replace_comments",
     "remove_comments_char",
     "length",
+    // appended (W17-S-01): codes above keep their meaning
+    "escape_seq_decode",
 ];
 pub const OPERATORS: &[&str] = &[
     "rx",

@@ -141,6 +141,8 @@ func ParanoiaLevels(inventory string) (map[int]int, error) {
 // Run runs tests against the rules under rulesDir. pl maps rule ids to
 // paranoia levels; tests of rules above maxPL are not run.
 func Run(tools runner.Tools, rulesDir string, tests []Test, pl map[int]int, maxPL int) ([]Result, error) {
+	// the test policy runs the rules up to maxPL (W17-S-01)
+	tools.Paranoia = maxPL
 	caps, err := tools.Capabilities()
 	if err != nil {
 		return nil, err

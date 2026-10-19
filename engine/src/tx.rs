@@ -542,6 +542,7 @@ impl Tx {
             self.body_skipped = true;
             self.add(Violation {
                 signature: false,
+                paranoia_shadow: false,
                 rule: protocol::BODY_OVER_LIMIT,
                 score: 0,
                 block_alone: self.oversize_block,
@@ -663,7 +664,10 @@ impl Tx {
             self.rules[self.n_rules] = v.rule;
             self.n_rules += 1;
         }
-        let sig_shadow = v.signature && self.signatures == crate::bundle::Signatures::Shadow;
+        // the signature pack in shadow, and CRS rules above the policy's
+        // enforced paranoia level (W17-S-01): reported, never block
+        let sig_shadow = (v.signature && self.signatures == crate::bundle::Signatures::Shadow)
+            || v.paranoia_shadow;
         let staged = !sig_shadow
             && v.layer == "managed"
             && self
@@ -773,6 +777,7 @@ impl Tx {
         let snippet = data[..data.len().min(event::MASK_WINDOW)].to_vec();
         self.add(Violation {
             signature: false,
+            paranoia_shadow: false,
             rule: STUB_RULE_ID,
             score: STUB_SCORE,
             block_alone: false,
@@ -946,6 +951,10 @@ impl Tx {
                 client_addr: line.part(5),
                 ja4: &self.ja4[..self.ja4_len],
                 good_bots: engine.good_bots(),
+                paranoia: self
+                    .policy_index
+                    .map(|i| engine.paranoia(i))
+                    .unwrap_or_default(),
                 headers,
                 body: b"",
                 max_args: self.max_args,
@@ -1018,6 +1027,10 @@ impl Tx {
             client_addr: line.part(5),
             ja4: &self.ja4[..self.ja4_len],
             good_bots: engine.good_bots(),
+            paranoia: self
+                .policy_index
+                .map(|i| engine.paranoia(i))
+                .unwrap_or_default(),
             headers: &headers,
             body,
             max_args: self.max_args,
@@ -2149,6 +2162,7 @@ mod tests {
         for i in 0..25 {
             t.add(Violation {
                 signature: false,
+                paranoia_shadow: false,
                 rule: 700_000 + i,
                 score: 1,
                 block_alone: false,

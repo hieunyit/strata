@@ -139,6 +139,28 @@ rules:
       source: crs
       upstream_id: "921150"
       upstream_version: 4.25.2
+  - id: 921151
+    name: HTTP Header Injection Attack via payload (CR/LF detected)
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: '[\n\r]'
+          targets:
+            - var: args_get
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "921151"
+      upstream_version: 4.25.2
   - id: 921160
     name: HTTP Header Injection Attack via payload (CR/LF and header-name detected)
     layer: protocol
@@ -293,4 +315,29 @@ rules:
       license: Apache-2.0
       source: crs
       upstream_id: "921421"
+      upstream_version: 4.25.2
+  - id: 921422
+    name: 'Content-Type header: Dangerous content type outside the mime type declaration'
+    layer: protocol
+    stage: request_headers
+    match:
+      all:
+        - operator:
+            type: rx
+            value: (?s)^[^\s\x0b,;]+[\s\x0b,;].*?\b(?:((?:tex|multipar)t|application)|((?:audi|vide)o|image|cs[sv]|(?:vn|relate)d|p(?:df|lain)|json|(?:soa|cs)p|x(?:ml|-www-form-urlencoded)|form-data|x-amf|(?:octe|repor)t|stream)|([\+/]))\b
+          targets:
+            - key: Content-Type
+              var: request_headers
+          transforms:
+            - lowercase
+    score: 100
+    action_mode: score
+    severity: critical
+    paranoia_level: 2
+    metadata:
+      attack_type: protocol
+      author: OWASP CRS project
+      license: Apache-2.0
+      source: crs
+      upstream_id: "921422"
       upstream_version: 4.25.2

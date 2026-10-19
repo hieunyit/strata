@@ -656,3 +656,124 @@ mod tests {
         }
     }
 }
+
+/// escapeSeqDecode (W17-S-01): ANSI C escapes as Coraza v3.8.1
+/// (escape_seq_decode.go) and ModSecurity: `\a \b \f \n \r \t \v \\ \? \' \"`,
+/// `\xHH` (two hex digits), `\` and one to three octal digits (low byte of
+/// the value), any other `\c` becomes `c`; a final `\` stays.
+pub fn escape_seq_decode_with_budget<'a>(
+    input: &'a [u8],
+    mut budget: Option<&mut TxBudget>,
+) -> Result<Cow<'a, [u8]>, BudgetExceeded> {
+    let Some(first) = input.iter().position(|&c| c == b'\\') else {
+        return Ok(Cow::Borrowed(input));
+    };
+    let n = input.len();
+    let mut out = Vec::with_capacity(n);
+    out.extend_from_slice(&input[..first]);
+    let mut i = first;
+    let mut next_check = first + 8192;
+    while i < n {
+        if i >= next_check {
+            if let Some(bgt) = budget.as_deref_mut() {
+                bgt.check()?;
+            }
+            next_check = i + 8192;
+        }
+        if input[i] != b'\\' || i + 1 >= n {
+            out.push(input[i]);
+            i += 1;
+            continue;
+        }
+        let simple = match input[i + 1] {
+            b'a' => Some(0x07),
+            b'b' => Some(0x08),
+            b'f' => Some(0x0c),
+            b'n' => Some(b'\n'),
+            b'r' => Some(b'\r'),
+            b't' => Some(b'\t'),
+            b'v' => Some(0x0b),
+            b'\\' => Some(b'\\'),
+            b'?' => Some(b'?'),
+            b'\'' => Some(b'\''),
+            b'"' => Some(b'"'),
+            _ => None,
+        };
+        if let Some(c) = simple {
+            out.push(c);
+            i += 2;
+            continue;
+        }
+        if matches!(input[i + 1], b'x' | b'X')
+            && i + 3 < n
+            && let (Some(h), Some(l)) = (super::hex(input[i + 2]), super::hex(input[i + 3]))
+        {
+            out.push(h << 4 | l);
+            i += 4;
+            continue;
+        }
+        if (b'0'..=b'7').contains(&input[i + 1]) {
+            let mut j = 2;
+            while j < 4 && i + j < n && (b'0'..=b'7').contains(&input[i + j]) {
+                j += 1;
+            }
+            let v = input[i + 1..i + j]
+                .iter()
+                .fold(0u32, |v, &d| v * 8 + u32::from(d - b'0'));
+            out.push(v as u8); // low byte, as strtol(...) & 0xFF
+            i += j;
+            continue;
+        }
+        // not an escape this decodes: the character without the backslash
+        out.push(input[i + 1]);
+        i += 2;
+    }
+    Ok(Cow::Owned(out))
+}
+
+/// escapeSeqDecode without budget tracking.
+pub fn escape_seq_decode(input: &[u8]) -> Cow<'_, [u8]> {
+    match escape_seq_decode_with_budget(input, None) {
+        Ok(c) => c,
+        Err(_) => unreachable!("no budget"),
+    }
+}
+
+#[cfg(test)]
+mod escape_seq_tests {
+    use super::escape_seq_decode;
+
+    // Coraza v3.8.1 internal/transformations/escape_seq_decode_test.go
+    #[test]
+    fn coraza_vectors() {
+        for (input, want) in [
+            (&b""[..], &b""[..]),
+            (b"TestCase", b"TestCase"),
+            (b"\\", b"\\"),
+            (b"\\\\u0000", b"\\u0000"),
+            (
+                b"\\a\\b\\f\\n\\r\\t\\v\\u0000\\?\\'\\\"\\0\\12\\123\\x00\\xff",
+                b"\x07\x08\x0c\n\r\t\x0bu0000?'\"\x00\nS\x00\xff",
+            ),
+            (b"\\z", b"z"),
+            (b"\\101", b"A"),
+            (b"\\0", b"\x00"),
+            (b"\\1", b"\x01"),
+            (b"\\16", b"\x0e"),
+            (b"\\377", b"\xff"),
+            (b"\\400", b"\x00"),
+            (b"\\412", b"\n"),
+            (b"\\521", b"Q"),
+            (b"\\666", b"\xb6"),
+            (b"\\777", b"\xff"),
+            (b"\\0123", b"\n3"),
+            (b"\\563\\543\\562\\551\\560\\564", b"script"),
+            (b"<\\563\\543\\562\\551\\560\\564>", b"<script>"),
+            // \x without two hex digits: the x, as an unknown escape
+            (b"\\x4", b"x4"),
+            (b"\\xZZ", b"xZZ"),
+        ] {
+            assert_eq!(&*escape_seq_decode(input), want, "{}", input.escape_ascii());
+        }
+    }
+}

@@ -600,3 +600,50 @@ func TestDotAll(t *testing.T) {
 		}
 	}
 }
+
+func TestCaptureChainFold(t *testing.T) {
+	for _, c := range []struct{ re, with, want string }{
+		{`(?i)\b(and|or)\b\s+x`, `(?-i:and|or)`, `(?i)\b((?-i:and|or))\b\s+x`},
+		{`(?:a|b)[(]\\(c(d))e`, `X`, `(?:a|b)[(]\\(X)e`},
+		{`[^]()]+(y)`, `Z`, `[^]()]+(Z)`},
+	} {
+		got, ok := replaceFirstGroup(c.re, c.with)
+		if !ok || got != c.want {
+			t.Errorf("replaceFirstGroup(%q) = %q, %v; want %q", c.re, got, ok, c.want)
+		}
+	}
+	if _, ok := replaceFirstGroup(`(?:no)\(groups\)`, "x"); ok {
+		t.Error("no capturing group")
+	}
+
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "rules")
+	_ = os.MkdirAll(rules, 0o755)
+	_ = os.WriteFile(filepath.Join(rules, "x.conf"), []byte(`SecRule ARGS "@rx \s(and|or|xor)\s+1" "id:942901,phase:2,block,capture,t:none,severity:'CRITICAL',tag:'paranoia-level/2',chain"
+    SecRule TX:1 "@rx ^(?i:and|or)$" "t:none"
+SecRule ARGS "@rx (a)" "id:942902,phase:2,block,capture,t:none,severity:'CRITICAL',tag:'paranoia-level/2',chain"
+    SecRule TX:1 "@rx a" "t:none"
+`), 0o644)
+	res, err := Import([]Group{{File: "x.conf", Out: "x.yaml", Ruleset: "crs-x", AttackType: "sqli", Layer: "managed"}},
+		Options{CRSDir: dir, Version: "4.25.2", MaxPL: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := conds(rule(t, res, 942901))
+	if len(c) != 1 || c[0].(map[string]any)["operator"].(map[string]any)["value"] != `\s((?i:and|or))\s+1` {
+		t.Errorf("942901 folded: %+v", c)
+	}
+	for _, s := range res.Sorted() {
+		if s.Rule == 942901 {
+			t.Errorf("942901 skipped: %s", s.Reason)
+		}
+	}
+	// TX:1 without anchors stays a TX link, left out
+	found := false
+	for _, s := range res.Sorted() {
+		found = found || (s.Rule == 942902 && strings.HasPrefix(s.Reason, "variable TX"))
+	}
+	if !found {
+		t.Errorf("942902 should be left out: %+v", res.Sorted())
+	}
+}

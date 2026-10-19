@@ -84,6 +84,14 @@
             "description": "#98: when the CPU budget runs out on a request that already has findings (rules matched below the blocking threshold), `block` answers as in fail mode closed (503 with the Event ID) whatever the connector's fail mode; `pass` (default) follows the fail mode. Enforce only: a shadow policy never blocks. Measure the share of such requests in shadow first (`strata-rules lifecycle`). Engines from before the setting refuse a bundle that sets block: upgrade the module on every node first.",
             "enum": ["pass", "block"]
           },
+          "crs_paranoia": {
+            "description": "W17-S-01: CRS paranoia level enforced (1 by default): CRS rules up to it score and block as usual. Rules carry their level; rules without one (not CRS) always run. Engines from before the setting refuse a bundle that sets a level other than 1: upgrade the module on every node first.",
+            "type": "integer", "minimum": 1, "maximum": 4
+          },
+          "crs_paranoia_shadow": {
+            "description": "W17-S-01: CRS paranoia level run in shadow, at least crs_paranoia (its value by default): CRS rules above crs_paranoia up to it run and are reported (Event ID EVT-, false positive table), but their score is kept apart and they never block, like the signature pack in shadow. Try a higher level this way before raising crs_paranoia. Rules above every policy's level are left out of the bundle.",
+            "type": "integer", "minimum": 1, "maximum": 4
+          },
           "max_snippet_size": {
             "description": "Longest input snippet of a match in the policy's events, in bytes, masked before it is cut (P-01 §1b): 128 by default; 2048 or 4096 to investigate. Engines from before the setting refuse a bundle with 2048 or 4096: upgrade the module on every node first.",
             "enum": [128, 2048, 4096]

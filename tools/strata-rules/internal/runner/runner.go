@@ -26,6 +26,9 @@ type Tools struct {
 	// (strata-compile --good-bots), so rules on bot_verified can be tested:
 	// <repo>/rules/testdata/good-bots.json, documentation addresses only.
 	GoodBots string
+	// Paranoia: the CRS paranoia level the test policy enforces
+	// (crs_paranoia, W17-S-01); 0 or 1: the default.
+	Paranoia int
 }
 
 // Find locates the binaries: $STRATA_COMPILE / $STRATA_EVAL, then
@@ -129,7 +132,11 @@ func (t Tools) Build(irDocs [][]byte) (*Bundle, error) {
 		return nil, err
 	}
 	pol := filepath.Join(dir, "policies.json")
-	if err := os.WriteFile(pol, []byte(`{"policies":[{"name":"`+PolicyName+`","mode":"enforce","signatures":"enforce"}]}`), 0o644); err != nil {
+	paranoia := ""
+	if t.Paranoia > 1 {
+		paranoia = `,"crs_paranoia":` + strconv.Itoa(t.Paranoia)
+	}
+	if err := os.WriteFile(pol, []byte(`{"policies":[{"name":"`+PolicyName+`","mode":"enforce","signatures":"enforce"`+paranoia+`}]}`), 0o644); err != nil {
 		b.Close()
 		return nil, err
 	}
