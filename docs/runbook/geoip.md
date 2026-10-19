@@ -1,0 +1,20 @@
+# GeoIP cho event ingest
+
+Control plane nhận file City/ASN do người vận hành cung cấp. Thêm các đối số sau vào lệnh server đã cấu hình database, OIDC và Fleet mTLS:
+
+| Đối số | Ví dụ | Mặc định |
+|---|---|---|
+| `-geoip-city` | `/var/lib/strata/geoip/GeoLite2-City.mmdb` | rỗng |
+| `-geoip-asn` | `/var/lib/strata/geoip/GeoLite2-ASN.mmdb` | rỗng |
+
+Có thể cung cấp riêng City hoặc ASN. Khi cả hai rỗng, không tra database. Metadata bên gửi tự khai luôn bị loại bỏ trước bước enrichment. Với ASN-only, tọa độ không biết vẫn thiếu; không biến thành (0,0). IP nội bộ có nhãn INTERNAL khi enrichment được bật, không tra DB và không có tọa độ. ClientIP vẫn là giá trị từ producer đã xác thực, không phải chứng thực độc lập nguồn IP.
+
+File City hỗ trợ metadata type GeoIP2-City/GeoLite2-City. File ASN hỗ trợ GeoLite2-ASN/GeoIP2-ASN. Giới hạn 128 MiB mỗi file. Cấp quyền đọc cho UID của control plane và đặt file trong thư mục do người vận hành tin cậy quản lý. Nguồn/license của dữ liệu triển khai do người vận hành bảo đảm; fixture trong repo chỉ là dữ liệu tổng hợp để test. Loader kiểm cấu trúc, loại DB và các giới hạn, không chứng thực nhà phát hành chỉ bằng phần mở rộng .mmdb hay hash.
+
+File được nạp vào bộ nhớ trước khi mở DB/auth/service. File sai loại, thiếu hoặc hỏng làm khởi động thất bại. Context nạp có deadline 30 giây và được kiểm tra giữa các thao tác local/Verify, không bảo đảm ngắt giữa một thao tác file đang chạy. Reader giữ byte riêng, nên thay/truncate file sau khi nạp không sửa nội dung reader đang dùng. Bản này áp dụng file ở lần khởi động: sau khi thay bộ file hợp lệ, khởi động lại control plane theo quy trình hiện có. Tự tải hằng tuần/lưu phiên bản vào object storage là công việc W17, chưa được nghiệm thu ở đây.
+
+EnsureColumns tự thêm cột trên bảng hiện có và nâng kiểu tọa độ số cũ sang Nullable(Float64). Raw history được giữ. API Get/Search bỏ metadata lịch sử không có fingerprint DB, vì nguồn cũ có thể giữ giá trị do producer tự khai; nhãn INTERNAL chỉ được giữ nếu địa chỉ đã lưu thực sự phân loại là nội bộ. Fingerprint là SHA-256 của cặp hash City/ASN có thứ tự, không phải chữ ký nguồn dữ liệu. Độ chính xác địa lý trên dataset thật chưa được chứng minh bởi fixture.
+
+Counter `strata_cp_ingest_geoip_errors_total` đếm lỗi reader/kiểm định metadata. Không có nhãn IP trong metric. Không tìm thấy record hoặc IP không parse được trả metadata thiếu; lỗi tra cứu vẫn cho sự kiện bảo mật hợp lệ tiếp tục lưu/ACK, với metadata thiếu. Batch gửi trùng không thực hiện enrichment lại. Cache giới hạn 50.000 địa chỉ chuẩn hóa; lookup ngoài cache vẫn hoạt động khi đạt giới hạn.
+
+Để tắt tra DB, bỏ hai đối số và khởi động lại. Binary hiện tại vẫn cần các cột schema mới khi ghi sự kiện, kể cả khi lookup tắt; không xóa các cột để tắt tính năng. Xem bằng chứng loader/cache/ingest/migration trong [W16-G2-01](../reports/w16-g2-01.md).

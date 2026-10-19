@@ -97,11 +97,17 @@ func main() {
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
+	geoIPCity := flag.String("geoip-city", "", "Operator-provided GeoIP2/GeoLite2 City .mmdb file (optional)")
+	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
 	flag.Parse()
 	mx := metrics.New(version, commit)
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+	geoIP, geoErr := loadGeoIP(ctx, *geoIPCity, *geoIPASN)
+	if geoErr != nil {
+		log.Fatalf("[FATAL] GeoIP: %v", geoErr)
+	}
 
 	presence := fleet.NewPresence()
 	var pg *store.Store
@@ -445,6 +451,7 @@ func main() {
 			log.Fatalf("[FATAL] FleetService listen: %v", err)
 		}
 		ingestSvc = ingest.NewIngestService(store, ingest.DefaultBatcherConfig(), 24*time.Hour)
+		ingestSvc.GeoIP = geoIP
 		if pg != nil {
 			ingestSvc.Gate = pg
 		}
