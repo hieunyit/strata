@@ -141,3 +141,16 @@ func (e *GeoIPEnricher) Resolve(raw string) (*GeoIPLocation, error) {
 func geoIPInternal(a netip.Addr) bool {
 	return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsMulticast() || a.IsUnspecified() || !a.IsGlobalUnicast() || geoIPSharedAddressSpace.Contains(a)
 }
+
+// Version of the active reader: the fingerprint events get ("" without a
+// reader, or for a reader that has none).
+func (e *GeoIPEnricher) Version() string {
+	g := e.snapshot.Load()
+	if g == nil || g.reader == nil {
+		return ""
+	}
+	if v, ok := g.reader.(interface{ Version() string }); ok {
+		return v.Version()
+	}
+	return ""
+}

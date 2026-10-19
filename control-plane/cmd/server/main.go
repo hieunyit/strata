@@ -100,6 +100,7 @@ func main() {
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	geoIPCity := flag.String("geoip-city", "", "Operator-provided GeoIP2/GeoLite2 City .mmdb file (optional)")
 	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
+	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the object store (-s3-*) and activated")
 	flag.Parse()
 	mx := metrics.New(version, commit)
 
@@ -108,6 +109,18 @@ func main() {
 	geoIP, geoErr := loadGeoIP(ctx, *geoIPCity, *geoIPASN)
 	if geoErr != nil {
 		log.Fatalf("[FATAL] GeoIP: %v", geoErr)
+	}
+	// URLs carry license keys: from the environment, not flags seen in ps
+	geoURLs := [2]string{os.Getenv("STRATA_GEOIP_CITY_URL"), os.Getenv("STRATA_GEOIP_ASN_URL")}
+	geoUpdates := geoURLs != [2]string{}
+	if geoUpdates {
+		if geoIP != nil {
+			log.Fatal("[FATAL] GeoIP: give either -geoip-city/-geoip-asn files or STRATA_GEOIP_*_URL updates, not both")
+		}
+		if *geoIPEvery <= 0 {
+			log.Fatal("[FATAL] -geoip-update-interval must be positive")
+		}
+		geoIP = ingest.NewGeoIPEnricher(nil)
 	}
 
 	presence := fleet.NewPresence()
@@ -444,6 +457,20 @@ func main() {
 		}
 	}()
 
+	var geoUpdater *ingest.GeoIPUpdater
+	if geoUpdates {
+		if *s3Endpoint == "" {
+			log.Fatal("[FATAL] GeoIP updates keep each version in the object store: set -s3-endpoint")
+		}
+		geoObjects := objects
+		if geoObjects == nil {
+			geoObjects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
+				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		}
+		geoUpdater = &ingest.GeoIPUpdater{CityURL: geoURLs[0], ASNURL: geoURLs[1], Objects: geoObjects, Enricher: geoIP}
+		go geoUpdater.Run(ctx, *geoIPEvery)
+	}
+
 	var ingestSvc *ingest.IngestService
 	var gs *grpc.Server
 	if *grpcAddr != "" {
@@ -512,6 +539,9 @@ func main() {
 		}
 		if ingestSvc != nil {
 			src.Ingest, src.IngestErrors = ingestSvc.Stats, ingestSvc.StoreErrors
+		}
+		if geoUpdater != nil {
+			src.GeoIPLastUpdate, src.GeoIPUpdateFailures = geoUpdater.LastSuccess, geoUpdater.Failures
 		}
 		mx.Watch(src)
 		ms := &http.Server{Addr: *metricsAddr, Handler: mx.Handler(), ReadHeaderTimeout: 5 * time.Second}

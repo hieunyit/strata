@@ -134,10 +134,14 @@ func TestStateCollector(t *testing.T) {
 		OpenTrips: func(context.Context) ([]store.CanaryTrip, error) {
 			return []store.CanaryTrip{{GroupID: "edge", Reason: "block_rate"}}, nil
 		},
-		Now: func() time.Time { return now },
+		Now:                 func() time.Time { return now },
+		GeoIPLastUpdate:     func() time.Time { return now },
+		GeoIPUpdateFailures: func() uint64 { return 2 },
 	})
 	out := scrape(t, m)
 	for _, want := range []string{
+		"strata_cp_geoip_update_last_success_timestamp_seconds 1.7918928e+09",
+		"strata_cp_geoip_update_failures_total 2",
 		"strata_cp_nodes_connected 1",
 		"strata_cp_nodes_enrolled 2",
 		"strata_cp_rollouts_active 2",
