@@ -1,0 +1,43 @@
+{
+  "image_sha256": "b3296484e362ba2e713489a5de6225c719d9500962bde25d15f2f21e512c7658",
+  "result": "NOT ACCEPTED; held by user, no other VM available",
+  "run5": "cancelled after user put criterion on hold; partial output only",
+  "files": {
+    "run1.log.gz": {
+      "sha256_uncompressed": "768dfc3274e35d871a685166fea66b2471ba2ff830311254deafed4319108648",
+      "source": "run1.log"
+    },
+    "run2.log.gz": {
+      "sha256_uncompressed": "c45c39962651684f7be6b724db5cc0ed861409809e22d1b6a3599150222cf184",
+      "source": "run2.log"
+    },
+    "run3.log.gz": {
+      "sha256_uncompressed": "7c03b2917052de52f6438e07e22e31d31c43d85492ad700cca5488ad37bdb71b",
+      "source": "run3.log"
+    },
+    "run4.log.gz": {
+      "sha256_uncompressed": "08a20c43e71cd4e6a1aee5cd54e208265723dd4986d98f39c087bb9f02e6e134",
+      "source": "run4.log"
+    },
+    "run5.log.gz": {
+      "sha256_uncompressed": "a31bb10a46471fea9166dcc9442b7add58f44cee81d58bd0f4c1a45cd10fa176",
+      "source": "run5.log"
+    },
+    "results-run4-image-signature.log.gz": {
+      "sha256_uncompressed": "4d9f61d3bb4570d1578f0facda6d18fa3855a505d4d4faa65a98946e3a26a5c2",
+      "source": "results/run4/image-signature.log"
+    },
+    "results-run4-baseline.log.gz": {
+      "sha256_uncompressed": "3250fb81114f0ed422c32aa17929b8593d903c9769ed66aab224fcc254825289",
+      "source": "results/run4/baseline.log"
+    },
+    "results-run4-installer.log.gz": {
+      "sha256_uncompressed": "51c162de9684a1465bc47f25aa856a986ed7c0d5c5d2d4151e0196781916040e",
+      "source": "results/run4/installer.log"
+    },
+    "results-run5-baseline.log.gz": {
+      "sha256_uncompressed": "3250fb81114f0ed422c32aa17929b8593d903c9769ed66aab224fcc254825289",
+      "source": "results/run5/baseline.log"
+    }
+  }
+}

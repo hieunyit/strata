@@ -1,8 +1,9 @@
 # Standalone: kiểm bundle trước khi cấu hình route
 
 Installer nhận gói local đã được người vận hành tin cậy và bundle core đã ký.
-Nghiệm thu dưới năm phút trên VM sạch vẫn chưa có bằng chứng. Xem
-[phạm vi và bằng chứng](../reports/standalone-review.md).
+Nghiệm thu dưới năm phút trên VM sạch **đang chờ theo quyết định PO** vì chưa có
+VM lab khác. Lượt QEMU/TCG không đạt; xem [kết quả và giới hạn](../reports/standalone-vm-hold.md)
+và [phạm vi đã kiểm chứng](../reports/standalone-installer-review.md).
 
 Dùng public key do người vận hành tin cậy cung cấp, không lấy key từ chính bundle
 đang cần xác minh. Trước khi đưa bundle vào nguồn agent theo dõi:
