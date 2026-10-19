@@ -31,3 +31,11 @@ bao giá trị bằng dấu nháy kép nếu đường dẫn có khoảng trắn
 service nằm tại `/etc/strata/bundle.pub`. Bundle/control/socket phải khớp đường
 dẫn module; file nguồn và thư mục cài bundle nên tách riêng. Service/socket
 standalone xung đột với cặp Fleet và không tự bật khi chỉ cài gói.
+
+
+Watcher có thể ghim policy bằng `run --standalone --required-policy=example-api`
+và tùy chọn `--require-full-enforce`. Ràng buộc áp dụng trước mỗi cập nhật từ file,
+thư mục hoặc URL; bản không hợp lệ giữ nguyên LKG. Khi khởi động lại, agent xác
+minh cả bundle đang được control trỏ tới; nếu không có LKG hợp lệ và nguồn đầu
+không đạt thì agent báo lỗi. Đây là tùy chọn riêng với lệnh preflight ở trên.
+Trong giai đoạn xoay khóa, giữ cả khóa cũ và mới (64 byte) để xác minh LKG.

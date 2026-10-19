@@ -20,22 +20,40 @@ import (
 
 // BundleWatcher monitors a local bundle file, directory, or URL and updates the control file.
 type BundleWatcher struct {
-	mu           sync.Mutex
-	bundleFile   string
-	bundleDir    string
-	bundleURL    string
-	controlFile  string
-	pubKey       []byte
-	pollInterval time.Duration
-	httpClient   *http.Client
+	mu                 sync.Mutex
+	bundleFile         string
+	bundleDir          string
+	bundleURL          string
+	controlFile        string
+	pubKey             []byte
+	pollInterval       time.Duration
+	requiredPolicy     string
+	requireFullEnforce bool
+	httpClient         *http.Client
 
 	activeVersion uint64
 	activeHash    [32]byte
 	activeFile    string
 }
 
+// PolicyRequirement optionally pins the policy used by a standalone route.
+type PolicyRequirement struct {
+	Name        string
+	FullEnforce bool
+}
+
 // NewBundleWatcher creates a new watcher.
-func NewBundleWatcher(bundleFile, bundleDir, bundleURL, controlFile, pubKeyFile string, interval time.Duration) (*BundleWatcher, error) {
+func NewBundleWatcher(bundleFile, bundleDir, bundleURL, controlFile, pubKeyFile string, interval time.Duration, policy ...PolicyRequirement) (*BundleWatcher, error) {
+	if len(policy) > 1 {
+		return nil, errors.New("standalone: at most one policy requirement is allowed")
+	}
+	var requirement PolicyRequirement
+	if len(policy) == 1 {
+		requirement = policy[0]
+	}
+	if (requirement.FullEnforce && requirement.Name == "") || (requirement.Name != "" && !bundles.ValidPolicyName(requirement.Name)) {
+		return nil, errors.New("standalone: invalid required policy")
+	}
 	if bundleFile == "" && bundleDir == "" && bundleURL == "" {
 		return nil, errors.New("standalone: one of --bundle-file, --bundle-dir, or --bundle-url must be specified")
 	}
@@ -63,17 +81,22 @@ func NewBundleWatcher(bundleFile, bundleDir, bundleURL, controlFile, pubKeyFile 
 	}
 
 	w := &BundleWatcher{
-		bundleFile:   bundleFile,
-		bundleDir:    bundleDir,
-		bundleURL:    bundleURL,
-		controlFile:  controlFile,
-		pubKey:       pubKey,
-		pollInterval: interval,
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
+		bundleFile:         bundleFile,
+		bundleDir:          bundleDir,
+		bundleURL:          bundleURL,
+		controlFile:        controlFile,
+		pubKey:             pubKey,
+		pollInterval:       interval,
+		requiredPolicy:     requirement.Name,
+		requireFullEnforce: requirement.FullEnforce,
+		httpClient:         &http.Client{Timeout: 15 * time.Second},
 	}
 
 	// A corrupt control file must never silently reset rollback protection.
 	if c, err := bundles.ReadControl(controlFile); err == nil {
+		if requirement.Name != "" && c.Generation%2 != 0 {
+			return nil, errors.New("standalone: incomplete control publication")
+		}
 		w.activeVersion = c.Version
 		w.activeHash = c.SHA256
 		w.activeFile = c.Name
@@ -98,7 +121,12 @@ func (w *BundleWatcher) SyncOnce(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	header, err := bundlefmt.Verify(data, w.pubKey)
+	var header bundlefmt.Header
+	if w.requiredPolicy != "" {
+		header, err = bundlefmt.VerifyPolicy(data, w.pubKey, w.requiredPolicy, w.requireFullEnforce)
+	} else {
+		header, err = bundlefmt.Verify(data, w.pubKey)
+	}
 	if err != nil {
 		return false, fmt.Errorf("bundle verification failed: %w", err)
 	}
@@ -143,9 +171,19 @@ func (w *BundleWatcher) SyncOnce(ctx context.Context) (bool, error) {
 
 // Run loops periodically until context canceled.
 func (w *BundleWatcher) Run(ctx context.Context) error {
-	// Initial sync
+	if w.requiredPolicy != "" {
+		if err := w.validateActive(ctx); err != nil {
+			return fmt.Errorf("standalone: active policy validation: %w", err)
+		}
+	}
 	if _, err := w.SyncOnce(ctx); err != nil {
+		if w.requiredPolicy != "" && !w.hasActive() {
+			return fmt.Errorf("standalone: initial required policy sync: %w", err)
+		}
 		slog.Warn("standalone: initial bundle sync warning", "err", err)
+	}
+	if w.requiredPolicy != "" && !w.hasActive() {
+		return errors.New("standalone: no verified active bundle for required policy")
 	}
 
 	ticker := time.NewTicker(w.pollInterval)

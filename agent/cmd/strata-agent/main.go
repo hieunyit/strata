@@ -75,7 +75,7 @@ func newRunCmd() *cobra.Command {
 				standaloneCfg.AgentVersion = version
 				return runStandalone(cmd.Context(), standaloneCfg)
 			}
-			for _, name := range []string{"bundle-file", "bundle-url", "bundle-poll-interval", "events-jsonl", "syslog-addr", "syslog-tag"} {
+			for _, name := range []string{"bundle-file", "bundle-url", "bundle-poll-interval", "events-jsonl", "syslog-addr", "syslog-tag", "required-policy", "require-full-enforce"} {
 				if cmd.Flags().Changed(name) {
 					return fmt.Errorf("--%s requires --standalone", name)
 				}
@@ -103,6 +103,9 @@ func newRunCmd() *cobra.Command {
 	f.StringVar(&standaloneCfg.EventsJSONL, "events-jsonl", "", "path to write security events as JSON Lines (standalone mode)")
 	f.StringVar(&standaloneCfg.SyslogAddr, "syslog-addr", "", "syslog server address e.g. 127.0.0.1:514 or unixgram:/dev/log (standalone mode)")
 	f.StringVar(&standaloneCfg.SyslogTag, "syslog-tag", "strata-waf", "syslog tag/app name (standalone mode)")
+
+	f.StringVar(&standaloneCfg.RequiredPolicy, "required-policy", "", "require this signed policy on every standalone bundle update")
+	f.BoolVar(&standaloneCfg.RequireFullEnforce, "require-full-enforce", false, "require the pinned policy to remain enforce without canary")
 
 	// Fleet agent mode flags
 	f.StringVar(&cfg.SpoolDir, "spool-dir", "/var/lib/strata/spool", "directory for unacked event batches")
