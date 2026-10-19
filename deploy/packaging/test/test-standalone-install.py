@@ -13,6 +13,7 @@ from pathlib import Path
 
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('--image', required=True)
+ap.add_argument('--cpuset', default='6-9')
 ap.add_argument('--rpm-nginx-repo-only', action='store_true',
                 help='lab only: disable unused OS repos; DNF still validates all deps and signatures')
 ap.add_argument('--negative-bundles', type=Path, required=True)
@@ -32,7 +33,7 @@ def run(argv, *, text=None, check=True, timeout=60):
 name = 'strata-standalone-install-' + uuid.uuid4().hex[:10]
 container = run(['docker', 'run', '-d', '--name', name, '--label',
                  'strata.review=standalone-install', '--privileged',
-                 '--cgroupns=private', '--cpuset-cpus=6-9', '--tmpfs', '/run',
+                 '--cgroupns=private', '--cpuset-cpus=' + a.cpuset, '--tmpfs', '/run',
                  '--tmpfs', '/run/lock', a.image]).stdout.strip()
 
 
@@ -176,7 +177,7 @@ try:
     assert not active('strata-agent-standalone.service') and not active('strata-agent-standalone.socket')
     assert not active('nginx')
     assert x('test', '-e', '/etc/nginx/conf.d/strata-standalone.conf', check=False).returncode != 0
-    print(json.dumps({'image': a.image, 'install_seconds': round(install_seconds, 3),
+    print(json.dumps({'image': a.image, 'cpuset': a.cpuset, 'install_seconds': round(install_seconds, 3),
                       'total_seconds': round(time.monotonic() - started, 3),
                       'events': len(events), 'rpm_nginx_repo_only': a.rpm_nginx_repo_only, 'core_sha256': hashlib.sha256(a.bundle.read_bytes()).hexdigest(),
                       'result': 'PASS: fresh packages, hostile args, Fleet refusal, SQLi, update, stable workers, tamper/rollback, signed policy/layout refusal, config recovery'}, indent=2))

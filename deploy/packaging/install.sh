@@ -104,16 +104,18 @@ if [ -z "$installed" ]; then
     if [ $fam = deb ]; then
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -qq
-        apt-get install -y -qq curl gnupg ca-certificates >/dev/null
-        curl -fsSL https://nginx.org/keys/nginx_signing.key -o "$work/nginx-signing.key"
-        gpg --batch --dearmor -o "$work/nginx-keyring.gpg" "$work/nginx-signing.key"
-        # _apt reads signed-by keys after dropping root. Do not inherit the
-        # caller's umask (standalone uses 077 for private bundle snapshots).
-        install -m 0644 "$work/nginx-keyring.gpg" /usr/share/keyrings/nginx-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/${branch}$ID $VERSION_CODENAME nginx" \
+        apt-get install -y -qq curl ca-certificates >/dev/null
+        curl --proto '=https' --proto-redir '=https' -fsSL https://nginx.org/keys/nginx_signing.key -o "$work/nginx-signing.asc"
+        # APT >= 1.4 accepts armored .asc keys directly. Avoid installing the
+        # full GnuPG suite solely to convert this public key. _apt needs 0644.
+        install -m 0644 "$work/nginx-signing.asc" /usr/share/keyrings/nginx-archive-keyring.asc
+        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.asc] https://nginx.org/packages/${branch}$ID $VERSION_CODENAME nginx" \
             > /etc/apt/sources.list.d/nginx.list
         chmod 0644 /etc/apt/sources.list.d/nginx.list
-        apt-get update -qq
+        # OS indexes were just refreshed. Add only NGINX indexes and keep those
+        # OS indexes for dependency resolution in the following installations.
+        apt-get update -qq -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/nginx.list \
+            -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
         full=$(apt-cache madison nginx | awk -v v="$nginx_ver" '$3 ~ "^"v"-" { print $3; exit }')
         [ -n "$full" ] || die "nginx.org has no NGINX $nginx_ver for $ID $VERSION_CODENAME"
         apt-get install -y -qq "nginx=$full" >/dev/null
