@@ -2,6 +2,7 @@
 # Diagnostic comparison; run from the reviewed repo, with its dev image available.
 set -eu
 repo=$(git rev-parse --show-toplevel)
+mkdir -p "$repo/build"
 work=$(mktemp -d "$repo/build/ssti-review.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 source_sha=25e959e1b8f2d5a0fd6858033e0ab06889171b9a
