@@ -487,10 +487,17 @@
       "unknown": "unknown key \"{{key}}\"",
       "modeRequired": "mode is required",
       "canary": "canary_percent is a number from 0.01 to 99.99 with at most two decimals",
-      "canaryMode": "canary_percent needs mode enforce"
+      "canaryMode": "canary_percent needs mode enforce",
+      "paranoia": "{{key}} is a level from 1 to 4",
+      "paranoiaShadow": "crs_paranoia_shadow cannot be below crs_paranoia"
     },
     "canary": "Canary (% of clients blocked)",
-    "canaryNote": "Empty: every client. Clients outside the canary run in shadow; the control plane forces shadow if the canary does worse than its shadow group."
+    "canaryNote": "Empty: every client. Clients outside the canary run in shadow; the control plane forces shadow if the canary does worse than its shadow group.",
+    "paranoia": "CRS paranoia level enforced",
+    "paranoiaShadow": "CRS paranoia level in shadow",
+    "paranoiaLevel": "Level {{level}}",
+    "paranoiaShadowNone": "None above the enforced level",
+    "paranoiaNote": "Higher levels catch more attacks and raise false positives: about 9% of benign requests match at level 2. Rules above the enforced level up to the shadow level are only reported, never block. Try a level in shadow and review its false positives before enforcing it. Nodes must run a module that supports the setting."
   },
   "diff": {
     "title": "Compare versions of {{name}}",
@@ -515,6 +522,8 @@
       "db_errors": "Database errors in the body",
       "data_guard": "Mask sensitive data",
       "canary_percent": "Canary (%)",
+      "crs_paranoia": "CRS paranoia level enforced",
+      "crs_paranoia_shadow": "CRS paranoia level in shadow",
       "advanced": "Exceptions, privacy and limits"
     }
   },

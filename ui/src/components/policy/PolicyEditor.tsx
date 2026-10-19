@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, X } from 'lucide-react';
 import { ApiError, Policy, apiClient } from '../../api/client';
-import { DATA_GUARDS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
+import { DATA_GUARDS, PARANOIA_LEVELS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, paranoiaLevels, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
@@ -45,6 +45,7 @@ export const PolicyEditor: React.FC<{
     }
   };
 
+  const [paranoia, paranoiaShadow] = paranoiaLevels(spec);
   const guards = spec.response?.data_guard ?? [];
   const setResponse = (patch: Partial<NonNullable<PolicySpec['response']>>) =>
     update({ ...spec, response: { ...spec.response, ...patch } });
@@ -152,6 +153,38 @@ export const PolicyEditor: React.FC<{
               <option value="OVERSIZE_UNSPECIFIED">{t('policies.oversize.OVERSIZE_UNSPECIFIED')}</option>
               <option value="OVERSIZE_BLOCK">{t('policies.oversize.OVERSIZE_BLOCK')}</option>
             </select>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="editor-paranoia">{t('editor.paranoia')}</label>
+              <select
+                id="editor-paranoia"
+                className="field"
+                value={paranoia}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  update({ ...spec, crs_paranoia: n, crs_paranoia_shadow: Math.max(n, paranoiaShadow) });
+                }}
+                data-testid="editor-paranoia"
+              >
+                {PARANOIA_LEVELS.map((l) => <option key={l} value={l}>{t('editor.paranoiaLevel', { level: l })}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="editor-paranoia-shadow">{t('editor.paranoiaShadow')}</label>
+              <select
+                id="editor-paranoia-shadow"
+                className="field"
+                value={paranoiaShadow}
+                onChange={(e) => update({ ...spec, crs_paranoia_shadow: Number(e.target.value) })}
+                data-testid="editor-paranoia-shadow"
+              >
+                {PARANOIA_LEVELS.filter((l) => l >= paranoia).map((l) => (
+                  <option key={l} value={l}>{l === paranoia ? t('editor.paranoiaShadowNone') : t('editor.paranoiaLevel', { level: l })}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-muted sm:col-span-2">{t('editor.paranoiaNote')}</p>
           </div>
           <fieldset className="space-y-1.5 text-[13px]">
             <legend className="label">{t('editor.response')}</legend>

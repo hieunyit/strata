@@ -2122,6 +2122,16 @@
         "auto_staging": {
           "$ref": "#/definitions/v1RuleAutoStaging",
           "description": "Explicit delegation to reduce listed rules to log-only after FP evidence.\nDefault off; changes require replay and four-eyes approval. Never authorizes\nautomatic re-enforcement. Effective staged rule state is not an API input."
+        },
+        "crs_paranoia": {
+          "type": "integer",
+          "format": "int64",
+          "description": "W17-S-01: CRS paranoia level enforced, 1 to 4; 0 = 1. CRS rules up to\nit block as usual."
+        },
+        "crs_paranoia_shadow": {
+          "type": "integer",
+          "format": "int64",
+          "description": "CRS paranoia level run in shadow, from crs_paranoia to 4; 0 = the\nenforced level. Rules above the enforced level up to this one are\nreported (Event ID, action log) but never block or add to the blocking\nscore. Modules from before the setting refuse bundles where either is\nabove 1: upgrade them first. A bundle with PL2 rules is larger (about\n29 MB with the signature pack, above Vault transit's request limit)."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

@@ -26,6 +26,9 @@ export function specToYaml(spec: PolicySpec): string {
   if (spec.mode === 'MODE_ENFORCE' && validCanary(spec.canary_percent)) {
     lines.push(`canary_percent: ${spec.canary_percent}`);
   }
+  const [enforce, shadow] = paranoiaLevels(spec);
+  if (enforce > 1) lines.push(`crs_paranoia: ${enforce}`);
+  if (shadow > enforce) lines.push(`crs_paranoia_shadow: ${shadow}`);
   const r = spec.response;
   const guards = (r?.data_guard ?? []).filter((g) => (DATA_GUARDS as readonly string[]).includes(g));
   if (r && (r.allowed_codes_check || r.db_errors || guards.length)) {
@@ -41,7 +44,19 @@ export function specToYaml(spec: PolicySpec): string {
 // arguments, so the editor shows them in the user's language.
 export type YamlErrorCode =
   | 'tab' | 'indent' | 'keyValue' | 'twice' | 'mode' | 'oversize' | 'responseNext'
-  | 'bool' | 'list' | 'guard' | 'guardTwice' | 'unknown' | 'modeRequired' | 'canary' | 'canaryMode';
+  | 'bool' | 'list' | 'guard' | 'guardTwice' | 'unknown' | 'modeRequired' | 'canary' | 'canaryMode'
+  | 'paranoia' | 'paranoiaShadow';
+
+// CRS paranoia levels (W17-S-01): rules up to crs_paranoia block, those
+// above it up to crs_paranoia_shadow are only reported. Absent or 0 means
+// level 1, and a shadow level equal to the enforced one.
+export const PARANOIA_LEVELS = [1, 2, 3, 4] as const;
+const validLevel = (v: number | undefined) => v === undefined || v === 0 || (Number.isInteger(v) && v >= 1 && v <= 4);
+export function paranoiaLevels(spec: PolicySpec): [number, number] {
+  const enforce = validLevel(spec.crs_paranoia) && spec.crs_paranoia ? spec.crs_paranoia : 1;
+  const shadow = validLevel(spec.crs_paranoia_shadow) && (spec.crs_paranoia_shadow ?? 0) > enforce ? spec.crs_paranoia_shadow! : enforce;
+  return [enforce, shadow];
+}
 
 // canary_percent (W12-G2-01): 0.01 to 99.99, two decimals; leaving it out
 // means every client.
@@ -103,6 +118,7 @@ export function yamlToSpec(text: string): ParseResult {
   const spec: PolicySpec = {};
   const seen = new Set<string>();
   let canaryLine = 0;
+  let shadowLine = 0;
   let i = 0;
   const fail = (line: number, code: YamlErrorCode, args?: Record<string, string>): ParseResult => ({
     error: { line, code, args },
@@ -137,6 +153,18 @@ export function yamlToSpec(text: string): ParseResult {
         if (v === '' || !validCanary(n)) return fail(l.n, 'canary');
         spec.canary_percent = n;
         canaryLine = l.n;
+        break;
+      }
+      case 'crs_paranoia':
+      case 'crs_paranoia_shadow': {
+        const v = scalar(rest);
+        const n = Number(v);
+        if (!/^[1-4]$/.test(v)) return fail(l.n, 'paranoia', { key });
+        if (key === 'crs_paranoia') spec.crs_paranoia = n;
+        else {
+          spec.crs_paranoia_shadow = n;
+          shadowLine = l.n;
+        }
         break;
       }
       case 'response': {
@@ -186,6 +214,7 @@ export function yamlToSpec(text: string): ParseResult {
   }
   if (!spec.mode) return fail(1, 'modeRequired');
   if (canaryLine && spec.mode !== 'MODE_ENFORCE') return fail(canaryLine, 'canaryMode');
+  if (shadowLine && (spec.crs_paranoia_shadow ?? 0) < (spec.crs_paranoia ?? 1)) return fail(shadowLine, 'paranoiaShadow');
   return { spec };
 }
 
@@ -196,6 +225,13 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
   delete out.oversize;
   delete out.canary_percent;
   delete out.response;
+  delete out.crs_paranoia;
+  delete out.crs_paranoia_shadow;
+  // stored as the API stores them: level 1 and a shadow level equal to
+  // the enforced one are left out
+  const [enforce, shadow] = paranoiaLevels(spec);
+  if (enforce > 1) out.crs_paranoia = enforce;
+  if (shadow > enforce) out.crs_paranoia_shadow = shadow;
   if (spec.oversize && spec.oversize !== 'OVERSIZE_UNSPECIFIED') out.oversize = spec.oversize;
   // a canary only exists on an enforce policy
   if (out.mode === 'MODE_ENFORCE' && validCanary(spec.canary_percent)) out.canary_percent = spec.canary_percent;
@@ -214,12 +250,13 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
 // show them separately so the operator can review the full saved policy.
 export function mergeYamlSpec(base: PolicySpec, editable: PolicySpec): PolicySpec {
   return normalizeSpec({ ...base, mode: editable.mode, oversize: editable.oversize,
-    canary_percent: editable.canary_percent, response: editable.response });
+    canary_percent: editable.canary_percent, response: editable.response,
+    crs_paranoia: editable.crs_paranoia, crs_paranoia_shadow: editable.crs_paranoia_shadow });
 }
 
 export function advancedSpec(spec: PolicySpec): Record<string, unknown> {
   const out: Record<string, unknown> = { ...spec };
-  for (const key of ['mode', 'oversize', 'canary_percent', 'response']) delete out[key];
+  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow']) delete out[key];
   // Zero/empty values emitted by protojson are equivalent to an absent default.
   for (const [key, value] of Object.entries(out)) {
     if (value === 0 || value === null || value === '' || (Array.isArray(value) && !value.length)

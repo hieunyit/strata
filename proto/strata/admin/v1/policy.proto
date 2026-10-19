@@ -100,6 +100,16 @@ message PolicySpec {
   // Default off; changes require replay and four-eyes approval. Never authorizes
   // automatic re-enforcement. Effective staged rule state is not an API input.
   RuleAutoStaging auto_staging = 10;
+  // W17-S-01: CRS paranoia level enforced, 1 to 4; 0 = 1. CRS rules up to
+  // it block as usual.
+  uint32 crs_paranoia = 11;
+  // CRS paranoia level run in shadow, from crs_paranoia to 4; 0 = the
+  // enforced level. Rules above the enforced level up to this one are
+  // reported (Event ID, action log) but never block or add to the blocking
+  // score. Modules from before the setting refuse bundles where either is
+  // above 1: upgrade them first. A bundle with PL2 rules is larger (about
+  // 29 MB with the signature pack, above Vault transit's request limit).
+  uint32 crs_paranoia_shadow = 12;
 }
 
 // Control-plane authorization metadata; not runtime policy parameters.

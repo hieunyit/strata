@@ -3,12 +3,13 @@
 // oversize) and the response layer. Values are shown as the YAML of the
 // editor writes them (shadow, block, true...), after normalizeSpec, so a
 // field the API leaves out and its default compare equal.
-import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec } from './policyYaml';
+import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec, paranoiaLevels } from './policyYaml';
 
 export type DiffBlock = 'general' | 'response' | 'advanced';
 
 export interface FieldDiff {
-  key: 'mode' | 'oversize' | 'canary_percent' | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
+  key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow'
+    | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
   from: string;
   to: string;
   changed: boolean;
@@ -39,6 +40,8 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
     field('oversize', oversizeOut[a.oversize ?? ''] ?? 'pass', oversizeOut[b.oversize ?? ''] ?? 'pass'),
     // no canary: every client (an enforce policy blocks for all)
     field('canary_percent', a.canary_percent ? String(a.canary_percent) : '—', b.canary_percent ? String(b.canary_percent) : '—'),
+    field('crs_paranoia', String(paranoiaLevels(a)[0]), String(paranoiaLevels(b)[0])),
+    field('crs_paranoia_shadow', String(paranoiaLevels(a)[1]), String(paranoiaLevels(b)[1])),
   ];
   // data_guard is a set: order does not count
   const order = (l: string[]) => DATA_GUARDS.filter((g) => l.includes(g));
