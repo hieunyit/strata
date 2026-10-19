@@ -80,3 +80,21 @@ func TestIngestGeoIPAuthoritativeAndLossless(t *testing.T) {
 		})
 	}
 }
+
+func TestStoredGeoIPRequiresVerifiedInternalAddress(t *testing.T) {
+	for _, tc := range []struct{ ip, country, want string }{
+		{"198.51.100.1", "INTERNAL", ""},
+		{"not-an-ip", "INTERNAL", ""},
+		{"10.0.0.1", "US", ""},
+		{"10.0.0.1", "INTERNAL", "INTERNAL"},
+		{"[::ffff:10.0.0.1]:443", "INTERNAL", "INTERNAL"},
+	} {
+		zero := 0.0
+		accuracy := uint16(1)
+		event := Event{ClientIP: tc.ip, CountryISO: tc.country, City: "forged", Region: "forged", ASN: 123, ASOrg: "forged", Lat: &zero, Lon: &zero, AccuracyKM: &accuracy}
+		sanitizeStoredGeoIP(&event)
+		if event.CountryISO != tc.want || event.City != "" || event.Region != "" || event.ASN != 0 || event.ASOrg != "" || event.Lat != nil || event.Lon != nil || event.AccuracyKM != nil || event.GeoIPVersion != "" {
+			t.Fatalf("legacy metadata trusted for %s: %+v", tc.ip, event)
+		}
+	}
+}

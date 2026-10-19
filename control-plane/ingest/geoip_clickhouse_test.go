@@ -78,7 +78,7 @@ func TestGeoIPClickHouseMigrationAndEnrichment(t *testing.T) {
 				}
 			}
 			if legacy {
-				if err := ch.conn.Exec(ctx, "ALTER TABLE events ADD COLUMN lat Float32, ADD COLUMN lon Float32"); err != nil {
+				if err := ch.conn.Exec(ctx, "ALTER TABLE events ADD COLUMN lat Float32, ADD COLUMN lon Float32, ADD COLUMN country_iso LowCardinality(String), ADD COLUMN city String, ADD COLUMN asn UInt32, ADD COLUMN as_org String"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -86,6 +86,11 @@ func TestGeoIPClickHouseMigrationAndEnrichment(t *testing.T) {
 			if err := ch.conn.Exec(ctx, "INSERT INTO events (block_id,timestamp,node_id,action) VALUES (?,?,?,?)",
 				"STR-0000-0000-0000-0000", now, "example-node", "block"); err != nil {
 				t.Fatal(err)
+			}
+			if legacy {
+				if err := ch.conn.Exec(ctx, "ALTER TABLE events UPDATE country_iso='US',city='forged',asn=123,as_org='forged' WHERE block_id='STR-0000-0000-0000-0000' SETTINGS mutations_sync=1"); err != nil {
+					t.Fatal(err)
+				}
 			}
 			for range 2 {
 				if err := ch.EnsureColumns(ctx); err != nil {
@@ -99,12 +104,14 @@ func TestGeoIPClickHouseMigrationAndEnrichment(t *testing.T) {
 				}
 			}
 			old, err := ch.GetEvent(ctx, "STR-0000-0000-0000-0000")
-			if err != nil || old.Lat != nil || old.Lon != nil || old.GeoIPVersion != "" {
-				t.Fatalf("old unknown coordinates fabricated: %+v %v", old, err)
+			if err != nil || old.Lat != nil || old.Lon != nil || old.GeoIPVersion != "" || old.CountryISO != "" || old.City != "" || old.ASN != 0 || old.ASOrg != "" {
+				t.Fatalf("legacy unverified metadata returned: %+v %v", old, err)
 			}
 			if legacy {
 				var raw float64
-				if err := ch.conn.QueryRow(ctx, "SELECT lat FROM events WHERE block_id=?", old.BlockID).Scan(&raw); err != nil || raw != 0 {
+				var country, city, org string
+				var asn uint32
+				if err := ch.conn.QueryRow(ctx, "SELECT lat,country_iso,city,asn,as_org FROM events WHERE block_id=?", old.BlockID).Scan(&raw, &country, &city, &asn, &org); err != nil || raw != 0 || country != "US" || city != "forged" || asn != 123 || org != "forged" {
 					t.Fatalf("legacy raw value lost: %v", err)
 				}
 			}
@@ -154,6 +161,15 @@ func TestGeoIPClickHouseMigrationAndEnrichment(t *testing.T) {
 			found, err := ch.SearchEvents(ctx, SearchFilter{PolicyID: "example-api", Limit: 20})
 			if err != nil || found.Total != 5 || len(found.Events) != 5 {
 				t.Fatalf("FINAL search/dedup: %+v %v", found, err)
+			}
+			history, err := ch.SearchEvents(ctx, SearchFilter{NodeID: "example-node", Limit: 20})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, event := range history.Events {
+				if event.BlockID == old.BlockID && (event.CountryISO != "" || event.City != "" || event.ASN != 0 || event.ASOrg != "" || event.Lat != nil || event.Lon != nil) {
+					t.Fatalf("search trusted legacy forged metadata: %+v", event)
+				}
 			}
 			for _, event := range found.Events {
 				switch event.BlockID {
