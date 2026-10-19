@@ -13,7 +13,7 @@ use std::os::raw::c_char;
 /// version differs from the one it was compiled against.
 pub const STRATA_ABI_VERSION_MAJOR: u32 = 1;
 /// Minor ABI version: additive, backward-compatible changes only.
-pub const STRATA_ABI_VERSION_MINOR: u32 = 7;
+pub const STRATA_ABI_VERSION_MINOR: u32 = 8;
 /// Value returned by `strata_abi_version()`: `(major << 16) | minor`.
 pub const STRATA_ABI_VERSION: u32 = (STRATA_ABI_VERSION_MAJOR << 16) | STRATA_ABI_VERSION_MINOR;
 
@@ -90,6 +90,13 @@ pub const STRATA_BLOCK_ID_SIZE: usize = 24;
 pub const STRATA_ERR_MSG_SIZE: usize = 256;
 /// Length in bytes of the Ed25519 public key passed to `strata_engine_map`.
 pub const STRATA_PUBKEY_LEN: usize = 32;
+
+/// Length of a JA4 TLS client fingerprint (RV-N-02, ABI 1.8): written by
+/// `strata_ja4`, not NUL-terminated.
+pub const STRATA_JA4_LEN: usize = 36;
+
+/// `strata_ja4` flags: the ClientHello came over QUIC (prefix `q`).
+pub const STRATA_JA4_QUIC: u32 = 1;
 
 /// `strata_engine_info_t.flags`: the bundle carries a signed rollback flag
 /// and may replace a newer version.

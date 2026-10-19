@@ -50,6 +50,9 @@ message Event {
   // most expensive rules, at most 8, most expensive first; rule_id 0 is the
   // prefilter's scans, shared by every rule. Empty when not sampled.
   repeated RuleCost rule_costs = 23;
+  // RV-N-02: JA4 fingerprint of the client's TLS connection (FoxIO), 36
+  // characters; empty without TLS or when the module could not compute it.
+  string ja4 = 24;
 }
 
 message Header {

@@ -413,6 +413,8 @@ export interface components {
       violations?: components["schemas"]["Violation"][];
       /** Format: date-time */
       received_at?: string;
+      /** @description JA4 fingerprint (FoxIO) of the client's TLS connection (RV-N-02). Absent without TLS, over HTTP/3, and for events of modules from before it. */
+      ja4?: string;
       /** @description User-Agent of the request, at most 512 bytes, masked like snippets (RV-G2-01). Only in GET /v1/events/{block_id}; absent for events of modules from before it. */
       user_agent?: string;
       /** @description Referer of the request, at most 512 bytes; values of sensitive query parameters are [MASKED]. [REDACTED] for callers without events:read_sensitive. Only in GET /v1/events/{block_id}. */

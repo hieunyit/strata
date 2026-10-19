@@ -136,6 +136,9 @@ pub struct Tx {
     identity_len: usize,
     request_id: [u8; 64],
     request_id_len: usize,
+    /// JA4 of the TLS connection (RV-N-02): all 36 bytes or none
+    ja4: [u8; crate::ja4::LEN],
+    ja4_len: usize,
     host: [u8; 255],
     host_len: usize,
     method: [u8; 16],
@@ -314,6 +317,8 @@ impl Tx {
             identity_len: 0,
             request_id: [0u8; 64],
             request_id_len: 0,
+            ja4: [0u8; crate::ja4::LEN],
+            ja4_len: 0,
             host: [0u8; 255],
             host_len: 0,
             method: [0u8; 16],
@@ -512,6 +517,18 @@ impl Tx {
         let len = request_id.len().min(self.request_id.len());
         self.request_id[..len].copy_from_slice(&request_id[..len]);
         self.request_id_len = len;
+    }
+
+    /// JA4 fingerprint of the client's TLS connection (RV-N-02), for rule
+    /// conditions (`tls_ja4`) and the event. Anything but a well-formed
+    /// fingerprint is ignored (false).
+    pub fn set_ja4(&mut self, ja4: &[u8]) -> bool {
+        if !crate::ja4::is_valid(ja4) {
+            return false;
+        }
+        self.ja4.copy_from_slice(ja4);
+        self.ja4_len = ja4.len();
+        true
     }
 
     /// The connector inspected only part of the body: `bytes` were not
@@ -927,6 +944,7 @@ impl Tx {
                 args: line.part(3),
                 proto: line.part(4),
                 client_addr: line.part(5),
+                ja4: &self.ja4[..self.ja4_len],
                 headers,
                 body: b"",
                 max_args: self.max_args,
@@ -997,6 +1015,7 @@ impl Tx {
             args: line.part(3),
             proto: line.part(4),
             client_addr: line.part(5),
+            ja4: &self.ja4[..self.ja4_len],
             headers: &headers,
             body,
             max_args: self.max_args,
@@ -1530,6 +1549,7 @@ impl Tx {
                 || self.staged_any
                     && self.score.saturating_add(self.staged_score) >= BLOCK_THRESHOLD,
             canary: self.canary,
+            ja4: std::str::from_utf8(&self.ja4[..self.ja4_len]).unwrap_or(""),
         };
 
         let mut out = crate::event::encode(&ev);

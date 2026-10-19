@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS events (
     as_org           String CODEC(ZSTD(1)),
     geoip_version    String CODEC(ZSTD(1)),
 
+    -- RV-N-02: JA4 of the client's TLS connection, empty without one.
+    ja4              String CODEC(ZSTD(1)),
+
     -- Optional top-eight sampled rule timings, not all rule executions.
     rule_costs Nested (
         rule_id      UInt32,

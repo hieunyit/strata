@@ -67,12 +67,16 @@ fi
 
 cd "$src"
 
+# --with-http_ssl_module: like nginx.org's builds, so the module's TLS code
+# (STRATA_TXF_TLS, JA4) is compiled in; without it the module ignored TLS.
 lib="${STRATA_LIB:-$root/target/release/libstrata.a}"
-stamp="$cc_opt|$ld_opt|$root|$lib|$(cksum < "$root/connectors/nginx/config")"
+modules="--with-compat --with-threads $debug --with-http_ssl_module"
+modules="$modules --with-http_v2_module --with-http_auth_request_module $v3"
+# the configure options are part of the stamp: changing them reconfigures
+stamp="$modules|$cc_opt|$ld_opt|$root|$lib|$(cksum < "$root/connectors/nginx/config")"
 if [ ! -f objs/Makefile ] || [ "$(cat objs/.strata-configure 2>/dev/null)" != "$stamp" ]; then
-    ./configure \
-        --with-compat --with-threads $debug \
-        --with-http_v2_module --with-http_auth_request_module $v3 \
+    # shellcheck disable=SC2086 # $modules is a list of options
+    ./configure $modules \
         --with-cc-opt="$cc_opt" --with-ld-opt="$ld_opt" \
         --add-dynamic-module="$root/connectors/nginx"
     echo "$stamp" > objs/.strata-configure

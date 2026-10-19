@@ -177,6 +177,9 @@ func ValidateEvent(evt *Event, now time.Time) error {
 	default:
 		evt.Inspection = ""
 	}
+	if !ValidJA4(evt.JA4) {
+		evt.JA4 = ""
+	}
 
 	// 5. Snippet truncation for violations
 	for i := range evt.Violations {
@@ -218,4 +221,22 @@ func BlockIDTime(id string) (time.Time, bool) {
 	}
 	ms := (hi&0xffff)<<26 | lo>>38
 	return time.UnixMilli(int64(ms)).UTC(), true
+}
+
+// ValidJA4 reports whether s is empty or a JA4 fingerprint as the engine
+// writes it (RV-N-02): 36 characters of [0-9a-z_].
+func ValidJA4(s string) bool {
+	if s == "" {
+		return true
+	}
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'z') && c != '_' {
+			return false
+		}
+	}
+	return true
 }

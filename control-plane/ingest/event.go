@@ -71,6 +71,8 @@ type Event struct {
 	// RV-N-01: full, partial (CPU budget ran out), body_skipped; empty for
 	// modules from before the field.
 	Inspection string `json:"inspection,omitempty" ch:"inspection"`
+	// RV-N-02: JA4 of the client's TLS connection; empty without one.
+	JA4 string `json:"ja4,omitempty" ch:"ja4"`
 }
 
 // EventBatch models a batch of events sent by an agent with a monotonic sequence number.

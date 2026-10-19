@@ -8,6 +8,10 @@
 
 static ngx_int_t ngx_http_strata_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
+#if (NGX_HTTP_SSL)
+static ngx_int_t ngx_http_strata_ja4_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data);
+#endif
 
 
 #define NGX_HTTP_STRATA_VAR_BLOCK_ID  0
@@ -42,6 +46,11 @@ static ngx_http_variable_t  ngx_http_strata_variables[] = {
     { ngx_string("strata_time_us"), NULL, ngx_http_strata_variable,
       NGX_HTTP_STRATA_VAR_TIME_US, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
+#if (NGX_HTTP_SSL)
+    { ngx_string("strata_ja4"), NULL, ngx_http_strata_ja4_variable,
+      0, 0, 0 },
+#endif
+
       ngx_http_null_variable
 };
 
@@ -72,6 +81,40 @@ ngx_http_strata_add_variables(ngx_conf_t *cf)
 
     return NGX_OK;
 }
+
+
+#if (NGX_HTTP_SSL)
+
+/* $strata_ja4: the connection's JA4 (RV-N-02), with or without "strata" */
+
+static ngx_int_t
+ngx_http_strata_ja4_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data)
+{
+    u_char  *ja4;
+
+    ja4 = NULL;
+
+    if (r->connection->ssl && ngx_http_strata_ja4_index != -1) {
+        ja4 = SSL_get_ex_data(r->connection->ssl->connection,
+                              ngx_http_strata_ja4_index);
+    }
+
+    if (ja4 == NULL) {
+        v->not_found = 1;
+        return NGX_OK;
+    }
+
+    v->data = ja4;
+    v->len = STRATA_JA4_LEN;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+
+    return NGX_OK;
+}
+
+#endif
 
 
 static ngx_int_t

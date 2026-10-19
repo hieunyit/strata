@@ -190,6 +190,9 @@ typedef struct {
 
 extern ngx_module_t  ngx_http_strata_module;
 extern ngx_module_t  ngx_http_strata_filter_module;
+#if (NGX_HTTP_SSL)
+extern int           ngx_http_strata_ja4_index;  /* SSL ex_data: JA4 */
+#endif
 
 
 /* metrics file layout: docs/design/control-file.md, "Metrics file" */

@@ -91,6 +91,7 @@ fn golden_blocked_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -129,6 +130,7 @@ fn golden_shadow_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -161,6 +163,7 @@ fn golden_engine_error_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -201,6 +204,7 @@ fn golden_long_snippet_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);
@@ -244,6 +248,7 @@ fn golden_large_event_truncated_scenario() {
         inspection: Default::default(),
         would_block: false,
         canary: CanaryGroup::None,
+        ja4: "",
     };
 
     let data = encode(&ev);

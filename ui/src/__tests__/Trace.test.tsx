@@ -108,10 +108,12 @@ describe('request context (RV-G2-01, RV-N-01)', () => {
         { name: 'Accept', value: '*/*' },
       ],
       inspection: 'partial',
+      ja4: 't13d1518h2_8daaf6152771_4980c97edce0',
     };
     render(<StaticAuthProvider roles={['operator']}><EventTrace event={withCtx} /></StaticAuthProvider>);
     expect(screen.getByTestId('detail-user-agent')).toHaveTextContent('sqlmap/1.8');
     expect(screen.getByTestId('detail-referer')).toHaveTextContent('access_token=[MASKED]');
+    expect(screen.getByTestId('detail-ja4')).toHaveTextContent('t13d1518h2_8daaf6152771_4980c97edce0');
     const rows = screen.getAllByTestId('header-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Authorization[MASKED]');
@@ -121,6 +123,7 @@ describe('request context (RV-G2-01, RV-N-01)', () => {
   it('shows nothing extra for events without context (older modules) or fully inspected', () => {
     render(<StaticAuthProvider roles={['operator']}><EventTrace event={{ ...event, inspection: 'full' }} /></StaticAuthProvider>);
     expect(screen.queryByTestId('detail-user-agent')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('detail-ja4')).not.toBeInTheDocument();
     expect(screen.queryByTestId('detail-headers')).not.toBeInTheDocument();
     expect(screen.queryByTestId('inspection-warning')).not.toBeInTheDocument();
   });

@@ -185,3 +185,22 @@ func TestValidateEventContextBounds(t *testing.T) {
 			len(evt.UserAgent), len(evt.Referer), len(evt.Headers), total, evt.Inspection, len(evt.Violations[0].Snippet))
 	}
 }
+
+func TestValidJA4(t *testing.T) {
+	for _, s := range []string{"", "t13d1516h2_8daaf6152771_02713d6af862", "q13i0000000_000000000000_00000000000"} {
+		if !ValidJA4(s) {
+			t.Errorf("%q refused", s)
+		}
+	}
+	for _, s := range []string{
+		"t13d1516h2_8daaf6152771_02713d6af86",
+		"T13d1516h2_8daaf6152771_02713d6af862",
+		"t13d1516h2_8daaf6152771_02713d6af862x",
+		"t13d1516h2 8daaf6152771_02713d6af862",
+		"t13d1516h2_8daaf6152771_02713d6af8é",
+	} {
+		if ValidJA4(s) {
+			t.Errorf("%q accepted", s)
+		}
+	}
+}

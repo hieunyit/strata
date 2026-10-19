@@ -297,6 +297,9 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
     ngx_http_strata_loc_conf_t *slcf)
 {
     ngx_str_t                     identity;
+#if (NGX_HTTP_SSL)
+    u_char                       *ja4;
+#endif
     strata_conn_t                 conn;
     ngx_http_variable_value_t    *vv;
     ngx_http_strata_main_conf_t  *smcf;
@@ -365,6 +368,17 @@ ngx_http_strata_start_tx(ngx_http_request_t *r, ngx_http_strata_ctx_t *ctx,
         /* strata_tx_verdict() reports STRATA_E_INVALID for a NULL tx */
         return NGX_OK;
     }
+
+#if (NGX_HTTP_SSL)
+    if (r->connection->ssl && ngx_http_strata_ja4_index != -1) {
+        ja4 = SSL_get_ex_data(r->connection->ssl->connection,
+                              ngx_http_strata_ja4_index);
+        if (ja4 != NULL) {
+            (void) strata_tx_set_ja4(ctx->tx,
+                                     (strata_str_t) { ja4, STRATA_JA4_LEN });
+        }
+    }
+#endif
 
     if (ctx->degraded && slcf->breaker_action == NGX_HTTP_STRATA_BREAKER_REJECT)
     {

@@ -299,6 +299,88 @@ ngx_http_strata_exit_process(ngx_cycle_t *cycle)
 }
 
 
+#if (NGX_HTTP_SSL)
+
+int  ngx_http_strata_ja4_index = -1;
+
+
+/*
+ * RV-N-02: OpenSSL passes each handshake message read; the first
+ * ClientHello goes to libstrata (pointer + length), which writes its JA4.
+ * NGINX itself uses the ClientHello callback (SNI), hence this one.
+ */
+
+static void
+ngx_http_strata_ssl_message(int write_p, int version, int content_type,
+    const void *buf, size_t len, SSL *ssl, void *arg)
+{
+    u_char            *ja4;
+    uint32_t           flags;
+    ngx_connection_t  *c;
+
+    if (write_p || content_type != SSL3_RT_HANDSHAKE || len == 0
+        || *(const u_char *) buf != SSL3_MT_CLIENT_HELLO
+        || SSL_get_ex_data(ssl, ngx_http_strata_ja4_index) != NULL)
+    {
+        return;
+    }
+
+    c = ngx_ssl_get_connection(ssl);
+    if (c == NULL || c->pool == NULL) {
+        return;
+    }
+
+    flags = 0;
+#if (NGX_QUIC)
+    if (c->quic) {
+        flags = STRATA_JA4_QUIC;
+    }
+#endif
+
+    ja4 = ngx_pnalloc(c->pool, STRATA_JA4_LEN);
+
+    if (ja4 != NULL && strata_ja4(buf, len, flags, ja4) == STRATA_OK) {
+        (void) SSL_set_ex_data(ssl, ngx_http_strata_ja4_index, ja4);
+    }
+}
+
+
+static ngx_int_t
+ngx_http_strata_ja4_init(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
+{
+    ngx_uint_t                 s;
+    ngx_http_ssl_srv_conf_t   *sscf;
+    ngx_http_core_srv_conf_t **cscfp;
+
+    if (ngx_http_strata_ja4_index == -1) {
+        ngx_http_strata_ja4_index = SSL_get_ex_new_index(0, NULL, NULL,
+                                                         NULL, NULL);
+        if (ngx_http_strata_ja4_index == -1) {
+            ngx_ssl_error(NGX_LOG_EMERG, cf->log, 0,
+                          "strata: SSL_get_ex_new_index() failed");
+            return NGX_ERROR;
+        }
+    }
+
+    /* SSL objects copy the callback of the context they are made from */
+
+    cscfp = cmcf->servers.elts;
+
+    for (s = 0; s < cmcf->servers.nelts; s++) {
+        sscf = cscfp[s]->ctx->srv_conf[ngx_http_ssl_module.ctx_index];
+
+        if (sscf != NULL && sscf->ssl.ctx != NULL) {
+            SSL_CTX_set_msg_callback(sscf->ssl.ctx,
+                                     ngx_http_strata_ssl_message);
+        }
+    }
+
+    return NGX_OK;
+}
+
+#endif
+
+
 static ngx_int_t
 ngx_http_strata_postconfiguration(ngx_conf_t *cf)
 {
@@ -333,6 +415,12 @@ ngx_http_strata_postconfiguration(ngx_conf_t *cf)
     }
 
     *h = ngx_http_strata_preaccess_handler;
+
+#if (NGX_HTTP_SSL)
+    if (ngx_http_strata_ja4_init(cf, cmcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+#endif
 
     return ngx_http_strata_filter_init(cf);
 }
