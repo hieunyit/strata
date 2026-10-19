@@ -7,7 +7,7 @@
 
 pub mod html5;
 pub mod sqli;
-/// SSTI component; not yet exposed as a rule operator.
+/// SSTI lexical component used by the opt-in `detect_ssti` rule operator.
 pub mod ssti;
 #[rustfmt::skip]
 mod sqli_data;

@@ -1,0 +1,23 @@
+{
+  "base": "9384efdb31b9a4bde51e49da3fa57131f7d238f4",
+  "new_operator": {
+    "name": "detect_ssti",
+    "opcode": 18,
+    "legacy": "0..17 unchanged"
+  },
+  "sha256": {
+    "engine/src/rules.rs": "9b13073f9e8b64ec8dbad12b2ee189f7e7eddcea4bdc9c67d2deaceb2abd01b1",
+    "engine/src/eval.rs": "6fa264e3ac0e8a3c33399b422d86c2124516e284791c6421f929bd2239ee8dc3",
+    "engine/src/detectors/injection/ssti.rs": "651f87c8a3c665723c81b794a55c557944c33c2506e7b101215a255f0bf861ba",
+    "engine/compiler/src/lib.rs": "526ea43f9ddab3a21f1b52bbbdff6e410f312425290a645b4a31a8816d7b1261",
+    "engine/compiler/examples/ssti-test.yaml": "58424d95cec828cbf30ab4684114682ad73e3f8ee97b64937687892f4ca9fc31",
+    "engine/compiler/tests/ssti.rs": "a6295e3b83391586c1f27841168ada614bd88f3c611f3196efb5332f5c944c69",
+    "docs/spec/ir.schema.json": "f25ed7bd0f329b48431ba0c0c40c325b8cd2a104a8389ce0461bdd8f21b8a2d8",
+    "connectors/nginx/t/041-ssti.t": "4a9f2a381655f30873ddf4a9e51690426bbd8f73b5b5e20861b10133c75458f7",
+    "build/m4-runtime-asan-target/release/libstrata.a": "37d3cf5bb635919627970c08a636de1c9f20f03da3f63964fb40af0ecfeaaf2b",
+    "build/m4-runtime-target/release/strata-compile": "6a9f99a3aded830bb6112b7d3808f8a5ff04278fc5ba0bdae7c9565a0941bba9",
+    "build/nginx-1.30.5-asan/objs/ngx_http_strata_module.so": "e1e6bae46f3a4fbf92e3d8b840e9bf060f354c2f5061d4d809bb5359ebaccf33",
+    "build/nginx-1.31.6-asan/objs/ngx_http_strata_module.so": "5b4a0bddc24f27666f7262b17f4624a18929ca03e3b4c8fe69b59e5d87bf76d9",
+    "build/packages/bin/ngx_http_strata_module-1.30.5.so": "422a08b2fba9223eb13d1495a873f6d09d5fa79fd4a2a74038372cd2a52ce003"
+  }
+}
