@@ -1,0 +1,17 @@
+# Test-only fixture; not a shipped or enabled rule pack.
+ir_version: 1
+ruleset: { name: example-cmdi-test, version: "1" }
+rules:
+  - id: 800818
+    name: Example CMDi detector fixture
+    layer: managed
+    stage: request_body
+    score: 100
+    severity: critical
+    action_mode: block_alone
+    match:
+      all:
+        - targets: [{ var: args }]
+          transforms: [url_decode_uni]
+          operator: { type: detect_cmdi }
+    metadata: { source: organization, license: Apache-2.0 }
