@@ -277,7 +277,7 @@ rules:
       all:
         - operator:
             type: rx
-            value: ^[^\s\x0b,;]+[\s\x0b,;].*?(?:application/(?:.+\+)?json|(?:application/(?:soap\+)?|text/)xml)
+            value: (?s)^[^\s\x0b,;]+[\s\x0b,;].*?(?:application/(?:.+\+)?json|(?:application/(?:soap\+)?|text/)xml)
           targets:
             - key: Content-Type
               var: request_headers
