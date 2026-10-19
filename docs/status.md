@@ -71,7 +71,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Luồng duyệt policy | **Một phần** | API (W13-G2-02): `:submit`, `:approve`, `:reject`, người soạn/gửi không tự duyệt (theo `sub`, có CHECK trong DB), duyệt cần replay DONE (PO 16/10), deploy chỉ lấy bản đã duyệt, hàng chờ `…/-/versions?state=SUBMITTED` (`tests/e2e/four_eyes_test.go`). Có hàng chờ và proof đã duyệt, [UI/API](reports/review-browser-acceptance.md) đạt acceptance local; chưa triển khai route thật |
 | GitOps, OpenAPI công khai, bản đồ GeoIP | **Thiết kế** | W19–W21 |
 | Connector khác NGINX (Apache, HAProxy, Envoy, Kong) | **Thiết kế** | Chỉ có NGINX; connector khác sau v1 |
-| Chế độ Lite cho cụm nhỏ | **Thiết kế** | RV-G1-01 (tuần 19, cần PO) |
+| Chế độ Lite cho cụm nhỏ | **Một phần** | Agent standalone, gói systemd và installer đã có [bằng chứng local](reports/standalone-installer-review.md); [bootstrap Ubuntu/Debian](reports/standalone-bootstrap-review.md) pass. Nghiệm thu VM sạch/chặn SQLi dưới 5 phút **chờ theo quyết định PO**; [lượt TCG chưa đạt](reports/standalone-vm-hold.md) |
 
 ## 3. Những điều cần nói đúng
 
