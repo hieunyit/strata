@@ -179,6 +179,25 @@ func TestGeoAggregates_ClickHouse(t *testing.T) {
 		}
 	}
 
+	// timeline: every minute bucket, distinct events by action
+	buckets, err := ch.GeoTimeline(ctx, f, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var block, shadow, other uint64
+	for i, b := range buckets {
+		if !b.Start.Equal(f.From.Truncate(time.Minute).Add(time.Duration(i) * time.Minute)) {
+			t.Fatalf("bucket %d starts %s", i, b.Start)
+		}
+		block, shadow, other = block+b.Block, shadow+b.Shadow, other+b.Other
+	}
+	if len(buckets) != 11 || block != 6 || shadow != 1 || other != 1 {
+		t.Errorf("timeline: %d buckets, block %d shadow %d other %d", len(buckets), block, shadow, other)
+	}
+	if _, err := ch.GeoTimeline(ctx, GeoFilter{From: now.Add(-48 * time.Hour), To: now}, time.Minute); err == nil {
+		t.Error("2,880 buckets accepted")
+	}
+
 	// retention: set once, changed when it differs
 	ttl := func(table string) string {
 		var q string

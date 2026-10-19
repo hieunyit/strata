@@ -331,3 +331,97 @@ func geohashCenter(h string) (lon, lat float64, ok bool) {
 	}
 	return (lonMin + lonMax) / 2, (latMin + latMax) / 2, len(h) > 0
 }
+
+// GeoStatsStore reads the GeoIP aggregates (W18-G2-01).
+type GeoStatsStore interface {
+	GeoByCountry(context.Context, GeoFilter) ([]GeoCount, error)
+	GeoByASN(context.Context, GeoFilter) ([]GeoCount, error)
+	GeoByCell(context.Context, GeoFilter) ([]GeoCount, error)
+	GeoTimeline(context.Context, GeoFilter, time.Duration) ([]GeoBucket, error)
+}
+
+var _ GeoStatsStore = (*ClickHouseStore)(nil)
+
+// GeoBucket is one point of the timeline: distinct events starting in the
+// bucket, by action (other: pass and error).
+type GeoBucket struct {
+	Start  time.Time `json:"start"`
+	Block  uint64    `json:"block"`
+	Shadow uint64    `json:"shadow"`
+	Other  uint64    `json:"other"`
+}
+
+// MaxGeoBuckets bounds a timeline (a day by the minute is 1,440).
+const MaxGeoBuckets = 1500
+
+// ValidGeoStep reports whether d is a timeline step: 1m, 5m, 1h, 6h, 24h.
+func ValidGeoStep(d time.Duration) bool {
+	switch d {
+	case time.Minute, 5 * time.Minute, time.Hour, 6 * time.Hour, 24 * time.Hour:
+		return true
+	}
+	return false
+}
+
+// GeoStepFor is the default timeline step of a window.
+func GeoStepFor(window time.Duration) time.Duration {
+	switch {
+	case window <= 2*time.Hour:
+		return time.Minute
+	case window <= 12*time.Hour:
+		return 5 * time.Minute
+	case window <= 8*24*time.Hour:
+		return time.Hour
+	case window <= 62*24*time.Hour:
+		return 6 * time.Hour
+	}
+	return 24 * time.Hour
+}
+
+// GeoTimeline counts distinct events per step and action over [From, To),
+// every bucket present (zeros included), oldest first. Buckets are aligned
+// on UTC; From is rounded down to its bucket.
+func (s *ClickHouseStore) GeoTimeline(ctx context.Context, f GeoFilter, step time.Duration) ([]GeoBucket, error) {
+	if !ValidGeoStep(step) {
+		return nil, fmt.Errorf("invalid timeline step %s", step)
+	}
+	start := f.From.UTC().Truncate(step)
+	n := int(f.To.UTC().Sub(start)/step) + 1
+	if f.To.UTC().Sub(start)%step == 0 {
+		n--
+	}
+	if n > MaxGeoBuckets {
+		return nil, fmt.Errorf("%d buckets: at most %d", n, MaxGeoBuckets)
+	}
+	f.From = start
+	where, args := f.where("minute", time.Minute)
+	q := fmt.Sprintf(`SELECT toStartOfInterval(minute, INTERVAL %d SECOND) AS b,
+			uniqCombined64MergeIf(events, action = 'block'),
+			uniqCombined64MergeIf(events, action = 'shadow'),
+			uniqCombined64MergeIf(events, action NOT IN ('block', 'shadow'))
+		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), GeoMinuteTable, where)
+	got := map[int64]GeoBucket{}
+	rows, err := s.conn.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("GeoIP timeline: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b GeoBucket
+		if err := rows.Scan(&b.Start, &b.Block, &b.Shadow, &b.Other); err != nil {
+			return nil, fmt.Errorf("GeoIP timeline: %w", err)
+		}
+		got[b.Start.UTC().Unix()] = b
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("GeoIP timeline: %w", err)
+	}
+	out := make([]GeoBucket, 0, n)
+	for i := 0; i < n; i++ {
+		t := start.Add(time.Duration(i) * step)
+		b := got[t.Unix()]
+		b.Start = t
+		out = append(out, b)
+	}
+	return out, nil
+}

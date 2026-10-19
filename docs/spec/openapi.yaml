@@ -296,6 +296,281 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/stats/geo:
+    get:
+      summary: GeoIP Statistics
+      description: 'Distinct events of the window by country, geohash cell or ASN, most first, from the GeoIP
+        aggregates (W18-G2-01). Counts are exact for small sets and about 1% off for large ones (HyperLogLog);
+        exact counts come from the event search. Holds no IP address: needs events:read.'
+      operationId: getGeoStats
+      parameters:
+      - name: from
+        in: query
+        description: Start of the window, RFC 3339. Default 24 hours before to; rounded down to the bucket.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: End of the window (exclusive), RFC 3339. Default now. The window is at most 400 days.
+        schema:
+          type: string
+          format: date-time
+      - name: groupBy
+        in: query
+        description: 'country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4,
+          about 20-40 km, at their center; never an IP''s coordinates) or asn (0: unknown).'
+        schema:
+          type: string
+          enum: [country, city, asn]
+          default: country
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 50
+      - name: policy_id
+        in: query
+        schema:
+          type: string
+          maxLength: 256
+      - name: action
+        in: query
+        schema:
+          type: string
+          enum: [block, shadow, pass, error]
+      - name: attack_type
+        in: query
+        description: Family of the rules the event matched (ingest.AttackTypeSQL).
+        schema:
+          $ref: '#/components/schemas/AttackType'
+      - name: country
+        in: query
+        description: ISO 3166 alpha-2 code, or INTERNAL for private addresses.
+        schema:
+          type: string
+          pattern: '^([A-Z]{2}|INTERNAL)$'
+      - name: asn
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 4294967295
+      responses:
+        '200':
+          description: Rows of the window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeoResponse'
+        '400':
+          description: Invalid parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: The event store has no GeoIP aggregates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/stats/timeline:
+    get:
+      summary: Event Timeline
+      description: Distinct events per step by action over the window, from the GeoIP aggregates (W18-G2-01); every
+        bucket present, aligned in UTC. Needs events:read.
+      operationId: getTimeline
+      parameters:
+      - name: from
+        in: query
+        description: Start of the window, RFC 3339. Default 24 hours before to; rounded down to the bucket.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: End of the window (exclusive), RFC 3339. Default now. The window is at most 400 days.
+        schema:
+          type: string
+          format: date-time
+      - name: policy_id
+        in: query
+        schema:
+          type: string
+          maxLength: 256
+      - name: action
+        in: query
+        schema:
+          type: string
+          enum: [block, shadow, pass, error]
+      - name: attack_type
+        in: query
+        description: Family of the rules the event matched (ingest.AttackTypeSQL).
+        schema:
+          $ref: '#/components/schemas/AttackType'
+      - name: country
+        in: query
+        description: ISO 3166 alpha-2 code, or INTERNAL for private addresses.
+        schema:
+          type: string
+          pattern: '^([A-Z]{2}|INTERNAL)$'
+      - name: asn
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 4294967295
+      - name: step
+        in: query
+        description: Default 1m up to 2 hours, 5m up to 12 hours, 1h up to 8 days, 6h up to 62 days, 24h beyond. At most
+          1,500 buckets.
+        schema:
+          type: string
+          enum: [1m, 5m, 1h, 6h, 24h]
+      responses:
+        '200':
+          description: The series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelineResponse'
+        '400':
+          description: Invalid parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: The event store has no GeoIP aggregates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/stats/geo:watch:
+    get:
+      summary: Live GeoIP Statistics
+      description: 'Server-sent events over a window sliding to now: event `snapshot` (GeoSnapshot) first, then
+        `delta` (GeoDelta) with the rows that changed or left, checked every interval; a comment line every 15 s
+        when nothing changed. A stream lasts at most 15 minutes (the client reconnects; `retry: 3000`); at most
+        32 streams per control plane. Credentials in the Authorization header only (EventSource cannot send it:
+        read the stream with fetch). Needs events:read.'
+      operationId: watchGeoStats
+      parameters:
+      - name: window
+        in: query
+        description: Length of the sliding window, 1m to 168h. from/to are refused.
+        schema:
+          type: string
+          default: 1h
+      - name: interval
+        in: query
+        description: How often the rows are read, 2s to 5s.
+        schema:
+          type: string
+          default: 3s
+      - name: groupBy
+        in: query
+        description: 'country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4,
+          about 20-40 km, at their center; never an IP''s coordinates) or asn (0: unknown).'
+        schema:
+          type: string
+          enum: [country, city, asn]
+          default: country
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 50
+      - name: policy_id
+        in: query
+        schema:
+          type: string
+          maxLength: 256
+      - name: action
+        in: query
+        schema:
+          type: string
+          enum: [block, shadow, pass, error]
+      - name: attack_type
+        in: query
+        description: Family of the rules the event matched (ingest.AttackTypeSQL).
+        schema:
+          $ref: '#/components/schemas/AttackType'
+      - name: country
+        in: query
+        description: ISO 3166 alpha-2 code, or INTERNAL for private addresses.
+        schema:
+          type: string
+          pattern: '^([A-Z]{2}|INTERNAL)$'
+      - name: asn
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 4294967295
+      responses:
+        '200':
+          description: The stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: The event store has no GeoIP aggregates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Too many open streams; Retry-After.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/auth/methods:
     get:
       summary: Sign-in Methods
@@ -698,6 +973,132 @@ components:
       required: true
       schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    AttackType:
+      type: string
+      enum: [none, sqli, xss, rce, lfi, rfi, injection_other, scanner, virtual_patch, signature, bot, protocol, custom,
+        other]
+    GeoCount:
+      type: object
+      required: [key, events, blocked, top_attack_type]
+      properties:
+        key:
+          type: string
+          description: Country code, geohash cell or ASN (decimal).
+        label:
+          type: string
+          description: City name of a cell, organization of an ASN.
+        events:
+          type: integer
+          format: int64
+        blocked:
+          type: integer
+          format: int64
+        top_attack_type:
+          $ref: '#/components/schemas/AttackType'
+        lat:
+          type: number
+          description: Center of the geohash cell (groupBy=city).
+        lon:
+          type: number
+    GeoResponse:
+      type: object
+      required: [from, to, group_by, rows, approximate]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        group_by:
+          type: string
+          enum: [country, city, asn]
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoCount'
+        approximate:
+          type: boolean
+    GeoBucket:
+      type: object
+      required: [start, block, shadow, other]
+      properties:
+        start:
+          type: string
+          format: date-time
+        block:
+          type: integer
+          format: int64
+        shadow:
+          type: integer
+          format: int64
+        other:
+          type: integer
+          format: int64
+          description: pass and error.
+    TimelineResponse:
+      type: object
+      required: [from, to, step, buckets, approximate]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        step:
+          type: string
+          description: Go duration, e.g. 1h0m0s.
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoBucket'
+        approximate:
+          type: boolean
+    GeoSnapshot:
+      type: object
+      required: [at, from, to, group_by, rows, approximate]
+      properties:
+        at:
+          type: string
+          format: date-time
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        group_by:
+          type: string
+          enum: [country, city, asn]
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoCount'
+        approximate:
+          type: boolean
+    GeoDelta:
+      type: object
+      required: [at, from, to]
+      properties:
+        at:
+          type: string
+          format: date-time
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        changed:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoCount'
+        removed:
+          type: array
+          description: Keys of rows gone from the window or the top.
+          items:
+            type: string
     AuditEntry:
       type: object
       required: [actor, channel, action, resource]

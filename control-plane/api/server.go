@@ -143,6 +143,9 @@ func (s *Server) registerRoutes() {
 		s.handler.HandleGetEvent(w, r)
 	}))
 	v1.HandleFunc("/v1/stats/overview", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleOverview))
+	v1.HandleFunc("/v1/stats/geo", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleGeoStats))
+	v1.HandleFunc("/v1/stats/geo:watch", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleGeoWatch))
+	v1.HandleFunc("/v1/stats/timeline", auth.RequireHTTP(auth.PermEventsRead, s.handler.HandleTimeline))
 	if s.cfg.StagingNotices != nil {
 		v1.HandleFunc("/v1/rules/staging-actions", auth.RequireHTTP(auth.PermPoliciesApprove, s.handleStagingNotices))
 	}
@@ -212,11 +215,22 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 			_ = rc.SetReadDeadline(deadline)
 			_ = rc.SetWriteDeadline(deadline)
 		}
+		if isStream(r) {
+			// bounded by the handler (MaxGeoWatchDuration), not by the
+			// request timeout
+			next.ServeHTTP(w, r)
+			return
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// isStream: GET /v1/stats/geo:watch, server-sent events.
+func isStream(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/v1/stats/geo:watch"
 }
 
 // isDeploy: POST /v1/policies/{id}:deploy, the one route that compiles.
