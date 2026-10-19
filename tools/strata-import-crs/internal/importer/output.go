@@ -71,17 +71,19 @@ func (r *Result) Report(w io.Writer, version string) {
 	fmt.Fprintf(w, "| **all** | %d | %d | %.0f%% |\n", read, imp, 100*float64(imp)/float64(max(read, 1)))
 	plumbing := 0
 	for _, s := range r.Skipped {
-		if strings.HasPrefix(s.Reason, "paranoia level") || strings.HasPrefix(s.Reason, "does not block") || strings.HasPrefix(s.Reason, "SecAction") {
+		if strings.HasPrefix(s.Reason, "paranoia level") || strings.HasPrefix(s.Reason, "does not block") || strings.HasPrefix(s.Reason, "SecAction") ||
+			strings.HasPrefix(s.Reason, "disabled by default") {
 			plumbing++
 		}
 	}
 	det := read - plumbing
-	fmt.Fprintf(w, "\nOf the %d rules, %d are CRS plumbing (paranoia level checks, initialization: no detection) or above paranoia level 1. "+
-		"Of the other %d, the paranoia level 1 detection rules, **%d are imported (%.0f%%)**.\n", read, plumbing, det, imp, 100*float64(imp)/float64(max(det, 1)))
+	fmt.Fprintf(w, "\nOf the %d rules, %d are CRS plumbing (paranoia level checks, initialization: no detection), above paranoia level 1, "+
+		"or off unless crs-setup sets an option. Of the other %d, the paranoia level 1 detection rules active by default, **%d are imported (%.0f%%)**.\n",
+		read, plumbing, det, imp, 100*float64(imp)/float64(max(det, 1)))
 	counts := map[string]int{}
 	for _, s := range r.Skipped {
 		reason := s.Reason
-		for _, p := range []string{"paranoia level", "transformation", "operator", "variable", "compiler", "pattern selector", "macro"} {
+		for _, p := range []string{"paranoia level", "transformation", "operator", "variable", "compiler", "pattern selector", "macro", "disabled by default"} {
 			if strings.HasPrefix(reason, p) {
 				reason = p + strings.SplitN(strings.TrimPrefix(reason, p), " (", 2)[0]
 				break
