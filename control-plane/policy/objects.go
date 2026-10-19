@@ -3,12 +3,19 @@ package policy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+// ErrObjectNotFound: Get of a key the store does not have.
+var ErrObjectNotFound = errors.New("policy: no such object")
+
+// IsObjectNotFound reports whether err is a Get of a missing key.
+func IsObjectNotFound(err error) bool { return errors.Is(err, ErrObjectNotFound) }
 
 // Objects is where bundles are kept.
 type Objects interface {
@@ -72,6 +79,9 @@ func (s *S3) Get(ctx context.Context, key string) ([]byte, error) {
 	defer obj.Close()
 	var buf bytes.Buffer
 	if _, err := buf.ReadFrom(obj); err != nil {
+		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+			return nil, fmt.Errorf("policy: download %s: %w", key, ErrObjectNotFound)
+		}
 		return nil, fmt.Errorf("policy: download %s: %w", key, err)
 	}
 	return buf.Bytes(), nil

@@ -215,6 +215,9 @@ type Sources struct {
 	// before one), failed ones.
 	GeoIPLastUpdate     func() time.Time
 	GeoIPUpdateFailures func() uint64
+	// Crawler range updates (W18-G2-02), the same way.
+	GoodBotsLastUpdate func() time.Time
+	GoodBotsFailures   func() uint64
 }
 
 // Watch registers a collector over s.
@@ -242,6 +245,8 @@ var (
 	dTripOpen     = prometheus.NewDesc("strata_cp_canary_fallback_active", "1 while a connector group's canary policies are held in shadow by the canary fallback.", []string{"group", "reason"}, nil)
 	dGeoUpdated   = prometheus.NewDesc("strata_cp_geoip_update_last_success_timestamp_seconds", "Unix time of the last GeoIP database update that ended well, unchanged included (0 before one).", nil, nil)
 	dGeoFailures  = prometheus.NewDesc("strata_cp_geoip_update_failures_total", "GeoIP database updates or loads that failed; the active version stays.", nil, nil)
+	dBotsUpdated  = prometheus.NewDesc("strata_cp_good_bots_update_last_success_timestamp_seconds", "Unix time of the last update of the crawlers' published IP ranges where every feed was fetched well (0 before one).", nil, nil)
+	dBotsFailures = prometheus.NewDesc("strata_cp_good_bots_update_failures_total", "Crawler range feeds that failed to fetch or check; the crawler keeps its previous ranges.", nil, nil)
 	scrapeTimeout = 3 * time.Second
 )
 
@@ -250,7 +255,7 @@ type stateCollector struct{ s Sources }
 func (c stateCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dConnected, dEnrolled, dRollouts, dRolloutAge, dStoreUp,
 		dBatches, dEvents, dFlushed, dGeoIPErrors, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull,
-		dGeoUpdated, dGeoFailures} {
+		dGeoUpdated, dGeoFailures, dBotsUpdated, dBotsFailures} {
 		ch <- d
 	}
 }
@@ -270,6 +275,14 @@ func (c stateCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		gauge(dGeoUpdated, ts)
 		counter(dGeoFailures, s.GeoIPUpdateFailures())
+	}
+	if s.GoodBotsLastUpdate != nil {
+		ts := 0.0
+		if t := s.GoodBotsLastUpdate(); !t.IsZero() {
+			ts = float64(t.UnixNano()) / 1e9
+		}
+		gauge(dBotsUpdated, ts)
+		counter(dBotsFailures, s.GoodBotsFailures())
 	}
 	if s.CanarySourceSaturations != nil {
 		counter(dSourceFull, s.CanarySourceSaturations())

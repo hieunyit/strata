@@ -47,6 +47,10 @@ type Compiler struct {
 	// IdentityKey gives the installation's identity key, asked only when
 	// a policy has privacy.identity hmac; nil: such policies fail to build.
 	IdentityKey func(context.Context) ([]byte, error)
+	// GoodBots gives the crawler ranges every bundle carries (W18-G2-02,
+	// goodbots.ForCompiler): nil data without a stored list; an error
+	// fails the build rather than drop the ranges silently.
+	GoodBots func(context.Context) ([]byte, error)
 }
 
 // DefaultCostBudget: CRS 4.25 PL1 as imported costs about 15 000 units
@@ -168,6 +172,19 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 			return nil, err
 		}
 		args = append(args, "--identity-key", keyFile)
+	}
+	if c.GoodBots != nil {
+		ranges, err := c.GoodBots(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("policy: %w", err)
+		}
+		if ranges != nil {
+			f := filepath.Join(dir, "good-bots.json")
+			if err := os.WriteFile(f, ranges, 0o600); err != nil {
+				return nil, err
+			}
+			args = append(args, "--good-bots", f)
+		}
 	}
 	bin := c.Binary
 	if bin == "" {

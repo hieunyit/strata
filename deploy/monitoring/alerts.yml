@@ -192,6 +192,14 @@ groups:
           summary: "control plane {{ $labels.instance }}: no GeoIP database update for over 9 days"
           description: "Events keep the last good version; check strata_cp_geoip_update_failures_total and the [WARN] GeoIP update log lines (download URL, license key, object store)."
           runbook_url: docs/runbook/geoip.md
+      - alert: StrataGoodBotsStale
+        expr: time() - strata_cp_good_bots_update_last_success_timestamp_seconds > 3 * 86400
+        for: 1h
+        labels: { severity: warning, component: control-plane }
+        annotations:
+          summary: "control plane {{ $labels.instance }}: crawler IP ranges not fully updated for over 3 days"
+          description: "Bundles keep the latest stored ranges; a crawler whose feed fails keeps its previous ranges. See the [WARN] good bots log lines."
+          runbook_url: docs/runbook/good-bots.md
       - alert: StrataRolloutStuck
         expr: strata_cp_rollout_oldest_seconds > 1800
         labels: { severity: warning, component: control-plane }

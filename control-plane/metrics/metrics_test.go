@@ -137,11 +137,15 @@ func TestStateCollector(t *testing.T) {
 		Now:                 func() time.Time { return now },
 		GeoIPLastUpdate:     func() time.Time { return now },
 		GeoIPUpdateFailures: func() uint64 { return 2 },
+		GoodBotsLastUpdate:  func() time.Time { return now },
+		GoodBotsFailures:    func() uint64 { return 1 },
 	})
 	out := scrape(t, m)
 	for _, want := range []string{
 		"strata_cp_geoip_update_last_success_timestamp_seconds 1.7918928e+09",
 		"strata_cp_geoip_update_failures_total 2",
+		"strata_cp_good_bots_update_last_success_timestamp_seconds 1.7918928e+09",
+		"strata_cp_good_bots_update_failures_total 1",
 		"strata_cp_nodes_connected 1",
 		"strata_cp_nodes_enrolled 2",
 		"strata_cp_rollouts_active 2",

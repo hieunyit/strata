@@ -312,6 +312,26 @@ tests:
               summary: "control plane cp:9470: no GeoIP database update for over 9 days"
               description: "Events keep the last good version; check strata_cp_geoip_update_failures_total and the [WARN] GeoIP update log lines (download URL, license key, object store)."
 
+  # crawler ranges: an update long ago fires after an hour; a recent one does not
+  - interval: 1m
+    input_series:
+      - series: 'strata_cp_good_bots_update_last_success_timestamp_seconds{instance="cp:9470"}'
+        values: "-1000000000x90"
+      - series: 'strata_cp_good_bots_update_last_success_timestamp_seconds{instance="cp:9471"}'
+        values: "4000000000x90"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: StrataGoodBotsStale
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: StrataGoodBotsStale
+        exp_alerts:
+          - exp_labels: { instance: "cp:9470", severity: warning, component: control-plane }
+            exp_annotations:
+              runbook_url: "docs/runbook/good-bots.md"
+              summary: "control plane cp:9470: crawler IP ranges not fully updated for over 3 days"
+              description: "Bundles keep the latest stored ranges; a crawler whose feed fails keeps its previous ranges. See the [WARN] good bots log lines."
+
   # REST: 10% 5xx fires; nodes: one of three offline for 12 minutes fires
   - interval: 1m
     input_series:
