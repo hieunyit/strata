@@ -37,12 +37,28 @@ func TestVerifier_AcceptsValidToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Subject != "alice" || p.Name != "alice" {
+	if p.Subject != "oidc:alice" || p.Name != "alice" {
 		t.Errorf("principal = %+v", p)
 	}
 	// Unknown roles are dropped, duplicates removed, order stable.
 	if got := p.Roles; len(got) != 2 || got[0] != auth.RoleOperator || got[1] != auth.RoleViewer {
 		t.Errorf("roles = %v", got)
+	}
+}
+
+// CP-SEC-01: an OIDC subject lives in its own namespace, so a token whose
+// sub looks like a local account or a service account is neither.
+func TestVerifier_SubjectNamespace(t *testing.T) {
+	is := authtest.New(t)
+	v := newVerifier(t, is)
+	for _, sub := range []string{"local:admin", "sa:ci-deployer", "oidc:alice"} {
+		p, err := v.Authenticate(context.Background(), is.Token(t, authtest.Claims{Subject: sub, Roles: []string{"admin"}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Subject != auth.OIDCSubjectPrefix+sub {
+			t.Errorf("sub %q: principal subject %q", sub, p.Subject)
+		}
 	}
 }
 
