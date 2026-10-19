@@ -1,0 +1,18 @@
+{
+  "geoip-store-red.log": {
+    "bytes": 1533,
+    "sha256": "7faee225fbb7b52bb0d635fec5db148275005f41071437e2b8eadfa7d12bf540"
+  },
+  "geoip-store-green.log": {
+    "bytes": 10282,
+    "sha256": "be7f44d183740ad92a8187915bc8d3ac20173458cd3371f42858b9f2838a74a1"
+  },
+  "geoip-store-full-cp-initial.log": {
+    "bytes": 2195,
+    "sha256": "67d20168b7d4ebfc371190b7c650bb3c55a1343d76c8ce61db9ea63068d3595a"
+  },
+  "geoip-store-full-cp.log": {
+    "bytes": 1066,
+    "sha256": "709afd6a087d0a5d38b40ee65745406cd1d458d4dd6327849d81eaf89d99fddf"
+  }
+}
