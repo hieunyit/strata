@@ -1,0 +1,14 @@
+{
+  "geoip-ingest-red-clean.log": {
+    "bytes": 7184,
+    "sha256": "71a597ad2dbabb7f6445997be4c98caa7ffdc3c678e8d0040a723310ecfd7a68"
+  },
+  "geoip-ingest-green.log": {
+    "bytes": 10450,
+    "sha256": "b18725dd1704db67692f68c08dc17429b847dd091e82101cb4d94c0957a9f258"
+  },
+  "geoip-contract.log": {
+    "bytes": 1031,
+    "sha256": "7078100ad9a00343390e6d0106119cfb2833f8a36c8121fed29d6527168c1ce9"
+  }
+}

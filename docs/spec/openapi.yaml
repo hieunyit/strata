@@ -988,6 +988,54 @@ components:
         client_ip:
           type: string
           example: 192.168.1.50
+        country_iso:
+          type: string
+          readOnly: true
+          pattern: '^([A-Z]{2}|INTERNAL)$'
+          description: Server-resolved country, or INTERNAL for non-public addresses; absent if unavailable.
+        region:
+          type: string
+          readOnly: true
+          maxLength: 256
+        city:
+          type: string
+          readOnly: true
+          maxLength: 256
+        lat:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+          minimum: -90
+          maximum: 90
+          description: Approximate latitude; absent if unknown. Zero is a valid coordinate.
+        lon:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+          minimum: -180
+          maximum: 180
+        accuracy_km:
+          type: integer
+          nullable: true
+          readOnly: true
+          minimum: 0
+          maximum: 65535
+        asn:
+          type: integer
+          readOnly: true
+          minimum: 0
+          maximum: 4294967295
+        as_org:
+          type: string
+          readOnly: true
+          maxLength: 256
+        geoip_version:
+          type: string
+          readOnly: true
+          pattern: '^[a-f0-9]{64}$'
+          description: SHA-256 fingerprint of the ordered loaded City/ASN database pair; absent without a database result.
         identity:
           type: string
           example: anon

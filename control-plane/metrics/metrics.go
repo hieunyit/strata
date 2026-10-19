@@ -229,6 +229,7 @@ var (
 	dBatches      = prometheus.NewDesc("strata_cp_ingest_batches_total", "Event batches received from agents, by result.", []string{"result"}, nil)
 	dEvents       = prometheus.NewDesc("strata_cp_ingest_events_total", "Events received from agents, by result.", []string{"result"}, nil)
 	dFlushed      = prometheus.NewDesc("strata_cp_ingest_events_stored_total", "Events written to the event store.", nil, nil)
+	dGeoIPErrors  = prometheus.NewDesc("strata_cp_ingest_geoip_errors_total", "Failed GeoIP enrichment attempts; valid security events are still persisted.", nil, nil)
 	dQueue        = prometheus.NewDesc("strata_cp_ingest_queue", "Events waiting to be written to the event store.", nil, nil)
 	dStoreErrors  = prometheus.NewDesc("strata_cp_ingest_store_errors_total", "Writes to the event store that failed.", nil, nil)
 	dTrips        = prometheus.NewDesc("strata_cp_canary_trips_total", "Canary fallbacks this control plane made (canary policies of a connector group forced into shadow), by reason.", []string{"reason"}, nil)
@@ -241,7 +242,7 @@ type stateCollector struct{ s Sources }
 
 func (c stateCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{dConnected, dEnrolled, dRollouts, dRolloutAge, dStoreUp,
-		dBatches, dEvents, dFlushed, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull} {
+		dBatches, dEvents, dFlushed, dGeoIPErrors, dQueue, dStoreErrors, dTrips, dTripOpen, dSourceFull} {
 		ch <- d
 	}
 }
@@ -314,6 +315,7 @@ func (c stateCollector) Collect(ch chan<- prometheus.Metric) {
 		counter(dEvents, st.TotalEventsValid, "valid")
 		counter(dEvents, st.TotalEventsInvalid, "invalid")
 		counter(dFlushed, st.TotalEventsFlushed)
+		counter(dGeoIPErrors, st.TotalGeoIPErrors)
 		gauge(dQueue, float64(st.BufferQueueLen))
 	}
 	if s.IngestErrors != nil {

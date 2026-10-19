@@ -126,7 +126,7 @@ func TestStateCollector(t *testing.T) {
 		},
 		Ingest: func() ingest.IngestStats {
 			return ingest.IngestStats{TotalBatchesReceived: 10, TotalBatchesAccepted: 7, TotalBatchesDropped: 2,
-				TotalEventsValid: 50, TotalEventsInvalid: 3, TotalEventsFlushed: 48, BufferQueueLen: 2}
+				TotalEventsValid: 50, TotalEventsInvalid: 3, TotalEventsFlushed: 48, TotalGeoIPErrors: 5, BufferQueueLen: 2}
 		},
 		IngestErrors:            func() uint64 { return 4 },
 		CanaryTrips:             func() map[string]uint64 { return map[string]uint64{"block_rate": 1} },
@@ -148,6 +148,7 @@ func TestStateCollector(t *testing.T) {
 		`strata_cp_ingest_batches_total{result="failed"} 1`,
 		`strata_cp_ingest_events_total{result="invalid"} 3`,
 		"strata_cp_ingest_events_stored_total 48",
+		"strata_cp_ingest_geoip_errors_total 5",
 		"strata_cp_ingest_queue 2",
 		"strata_cp_ingest_store_errors_total 4",
 		`strata_cp_build_info{commit="",version="dev"} 1`,

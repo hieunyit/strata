@@ -17,6 +17,7 @@ type IngestStats struct {
 	TotalEventsReceived  uint64
 	TotalEventsValid     uint64
 	TotalEventsInvalid   uint64
+	TotalGeoIPErrors     uint64 // enrichment failures; security events still persist
 	TotalEventsFlushed   uint64
 	BufferQueueLen       int
 	InvalidEventsByNode  map[string]uint64
@@ -32,6 +33,8 @@ type BatchGate interface {
 type IngestService struct {
 	// Gate must be configured before serving when PostgreSQL is available.
 	Gate BatchGate
+	// GeoIP must be configured before serving; readers may then be atomically reloaded.
+	GeoIP *GeoIPEnricher
 
 	dedup   *NodeDeduplicator
 	batcher *Batcher
@@ -44,6 +47,7 @@ type IngestService struct {
 	eventsReceived  atomic.Uint64
 	eventsValid     atomic.Uint64
 	eventsInvalid   atomic.Uint64
+	geoIPErrors     atomic.Uint64
 
 	nodeMu              sync.RWMutex
 	invalidEventsByNode map[string]uint64
@@ -128,6 +132,7 @@ func (s *IngestService) persistBatch(ctx context.Context, batch EventBatch) erro
 			log.Printf("[WARN] IngestService: invalid event from node %q (seq %d, block_id %q): %v", batch.NodeID, batch.Seq, evt.BlockID, err)
 			continue
 		}
+		s.enrichGeoIP(evt)
 		s.eventsValid.Add(1)
 		validEvents = append(validEvents, *evt)
 	}
@@ -179,6 +184,7 @@ func (s *IngestService) Stats() IngestStats {
 		TotalEventsReceived:  s.eventsReceived.Load(),
 		TotalEventsValid:     s.eventsValid.Load(),
 		TotalEventsInvalid:   s.eventsInvalid.Load(),
+		TotalGeoIPErrors:     s.geoIPErrors.Load(),
 		TotalEventsFlushed:   flushed,
 		BufferQueueLen:       qLen,
 		InvalidEventsByNode:  nodeInvalid,

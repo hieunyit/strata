@@ -363,6 +363,22 @@ export interface components {
       policy_version: number;
       /** @example 192.168.1.50 */
       client_ip: string;
+      /** @description Server-resolved country, or INTERNAL for non-public addresses; absent if unavailable. */
+      country_iso?: string;
+      region?: string;
+      city?: string;
+      /**
+       * Format: double
+       * @description Approximate latitude; absent if unknown. Zero is a valid coordinate.
+       */
+      lat?: number | null;
+      /** Format: double */
+      lon?: number | null;
+      accuracy_km?: number | null;
+      asn?: number;
+      as_org?: string;
+      /** @description SHA-256 fingerprint of the ordered loaded City/ASN database pair; absent without a database result. */
+      geoip_version?: string;
       /** @example anon */
       identity?: string;
       /** @example 9a3e21cb-4d89-4fa2-bf41-6e3e579bd66c */
