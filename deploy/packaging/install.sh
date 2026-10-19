@@ -3,6 +3,7 @@
 # RHEL-family machine.
 #
 #   sh install.sh --packages <dir|URL> [--nginx <version>]
+#                 [--packages-only]
 #                 [--server <host:port> --token-file <file> --ca <file> [--server-name <name>]]
 #
 # 1. NGINX: the one installed, or, if none, <version> from nginx.org (the
@@ -21,10 +22,11 @@ set -eu
 die() { echo "strata-install: $*" >&2; exit 1; }
 say() { echo "strata-install: $*"; }
 
-pkgs="" nginx_ver="" server="" server_name="" token_file="" ca=""
+pkgs="" nginx_ver="" server="" server_name="" token_file="" ca="" packages_only=false
 while [ $# -gt 0 ]; do
     case "$1" in
         --packages) pkgs=${2:?}; shift 2 ;;
+        --packages-only) packages_only=true; shift ;;
         --nginx) nginx_ver=${2:?}; shift 2 ;;
         --server) server=${2:?}; shift 2 ;;
         --server-name) server_name=${2:?}; shift 2 ;;
@@ -35,6 +37,9 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$pkgs" ] || die "usage: install.sh --packages <dir|URL> [--nginx <version>] [--server <host:port> --token-file <file> --ca <file>]"
 [ "$(id -u)" = 0 ] || die "run as root"
+if [ "$packages_only" = true ]; then
+    [ -z "$server$server_name$token_file$ca" ] || die "--packages-only cannot enroll a node"
+fi
 if [ -n "$server" ]; then
     [ -r "${token_file:-/nonexistent}" ] || die "--server needs --token-file <readable file>"
     [ -r "${ca:-/nonexistent}" ] || die "--server needs --ca <readable file>"
@@ -100,9 +105,14 @@ if [ -z "$installed" ]; then
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -qq
         apt-get install -y -qq curl gnupg ca-certificates >/dev/null
-        curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor > /usr/share/keyrings/nginx-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/${branch}$ID $VERSION_CODENAME nginx" \
+        curl -fsSL https://nginx.org/keys/nginx_signing.key -o "$work/nginx-signing.key"
+        gpg --batch --dearmor -o "$work/nginx-keyring.gpg" "$work/nginx-signing.key"
+        # _apt reads signed-by keys after dropping root. Do not inherit the
+        # caller's umask (standalone uses 077 for private bundle snapshots).
+        install -m 0644 "$work/nginx-keyring.gpg" /usr/share/keyrings/nginx-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/${branch}$ID $VERSION_CODENAME nginx" \
             > /etc/apt/sources.list.d/nginx.list
+        chmod 0644 /etc/apt/sources.list.d/nginx.list
         apt-get update -qq
         full=$(apt-cache madison nginx | awk -v v="$nginx_ver" '$3 ~ "^"v"-" { print $3; exit }')
         [ -n "$full" ] || die "nginx.org has no NGINX $nginx_ver for $ID $VERSION_CODENAME"
@@ -111,7 +121,7 @@ if [ -z "$installed" ]; then
         cat > /etc/yum.repos.d/nginx.repo <<EOF
 [nginx]
 name=nginx.org
-baseurl=http://nginx.org/packages/${branch}rhel/\$releasever/\$basearch/
+baseurl=https://nginx.org/packages/${branch}rhel/\$releasever/\$basearch/
 gpgcheck=1
 enabled=1
 gpgkey=https://nginx.org/keys/nginx_signing.key
@@ -134,6 +144,11 @@ if [ $fam = deb ]; then
     apt-get install -y -qq "$dir/$agent_pkg" "$dir/$module_pkg" >/dev/null
 else
     dnf install -y -q "$dir/$agent_pkg" "$dir/$module_pkg" >/dev/null
+fi
+
+if [ "$packages_only" = true ]; then
+    say "packages installed; NGINX configuration and Strata activation left to caller"
+    exit 0
 fi
 
 conf=/etc/nginx/nginx.conf
