@@ -1,0 +1,22 @@
+# Go dependency security repair during branch consolidation
+
+The Go runtime prerequisite is on main in #239. Its full-control-plane scan exposed separate dependency findings: gRPC transport/parser/auth paths, pgx SQL sanitizer, JOSE decryption, OAuth token parsing and x/net HTTP/2. The subsequent nine-module scan also found a reachable Unicode normalization advisory in strata-mutate and older x/text pins in strata-rules. These are scanner call-graph findings, not proof that every advisory's exploitation preconditions hold in Strata (for example xDS routing/JWE/simple PostgreSQL protocol are conditional).
+
+Pins now select gRPC 1.83.2, pgx 5.9.2, JOSE 4.1.4, x/net 0.60.0, x/crypto 0.57.0 and OAuth 0.36.0, with their required compatible transitive versions. The first gRPC 1.83.1 candidate still produced a GO-2026-6443 trace; the final candidate uses the upstream branch's 1.83.2 patch. Mutate/rules now use x/text 0.42.0. Agent's compression dependency moves to 1.19.1, already used by the control plane/e2e, eliminating the unimported S2 module advisory too. Existing e2e's higher gRPC 1.84.0 pin remains unchanged. No security controls or tests are disabled; all selected checksums are in go.sum.
+
+## Validation
+
+Go 1.26.9, real owned lab fixtures:
+
+- Full control-plane race tests, lint and server build passed with gRPC 1.83.2; API 12.477s, Fleet 37.099s, local auth 28.694s, store 19.946s (raw output is authoritative). Agent race/lint/build passed with the transport patches, then its full suite/lint/build passed again after the final compression pin.
+- Full e2e without -short: 14 tests passed in 401.797s, including real mTLS agent enrollment/revocation, short-certificate renewal, force-shadow/diagnostics, lossless restart with ClickHouse, migrations up/down/up, four-eyes replay/deploy, signature refusal, rollout and both Toxiproxy network-fault tests. Network-outage duration was explicitly 20s, not the five-minute default. Four opt-in native NGINX/M4/restart/corruption fixtures were not configured and skipped; they are not counted as passes. E2e lint reports 0 issues.
+- The final compression change was followed by fresh full agent race/lint/build/scan and real-process enrollment/revocation plus force-shadow acceptance (33.978s), with e2e lint 0. The preceding 401.797s full e2e used the same final gRPC/DB/auth pins and the preceding agent-only compression pin; its CP/e2e compression dependency was already 1.19.1. This distinction is retained rather than claiming a second full e2e on the final tiny pin change.
+- Changed mutate/rules/comparison modules passed race tests and lint; Coraza test used the already verified CRS 4.25.2 fixture. All other Go modules passed their runtime-upgrade race/lint/build checks in #239.
+
+All nine final source scans have zero affected **imported packages or reachable symbols**. Eight modules have zero finding records. Control-plane has one remaining **module-only** advisory, GO-2026-5932, for x/crypto's deprecated OpenPGP package. Its imported package graph contains no openpgp package; maintained x/crypto primitives are still required. No advisory is suppressed. The raw JSON streams, DB timestamp, summaries and package graph are retained. JSON-mode exit code and returned OSV metadata alone are not used to declare the graph clean. This is not a scan of JS/Rust/C or all unmerged feature branches.
+
+Reproduce with the review dev image from #239: full `go test -race -count=1 ./...`, `golangci-lint run` in changed modules, and `go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 -json ./...` in each of the nine Go modules. E2e requires Docker access and only fresh owned lab services. No running lab/staging/production service was redeployed.
+
+Sources: [gRPC OOM fix](https://github.com/grpc/grpc-go/security/advisories/GHSA-vp52-pcj8-j9qc), [gRPC authority patch branches](https://github.com/grpc/grpc-go/security/advisories/GHSA-2v4p-qf9q-27wj), [pgx sanitizer preconditions/fix](https://github.com/jackc/pgx/security/advisories/GHSA-j88v-2chj-qfwx), [JOSE panic fix](https://github.com/go-jose/go-jose/security/advisories/GHSA-78h2-9frx-2jm8), [normalization advisory](https://vuln.go.dev/ID/GO-2026-5970.json).
+
+Self-review: product/proto/rule/ABI behavior unchanged; package versions and transitives reviewed; tests and warnings retained; only manifests/checksums and evidence/docs changed relative to current main. Deployed binaries still need rebuilding/redeployment by their operator.
