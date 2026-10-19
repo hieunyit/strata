@@ -30,6 +30,7 @@ import (
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
+	"github.com/strata/strata/control-plane/goodbots"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
@@ -100,6 +101,7 @@ func main() {
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	geoIPCity := flag.String("geoip-city", "", "Operator-provided GeoIP2/GeoLite2 City .mmdb file (optional)")
 	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
+	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the object store (-s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
 	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the object store (-s3-*) and activated")
 	flag.Parse()
 	mx := metrics.New(version, commit)
@@ -457,6 +459,19 @@ func main() {
 		}
 	}()
 
+	var goodBots *goodbots.Updater
+	if *goodBotsEvery > 0 {
+		if *s3Endpoint == "" {
+			log.Fatal("[FATAL] -good-bots-interval stores each version in the object store: set -s3-endpoint")
+		}
+		gbObjects := objects
+		if gbObjects == nil {
+			gbObjects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
+				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		}
+		goodBots = &goodbots.Updater{Objects: gbObjects, IsNotFound: policy.IsObjectNotFound}
+		go goodBots.Run(ctx, *goodBotsEvery)
+	}
 	var geoUpdater *ingest.GeoIPUpdater
 	if geoUpdates {
 		if *s3Endpoint == "" {
@@ -543,6 +558,9 @@ func main() {
 		if geoUpdater != nil {
 			src.GeoIPLastUpdate, src.GeoIPUpdateFailures = geoUpdater.LastSuccess, geoUpdater.Failures
 		}
+		if goodBots != nil {
+			src.GoodBotsLastUpdate, src.GoodBotsFailures = goodBots.LastSuccess, goodBots.Failures
+		}
 		mx.Watch(src)
 		ms := &http.Server{Addr: *metricsAddr, Handler: mx.Handler(), ReadHeaderTimeout: 5 * time.Second}
 		go func() {
@@ -615,7 +633,9 @@ func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer
 		Builder: &policy.Compiler{StagingStore: pg, Binary: bin, Signer: signer, KeyFile: key, Rules: ruleFiles, BlockPage: blockPage,
 			SupportContact: contact, CostBudget: budget,
 			// P-01 §1: from a secret manager, or kept by the control plane
-			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key},
+			IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key,
+			// W18-G2-02: the latest crawler ranges, when the job stored some
+			GoodBots: goodbots.ForCompiler(objects, policy.IsObjectNotFound)},
 		Objects: objects,
 		PubKey:  pub,
 	}
