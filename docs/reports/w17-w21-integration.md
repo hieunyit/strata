@@ -6,7 +6,7 @@ awaited per user instruction. Existing Done claims are not acceptance evidence.
 
 | Week | Accepted work / evidence | Remaining boundary |
 | --- | --- | --- |
-| 17 | [SSTI component](ssti-detector-review.md), [compiler/runtime](w17-ssti-runtime-review.md), [CMDi](w17-cmdi-review.md). MMDB reader/cache/authoritative ingest/storage/startup foundations accepted in #241–245 | JA4 reference vectors/runtime; GeoIP update job, aggregate API, offline tiles/map, PL2/exclusions and load acceptance |
+| 17 | [SSTI component](ssti-detector-review.md), [compiler/runtime](w17-ssti-runtime-review.md), [CMDi](w17-cmdi-review.md), [JA4](rv-n-02.md), [GeoIP aggregates](w17-g2-01.md). MMDB reader/cache/authoritative ingest/storage/startup foundations accepted in #241–245 | GeoIP update job, aggregate API, offline tiles/map, PL2/exclusions and load acceptance |
 | 18 | Foundations above retained | Stats/geo/timeline/SSE and UI; authenticated/expiring bot feeds and actual engine verification; CRS expansion/bot pack review |
 | 19 | [Lite packaging/installer](standalone-installer-review.md), [bootstrap](standalone-bootstrap-review.md) | Geo/ASN compiler+verdict+approved-policy path and drill-down. [Clean-VM acceptance held by user](standalone-vm-hold.md) |
 | 20 | Unsafe blanket SQLi exemptions excluded; existing detector and malicious regressions retained | Corpus-based FP tuning, replay-safe hourly aggregates, dashboard using real telemetry and API template |
