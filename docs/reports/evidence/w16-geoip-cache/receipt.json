@@ -10,5 +10,9 @@
   "source-red-harness.tar.gz": {
     "bytes": 2494,
     "sha256": "097ca56a821e2697330951cf6d492f2743799789184e93f0887524b7f4c95b09"
+  },
+  "geoip-cache-current-main.log": {
+    "bytes": 8862,
+    "sha256": "3360cc851c34aa73c0a19a2c52395bed203b4ed418b3946753e95a43fc3646cd"
   }
 }
