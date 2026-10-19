@@ -127,6 +127,15 @@ func TestGeoAggregates_ClickHouse(t *testing.T) {
 		t.Errorf("ASN 0: %+v", v)
 	}
 
+	types, err := ch.GeoByAttackType(ctx, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ty := byKey(types)
+	if ty["sqli"].Events != 3 || ty["sqli"].Blocked != 3 || ty["sqli"].TopAttack != "sqli" || ty["scanner"].Events != 3 || ty["xss"].Events != 1 || ty["none"].Events != 1 {
+		t.Errorf("attack types: %+v", types)
+	}
+
 	cells, err := ch.GeoByCell(ctx, f)
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +200,11 @@ func TestGeoAggregates_ClickHouse(t *testing.T) {
 		}
 		block, shadow, other = block+b.Block, shadow+b.Shadow, other+b.Other
 	}
-	if len(buckets) != 11 || block != 6 || shadow != 1 || other != 1 {
+	var errs uint64
+	for _, b := range buckets {
+		errs += b.Error
+	}
+	if len(buckets) != 11 || block != 6 || shadow != 1 || other != 1 || errs != 1 {
 		t.Errorf("timeline: %d buckets, block %d shadow %d other %d", len(buckets), block, shadow, other)
 	}
 	if _, err := ch.GeoTimeline(ctx, GeoFilter{From: now.Add(-48 * time.Hour), To: now}, time.Minute); err == nil {

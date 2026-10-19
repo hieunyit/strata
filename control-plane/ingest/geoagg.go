@@ -252,6 +252,11 @@ func (s *ClickHouseStore) GeoByASN(ctx context.Context, f GeoFilter) ([]GeoCount
 	return s.geoRank(ctx, f, GeoMinuteTable, "minute", time.Minute, "toString(asn)", "any(as_org)")
 }
 
+// GeoByAttackType ranks attack types (AttackTypes), most events first.
+func (s *ClickHouseStore) GeoByAttackType(ctx context.Context, f GeoFilter) ([]GeoCount, error) {
+	return s.geoRank(ctx, f, GeoMinuteTable, "minute", time.Minute, "attack_type", "''")
+}
+
 // GeoByCell gives the geohash cells (precision 4, about 20-40 km) with
 // events, at each cell's center (never an IP's coordinates).
 func (s *ClickHouseStore) GeoByCell(ctx context.Context, f GeoFilter) ([]GeoCount, error) {
@@ -337,17 +342,20 @@ type GeoStatsStore interface {
 	GeoByCountry(context.Context, GeoFilter) ([]GeoCount, error)
 	GeoByASN(context.Context, GeoFilter) ([]GeoCount, error)
 	GeoByCell(context.Context, GeoFilter) ([]GeoCount, error)
+	GeoByAttackType(context.Context, GeoFilter) ([]GeoCount, error)
 	GeoTimeline(context.Context, GeoFilter, time.Duration) ([]GeoBucket, error)
 }
 
 var _ GeoStatsStore = (*ClickHouseStore)(nil)
 
 // GeoBucket is one point of the timeline: distinct events starting in the
-// bucket, by action (other: pass and error).
+// bucket, by action; Other is pass and error, Error the error part of it
+// (fail mode: not inspected), as in OverviewBucket.
 type GeoBucket struct {
 	Start  time.Time `json:"start"`
 	Block  uint64    `json:"block"`
 	Shadow uint64    `json:"shadow"`
+	Error  uint64    `json:"error"`
 	Other  uint64    `json:"other"`
 }
 
@@ -398,6 +406,7 @@ func (s *ClickHouseStore) GeoTimeline(ctx context.Context, f GeoFilter, step tim
 	q := fmt.Sprintf(`SELECT toStartOfInterval(minute, INTERVAL %d SECOND) AS b,
 			uniqCombined64MergeIf(events, action = 'block'),
 			uniqCombined64MergeIf(events, action = 'shadow'),
+			uniqCombined64MergeIf(events, action = 'error'),
 			uniqCombined64MergeIf(events, action NOT IN ('block', 'shadow'))
 		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), GeoMinuteTable, where)
 	got := map[int64]GeoBucket{}
@@ -408,7 +417,7 @@ func (s *ClickHouseStore) GeoTimeline(ctx context.Context, f GeoFilter, step tim
 	defer rows.Close()
 	for rows.Next() {
 		var b GeoBucket
-		if err := rows.Scan(&b.Start, &b.Block, &b.Shadow, &b.Other); err != nil {
+		if err := rows.Scan(&b.Start, &b.Block, &b.Shadow, &b.Error, &b.Other); err != nil {
 			return nil, fmt.Errorf("GeoIP timeline: %w", err)
 		}
 		got[b.Start.UTC().Unix()] = b

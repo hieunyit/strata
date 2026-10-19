@@ -112,6 +112,8 @@ func geoRows(ctx context.Context, g ingest.GeoStatsStore, groupBy string, f inge
 		return g.GeoByCountry(ctx, f)
 	case "asn":
 		return g.GeoByASN(ctx, f)
+	case "attack_type":
+		return g.GeoByAttackType(ctx, f)
 	default: // city: validated by the caller
 		return g.GeoByCell(ctx, f)
 	}
@@ -121,10 +123,10 @@ func geoGroupBy(r *http.Request) (string, error) {
 	switch v := r.URL.Query().Get("groupBy"); v {
 	case "":
 		return "country", nil
-	case "country", "city", "asn":
+	case "country", "city", "asn", "attack_type":
 		return v, nil
 	}
-	return "", errors.New("groupBy must be country, city or asn")
+	return "", errors.New("groupBy must be country, city, asn or attack_type")
 }
 
 func (h *EventHandler) statsFailed(w http.ResponseWriter, r *http.Request, what string, err error) {
@@ -136,7 +138,7 @@ func (h *EventHandler) statsFailed(w http.ResponseWriter, r *http.Request, what 
 	writeError(w, http.StatusInternalServerError, "internal server error", "")
 }
 
-// HandleGeoStats handles GET /v1/stats/geo?from=&to=&groupBy=country|city|asn
+// HandleGeoStats handles GET /v1/stats/geo?from=&to=&groupBy=country|city|asn|attack_type
 // and the filters of geoFilter. Rows are most events first; city rows are
 // geohash cells (precision 4) at their center, never an IP's location.
 func (h *EventHandler) HandleGeoStats(w http.ResponseWriter, r *http.Request) {

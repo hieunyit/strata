@@ -201,11 +201,16 @@ export interface components {
       /** Format: date-time */
       to: string;
       /** @enum {string} */
-      group_by: "country" | "city" | "asn";
+      group_by: "country" | "city" | "asn" | "attack_type";
       rows: components["schemas"]["GeoCount"][];
       approximate: boolean;
     };
     GeoBucket: {
+      /**
+       * Format: int64
+       * @description Of other, the events in fail mode (not inspected).
+       */
+      error: number;
       /** Format: date-time */
       start: string;
       /** Format: int64 */
@@ -236,7 +241,7 @@ export interface components {
       /** Format: date-time */
       to: string;
       /** @enum {string} */
-      group_by: "country" | "city" | "asn";
+      group_by: "country" | "city" | "asn" | "attack_type";
       rows: components["schemas"]["GeoCount"][];
       approximate: boolean;
     };
@@ -1176,8 +1181,8 @@ export interface operations {
         from?: string;
         /** @description End of the window (exclusive), RFC 3339. Default now. The window is at most 400 days. */
         to?: string;
-        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates) or asn (0: unknown). */
-        groupBy?: "country" | "city" | "asn";
+        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates), asn (0: unknown) or attack_type. */
+        groupBy?: "country" | "city" | "asn" | "attack_type";
         limit?: number;
         policy_id?: string;
         action?: "block" | "shadow" | "pass" | "error";
@@ -1279,8 +1284,8 @@ export interface operations {
         window?: string;
         /** @description How often the rows are read, 2s to 5s. */
         interval?: string;
-        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates) or asn (0: unknown). */
-        groupBy?: "country" | "city" | "asn";
+        /** @description country (empty: unknown, INTERNAL: private addresses), city (geohash cells of precision 4, about 20-40 km, at their center; never an IP's coordinates), asn (0: unknown) or attack_type. */
+        groupBy?: "country" | "city" | "asn" | "attack_type";
         limit?: number;
         policy_id?: string;
         action?: "block" | "shadow" | "pass" | "error";
