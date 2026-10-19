@@ -69,7 +69,8 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | Differential với Coraza + CRS 4.25.2 | **Có** | `make coraza-diff` (`tools/coraza-diff`, `docs/reports/w12/r01-coraza-diff.md`): mọi khác biệt có lý do, 0 ticket |
 | Policy editor | **Một phần** | Form + YAML, lưu bản nháp (`ui/src/__tests__/PolicyEditor.test.tsx`, `ui/tests/policy-editor.spec.ts`); diff hai phiên bản theo khối (W12-F-01, `PolicyDiff.test.tsx`, `ui/tests/policy-diff.spec.ts`). Có hàng chờ/replay/diff/submit/approve/reject và pin report; kiểm local ở [acceptance](reports/review-browser-acceptance.md) |
 | Luồng duyệt policy | **Một phần** | API (W13-G2-02): `:submit`, `:approve`, `:reject`, người soạn/gửi không tự duyệt (theo `sub`, có CHECK trong DB), duyệt cần replay DONE (PO 16/10), deploy chỉ lấy bản đã duyệt, hàng chờ `…/-/versions?state=SUBMITTED` (`tests/e2e/four_eyes_test.go`). Có hàng chờ và proof đã duyệt, [UI/API](reports/review-browser-acceptance.md) đạt acceptance local; chưa triển khai route thật |
-| GitOps, OpenAPI công khai, bản đồ GeoIP | **Thiết kế** | W19–W21 |
+| GitOps, OpenAPI công khai | **Thiết kế** | W19–W21 |
+| Bản đồ GeoIP | **Một phần** | Tra `.mmdb` khi ingest (#241–245); [bảng tổng hợp theo phút / ô geohash 5 phút](reports/w17-g2-01.md) đếm sự kiện khác nhau (W17-G2-01). Chưa có job tải `.mmdb` hằng tuần, API `/v1/stats/geo`, bản đồ nền tự host (cần PO duyệt ranh giới Hoàng Sa, Trường Sa) |
 | Connector khác NGINX (Apache, HAProxy, Envoy, Kong) | **Thiết kế** | Chỉ có NGINX; connector khác sau v1 |
 | Chế độ Lite cho cụm nhỏ | **Một phần** | Agent standalone, gói systemd và installer đã có [bằng chứng local](reports/standalone-installer-review.md); [bootstrap Ubuntu/Debian](reports/standalone-bootstrap-review.md) pass. Nghiệm thu VM sạch/chặn SQLi dưới 5 phút **chờ theo quyết định PO**; [lượt TCG chưa đạt](reports/standalone-vm-hold.md) |
 

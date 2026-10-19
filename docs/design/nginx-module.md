@@ -708,6 +708,8 @@ Control plane tải cơ sở dữ liệu `.mmdb` theo lịch (mặc định hằ
 2. Ghi vào ClickHouse bảng `events`; materialized view tổng hợp theo phút theo (site, policy, action, loại tấn công, quốc gia, ASN) và theo 5 phút theo ô lưới địa lý (geohash độ chính xác 4, khoảng 20–40 km) cho lớp thành phố.
 3. Thời gian lưu: sự kiện gốc 90 ngày, bảng tổng hợp 13 tháng (cấu hình được).
 
+*Hiện trạng (W17-G2-01):* bảng `events_geo_minute_v1` và `events_geo_grid_v1` (AggregatingMergeTree) do materialized view của bảng `events` ghi, theo phút (policy, action, loại tấn công, quốc gia, ASN) và theo 5 phút (geohash 4, policy, action, loại tấn công, quốc gia). Bảng `events` có thể giữ một sự kiện hai lần tới khi merge (batch gửi lại sau timeout hoặc crash), nên view lưu `uniqCombined64(block_id)` chứ không `count()`: chính xác với tập nhỏ, sai số khoảng 1% khi cộng dồn tập lớn; số chính xác vẫn lấy từ bảng `events`. Loại tấn công suy từ Rule ID đã khớp (`ingest.AttackTypeSQL`), vì engine chấm điểm theo layer, không theo loại tấn công. Chưa có "site": sự kiện chưa mang connector group. Metadata vị trí không có phiên bản GeoIP (dữ liệu cũ chưa xác minh) không vào bảng tổng hợp. `-geo-aggregates-months` (mặc định 13) đặt TTL; lần khởi động đầu, control plane backfill từ sự kiện đã lưu (chạy lại an toàn).
+
 **API cho bản đồ** (thuộc `strata.admin.v1.StatsService`)
 
 | Endpoint | Mục đích |

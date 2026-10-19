@@ -52,6 +52,7 @@ func main() {
 	chUser := flag.String("clickhouse-user", "default", "ClickHouse user; the password is read from STRATA_CLICKHOUSE_PASSWORD")
 	seed := flag.Bool("seed", false, "With -in-memory, add sample events")
 	ttlDays := flag.Int("events-ttl-days", 90, "Retention of events in ClickHouse, in days (the table's TTL is set to it at start); 0 leaves the table as it is")
+	geoMonths := flag.Int("geo-aggregates-months", 13, "Retention of the GeoIP aggregates (per minute, per 5-minute geohash cell) in ClickHouse, in months; 0 leaves the tables as they are")
 	grpcAddr := flag.String("grpc-addr", "", "FleetService (PushEvents) listen address; empty disables it")
 	tlsCA := flag.String("tls-ca", "", "CA that signs node certificates (FleetService mTLS)")
 	tlsCert := flag.String("tls-cert", "", "FleetService server certificate")
@@ -168,6 +169,10 @@ func main() {
 		if err := chStore.EnsurePolicyRequests(ctx, *ttlDays); err != nil {
 			log.Fatalf("[FATAL] ClickHouse: %v", err)
 		}
+		if err := chStore.EnsureGeoAggregates(ctx, *geoMonths); err != nil {
+			log.Fatalf("[FATAL] ClickHouse: %v", err)
+		}
+		go backfillGeoAggregates(ctx, chStore, *ttlDays)
 		store = chStore
 	}
 
