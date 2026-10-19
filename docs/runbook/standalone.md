@@ -1,0 +1,33 @@
+# Standalone: kiểm bundle trước khi cấu hình route
+
+Lõi agent và service/socket standalone đã được kiểm riêng; installer một lệnh
+và nghiệm thu dưới năm phút trên VM sạch vẫn đang làm. Xem
+[phạm vi và bằng chứng](../reports/standalone-review.md).
+
+Dùng public key do người vận hành tin cậy cung cấp, không lấy key từ chính bundle
+đang cần xác minh. Trước khi đưa bundle vào nguồn agent theo dõi:
+
+```sh
+strata-agent verify-bundle --bundle-file bundle.sbn --bundle-pubkey bundle.pub \
+  --policy example-api --require-enforce
+```
+
+`--policy` yêu cầu tên tồn tại duy nhất trong bảng policy đã ký. Tên phải khớp
+`strata_policy` trong cấu hình route. `--require-enforce` yêu cầu mode enforce,
+không chia canary; lệnh từ chối policy shadow/canary và không tự đổi mode.
+Bỏ cờ này nếu chủ ý kiểm một policy shadow. Bỏ cả hai cờ giữ kiểm chữ ký/header
+như trước. Không ghi control file, không cài bundle hay khởi động service.
+
+Kiểm thành công không chứng minh toàn bộ layout/section, phiên bản Hyperscan,
+chất lượng rule, cấu hình NGINX hoặc khả năng chặn một payload. Vẫn phải chạy
+`nginx -t` bằng module thực tế và kiểm benign/attack trên route lab. Policy trong
+bundle có mode enforce cũng có thể được NGINX ép shadow; staging overlay và
+rule exceptions vẫn có hiệu lực. Thực hiện lại kiểm tra trước mỗi lần phát hành
+bundle mới; lệnh preflight không giám sát các lần cập nhật URL sau đó.
+
+Service standalone dùng `/etc/strata/standalone.env`, một giá trị cho mỗi tham số.
+`STRATA_BUNDLE_SOURCE` chứa đúng một `--bundle-file=...` hoặc `--bundle-url=...`;
+bao giá trị bằng dấu nháy kép nếu đường dẫn có khoảng trắng. Public key của
+service nằm tại `/etc/strata/bundle.pub`. Bundle/control/socket phải khớp đường
+dẫn module; file nguồn và thư mục cài bundle nên tách riêng. Service/socket
+standalone xung đột với cặp Fleet và không tự bật khi chỉ cài gói.
