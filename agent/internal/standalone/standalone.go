@@ -20,6 +20,8 @@ import (
 // Config configures the standalone runner.
 type Config struct {
 	Standalone         bool
+	RequiredPolicy     string
+	RequireFullEnforce bool
 	EventSocket        string        // unix socket: /run/strata/events.sock
 	ControlFile        string        // /run/strata/control
 	BundleFile         string        // e.g. /var/lib/strata/bundles/bundle.sbn
@@ -67,6 +69,7 @@ func New(cfg Config) (*Runner, error) {
 		cfg.ControlFile,
 		cfg.BundlePubKey,
 		cfg.BundlePollInterval,
+		PolicyRequirement{Name: cfg.RequiredPolicy, FullEnforce: cfg.RequireFullEnforce},
 	)
 	if err != nil {
 		_ = exporter.Close()
