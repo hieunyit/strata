@@ -161,7 +161,10 @@ services:
   control-plane:
     <<: *runtime
     read_only: true
-    tmpfs: [/tmp] # strata-compile works in a temporary directory
+    # strata-compile works in a temporary directory, and since M5 (replay
+    # provenance) the control plane runs a snapshot copy of the compiler
+    # from there: Docker mounts tmpfs noexec by default, so exec is needed
+    tmpfs: ["/tmp:exec,mode=1777"]
     command:
       - strata-control-plane
       - -addr=:8080
