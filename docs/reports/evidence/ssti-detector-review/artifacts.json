@@ -1,0 +1,11 @@
+{
+  "base": "a8c87b73abbd7c22e49a4ed112aebd83da69de78",
+  "source": "25e959e1b8f2d5a0fd6858033e0ab06889171b9a",
+  "source_file_sha256": "c614246c5e75b254cec807552ef1f8f4064db0e85c4a215826d1892b3c89b4b2",
+  "sha256": {
+    "engine/src/detectors/injection/ssti.rs": "074385134c36eb04fe94cb4ea45ec8d4c63089958269a9860e268d2cc5c416fe",
+    "engine/src/detectors/injection/mod.rs": "7c44aba8b69f63e2cc6305700e38975e1cede5b0d3db56fea9ad4af13b98e160",
+    "docs/reports/evidence/ssti-detector-review/probe.rs": "ec212c1a62e746278b55c005ef85fa23f1ef565a4c53bcd923f77dd0d2d7d0ad",
+    "docs/reports/evidence/ssti-detector-review/reproduce.sh": "59e6082717630f39ffed42fc1b8e131ed20cf4df7c453c2dda477d0fc00027ec"
+  }
+}

@@ -7,6 +7,8 @@
 
 pub mod html5;
 pub mod sqli;
+/// SSTI component; not yet exposed as a rule operator.
+pub mod ssti;
 #[rustfmt::skip]
 mod sqli_data;
 pub mod xss;
