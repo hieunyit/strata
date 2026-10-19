@@ -97,3 +97,13 @@ Full agent -race and lint pass (standalone 1.508s, bundlefmt 1.252s; raw output 
 Systemd now passes individual STRATA_REQUIRED_POLICY / STRATA_REQUIRE_FULL_ENFORCE values to the reviewed runtime pin (#249). Defaults are defined in the unit as well as the new env template, so a preserved legacy EnvironmentFile without these variables still starts. Neither pin nor mode is enabled automatically.
 
 The executable package harness adds --policy-pin and checks the actual process argv. Fresh Ubuntu/deb with the pin enabled: **165/165 events PASS, 29.157s**. Fresh Rocky/rpm upgraded from the preserved, SHA-matched #247 baseline package to this candidate, with no new variables in its old env: **165/165 PASS, 28.001s**. Both verify install/upgrade/removal, socket activation/inode, unchanged control/env, no unintended Fleet switch, loopback signed URL and the disclosed local Fleet-hook stub. These runs used the same Go product source now accepted in #249 plus this exact unit patch; subsequent Go edits added tests only. Extracted deb agent/service/env bytes match the reviewed inputs. [Receipts/package logs](evidence/standalone-policy-unit/) retain artifact hashes. This is systemd transport/configuration proof, not native NGINX installer, real VM or core-rule acceptance. No product Go change in this follow-up; shell/Python/diff checks pass, no dependency or privilege expansion.
+
+## Selected one-command installer
+
+[Installer review and acceptance boundary](standalone-installer-review.md) now
+covers local trusted packages, a real 212-rule core pack, native bundle preflight,
+explicit policy/route activation, SQLi and rule hot reload with stable worker PIDs.
+Fresh systemd containers pass for Ubuntu/deb and Rocky/rpm (the Rocky lab option
+uses only the upstream NGINX repo because OS dependencies already exist). Invalid
+signed metadata/layout and failed activation are covered. The clean-VM/five-minute
+criterion and disposition of inherited W17–W19 source code remain open.
