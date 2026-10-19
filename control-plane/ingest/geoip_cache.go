@@ -84,24 +84,31 @@ func cloneGeoLocation(loc *GeoIPLocation) *GeoIPLocation {
 	return &out
 }
 
-func (e *GeoIPEnricher) Resolve(raw string) (*GeoIPLocation, error) {
+func parseGeoIPAddr(raw string) (netip.Addr, bool) {
 	if len(raw) == 0 || len(raw) > 128 {
-		return nil, nil
+		return netip.Addr{}, false
 	}
 	a, err := netip.ParseAddr(strings.TrimSpace(raw))
 	if err != nil {
 		hp, err := netip.ParseAddrPort(strings.TrimSpace(raw))
 		if err != nil {
-			return nil, nil
+			return netip.Addr{}, false
 		}
 		a = hp.Addr()
 	}
-	a = a.WithZone("").Unmap()
+	return a.WithZone("").Unmap(), true
+}
+
+func (e *GeoIPEnricher) Resolve(raw string) (*GeoIPLocation, error) {
+	a, ok := parseGeoIPAddr(raw)
+	if !ok {
+		return nil, nil
+	}
 	generation := e.snapshot.Load()
 	if generation == nil {
 		return nil, nil
 	}
-	if a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsMulticast() || a.IsUnspecified() || !a.IsGlobalUnicast() || geoIPSharedAddressSpace.Contains(a) {
+	if geoIPInternal(a) {
 		return &GeoIPLocation{CountryISO: "INTERNAL"}, nil
 	}
 	generation.mu.RLock()
@@ -129,4 +136,8 @@ func (e *GeoIPEnricher) Resolve(raw string) (*GeoIPLocation, error) {
 	}
 	generation.mu.Unlock()
 	return location, nil
+}
+
+func geoIPInternal(a netip.Addr) bool {
+	return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsMulticast() || a.IsUnspecified() || !a.IsGlobalUnicast() || geoIPSharedAddressSpace.Contains(a)
 }

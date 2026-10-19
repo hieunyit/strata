@@ -123,25 +123,36 @@ func (s *ClickHouseStore) EnsureTTL(ctx context.Context, days int) error {
 }
 
 // contextColumns are the columns added after the first schema (RV-G2-01,
-// RV-N-01): tables made before them get them with EnsureColumns.
+// RV-N-01, W16 GeoIP): older tables get them with EnsureColumns.
 var contextColumns = []string{
 	"user_agent String CODEC(ZSTD(1))",
 	"referer String CODEC(ZSTD(1))",
 	"headers Nested(name LowCardinality(String), value String)",
 	"inspection LowCardinality(String)",
 	"rule_costs Nested(rule_id UInt32, samples UInt64, total_ns UInt64, max_ns UInt64)",
+	"country_iso LowCardinality(String)",
+	"region String CODEC(ZSTD(1))",
+	"city String CODEC(ZSTD(1))",
+	"lat Nullable(Float64)",
+	"lon Nullable(Float64)",
+	"accuracy_km Nullable(UInt16)",
+	"asn UInt32",
+	"as_org String CODEC(ZSTD(1))",
+	"geoip_version String CODEC(ZSTD(1))",
 }
 
 // EnsureColumns adds the columns of later schemas to an events table made
 // before them (schema.sql only runs when ClickHouse creates its volume).
-// Adding a column is a metadata change: old rows read the default.
+// Missing columns read their defaults for old rows. Legacy coordinate types are
+// upgraded before serving, preserving raw values but withholding unversioned
+// location metadata in Get/Search.
 func (s *ClickHouseStore) EnsureColumns(ctx context.Context) error {
 	for _, c := range contextColumns {
 		if err := s.conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s", s.tableName, c)); err != nil {
 			return fmt.Errorf("adding column %q to the events table: %w", c, err)
 		}
 	}
-	return nil
+	return s.ensureGeoIPCoordinateTypes(ctx)
 }
 
 // Conn returns the underlying ClickHouse connection.
@@ -161,7 +172,8 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 		status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 		matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 		received_at, user_agent, referer, headers.name, headers.value, inspection,
-		rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns
+		rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns,
+		country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version
 	)`, s.tableName)
 
 	batch, err := s.conn.PrepareBatch(ctx, query)
@@ -224,6 +236,7 @@ func (s *ClickHouseStore) SaveEvents(ctx context.Context, events []Event) error 
 			hValues,
 			e.Inspection,
 			costIDs, costSamples, costTotals, costMax,
+			e.CountryISO, e.Region, e.City, e.Lat, e.Lon, e.AccuracyKM, e.ASN, e.ASOrg, e.GeoIPVersion,
 		)
 		if err != nil {
 			return fmt.Errorf("appending event %s to batch: %w", e.BlockID, err)
@@ -257,6 +270,7 @@ func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event,
 }
 
 func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, args ...any) (*Event, error) {
+	// Legacy metadata without a database fingerprint is sanitized after decoding.
 	query := fmt.Sprintf(`
 		SELECT 
 			block_id, timestamp, node_id, connector_type, policy_id, policy_version,
@@ -264,7 +278,8 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
 			received_at, user_agent, referer, headers.name, headers.value, inspection,
-			rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns
+			rule_costs.rule_id, rule_costs.samples, rule_costs.total_ns, rule_costs.max_ns,
+			country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version
 		FROM %s FINAL
 		WHERE block_id = ? %s
 		LIMIT 1`, s.tableName, extra)
@@ -314,6 +329,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		&hValues,
 		&e.Inspection,
 		&costIDs, &costSamples, &costTotals, &costMax,
+		&e.CountryISO, &e.Region, &e.City, &e.Lat, &e.Lon, &e.AccuracyKM, &e.ASN, &e.ASOrg, &e.GeoIPVersion,
 	)
 	if err != nil {
 		// Any other error, ClickHouse exceptions included, is a real failure.
@@ -345,6 +361,7 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 		e.RuleCosts = validRuleCosts(e.RuleCosts)
 	}
 
+	sanitizeStoredGeoIP(&e)
 	return &e, nil
 }
 
@@ -424,7 +441,7 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			client_ip, identity, request_id, http_method, http_host, http_path,
 			status_code, action, score_protocol, score_sqli, score_xss, score_anomaly,
 			matched_rules, violations.rule_id, violations.layer, violations.field, violations.snippet,
-			received_at
+			received_at, country_iso, region, city, lat, lon, accuracy_km, asn, as_org, geoip_version
 		FROM %[1]s FINAL
 		WHERE (block_id, timestamp) IN (
 			SELECT block_id, timestamp FROM %[1]s FINAL
@@ -475,6 +492,7 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 			&fields,
 			&snippets,
 			&e.ReceivedAt,
+			&e.CountryISO, &e.Region, &e.City, &e.Lat, &e.Lon, &e.AccuracyKM, &e.ASN, &e.ASOrg, &e.GeoIPVersion,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scanning search row: %w", err)
@@ -489,9 +507,13 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 				Snippet: snippets[i],
 			}
 		}
+		sanitizeStoredGeoIP(&e)
 		events = append(events, e)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reading event search rows: %w", err)
+	}
 	return &SearchResult{
 		Events: events,
 		Total:  total,

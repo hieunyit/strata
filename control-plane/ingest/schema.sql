@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS events (
     ),
     inspection       LowCardinality(String),
 
+    -- Server-resolved GeoIP metadata. Unknown coordinates stay NULL.
+    country_iso      LowCardinality(String),
+    region           String CODEC(ZSTD(1)),
+    city             String CODEC(ZSTD(1)),
+    lat              Nullable(Float64),
+    lon              Nullable(Float64),
+    accuracy_km      Nullable(UInt16),
+    asn              UInt32,
+    as_org           String CODEC(ZSTD(1)),
+    geoip_version    String CODEC(ZSTD(1)),
+
     -- Optional top-eight sampled rule timings, not all rule executions.
     rule_costs Nested (
         rule_id      UInt32,

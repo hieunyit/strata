@@ -1,0 +1,30 @@
+{
+  "geoip-store-red.log": {
+    "bytes": 1533,
+    "sha256": "7faee225fbb7b52bb0d635fec5db148275005f41071437e2b8eadfa7d12bf540"
+  },
+  "geoip-store-green.log": {
+    "bytes": 10282,
+    "sha256": "be7f44d183740ad92a8187915bc8d3ac20173458cd3371f42858b9f2838a74a1"
+  },
+  "geoip-store-full-cp-initial.log": {
+    "bytes": 2195,
+    "sha256": "67d20168b7d4ebfc371190b7c650bb3c55a1343d76c8ce61db9ea63068d3595a"
+  },
+  "geoip-store-full-cp.log": {
+    "bytes": 1066,
+    "sha256": "709afd6a087d0a5d38b40ee65745406cd1d458d4dd6327849d81eaf89d99fddf"
+  },
+  "geoip-legacy-trust-red.log": {
+    "bytes": 1182,
+    "sha256": "c2c942f061a3848b660da96422173b59b85270b0e8438efe02e123d7d3442fa1"
+  },
+  "geoip-store-legacy-trust.log": {
+    "bytes": 1067,
+    "sha256": "67d75591714642330f8bc83a038b7a38f8654d7c44ffc497e9019f802cd93f02"
+  },
+  "geoip-stored-label-guard.log": {
+    "bytes": 195,
+    "sha256": "1d4a85dd92f73fd593dbe0675ba4c48fbb1f5b3067f0b5b163e3ffe4ec86ec5a"
+  }
+}
