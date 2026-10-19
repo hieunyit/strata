@@ -70,7 +70,7 @@ func (s *Server) handleRuleHealth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	policyID := q.Get("policy_id")
-	if from.IsZero() || to.IsZero() || !to.After(from) || to.Sub(from) > 24*time.Hour || (policyID != "" && !policy.NamePattern.MatchString(policyID)) {
+	if from.IsZero() || to.IsZero() || !to.After(from) || to.Sub(from) > 24*time.Hour || (policyID != "" && !policy.ValidName(policyID)) {
 		writeError(w, 400, "window must be positive and at most 24 hours; invalid policy_id", "")
 		return
 	}

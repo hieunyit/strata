@@ -90,7 +90,7 @@ func (w *StagingWorker) Tick(ctx context.Context) error {
 	}
 	targets := make(map[string]target, len(ps))
 	for _, p := range ps {
-		if !policy.NamePattern.MatchString(p.Name) {
+		if !policy.ValidName(p.Name) {
 			return fmt.Errorf("staging worker: invalid source policy name")
 		}
 		spec, err := policy.Parse(p.Spec)

@@ -324,6 +324,17 @@ func TestStoreKeysAndChecks(t *testing.T) {
 	if _, back, err := ReadParquet(mem.m[key]); err != nil || len(back) != 2 {
 		t.Fatalf("%v %d", err, len(back))
 	}
+	// CP-SEC-02: a policy name of only dots would leave replay/v1/ on a
+	// filesystem store
+	for _, bad := range []string{".", "..", "..."} {
+		dots := append([]Record(nil), recs...)
+		for i := range dots {
+			dots[i].Policy = bad
+		}
+		if _, err := s.Put(context.Background(), a.KeyID, dots); err == nil {
+			t.Fatalf("policy %q accepted", bad)
+		}
+	}
 	mixed := []Record{recs[0], a.Anonymize(vectorRequests()[2])}
 	if _, err := s.Put(context.Background(), a.KeyID, mixed); err == nil {
 		t.Fatal("two policies in one file accepted")

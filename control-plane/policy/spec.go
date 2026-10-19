@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strings"
 )
 
 // Spec mirrors one policy of docs/spec/policies.schema.json without its
@@ -65,9 +66,18 @@ type Response struct {
 var (
 	// IDPattern for policy ids (API resource names).
 	IDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
-	// NamePattern for names in the bundle (policies.schema.json).
+	// NamePattern for names in the bundle (policies.schema.json). Check
+	// names with ValidName, which also refuses names made only of dots.
 	NamePattern = regexp.MustCompile(`^[a-z0-9._-]{1,55}$`)
 )
+
+// ValidName reports whether name may name a policy: NamePattern, and not
+// only dots (CP-SEC-02). Policy names go into object keys and paths
+// (replay/v1/<policy>/…); "." and ".." would leave their directory on a
+// filesystem store.
+func ValidName(name string) bool {
+	return NamePattern.MatchString(name) && strings.Trim(name, ".") != ""
+}
 
 // Validate checks a spec like the compiler's schema does.
 func (s Spec) Validate() error {

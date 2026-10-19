@@ -17,6 +17,20 @@ import (
 	"github.com/strata/strata/control-plane/store"
 )
 
+// CP-SEC-02: names go into object keys and paths.
+func TestValidName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"example-api": true, "api.v2": true, ".hidden": true, "a..b": true, "x": true,
+		".": false, "..": false, "...": false, "": false, "Example": false, "a/b": false,
+		"a234567890123456789012345678901234567890123456789012345":  true,
+		"a2345678901234567890123456789012345678901234567890123456": false,
+	} {
+		if got := ValidName(name); got != want {
+			t.Errorf("ValidName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 func TestSpecValidate(t *testing.T) {
 	good := []Spec{{Mode: "shadow"}, {Mode: "enforce", Oversize: "block", Response: &Response{DataGuard: []string{"cccd", "jwt", "pan"}}},
 		{Mode: "shadow", MaxSnippetSize: 128}, {Mode: "shadow", MaxSnippetSize: 2048}, {Mode: "enforce", MaxSnippetSize: 4096},
