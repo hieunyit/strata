@@ -1,6 +1,6 @@
 # Kế hoạch triển khai · Strata Compact và quản trị vận hành
 
-Trạng thái: **đề xuất, chờ PO duyệt**. Lập ngày 19/10/2026, Claude Code (strata-59), dựa trên
+Trạng thái: **PO duyệt ngày 19/10/2026, ưu tiên trước giai đoạn B gốc**. Lập ngày 19/10/2026, Claude Code (strata-59), dựa trên
 đề xuất "Strata dễ cài, dễ quản trị" và đối chiếu với code trên `main` (`b1ad81e`).
 
 Quyết định của PO ngày 19/10/2026 khi giao viết tài liệu này:
@@ -11,8 +11,16 @@ Quyết định của PO ngày 19/10/2026 khi giao viết tài liệu này:
 3. Các phần còn lại viết thành kế hoạch triển khai chi tiết, kèm lỗi và lỗ hổng có thể phát
    sinh.
 
-Kế hoạch chưa tự thay đổi lộ trình tuần, con trỏ tuần trong `AGENTS.md` hay tài liệu thiết kế.
-Mục 9 liệt kê những gì PO cần chốt trước khi giao việc.
+Quyết định tiếp theo cùng ngày (PO: "ưu tiên kế hoạch này, không bật CI GitHub, còn lại tự
+quyết"):
+
+4. Kế hoạch này **ưu tiên trước** giai đoạn B gốc (canary, enforce trên route thí điểm).
+5. **Không bật CI GitHub.** Mọi PR qua cổng kiểm cục bộ (mục 8a) trước khi merge.
+6. Mã nhiệm vụ chính thức là `CP-*` như trong tài liệu này; bảng nhiệm vụ nằm ở `AGENTS.md`.
+7. Gói backup mã hóa bằng `filippo.io/age` (passphrase, scrypt).
+8. Hai lỗ hổng hiện có (subject OIDC, tên policy có dấu chấm) sửa trước, thành hai PR nhỏ:
+   `CP-SEC-01`, `CP-SEC-02`.
+9. Bảng thành phần control plane trong `nginx-module.md` sửa theo kiến trúc mục 2.
 
 ## 1. Hiện trạng đo trên code
 
@@ -29,6 +37,32 @@ Mục 9 liệt kê những gì PO cần chốt trước khi giao việc.
 | Nhiều control plane | SQL viết cho nhiều bản (advisory lock, `SKIP LOCKED`) nhưng presence của Fleet, canary monitor, bộ ghi request theo policy nằm trong RAM của từng tiến trình | Compact = một control plane hoạt động; ghi rõ trong tài liệu |
 | Chế độ Lite | Agent standalone, gói systemd và installer đã có (`nginx-module.md` § Chế độ Lite) | Không xây lại |
 | Exception, ghi chú sự kiện, staging signature, vòng đời rule, chi phí rule | Đã có một phần: `exceptions:fromBlockId`, `store/event_annotations.go`, `store/staging*.go`, `strata-rules lifecycle`, `ingest/rulecost.go` | Đợt C nối tiếp, không làm lại |
+
+### 1a. Phần đã có trên main từ các luồng khác (đối chiếu 20/10/2026)
+
+Main không dừng ở tuần 13: chuỗi remediation (`docs/reports/remediation-tracker.md`,
+`branch-consolidation.md`) và các tuần 14–21 (`docs/reports/w17-w21-integration.md`, phiên
+strata-b9) đã vào main. Con trỏ tuần trong `AGENTS.md` không theo kịp; các tracker trên là nguồn
+trạng thái. Những phần dưới đây kế hoạch **dùng lại, không làm lại**:
+
+| Đã có | Bằng chứng | Liên quan |
+| --- | --- | --- |
+| Machine credential (service account, token có scope/hạn) | PR #223–#229 | A05 |
+| Lịch sử audit bền, lọc, trang Audit | PR #236–#238, `ui/src/pages/AuditPage.tsx` | C03 |
+| Exception từ Block ID: phạm vi chính xác, TTL, etag, `request_id`, replay, bốn mắt, runtime | M2 (#138–#155) | C01, C02 |
+| Báo FP bền (annotation PostgreSQL) | M1 (#122, #123) | C01 |
+| Duyệt gắn replay đã xem (`expected_replay_id`), provenance snapshot | M5 (#124–#142) | B04 |
+| M4: tự hạ mức chặn theo opt-in, staging writer ghi vào object storage | M4 (#169–#203) | A07, B04 |
+| GeoIP: MMDB bất biến theo phiên bản trong object storage, con trỏ `geoip/latest.json` ghi đè mỗi lần cập nhật; bản đồ, timeline, SSE | W17-G2-01, W18-G2-01, W18-F-01 | A07, A08 |
+| Dải IP crawler tải về lưu trong object storage | W18-G2-02 | A07 |
+| Lite: agent standalone, gói, installer | W19, `standalone-*.md` | Không đổi |
+| Go 1.26.9 bắt buộc | PR #239 | A07 (`os.Root`) |
+
+Chưa có: health router (PR #175/#176 đã đóng, không merge) nên B05 vẫn làm từ đầu.
+
+Đang làm ở phiên khác, kế hoạch phải tránh xung đột: CRS PL2 (strata-b9) sẽ sửa
+`control-plane/policy/spec.go`, `compiler.go`, proto admin và policy editor; CP-SEC-02 cũng sửa
+`spec.go`, nên báo strata-b9 để rebase.
 
 ## 2. Kiến trúc mục tiêu
 
@@ -61,11 +95,11 @@ Fleet nằm trong RAM của tiến trình (mục 1). A03 thêm cơ chế ngăn b
 
 ## 3. Thứ tự và phụ thuộc
 
-Mã đề xuất `CP-*`, chờ PO cấp mã chính thức.
+Mã nhiệm vụ chính thức `CP-*` (PO 19/10).
 
 | Bước | Mục | Cần trước | Điều kiện chuyển tiếp |
 | --- | --- | --- | --- |
-| 0 | Bật lại CI GitHub (billing) | — | Mọi job chạy trên PR; test PostgreSQL và ClickHouse chạy thật trong CI |
+| 0 | CP-SEC-01, CP-SEC-02 (hai lỗ hổng hiện có) | — | Merge, có test |
 | 1 | A01 Kiểm kê, đo nền | — | Danh mục dữ liệu, bất biến, số đo nền được duyệt |
 | 2 | A02 Cấu hình YAML | A01 | Cờ cũ và YAML cho cùng cấu hình hiệu lực |
 | 3 | A03 Gia cố PostgreSQL | A01 | Deploy không giữ lock khi build; chặn control plane thứ hai |
@@ -85,8 +119,8 @@ Mã đề xuất `CP-*`, chờ PO cấp mã chính thức.
 | 14 | C01, C02, C04 | B01 | |
 | 15 | C05 API discovery | C03, duyệt pháp chế cho telemetry | |
 
-Ước lượng thời gian chốt sau A01. Kế hoạch này chạy song song với giai đoạn B của lộ trình gốc
-(enforce trên route thí điểm); PO chốt thứ tự ưu tiên (mục 9).
+Ước lượng thời gian chốt sau A01. Kế hoạch này ưu tiên trước giai đoạn B của lộ trình gốc
+(PO 19/10); không đổi đường đi request và định dạng bundle.
 
 ## 4. Đợt A · Compact
 
@@ -204,8 +238,8 @@ Compact không nhận ghi.
   `system`.
 - Bảo vệ admin cuối cùng: không xóa, không hạ vai trò, không khóa vĩnh viễn admin cuối cùng
   còn hoạt động.
-- Service account và token có scope/hạn dùng: đã có (`auth/service_account.go`); bổ sung UI và
-  thu hồi nếu thiếu (kiểm ở A01).
+- Service account và token có scope/hạn dùng: đã có (machine credential, PR #223–#229); A05
+  chỉ đưa vào `strata init` (tạo token đầu tiên cho tự động hóa nếu được yêu cầu).
 - Local auth bật mặc định; `-local-auth` giữ cho tương thích.
 
 **Nghiệm thu**: cài mới bằng `strata init` rồi đăng nhập, phân quyền, duyệt bốn mắt (hai tài
@@ -259,7 +293,12 @@ không build lại.
 - Adapter `policy.FS` thực thi `Objects` (`Put`, `Get`, `Open` có offset cho `FetchBundle`
   tải tiếp, `List` cho mẫu replay).
 - `Put` nguyên tử: ghi file tạm trong **cùng thư mục**, `fsync` file, `rename`, `fsync` thư
-  mục. File đã có với hash khác → từ chối (artifact bất biến); cùng hash → coi như thành công.
+  mục.
+- Hai loại khóa: **bất biến** (bundle, mẫu replay, MMDB theo phiên bản `geoip/<version>/…`,
+  bản ghi staging M4): file đã có với hash khác → từ chối, cùng hash → coi như thành công;
+  **con trỏ** ghi đè được (hiện có `geoip/latest.json`): chỉ các khóa trong danh sách cho phép,
+  ghi đè bằng rename nguyên tử. Người dùng của `Objects` hiện nay: deploy, Fleet (`FetchBundle`),
+  replay, GeoIP updater, goodbots, M4 staging writer; mỗi nơi được test với adapter mới.
 - Mọi khóa (key) được kiểm từng đoạn: chỉ `[a-z0-9._-]`, không đoạn rỗng, không `.` hay `..`,
   không bắt đầu bằng `/`; mở file theo thư mục gốc (`os.Root`, Go 1.24+) để chặn symlink thoát
   ra ngoài.
@@ -281,6 +320,8 @@ filesystem, không MinIO, không Vault; bundle ký sai bị node từ chối.
 | Đầy đĩa giữa lúc ghi bundle | Kiểm dung lượng trống trước khi build; lỗi rõ; `/readyz` và trang Sức khỏe cảnh báo trước khi đầy |
 | Mẫu replay (traffic đã ẩn danh, vẫn là dữ liệu nhạy cảm) đọc được bởi user khác trên máy | Thư mục 0700, file 0600, chủ là user dịch vụ |
 | Dọn nhầm bundle mà node còn cần để rollback | Danh sách giữ lấy từ DB (active, desired, N gần nhất), không theo tuổi file |
+| Con trỏ `geoip/latest.json` bị đọc giữa lúc ghi, hoặc trỏ tới phiên bản đã bị dọn | Ghi đè bằng rename nguyên tử; dọn GeoIP không xóa phiên bản mà con trỏ đang trỏ tới |
+| Áp quy tắc bất biến cho mọi khóa làm hỏng cập nhật GeoIP | Danh sách khóa con trỏ tường minh, test với GeoIP updater |
 | Endpoint tải artifact cho người không đủ quyền | Bundle chỉ đi qua Fleet mTLS (như hiện nay); không thêm endpoint HTTP tải bundle trong Compact |
 | Hai control plane ghi cùng thư mục | Lease của A03; cảnh báo nếu thư mục nằm trên NFS |
 
@@ -329,8 +370,8 @@ filesystem, không MinIO, không Vault; bundle ký sai bị node từ chối.
      bundle mà bản dump tham chiếu đều đã có file;
   3. khóa ký, CA node, chứng chỉ, cấu hình;
   4. manifest có sha256 từng file, phiên bản sản phẩm, phiên bản migration.
-- Gói có khóa riêng tư được mã hóa (passphrase do người vận hành giữ). Thư viện mã hóa cần PO
-  duyệt (mục 9).
+- Gói có khóa riêng tư được mã hóa bằng `filippo.io/age` (passphrase, scrypt; PO 19/10);
+  passphrase do người vận hành giữ, đọc từ file hoặc nhập tương tác.
 - ClickHouse backup theo quy trình riêng (`BACKUP … TO Disk`), tùy chọn; tài liệu nói rõ mất
   ClickHouse là mất lịch sử sự kiện, không mất cấu hình.
 
@@ -391,7 +432,8 @@ hiểu là "không có", không phải "có tất cả".
 ### B04 · Luồng phát hành thống nhất
 
 Soạn → kiểm tra → replay → xem tác động → duyệt → canary → triển khai → theo dõi → rollback,
-dùng các phần đã có (replay, bốn mắt, rollout, canary).
+dùng các phần đã có: replay, bốn mắt, duyệt gắn replay đã xem (`expected_replay_id`, M5),
+provenance snapshot, rollout, canary, M4 staging.
 
 - Đối tượng `release`: tập version policy, phiên bản rule pack, schema, bundle; trạng thái
   từng node.
@@ -403,13 +445,15 @@ dùng các phần đã có (replay, bốn mắt, rollout, canary).
 
 | Rủi ro | Giảm thiểu |
 | --- | --- |
-| Replay lỗi thời: duyệt dựa trên replay so với bundle 41, nhưng lúc deploy bundle đang chạy là 43 | Ghi `baseline_bundle` của replay (đã có); khi khác bundle đang chạy, đòi replay lại hoặc cảnh báo rõ ở bước duyệt |
+| Replay lỗi thời: duyệt dựa trên replay so với bundle 41, nhưng lúc deploy bundle đang chạy là 43 | Pin replay đã xem có sẵn (M5); bổ sung: khi `baseline_bundle` của replay khác bundle đang chạy lúc deploy, đòi replay lại hoặc cảnh báo rõ |
 | Rollback chỉ lùi policy mà quên rule pack, ra tổ hợp chưa từng chạy | Release giữ cả phiên bản pack; rollback lấy nguyên tập |
 | Gọi API deploy trực tiếp bỏ qua luồng release | Kiểm tra ở server (đã có cho bốn mắt); release chỉ là lớp trên |
 | Coi block rate tăng là false positive | Báo cáo tách theo nhãn mẫu (benign/tấn công) như replay; không tự kết luận |
 
 ### B05 · Sức khỏe hệ thống và `strata doctor`
 
+- Health router trước đây (PR #175/#176) đã đóng, không merge: làm mới, có thể lấy lại phần
+  hợp đồng dữ liệu bền của #175 sau khi review.
 - Trang Sức khỏe: request kiểm đủ/không đủ, shadow, fail-open, breaker (đã có số liệu
   RV-N-01); body bỏ qua; node mất kết nối hoặc lệch phiên bản; ingest lag, spool, sự kiện bị bỏ;
   đĩa; PostgreSQL; operation lỗi; chứng chỉ sắp hết hạn; độ tươi của từng nguồn dữ liệu.
@@ -427,8 +471,8 @@ thiếu dữ liệu → mỗi ô ghi thời điểm dữ liệu mới nhất, qu
 - Che dữ liệu trước khi lưu và xuất, áp cho ClickHouse, JSONL/syslog của Lite, replay, export,
   webhook, support bundle; dùng chung cài đặt privacy của policy (P-01 đã có).
 - MFA TOTP cho tài khoản local; mã khôi phục lưu dạng hash; quản lý session (xem, thu hồi).
-- Audit: xuất bản sao ra hệ thống ngoài (syslog/webhook). Không gọi audit trong PostgreSQL là
-  "chống sửa".
+- Audit: lịch sử bền và trang Audit đã có (#236–#238); làm thêm xuất bản sao ra hệ thống ngoài
+  (syslog/webhook). Không gọi audit trong PostgreSQL là "chống sửa".
 
 **Lỗi và lỗ hổng**: TOTP dùng lại trong cùng cửa sổ (lưu mã đã dùng); MFA bị qua mặt bằng token
 service account (service account không đăng nhập UI, scope tối thiểu); mã khôi phục lưu rõ; xuất
@@ -437,9 +481,11 @@ dữ liệu bỏ qua che (mọi đường xuất đi qua một hàm); viewer xem
 
 ### C01 · Điều tra sự kiện tới hành động
 
-- Saved search và link chia sẻ bộ lọc; ghi chú, phân công, trạng thái xử lý (nối
-  `event_annotations`); nhóm sự kiện tương tự; tạo rule, exception, rate limit từ sự kiện qua
-  luồng duyệt (nối `exceptions:fromBlockId`); xuất bằng chứng theo bộ lọc.
+- Đã có: báo FP bền (M1), exception từ Block ID qua replay và bốn mắt (M2).
+- Làm mới: saved search và link chia sẻ bộ lọc; phân công và trạng thái xử lý sự kiện (mở rộng
+  `event_annotations`); nhóm sự kiện tương tự; tạo rule hoặc rate limit từ sự kiện qua luồng
+  duyệt (rate limit chỉ đo theo quyết định PO 17/10, không tự bật); xuất bằng chứng theo bộ
+  lọc.
 
 **Lỗi và lỗ hổng**: CSV injection trong file xuất (ô bắt đầu bằng `=`, `+`, `-`, `@`): giữ cách
 xử lý của `ui/src/lib/csv.ts` cho mọi đường xuất mới, kể cả xuất phía server; link chia sẻ chứa
@@ -490,7 +536,7 @@ liệu cá nhân trong path/query → che trước khi lưu.
 
 | Rủi ro | Giảm thiểu |
 | --- | --- |
-| CI GitHub đang không chạy (billing): thay đổi lớn mà chỉ kiểm cục bộ dễ lọt lỗi (đã xảy ra: gofmt trên main sau #102) | Bước 0: bật lại CI trước khi bắt đầu |
+| CI GitHub không chạy (PO 19/10 quyết không bật): thay đổi lớn chỉ kiểm cục bộ dễ lọt lỗi (đã xảy ra: gofmt trên main sau #102) | Cổng kiểm cục bộ bắt buộc (mục 8a); kiểm mã thoát của lệnh, không lọc output |
 | Hồi quy các bất biến vừa làm (bốn mắt, replay gate, etag) khi đổi auth và deploy | Danh sách bất biến A01 thành test bắt buộc trong CI |
 | Đổi mặc định làm hỏng staging/prod-sim đang chạy (Keycloak, MinIO, Vault) | Staging/prod-sim dùng overlay, không đổi; chuyển mặc định chỉ cho cài mới |
 | Kế hoạch chạy cùng giai đoạn B (enforce) và Gate A chưa đạt | PO chốt ưu tiên (mục 9); không đổi đường đi request và bundle format trong kế hoạch này |
@@ -513,13 +559,26 @@ liệu cá nhân trong path/query → che trước khi lưu.
 Mỗi tiêu chí ghi lệnh, output và giới hạn kết luận. Không đánh dấu xong chỉ vì luồng thành công
 chạy được.
 
-## 9. PO cần chốt trước khi giao việc
+## 8a. Cổng kiểm cục bộ (thay CI)
 
-1. Thứ tự ưu tiên giữa kế hoạch này và giai đoạn B gốc (Gate A, enforce trên route thí điểm).
-2. Cấp mã nhiệm vụ chính thức thay cho `CP-*`; cập nhật `AGENTS.md`, `plan.md`, `CLAUDE.md`.
-3. Sửa bảng thành phần control plane trong `nginx-module.md`: Compact một control plane;
-   PostgreSQL đi kèm; filesystem và file signer là mặc định; S3, Vault, OIDC tùy chọn.
-4. Thư viện mã hóa gói backup.
-5. Có sửa ngay hai lỗ hổng hiện có (subject OIDC, tên policy có dấu chấm) trước kế hoạch không;
-   đề xuất: có, thành hai PR nhỏ.
-6. Bật lại CI GitHub.
+Mỗi PR chạy trên nhân 6–10 và dán kết quả vào mô tả PR. Phần nào không đụng thì ghi rõ lý do bỏ.
+
+| Phạm vi đổi | Lệnh |
+| --- | --- |
+| Go (control plane, agent, tools) | `make test-go` với `STRATA_TEST_POSTGRES_DSN` và ClickHouse thật; kiểm **mã thoát** và dòng `issues` của golangci-lint, không chỉ dòng `ok` |
+| Proto | `make check-proto` |
+| E2E | `make e2e-go`; test hỏng phải chạy lại riêng và ghi lại |
+| UI | `build/ui.sh` (lint, vitest, build, Playwright) |
+| Rust, C | `make test NGINX_VERSION=1.30.5`, `make check-c-lines` |
+| Script | shellcheck `-S warning` |
+| Lab | `deploy/lab/smoke.sh` cho thay đổi chạm control plane, auth, deploy (lab của phiên W10: hỏi trước, khôi phục từ worktree detached ở `origin/main`) |
+
+## 9. Những gì PO đã chốt (19/10/2026)
+
+1. Ưu tiên kế hoạch này trước giai đoạn B gốc.
+2. Mã nhiệm vụ `CP-*`; cập nhật `AGENTS.md`, `CLAUDE.md` (trong PR này).
+3. Bảng thành phần control plane trong `nginx-module.md` sửa trong PR này.
+4. Gói backup mã hóa bằng `filippo.io/age`.
+5. Hai lỗ hổng sửa trước: `CP-SEC-01` (namespace subject OIDC), `CP-SEC-02` (tên policy và khóa
+   artifact).
+6. Không bật CI GitHub; cổng kiểm cục bộ mục 8a.

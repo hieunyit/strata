@@ -449,6 +449,14 @@ Khi một policy được deploy, compiler tạo và ký bundle, lưu vào objec
 | PostgreSQL | Policy, version, node, role binding, audit | HA bằng Patroni |
 | Object storage | Bundle, corpus replay | S3 / MinIO |
 
+*Bản Compact (PO 19/10/2026, `docs/plan/compact-ops-plan.md`):* mặc định chỉ chạy **một control
+plane** (UI nhúng trong binary) cùng **PostgreSQL** và **ClickHouse** đi kèm. Artifact lưu trên
+**filesystem**, ký bundle bằng **file Ed25519**, xác thực bằng **tài khoản cục bộ**. OIDC
+(Keycloak hoặc IdP khác), S3/MinIO, Vault transit, PostgreSQL ngoài có HA và giám sát
+(Grafana, VictoriaMetrics) là tùy chọn. Message bus không có: trạng thái Fleet (presence,
+canary, bộ đếm theo policy) nằm trong RAM của control plane đang giữ lease, nên chỉ một bản nhận
+ghi; chạy nhiều control plane cùng lúc cần làm lại phần này và nằm ngoài kế hoạch Compact.
+
 *Hiện trạng (W11-G2-01, W11-R-01):* mẫu traffic theo `docs/spec/replay-sample.md` (Parquet, định dạng 1): control plane ẩn danh hóa (`control-plane/replay`: chỉ field nhạy cảm thành HMAC có khóa, quyết định PO 14/10/2026) và lưu vào object storage dưới `replay/v1/<policy>/...`; lõi replay là crate `engine/replay` (`strata-replay run`), đọc các file đó và chạy từng request qua bundle trên nhiều luồng, báo theo route: action bây giờ so với lúc lấy mẫu, số bị chặn mới (nghi FP) và không còn bị chặn (nghi FN). Định dạng **chưa được pháp chế duyệt**.
 
 *Replay service (W13-G2-01):* control plane chạy với `-replay=<strata-replay>` (cần cấu hình deploy: signer, `-bundle-pubkey`, `-s3-*`). Mỗi version mới của policy tự có một operation REPLAY (bảng PostgreSQL `operations`, migration 0013); runner trong control plane lấy lần lượt từng operation (`FOR UPDATE SKIP LOCKED`, nhiều control plane chia nhau hàng đợi; operation RUNNING quá 2 lần `-replay-timeout` là của control plane đã dừng và bị đánh FAILED). Mỗi lần chạy: build bundle mà deploy sẽ tạo nếu version này được áp dụng (các policy khác giữ version deploy sẽ lấy), ký bằng một khóa Ed25519 riêng của tiến trình (không bao giờ là khóa ký bundle cho node, nên bundle nháp không thể lên node); so với bundle đang có hiệu lực (bundle mới nhất, kiểm chữ ký bằng `-bundle-pubkey`; chưa có thì build từ các policy hiện tại) bằng `strata-replay compare --policy <tên>`, hai lượt tách riêng: mẫu traffic của policy trong 7 ngày (`replay/v1/<policy>/…`, ngày mới trước, tối đa 200 file và 1 GiB) và corpus benign + tấn công (`-replay-corpus`, file do `strata-replay gen` tạo lúc build). Kết quả (FP/FN ứng viên, rule, đường dẫn, ví dụ đã ẩn danh) lưu cùng operation; ví dụ chỉ trả cho người có quyền `events:read_sensitive`.

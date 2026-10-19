@@ -16,6 +16,23 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 **Ký hiệu**: `✅ Done` · `🔄 Đang làm` · `⏳ Chưa bắt đầu` · `⛔ Bị chặn` (ghi lý do)
 
+**Kế hoạch Compact** (ưu tiên trước giai đoạn B gốc, PO 19/10/2026; kế hoạch và nghiệm thu `docs/plan/compact-ops-plan.md`; giữ PostgreSQL; B03 làm sau; không CI GitHub, cổng kiểm cục bộ §8a). Nhiệm vụ `CP-*` được nhận ngoài quy tắc con trỏ tuần ở trên; thứ tự theo cột "Cần trước".
+
+| Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
+| --- | --- | --- | --- | --- |
+| CP-SEC-01 | Namespace subject OIDC (`oidc:<issuer>:<sub>`), từ chối `sub` dạng `local:`, chuyển các cột `*_subject` cũ | Claude Code (strata-59) | — | ⏳ |
+| CP-SEC-02 | Tên policy không chỉ gồm dấu chấm; kiểm khóa object từng đoạn | Claude Code (strata-59) | — | ⏳ |
+| CP-A01 | Kiểm kê dữ liệu, bất biến, trạng thái RAM; đo nền | Claude Code (strata-59) | — | ⏳ |
+| CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ⏳ |
+| CP-A03 | Gia cố PostgreSQL: deploy không giữ lock khi build, lease một control plane, phục hồi operation | Claude Code (strata-59) | CP-A01 | ⏳ |
+| CP-A05 | Local auth mặc định, `strata init`, `admin recover` | Claude Code (strata-59) | CP-A02 | ⏳ |
+| CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | ⏳ |
+| CP-A07 | Artifact trên filesystem, file signer mặc định | Claude Code (strata-59) | CP-A02, CP-A03, CP-SEC-02 | ⏳ |
+| CP-A08 | UI nhúng; ClickHouse suy giảm rõ | Claude Code (strata-59) | CP-A02 | ⏳ |
+| CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | ⏳ |
+| CP-B02, B01, B04, B05 | Inventory, ứng dụng, phát hành thống nhất, sức khỏe | — | Compact Preview | ⏳ |
+| CP-C03, C01, C02, C04, C05 | Privacy/bảo mật quản trị, điều tra, rule/exception, cảnh báo, API discovery | — | xem §3 của kế hoạch | ⏳ |
+
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
@@ -25,7 +42,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | W13-G1-01 | Nâng cấp agent không mất sự kiện (socket activation) | Claude Code (phiên W10) | W10-N-01 | ✅ `test-upgrade.sh` PASS trên deb và rpm: 0 sự kiện mất, bundle không đổi; sửa lỗi gói cũ dừng và tắt agent khi nâng cấp (`docs/reports/w13-g1-01.md`) |
 | W13-G2-01 | Replay service (`:replay`, long-running operation) | Claude Code (strata-59) | W12-R-01 | ✅ bản nháp → replay tự chạy → kết quả qua API (`TestPolicyDraftReplay`; chuỗi thật `TestRealReplay`: corpus 4.300 mẫu, 1.700 bị chặn mới khi shadow → enforce); `docs/reports/w13-g2-01.md` |
 | W13-G2-02 | Luồng duyệt 4 mắt | Claude Code (strata-59) | — | ✅ API `:submit`/`:approve`/`:reject`, tự duyệt bị từ chối, deploy bản chưa duyệt bị từ chối, deploy lấy bản duyệt mới nhất (`TestFourEyes`, `TestFourEyesInPostgres`); script lab/staging duyệt bằng `lab-approver`; `docs/reports/w13-g2-02.md` |
-| W13-F-01 | Hàng chờ duyệt | Claude Code (strata-59) | W13-G2-01, W13-G2-02 | ⏳ |
+| W13-F-01 | Hàng chờ duyệt | Claude Code (strata-59) | W13-G2-01, W13-G2-02 | ✅ PR #115 (trang `#/reviews`, replay + diff, duyệt/từ chối; nút gửi duyệt), PR #114 (duyệt cần replay DONE); `docs/reports/w13-f-01.md` |
 | W13-R-02 | Đo chi phí từng rule | Claude Code (phiên engine) | — | ⏳ |
 | W13-N-01, vận hành 5%/25% | Sửa lỗi từ canary, lên 5% và 25% | Người | Gate A, canary 1% | ⛔ Gate A chưa đạt |
 

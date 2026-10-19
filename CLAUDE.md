@@ -10,9 +10,9 @@ Strata là WAF mã nguồn mở: lõi detection viết bằng Rust (`libstrata`,
 
 Khi tài liệu và code mâu thuẫn, tài liệu NGINX module thắng; nếu thấy tài liệu sai hoặc thiếu, dừng lại và hỏi, không tự đổi thiết kế. Sơ đồ trong tài liệu không có trong bản Markdown; phần chữ đủ để code.
 
-## Phạm vi hiện tại: khối A3 (tuần 8–10), mọi luồng
+## Phạm vi hiện tại: kế hoạch Compact (ưu tiên, PO 19/10/2026), mọi luồng
 
-Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này với Claude Code" và các dòng "Đọc" của nhiệm vụ trước khi code). Phiên này làm **mọi luồng**: N (module NGINX, C), R (libstrata, Rust), S (rule, importer), G1 (agent, Fleet), G2 (auth/compiler/control plane), F (Web UI), Q (lab, CI, e2e). Khối A3 khóa lại ở **Gate A** cuối tuần 10 (shadow).
+Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này với Claude Code" và các dòng "Đọc" của nhiệm vụ trước khi code). Phiên này làm **mọi luồng**: N (module NGINX, C), R (libstrata, Rust), S (rule, importer), G1 (agent, Fleet), G2 (auth/compiler/control plane), F (Web UI), Q (lab, CI, e2e). Từ 19/10/2026 PO ưu tiên **kế hoạch Compact** (`docs/plan/compact-ops-plan.md`) trước giai đoạn B gốc; Gate A vẫn mở (`docs/reports/gate-a.md`).
 
 **Đã xong** (tuần 1–7 và các follow-up):
 
@@ -26,20 +26,16 @@ Kế hoạch tổng: `docs/plan/plan.md` (đọc mục "Cách dùng file này v�
 
 - Tuần 9 (khối A3, PR #26–#40): benchmark p50/p99/throughput + event socket, quyết định giữ datagram socket (`docs/decisions/ring-buffer.md`); prefilter + `lower_loose` (gói đầy đủ ×23 nhanh hơn, ticket #27 throughput, #28 body lớn); soak 24 giờ + staging chỉ deploy từ tag (`deploy/staging/deploy.sh`); ClickHouse TTL + tra Block ID < 1 s; decision trace tô field + tác giả Sigma; `strata-mutate` hằng đêm (#34); gói signature 0.0.1 (9.054 rule, FP 0,60%, recall ≥ 70%, #36 cost unit); di chuyển sang server mới (`deploy/migrate`), deploy outlives REST timeout. **Còn mở**: verdict soak 24 giờ, staging 7 ngày của gói 0.0.1, review tuần 9 (phiên khác, nhánh `w09-review`).
 
-**Đang làm** (tuần 10 · Đóng gói và shadow · Gate A), theo thứ tự trong `docs/plan/w10-plan.md`, mỗi nhiệm vụ một nhánh tên theo mã, trong worktree `~/strata-w10`:
+- Tuần 10–13 và sau đó: Gate A (chưa đạt hiệu năng A1/A2), shadow trên staging, replay service, duyệt bốn mắt (cần replay DONE), hàng chờ duyệt; chuỗi remediation (`docs/reports/remediation-tracker.md`, `branch-consolidation.md`) và các tuần 14–21 (`docs/reports/w17-w21-integration.md`) đã vào main. Con trỏ tuần trong `AGENTS.md` không phản ánh trạng thái; dùng các tracker này.
 
-1. **W10-Q-01** Giám sát: dashboard Grafana + cảnh báo VictoriaMetrics (vmalert) cho module, agent, control plane.
-2. **W10-N-01** Gói deb/rpm `nginx-module-strata` theo bản NGINX + `strata-agent`, cài 1 lệnh; image container; runbook (tắt module, ép shadow, rollback bundle) diễn tập trên staging; #29 (sysctl, socket đã `connect()`).
-3. **W10-G1-01** Control plane trên staging (+ `prod-sim`), node của 2 route thí điểm (giả lập nếu PO chưa có dữ liệu) enroll.
-4. **W10-G2-01** Policy shadow cho 2 route thí điểm; sự kiện có Event ID về ClickHouse.
-5. **W10-S-01** Bảng FP theo Rule ID cập nhật hằng ngày.
-6. **W10-F-01** Trang Tổng quan v0 (bị chặn theo giờ, top rule, top route).
-7. Thêm 14/10 sau đánh giá bên ngoài (`docs/plan/review-response.md`, PO duyệt): **RV-R-01** đóng #27/#28 (nhánh `issue-28-hs-groups`, `~/strata`); **RV-N-01** cờ `inspection` cho request fail-open; **RV-Q-01** `docs/status.md` và số liệu đúng trong báo cáo Gate A.
-8. Báo cáo Gate A, rồi review tuần 10 (theo `docs/reports/w08-review.md`).
+**Đang làm**: kế hoạch Compact, nhiệm vụ `CP-*`, thứ tự và nghiệm thu trong `docs/plan/compact-ops-plan.md` §3 (bảng trạng thái ở `AGENTS.md` §0). Quyết định PO 19/10: giữ PostgreSQL; local auth mặc định, Keycloak/OIDC, MinIO/S3, Vault, Grafana là tùy chọn; artifact trên filesystem và file signer mặc định; UI nhúng trong control plane; một control plane hoạt động; B03 (quản lý cấu hình NGINX) làm sau. Việc đầu tiên: **CP-SEC-01** (namespace subject OIDC), **CP-SEC-02** (tên policy và khóa artifact). Phiên strata-b9 làm CRS PL2 (W17–W21), tránh sửa chồng `control-plane/policy/spec.go`, `compiler.go`, proto admin, policy editor mà không báo trước.
 
-Ràng buộc phiên này: build/test chỉ trên nhân 6–10 (`STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=6-10"`), không chạy benchmark; không đụng staging, soak, tag `v0.9.0-rc.*` cho tới khi memory `w09-review.md` ghi "staging handed over to W10" (trước đó dùng lab); sau đó staging chỉ deploy tag `v0.10.0-rc.*` kèm `--signatures build/signatures/v0.0.1`, ghi mỗi lần deploy vào `docs/reports/w09-s-01.md`.
+Ràng buộc phiên này:
 
-**Chưa làm** trong khối này: circuit breaker và canary (B1, tuần 11+).
+- Build/test chỉ trên nhân 6–10 (`STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=6-10"`), không chạy benchmark.
+- **Không có CI GitHub** (PO 19/10 quyết không bật): mỗi PR qua cổng kiểm cục bộ ở `compact-ops-plan.md` §8a, kiểm mã thoát của lệnh, không chỉ lọc dòng `ok`.
+- Merge theo quyền PO giao: cho từng PR ("merge #N"), hoặc quyền merge PO đã giao cho cả luồng việc (ví dụ luồng tích hợp W17–W21).
+- Staging và prod-sim: không deploy khi PO chưa cho phép; `deploy/staging/deploy.sh` và `pilot.sh` không có `--env` là staging. Lab dùng chung: hỏi các phiên đang chạy trước, xong thì dựng lại từ worktree detached ở `origin/main`.
 
 ## Quy tắc code
 
