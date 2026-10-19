@@ -1,0 +1,17 @@
+{
+  "base": "e2b6bd86c01d3bb57bd446833864b0bf8f843b1f",
+  "images": {
+    "strata-pkgtest:ubuntu-24.04": "sha256:e611d91953dd83d26944d54ab41cd8b46af4f25b598050bb9621d1fca76c3443",
+    "strata-pkgtest:rockylinux-9": "sha256:b3131c42c0f2445f8c0091ccddf4e358353bff6f4b6b1b58b15d6cba82d6ef52",
+    "strata-dev:go1.26.9-review": "sha256:ac48c76de34f7c20bfab2e61f9cf57c83f9d7035084e9479461f75f58b6d6e2a",
+    "goreleaser/nfpm:v2.43.1": "sha256:f1e9f1adcf452a85ab7765aa7252cdb2f94816ead5363bbd52a4e563087c942b"
+  },
+  "artifact_sha256": {
+    "build/standalone-packaging/strata-agent": "11d3581c42b558d068bc01437cb88fe6fd5cd1d344d8872bac48aaf0c84eab78",
+    "build/standalone-packaging/strata-agent_0.0.1-1_amd64.deb": "645e0c495d1120714a202392d6b22ed0e29dcc0c69c624a01a09b15e90a110fc",
+    "build/standalone-packaging/strata-agent_0.0.2-1_amd64.deb": "e724bbc9cb1e3e533eadc26b5e3498d163c4a8e3ba7aed684bd237471c4a6580",
+    "build/standalone-packaging/strata-agent-0.0.2-1.x86_64.rpm": "e82cfb96188aa2e269917356029bc1954715c6782dc9cfce7fad77b4ac568293",
+    "build/standalone-packaging/strata-agent-0.0.1-1.x86_64.rpm": "2b0ffdd533ed205c4139959a28230fefb600b06de4047df8bd695687c24ea7cb"
+  },
+  "scope": "real packaged agent, fresh systemd containers, network none; synthetic IPC, loopback signed HTTP; Fleet hook sleep stub; no native NGINX installer/VM claim"
+}

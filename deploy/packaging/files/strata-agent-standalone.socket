@@ -1,0 +1,15 @@
+[Unit]
+Description=Strata standalone event socket
+Conflicts=strata-agent.service strata-agent.socket
+
+[Socket]
+ListenDatagram=/run/strata/events.sock
+SocketUser=strata
+SocketGroup=strata
+SocketMode=0660
+DirectoryMode=0750
+ReceiveBuffer=4M
+Service=strata-agent-standalone.service
+
+[Install]
+WantedBy=sockets.target

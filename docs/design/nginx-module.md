@@ -916,6 +916,23 @@ File `config` của module khai báo `ngx_module_type=HTTP_FILTER` cho phần fi
 - `strata-agent` phân phối riêng (deb/rpm, image) vì dùng chung cho mọi connector.
 - Script kiểm tra trước khi nâng NGINX: báo nếu chưa có module build cho phiên bản mới.
 
+## Chế độ Lite (RV-G1-01)
+
+`strata-agent run --standalone` nhận bundle đã ký từ file/thư mục hoặc URL,
+xác minh bằng public key tin cậy tại node, cài bundle bất biến và cập nhật control
+file cho worker hot reload. Không cần control plane hoặc database. Chu kỳ poll
+và kiểm control của module quyết định độ trễ; không cam kết nạp tức thì.
+
+Agent nhận Unix datagram và xuất JSON Lines/syslog; các sink trực tiếp có lỗi
+được đếm, không thay thế hàng đợi lưu bền. Đọc counter tại `/run/strata/metrics`
+và phục vụ `/metrics`. Đường dẫn bundle/control/socket phải khớp NGINX.
+
+Gói agent có service/socket standalone riêng, xung đột với Fleet trên cùng node;
+không tự bật mode này khi cài gói. Socket do systemd giữ qua restart agent; queue
+có giới hạn. Mỗi tham số dùng biến EnvironmentFile riêng, không ghép shell args.
+Một lệnh cài và bằng chứng SQLi dưới 5 phút trên VM sạch vẫn cần nghiệm thu
+installer, bundle core đã ký và cấu hình route thật; test service không thay thế.
+
 ## Kế hoạch triển khai
 
 Module NGINX mất khoảng 10 tuần để chạy shadow trên traffic thật, với 2 kỹ sư (1 C/NGINX, 1 Rust) làm song song với lõi libstrata; tuần 11–16 dành cho canary enforce.

@@ -25,6 +25,19 @@ contents:
   - src: deploy/packaging/files/strata-agent.socket
     dst: /usr/lib/systemd/system/strata-agent.socket
     file_info: { mode: 0644 }
+  - src: deploy/packaging/files/strata-agent-standalone.service
+    dst: /usr/lib/systemd/system/strata-agent-standalone.service
+    file_info: { mode: 0644 }
+  - src: deploy/packaging/files/strata-agent-standalone.socket
+    dst: /usr/lib/systemd/system/strata-agent-standalone.socket
+    file_info: { mode: 0644 }
+  - src: deploy/packaging/files/standalone.env
+    dst: /etc/strata/standalone.env
+    type: config|noreplace
+    file_info: { mode: 0640 }
+  - src: deploy/packaging/scripts/agent-restart.sh
+    dst: /usr/libexec/strata/agent-restart
+    file_info: { mode: 0755 }
   - src: deploy/packaging/files/agent.env
     dst: /etc/strata/agent.env
     type: config|noreplace
