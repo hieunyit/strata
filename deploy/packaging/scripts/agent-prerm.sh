@@ -7,7 +7,8 @@ set -e
 case "$1" in
     remove | purge | 0)
         if [ -d /run/systemd/system ]; then
-            systemctl disable --now strata-agent.service strata-agent.socket >/dev/null 2>&1 || true
+            systemctl disable --now strata-agent.service strata-agent.socket \
+                strata-agent-standalone.service strata-agent-standalone.socket >/dev/null 2>&1 || true
         fi
         ;;
 esac

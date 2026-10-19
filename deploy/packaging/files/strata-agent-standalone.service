@@ -1,0 +1,32 @@
+[Unit]
+Description=Strata standalone agent (signed bundles, local events and metrics)
+After=network-online.target strata-agent-standalone.socket
+Wants=network-online.target
+Requires=strata-agent-standalone.socket
+Conflicts=strata-agent.service strata-agent.socket
+ConditionPathExists=/etc/strata/standalone.env
+
+[Service]
+User=strata
+Group=strata
+EnvironmentFile=/etc/strata/standalone.env
+ExecStart=/usr/bin/strata-agent run --standalone \
+    ${STRATA_BUNDLE_SOURCE} \
+    --bundle-pubkey=/etc/strata/bundle.pub \
+    --bundle-dir=/var/lib/strata/bundles --control-file=/var/lib/strata/bundles/control \
+    --event-socket=unix:/run/strata/events.sock --metrics-file=/run/strata/metrics \
+    --events-jsonl=${STRATA_EVENTS_JSONL} --syslog-addr=${STRATA_SYSLOG_ADDR} \
+    --metrics-addr=${STRATA_METRICS_ADDR} --node-id=${STRATA_NODE_ID}
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+LogsDirectory=strata
+LogsDirectoryMode=0750
+ReadWritePaths=/var/lib/strata /run/strata /var/log/strata
+
+[Install]
+WantedBy=multi-user.target
