@@ -290,6 +290,12 @@ func (s *ClickHouseStore) GetEvent(ctx context.Context, blockID string) (*Event,
 }
 
 func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, args ...any) (*Event, error) {
+	// Filter by server-resolved scope even for direct Block ID lookups.
+	if scopedEvents(ctx) {
+		clause, scopeArgs := eventScopeSQL(ctx)
+		extra += " AND " + clause
+		args = append(args, scopeArgs...)
+	}
 	// Legacy metadata without a database fingerprint is sanitized after decoding.
 	query := fmt.Sprintf(`
 		SELECT 
@@ -389,8 +395,9 @@ func (s *ClickHouseStore) getEvent(ctx context.Context, blockID, extra string, a
 
 // SearchEvents filters events matching the specified criteria.
 func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter) (*SearchResult, error) {
-	whereClauses := []string{"1=1"}
-	args := []any{}
+	scope, scopeArgs := eventScopeSQL(ctx)
+	whereClauses := []string{scope}
+	args := scopeArgs
 
 	if !filter.From.IsZero() {
 		whereClauses = append(whereClauses, "timestamp >= ?")
@@ -660,7 +667,7 @@ func (m *MockEventStore) GetEvent(ctx context.Context, blockID string) (*Event, 
 	defer m.mu.RUnlock()
 
 	e, found := m.eventsByID[blockID]
-	if !found {
+	if !found || !eventAllowed(ctx, e) {
 		return nil, ErrEventNotFound
 	}
 	return &e, nil
@@ -672,6 +679,9 @@ func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) 
 
 	var matched []Event
 	for _, e := range m.eventsList {
+		if !eventAllowed(ctx, e) {
+			continue
+		}
 		if !filter.From.IsZero() && e.Timestamp.Before(filter.From) {
 			continue
 		}

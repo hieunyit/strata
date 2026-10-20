@@ -127,13 +127,14 @@ type ClientCount struct {
 
 // Overview is the statistics of one window.
 type Overview struct {
-	From       time.Time      `json:"from"`
-	To         time.Time      `json:"to"`
-	StepSecond int64          `json:"step_seconds"`
-	Totals     OverviewTotals `json:"totals"`
-	Series     []Bucket       `json:"series"`
-	TopRules   []RuleCount    `json:"top_rules"`
-	TopRoutes  []RouteCount   `json:"top_routes"`
+	TelemetryScope string         `json:"telemetry_scope,omitempty"`
+	From           time.Time      `json:"from"`
+	To             time.Time      `json:"to"`
+	StepSecond     int64          `json:"step_seconds"`
+	Totals         OverviewTotals `json:"totals"`
+	Series         []Bucket       `json:"series"`
+	TopRules       []RuleCount    `json:"top_rules"`
+	TopRoutes      []RouteCount   `json:"top_routes"`
 	// TopClients is nil when the filter did not ask for it.
 	TopClients []ClientCount `json:"top_clients,omitempty"`
 	// Inspection: per policy, the requests of the window and the share not
@@ -194,7 +195,7 @@ func isShadow(action string) bool { return action == "shadow" }
 
 // Overview aggregates the in-memory events the same way as the ClickHouse
 // store, for the in-memory control plane and the API tests.
-func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overview, error) {
+func (m *MockEventStore) Overview(ctx context.Context, f OverviewFilter) (*Overview, error) {
 	if err := f.Normalize(); err != nil {
 		return nil, err
 	}
@@ -210,6 +211,9 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 	clientSet, nodeSet, policySet := map[string]bool{}, map[string]bool{}, map[string]bool{}
 
 	for _, e := range m.eventsList {
+		if !eventAllowed(ctx, e) {
+			continue
+		}
 		if e.Timestamp.Before(f.From) || !e.Timestamp.Before(f.To) {
 			continue
 		}
@@ -326,6 +330,12 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 		}
 	}
 	o.Engine = m.engineLatency(f.From, f.To)
+	if scopedEvents(ctx) {
+		o.Inspection = nil
+		o.Engine = nil
+		o.Totals.Requests = 0
+		o.TelemetryScope = "events_only"
+	}
 	return o, nil
 }
 
@@ -334,6 +344,9 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Overview, error) {
 	if err := f.Normalize(); err != nil {
 		return nil, err
+	}
+	if scopedEvents(ctx) {
+		return s.overviewRaw(ctx, f)
 	}
 	// W20-G2-01: from the hourly rollup once it covers the events
 	if ready, err := s.StatsReady(ctx); err == nil && ready {
@@ -354,6 +367,7 @@ func (s *ClickHouseStore) overviewRaw(ctx context.Context, f OverviewFilter) (*O
 		where += " AND policy_id = ?"
 		args = append(args, f.PolicyID)
 	}
+	where, args = appendEventScope(ctx, where, args)
 	o := &Overview{From: f.From, To: f.To, StepSecond: int64(f.Step / time.Second)}
 	const counts = `countIf(action = 'block'), countIf(action = 'shadow'), countIf(action NOT IN ('block', 'shadow')), countIf(action = 'error')`
 
@@ -442,6 +456,10 @@ func (s *ClickHouseStore) overviewRaw(ctx context.Context, f OverviewFilter) (*O
 	}
 	if o.TopRoutes == nil {
 		o.TopRoutes = []RouteCount{}
+	}
+	if scopedEvents(ctx) {
+		o.TelemetryScope = "events_only"
+		return o, nil
 	}
 	if o.Inspection, err = s.policyInspection(ctx, f); err != nil {
 		return nil, fmt.Errorf("overview inspection: %w", err)

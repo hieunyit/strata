@@ -312,6 +312,8 @@ func (s *ClickHouseStore) GeoByCell(ctx context.Context, f GeoFilter) ([]GeoCoun
 
 func (s *ClickHouseStore) geoRank(ctx context.Context, f GeoFilter, table, timeCol string, step time.Duration, key, label string) ([]GeoCount, error) {
 	where, args := f.where(timeCol, step)
+	table, scopeArgs := s.scopedGeoTable(ctx, table)
+	args = append(scopeArgs, args...)
 	// per attack type first: rows of one type are distinct events, so the
 	// per-type counts add up, and the type with most events is kept
 	q := fmt.Sprintf(`SELECT k, any(l), sum(n), sum(b), argMax(attack_type, n)
@@ -439,12 +441,14 @@ func (s *ClickHouseStore) GeoTimeline(ctx context.Context, f GeoFilter, step tim
 	}
 	f.From = start
 	where, args := f.where("minute", time.Minute)
+	table, scopeArgs := s.scopedGeoTable(ctx, GeoMinuteTable)
+	args = append(scopeArgs, args...)
 	q := fmt.Sprintf(`SELECT toStartOfInterval(minute, INTERVAL %d SECOND) AS b,
 			uniqCombined64MergeIf(events, action = 'block'),
 			uniqCombined64MergeIf(events, action = 'shadow'),
 			uniqCombined64MergeIf(events, action = 'error'),
 			uniqCombined64MergeIf(events, action NOT IN ('block', 'shadow'))
-		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), GeoMinuteTable, where)
+		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), table, where)
 	// W20-G2-01: hourly steps over long windows from the rollup
 	if step%time.Hour == 0 && s.geoRolledFor(ctx, f) {
 		where, args = f.where("hour", time.Hour)

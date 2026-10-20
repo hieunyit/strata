@@ -316,6 +316,10 @@ func (s *ClickHouseStore) overviewRolled(ctx context.Context, f OverviewFilter) 
 // 6 hours and more, once it is ready (shorter windows keep the minute
 // aggregates, which the live map reads).
 func (s *ClickHouseStore) geoRolledFor(ctx context.Context, f GeoFilter) bool {
+	if scopedEvents(ctx) {
+		return false
+	}
+
 	if f.To.Sub(f.From) < 6*time.Hour {
 		return false
 	}
