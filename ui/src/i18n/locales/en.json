@@ -79,7 +79,10 @@
       "allOnline": "every enrolled node",
       "noFleet": "fleet not available",
       "unchecked": "Not inspected",
-      "uncheckedNote": "fail mode, {{pct}}%"
+      "uncheckedNote": "fail mode, {{pct}}%",
+      "requests": "Requests",
+      "blockRate": "{{pct}}% blocked",
+      "noCounters": "node counters unavailable"
     },
     "series": {
       "hourly": "Events per hour",
@@ -119,6 +122,20 @@
       "notInspected": "Not inspected",
       "breakdown": "CPU budget {{partial}} · body not inspected {{body}} · engine error {{error}} · degraded {{degraded}}",
       "empty": "No request counts yet: nodes send them from module and agent RV-N-01 on."
+    },
+    "engine": {
+      "title": "Engine time",
+      "note": "Inspection time per request, every policy and node, from the modules' histograms",
+      "p50_us": "Median (p50)",
+      "p95_us": "p95",
+      "p99_us": "p99",
+      "mean": "Mean",
+      "requests": "{{count}} requests timed",
+      "empty": "No engine time from the nodes for this window (agents before W20)",
+      "over": "> 10 ms",
+      "ms": "≤ {{n}} ms",
+      "us": "≤ {{n}} µs",
+      "meanValue": "{{n}} µs"
     }
   },
   "events": {

@@ -597,6 +597,8 @@ type MockEventStore struct {
 	onSaveEvents func(events []Event)
 	// RV-N-01
 	policyRequests []PolicyRequests
+	// W20-F-01
+	engineTime []EngineTime
 }
 
 // NewMockEventStore initializes an in-memory mock store.

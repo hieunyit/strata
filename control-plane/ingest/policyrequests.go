@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -106,7 +105,7 @@ func (s *ClickHouseStore) policyInspection(ctx context.Context, f OverviewFilter
 		out = append(out, p)
 		return nil
 	})
-	if err != nil && strings.Contains(err.Error(), "UNKNOWN_TABLE") {
+	if err != nil && isUnknownTable(err) {
 		return out, nil // a control plane that never created it
 	}
 	return out, err
@@ -159,4 +158,20 @@ func (m *MockEventStore) policyInspection(f OverviewFilter) []PolicyInspection {
 		out = out[:TopN]
 	}
 	return out
+}
+
+// requestsCounted sums the requests the nodes counted in [from, to)
+// (W20-F-01); 0 without the table.
+func (s *ClickHouseStore) requestsCounted(ctx context.Context, from, to time.Time, policyID string) (uint64, error) {
+	where, args := "timestamp >= ? AND timestamp < ?", []any{from, to}
+	if policyID != "" {
+		where += " AND policy_id = ?"
+		args = append(args, policyID)
+	}
+	var n uint64
+	err := s.conn.QueryRow(ctx, "SELECT sum(requests) FROM "+policyRequestsTable+" WHERE "+where, args...).Scan(&n)
+	if err != nil && isUnknownTable(err) {
+		return 0, nil
+	}
+	return n, err
 }

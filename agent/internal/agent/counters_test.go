@@ -33,3 +33,21 @@ func TestFillCounters(t *testing.T) {
 		t.Fatalf("older module: %+v", old)
 	}
 }
+
+// W20-F-01: the engine time histogram and total, summed over the workers.
+func TestFillCountersEngineTime(t *testing.T) {
+	nc := &fleetv1.NodeCounters{}
+	fillCounters(nc, shmmetrics.Snapshot{Workers: []shmmetrics.Worker{
+		{EngineNanos: 1000, EngineBuckets: []uint64{5, 3, 0, 0, 0, 0, 0, 0, 1}},
+		{EngineNanos: 500, EngineBuckets: []uint64{1, 0, 0, 0, 0, 0, 0, 2, 0}},
+	}})
+	want := []uint64{6, 3, 0, 0, 0, 0, 0, 2, 1}
+	if len(nc.EngineTime) != len(want) || nc.EngineNs != 1500 {
+		t.Fatalf("engine time %v %d", nc.EngineTime, nc.EngineNs)
+	}
+	for i := range want {
+		if nc.EngineTime[i] != want[i] {
+			t.Fatalf("engine time %v, want %v", nc.EngineTime, want)
+		}
+	}
+}

@@ -93,6 +93,9 @@ type OverviewTotals struct {
 	Clients  uint64 `json:"clients"`  // distinct client IPs
 	Nodes    uint64 `json:"nodes"`    // distinct nodes that sent events
 	Policies uint64 `json:"policies"` // distinct policies
+	// Requests (W20-F-01): requests the nodes counted in the window, every
+	// one (with or without an event), from their counters; 0 without them
+	Requests uint64 `json:"requests"`
 }
 
 // RuleCount is a rule of the top list: the events it matched.
@@ -141,6 +144,10 @@ type Overview struct {
 	// 1%), top clients the heaviest of each hour, and the numbers lag the
 	// events by at most the rollup's interval. Counts of events are exact.
 	Approximate bool `json:"approximate,omitempty"`
+	// Engine (W20-F-01): engine time of the inspected requests of the
+	// window, every policy and node (the modules count per worker); nil
+	// without data (agents or modules before it).
+	Engine *EngineLatency `json:"engine,omitempty"`
 }
 
 // StatsStore is implemented by the event stores that aggregate.
@@ -313,6 +320,12 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 		o.TopClients = o.TopClients[:min(TopN, len(o.TopClients))]
 	}
 	o.Inspection = m.policyInspection(f)
+	for _, r := range m.policyRequests {
+		if !r.Time.Before(f.From) && r.Time.Before(f.To) && (f.PolicyID == "" || r.PolicyID == f.PolicyID) {
+			o.Totals.Requests += r.Requests
+		}
+	}
+	o.Engine = m.engineLatency(f.From, f.To)
 	return o, nil
 }
 
@@ -432,6 +445,12 @@ func (s *ClickHouseStore) overviewRaw(ctx context.Context, f OverviewFilter) (*O
 	}
 	if o.Inspection, err = s.policyInspection(ctx, f); err != nil {
 		return nil, fmt.Errorf("overview inspection: %w", err)
+	}
+	if o.Engine, err = s.engineLatency(ctx, f.From, f.To); err != nil {
+		return nil, fmt.Errorf("overview engine time: %w", err)
+	}
+	if o.Totals.Requests, err = s.requestsCounted(ctx, f.From, f.To, f.PolicyID); err != nil {
+		return nil, fmt.Errorf("overview requests: %w", err)
 	}
 	return o, nil
 }

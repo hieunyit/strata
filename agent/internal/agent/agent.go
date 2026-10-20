@@ -369,6 +369,14 @@ func fillCounters(nc *fleetv1.NodeCounters, snap shmmetrics.Snapshot) {
 		}
 		nc.Blocked += w.Requests[3]
 		nc.FailOpen += w.FailOpen
+		// W20-F-01: the engine time histogram, summed over the workers
+		if len(nc.EngineTime) < len(w.EngineBuckets) {
+			nc.EngineTime = append(nc.EngineTime, make([]uint64, len(w.EngineBuckets)-len(nc.EngineTime))...)
+		}
+		for i, n := range w.EngineBuckets {
+			nc.EngineTime[i] += n
+		}
+		nc.EngineNs += w.EngineNanos
 	}
 	nc.MetricsCreatedMs = snap.CreatedMs
 	g, ok := snap.Canary()

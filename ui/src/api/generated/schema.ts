@@ -621,6 +621,20 @@ export interface components {
       nodes: number;
       /** Format: int64 */
       policies: number;
+      /**
+       * Format: int64
+       * @description W20-F-01: requests the nodes counted in the window, with or without an event (their counters); 0 without them
+       */
+      requests?: number;
+    };
+    /** @description W20-F-01: engine time of the inspected requests, every policy and node. Quantiles are the upper bound of the histogram bucket holding them (50, 100, 200, 500 us, 1, 2, 5, 10 ms); -1: past 10 ms. */
+    EngineLatency: {
+      /** Format: int64 */
+      requests: number;
+      mean_us: number;
+      p50_us: number;
+      p95_us: number;
+      p99_us: number;
     };
     OverviewRuleCount: {
       rule_id: number;
@@ -696,6 +710,7 @@ export interface components {
       share: number;
     };
     OverviewResponse: {
+      engine?: components["schemas"]["EngineLatency"];
       /** @description W20-G2-01: served by the hourly rollup: from/to are whole hours, distinct clients a sketch (~1%), top clients the heaviest of each hour, and the numbers lag the events by at most the rollup's interval; counts of events are exact */
       approximate?: boolean;
       /** Format: date-time */

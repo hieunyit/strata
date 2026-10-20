@@ -14,6 +14,7 @@ import (
 type failingSink struct{ err error }
 
 func (f failingSink) SavePolicyRequests(context.Context, []ingest.PolicyRequests) error { return f.err }
+func (f failingSink) SaveEngineTime(context.Context, []ingest.EngineTime) error         { return f.err }
 
 func hb(started uint64, ps ...*eventv1.PolicyCount) *fleetv1.NodeCounters {
 	return &fleetv1.NodeCounters{AgentStartedMs: started, Policies: ps}
@@ -83,5 +84,35 @@ func TestPolicyRequestsRecorderKeepsRowsOnError(t *testing.T) {
 	r.mu.Unlock()
 	if n != MaxPendingPolicyRows || d != 10 {
 		t.Fatalf("pending %d dropped %d", n, d)
+	}
+}
+
+// W20-F-01: heartbeats carry engine time sums since NGINX made its metrics
+// file; the recorder writes the increase per node and interval.
+func TestEngineTimeRecorder(t *testing.T) {
+	store := ingest.NewMockEventStore()
+	r := NewPolicyRequestsRecorder(store)
+	at := time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)
+	eh := func(created uint64, ns uint64, b ...uint64) *fleetv1.NodeCounters {
+		return &fleetv1.NodeCounters{MetricsCreatedMs: created, EngineTime: b, EngineNs: ns}
+	}
+	r.Observe("node-1", eh(1, 1000, 10, 5, 0, 0, 0, 0, 0, 0, 0), at) // starting point only
+	r.Observe("node-1", eh(1, 1600, 14, 6, 0, 0, 0, 0, 0, 0, 1), at.Add(15*time.Second))
+	r.Observe("node-1", eh(1, 1600, 14, 6, 0, 0, 0, 0, 0, 0, 1), at.Add(30*time.Second)) // nothing new
+	r.Observe("node-1", eh(1, 100, 1, 0, 0, 0, 0, 0, 0, 0, 0), at.Add(45*time.Second))   // went down: skipped
+	r.Observe("node-1", eh(2, 300, 3, 0, 0, 0, 0, 0, 0, 0, 0), at.Add(60*time.Second))   // NGINX reloaded: all new
+	r.Observe("node-2", &fleetv1.NodeCounters{Requests: 9}, at)                          // an older agent
+	if err := r.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got := store.EngineTimeRows()
+	if len(got) != 2 || got[0].Nanos != 600 || got[0].Buckets[0] != 4 || got[0].Buckets[8] != 1 ||
+		!got[1].Time.Equal(at.Add(60*time.Second)) || got[1].Nanos != 300 || got[1].Buckets[0] != 3 {
+		t.Fatalf("rows %+v", got)
+	}
+	r.Forget("node-1")
+	r.Observe("node-1", eh(2, 400, 4, 0, 0, 0, 0, 0, 0, 0, 0), at.Add(75*time.Second)) // starting point again
+	if err := r.Flush(context.Background()); err != nil || len(store.EngineTimeRows()) != 2 {
+		t.Fatalf("after forget: %v %d", err, len(store.EngineTimeRows()))
 	}
 }

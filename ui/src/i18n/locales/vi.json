@@ -77,7 +77,10 @@
       "allOnline": "mọi node đã đăng ký",
       "noFleet": "không đọc được fleet",
       "unchecked": "Không kiểm được",
-      "uncheckedNote": "fail mode, {{pct}}%"
+      "uncheckedNote": "fail mode, {{pct}}%",
+      "requests": "Request",
+      "blockRate": "{{pct}}% bị chặn",
+      "noCounters": "chưa có bộ đếm từ node"
     },
     "series": {
       "hourly": "Sự kiện theo giờ",
@@ -116,6 +119,20 @@
       "notInspected": "Không kiểm đủ",
       "breakdown": "Hết CPU budget {{partial}} · bỏ qua body {{body}} · lỗi engine {{error}} · chạy giảm cấp {{degraded}}",
       "empty": "Chưa có số request: node gửi từ bản module và agent có RV-N-01."
+    },
+    "engine": {
+      "title": "Thời gian engine",
+      "note": "Thời gian kiểm tra mỗi request, mọi policy và node, từ histogram của module",
+      "p50_us": "Trung vị (p50)",
+      "p95_us": "p95",
+      "p99_us": "p99",
+      "mean": "Trung bình",
+      "requests": "{{count}} request được đo",
+      "empty": "Chưa có thời gian engine từ node trong khoảng này (agent trước W20)",
+      "over": "> 10 ms",
+      "ms": "≤ {{n}} ms",
+      "us": "≤ {{n}} µs",
+      "meanValue": "{{n}} µs"
     }
   },
   "events": {
