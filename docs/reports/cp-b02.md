@@ -1,7 +1,7 @@
 # CP-B02 · Inventory và kiểm tương thích
 
 Ngày 21/10/2026. Nền: main sau merge #295 (`7cdb41f`). PostgreSQL/ClickHouse giữ nguyên;
-không làm B03. Chia PR inventory và PR manifest/compatibility để review độc lập.
+không làm B03. Chia ba PR inventory, manifest và compatibility để review độc lập.
 
 ## Thay đổi
 
@@ -28,7 +28,15 @@ không làm B03. Chia PR inventory và PR manifest/compatibility để review đ
   30 files / 246 tests; test Fleet mới kiểm inventory, desired drift và chứng chỉ sắp hết hạn.
 - `buf generate` hai template và `buf lint`: pass; client TypeScript sinh từ OpenAPI.
 - Generator manifest kiểm ABI 1.8, section 8–16 và hash với binary fixture.
-- Lint Go, shellcheck, gate toàn control plane và test tích hợp cuối: cập nhật khi hoàn tất.
+- Lint Go: control plane và agent đều `0 issues.`; shellcheck build.sh sạch.
+- Gate toàn control plane `go test -p 1 -race ./...` với PostgreSQL/ClickHouse thật: exit 0.
+  Trích: cmd/server 85.567s, ingest 27.634s, store 30.126s; các package còn lại PASS.
+- Part inventory được kiểm riêng tại `ab0791e`: store/fleet/admin `-race` PASS, lint 0 issues.
+- Playwright Fleet: 4 passed (18.9s), có ca inventory/drift/chứng chỉ.
+
+Tự review: (1) điều kiện có test/output như trên; (2) lỗi persist/manifest/preflight trả về;
+(3) metadata/manifest/section directory có giới hạn; (4) không dùng node telemetry cấp quyền;
+(5) phạm vi đúng Fleet/agent/bundle metadata/UI và tài liệu; (6) lint/format sạch.
 
 CPU 6–10; PostgreSQL riêng `strata-compact-b-pg`; không dùng lab chung/staging/production.
 
