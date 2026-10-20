@@ -4,7 +4,9 @@
 # 29 days before (defaults 10 million each, ~115 events/s for a day), then
 # TestClickHousePerf and TestClickHouseTTL (control-plane/ingest), and
 # TestClickHouseAPIPerf (control-plane/api: the same targets through the
-# REST API). The Go tests run in the dev image (deploy/dev/run.sh).
+# REST API), and TestClickHouseStatsPerf (W20-G2-01: the Overview and the
+# map's statistics, after the hourly rollup's first run). Every test runs;
+# the script fails when one does. The Go tests run in the dev image (deploy/dev/run.sh).
 # The data are made inside ClickHouse (numbers()): Block IDs carry their
 # time as libstrata's do; rule IDs, IPs, paths and actions are drawn with
 # skew (a few hot IPs and rules, most traffic on example-api).
@@ -103,4 +105,4 @@ echo "filled in $(( $(date +%s) - start )) s: $rows rows, $disk active disk, $co
 STRATA_DEV_DOCKER_ARGS="${STRATA_DEV_DOCKER_ARGS:-} --network host ${cpus[*]}" \
     "$root/deploy/dev/run.sh" env CLICKHOUSE_PERF_ADDR="$native_addr" CLICKHOUSE_PERF_PASSWORD="$pw" \
     STRATA_TEST_POSTGRES_DSN="postgres://postgres:$pw@$pg_addr/postgres?sslmode=disable" \
-    sh -c "cd control-plane && go test -count=1 -v -run '^TestClickHouseAPIAnnotatedPerf$' ./api/ && go test -count=1 -v -run 'TestClickHouse(Perf|TTL)' ./ingest/" </dev/null
+    sh -c "cd control-plane && rc=0; go test -count=1 -v -timeout 40m -run '^TestClickHouseAPIAnnotatedPerf$' ./api/ || rc=1; go test -count=1 -v -timeout 40m -run 'TestClickHouse(Perf|TTL|StatsPerf)' ./ingest/ || rc=1; exit \$rc" </dev/null

@@ -233,6 +233,7 @@ func main() {
 		go func() {
 			if migrateClickHouse(ctx, chStore, *ttlDays, *geoMonths) {
 				backfillGeoAggregates(ctx, chStore, *ttlDays)
+				go rollupStats(ctx, chStore)
 			}
 		}()
 		store = chStore

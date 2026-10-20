@@ -696,6 +696,8 @@ export interface components {
       share: number;
     };
     OverviewResponse: {
+      /** @description W20-G2-01: served by the hourly rollup: from/to are whole hours, distinct clients a sketch (~1%), top clients the heaviest of each hour, and the numbers lag the events by at most the rollup's interval; counts of events are exact */
+      approximate?: boolean;
       /** Format: date-time */
       from: string;
       /** Format: date-time */
