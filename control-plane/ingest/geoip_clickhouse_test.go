@@ -245,8 +245,7 @@ func TestSearchClickHousePropagatesStreamFailure(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	faulty := *ch
-	faulty.conn = interruptedGeoConn{ch.conn}
+	faulty := &ClickHouseStore{conn: interruptedGeoConn{ch.conn}, tableName: ch.tableName}
 	if result, err := faulty.SearchEvents(t.Context(), SearchFilter{Limit: 20}); !errors.Is(err, errGeoTestStream) || result != nil {
 		t.Fatalf("partial rows reported as a complete successful search: %+v %v", result, err)
 	}

@@ -32,6 +32,12 @@ n=$("$CARGO_TARGET_DIR/release/strata-replay" gen --out "$out/corpus-count.parqu
     sed -n 's/.* from \([0-9]*\) corpus requests.*/\1/p')
 "$CARGO_TARGET_DIR/release/strata-replay" gen --out "$dist/replay-corpus.parquet" --count "$n" --corpus corpus
 (cd agent && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/" ./cmd/strata-agent ./cmd/strata-emit)
+# the Web UI built into the control plane (CP-A08) when ui/dist was built
+# (build/ui.sh npm run build); otherwise the lab's ui container serves it
+if [ -f ui/dist/index.html ]; then
+    find control-plane/webui/dist -mindepth 1 ! -name .gitkeep -delete
+    cp -R ui/dist/. control-plane/webui/dist/
+fi
 (cd control-plane && CGO_ENABLED=0 go build -trimpath -o "../$dist/bin/strata-control-plane" ./cmd/server)
 cp engine/compiler/examples/rules.yaml deploy/lab/policies.yaml deploy/lab/block.html deploy/lab/init.sh deploy/lab/fleet-init.sh deploy/lab/install-bundle.sh "$dist/"
 cp deploy/lab/runtime.Dockerfile "$dist/Dockerfile"

@@ -15,7 +15,13 @@ type ErrorResponse struct {
 	Error   string `json:"error"`
 	BlockID string `json:"block_id,omitempty"`
 	Code    int    `json:"code,omitempty"`
+	// Reason tells errors apart for clients: ReasonEventsUnavailable.
+	Reason string `json:"reason,omitempty"`
 }
+
+// ReasonEventsUnavailable: the event store (ClickHouse) did not answer.
+// The UI shows "data source unavailable", never an empty result (CP-A08).
+const ReasonEventsUnavailable = "EVENTS_UNAVAILABLE"
 
 // GetEventResponse represents the detailed decision trace returned for a single Block ID.
 type GetEventResponse struct {

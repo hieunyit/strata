@@ -4,7 +4,7 @@ import { ChevronLeft, SearchX } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { ErrorBanner, VerdictBadge, relativeTime } from '../components/ui';
 import { EventTrace, CopyButton } from '../components/events/EventTrace';
-import { apiClient, ApiError, GetEventResponse } from '../api/client';
+import { apiClient, ApiError, GetEventResponse, isEventsUnavailable } from '../api/client';
 import { href } from '../router';
 import { buildCurlFromEvent } from '../lib/curl';
 import { FalsePositive } from '../components/events/FalsePositive';
@@ -33,6 +33,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       .catch((err: unknown) => {
         if (!alive) return;
         if (err instanceof ApiError && err.code === 404) setState({ kind: 'missing' });
+        else if (isEventsUnavailable(err)) setState({ kind: 'failed', apiMessage: t('errors.eventsUnavailable') });
         else if (err instanceof ApiError) setState({ kind: 'failed', apiMessage: err.message });
         else setState({ kind: 'failed' });
       });

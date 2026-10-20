@@ -12,3 +12,7 @@ deploy/lab/.state/
 # staging passwords, state and the deployed release
 deploy/staging/.state/
 deploy/staging/.state-prod-sim/
+
+# the UI embedded in the control plane (make control-plane-ui fills it)
+control-plane/webui/dist/*
+!control-plane/webui/dist/.gitkeep

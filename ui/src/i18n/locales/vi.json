@@ -250,6 +250,8 @@
     "sessionExpiredInactivity": "Phiên làm việc đã kết thúc do không hoạt động."
   },
   "errors": {
+    "eventsUnavailable": "Nguồn dữ liệu sự kiện (ClickHouse) không sẵn sàng: chưa có số liệu để hiển thị. Đăng nhập, policy và deploy vẫn dùng được; số liệu trở lại khi kết nối được.",
+    "noData": "Không có dữ liệu: nguồn dữ liệu không trả lời.",
     "apiUnreachable": "Không kết nối được API của control plane. Kiểm tra dịch vụ đang chạy rồi tải lại.",
     "blockIdNotFound": "Không có sự kiện với Block ID {{id}}",
     "blockIdLookup": "Tra Block ID lỗi: {{error}}",

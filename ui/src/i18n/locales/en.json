@@ -255,6 +255,8 @@
     "sessionExpiredInactivity": "Your session ended due to inactivity."
   },
   "errors": {
+    "eventsUnavailable": "The event data source (ClickHouse) is unavailable: there are no figures to show. Sign-in, policies and deploys still work; figures return once it is reachable.",
+    "noData": "No data: the data source did not answer.",
     "apiUnreachable": "Cannot reach the control plane API. Check that it is running, then refresh.",
     "blockIdNotFound": "No event with Block ID {{id}}",
     "blockIdLookup": "Block ID lookup failed: {{error}}",

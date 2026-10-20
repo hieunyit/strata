@@ -72,13 +72,22 @@ export interface OverviewParams {
 export class ApiError extends Error {
   code: number;
   blockId?: string;
+  /** Machine-readable cause, e.g. EVENTS_UNAVAILABLE */
+  reason?: string;
 
-  constructor(message: string, code: number, blockId?: string) {
+  constructor(message: string, code: number, blockId?: string, reason?: string) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.blockId = blockId;
+    this.reason = reason;
   }
+}
+
+/** The event store (ClickHouse) did not answer: show "data source
+ * unavailable", never an empty result (CP-A08). */
+export function isEventsUnavailable(e: unknown): boolean {
+  return e instanceof ApiError && e.reason === 'EVENTS_UNAVAILABLE';
 }
 
 const API_BASE = '/v1';
@@ -110,7 +119,8 @@ async function call<T>(path: string, init: RequestInit, fallback: string): Promi
       // use default error
     }
     if (res.status === 401) handlers.unauthorized();
-    throw new ApiError(errPayload.error || fallback, res.status, errPayload.block_id);
+    const reason = (errPayload as { reason?: unknown }).reason;
+    throw new ApiError(errPayload.error || fallback, res.status, errPayload.block_id, typeof reason === 'string' ? reason : undefined);
   }
   if (res.status === 204) return undefined as T;
   return res.json();

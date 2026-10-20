@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -56,6 +57,7 @@ type EventStore interface {
 type ClickHouseStore struct {
 	conn      driver.Conn
 	tableName string
+	migrated  atomic.Bool // Migrate succeeded (CP-A08)
 }
 
 // ClickHouseConfig holds connection settings for ClickHouse.
@@ -67,8 +69,22 @@ type ClickHouseConfig struct {
 	Table    string
 }
 
-// NewClickHouseStore connects to ClickHouse and ensures the events table exists.
+// NewClickHouseStore connects to ClickHouse and checks that it answers.
 func NewClickHouseStore(ctx context.Context, cfg ClickHouseConfig) (*ClickHouseStore, error) {
+	s, err := OpenClickHouseStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.conn.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("pinging clickhouse: %w", err)
+	}
+	return s, nil
+}
+
+// OpenClickHouseStore prepares the connection without reaching ClickHouse:
+// the control plane starts while ClickHouse is down (CP-A08), the events
+// part degraded until it answers and Migrate succeeds.
+func OpenClickHouseStore(cfg ClickHouseConfig) (*ClickHouseStore, error) {
 	if cfg.Table == "" {
 		cfg.Table = "events"
 	}
@@ -91,10 +107,6 @@ func NewClickHouseStore(ctx context.Context, cfg ClickHouseConfig) (*ClickHouseS
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("opening clickhouse connection: %w", err)
-	}
-
-	if err := conn.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("pinging clickhouse: %w", err)
 	}
 
 	return &ClickHouseStore{

@@ -5,7 +5,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, ErrorBanner } from '../components/ui';
 import { EventFilterBar, EventFilters, emptyFilters } from '../components/events/EventFilterBar';
 import { EventsTable } from '../components/events/EventsTable';
-import { apiClient, Event, SearchEventsRequest, ApiError } from '../api/client';
+import { apiClient, Event, SearchEventsRequest, ApiError, isEventsUnavailable } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { eventRanges, isRange, windowOf } from '../lib/timeRange';
@@ -77,6 +77,13 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
         setNext(res.next_page_token);
         setError(null);
       } catch (err) {
+        if (isEventsUnavailable(err)) {
+          // not "no events": the list is unknown (CP-A08)
+          setEvents([]);
+          setTotal(0);
+          setError(t('errors.eventsUnavailable'));
+          return;
+        }
         setError(err instanceof ApiError ? `${err.message} (HTTP ${err.code})` : t('errors.apiUnreachable'));
       } finally {
         setLoading(false);

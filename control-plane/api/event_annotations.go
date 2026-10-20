@@ -79,7 +79,7 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 		if errors.Is(err, ingest.ErrEventNotFound) {
 			writeError(w, 404, "event not found", block)
 		} else {
-			writeError(w, 503, "events unavailable", block)
+			eventsUnavailable(w, block)
 		}
 		return
 	}

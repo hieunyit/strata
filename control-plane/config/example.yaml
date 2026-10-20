@@ -9,6 +9,7 @@ version: 1
 server:
   http:
     listen: ":8080"
+    ui: true            # the Web UI built into the binary, on the same origin (CP-A08)
   fleet:
     listen: ":8443"
     tls_ca: pki/ca.pem

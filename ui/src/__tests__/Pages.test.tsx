@@ -118,6 +118,22 @@ describe('overview page (W10-F-01)', () => {
     expect(await screen.findByTestId('overview-empty')).toHaveTextContent('No events in this window.');
     expect(screen.getByTestId('range-30d')).toHaveAttribute('aria-checked', 'true');
   });
+
+  // CP-A08: ClickHouse down is "data source unavailable", never 0 events
+  it('shows the data source as unavailable, not zero events', async () => {
+    const get = vi.spyOn(apiClient, 'getOverview').mockResolvedValueOnce(overview)
+      .mockRejectedValue(new ApiError('event data unavailable', 503, undefined, 'EVENTS_UNAVAILABLE'));
+    fleet();
+    render(<StaticAuthProvider roles={['operator']}><OverviewPage route={{ page: 'overview' }} /></StaticAuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('kpi-events')).toHaveTextContent('40'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('overview-error')).toHaveTextContent('event data source (ClickHouse) is unavailable');
+    expect(screen.getByTestId('kpi-events')).toHaveTextContent('—');
+    expect(screen.getByTestId('kpi-blocked')).toHaveTextContent('—');
+    expect(screen.getByTestId('overview-empty')).toHaveTextContent('No data: the data source did not answer.');
+    expect(screen.queryByText('No events in this window.')).toBeNull();
+  });
 });
 
 describe('policies page', () => {
