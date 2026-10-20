@@ -24,7 +24,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-FIX-01 | Chốt replay lúc deploy chỉ kiểm cái thay đổi (`rules_digest`); lab `/tmp` cho chạy compiler (#271) | Claude Code (strata-59) | — | ✅ PR #271, #273 (migration 0025; lab: duyệt lại 27 policy rồi `lab-chain`, smoke, drill PASS). Môi trường nâng cấp lên bản này: lần deploy đầu cần duyệt lại mọi policy một lần |
 | CP-SEC-02 | Tên policy không chỉ gồm dấu chấm (`policy.ValidName`); kiểm khóa object từng đoạn làm ở CP-A07 | Claude Code (strata-59) | — | ✅ PR #274 |
 | CP-A01 | Kiểm kê dữ liệu, bất biến, trạng thái RAM; đo nền | Claude Code (strata-59) | — | ✅ `docs/reports/cp-a01.md`: 28 bảng PG, 3 bảng ClickHouse, file/object, trạng thái RAM; bất biến kèm test (thiếu test deploy đồng thời → CP-A03); RAM idle phần giữ ≈ 733 MiB, phần thành tùy chọn ≈ 1,2 GiB |
-| CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ⏳ |
+| CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ✅ `control-plane/config`, `example.yaml`; `docs/reports/cp-a02.md` |
 | CP-A03 | Gia cố PostgreSQL: deploy tuần tự có giới hạn chờ, lease một control plane, `/readyz` | Claude Code (strata-59) | CP-A01 | ✅ migration 0027; `docs/reports/cp-a03.md` |
 | CP-A05 | Local auth mặc định, `strata init`, `admin recover` | Claude Code (strata-59) | CP-A02 | ⏳ |
 | CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | ⏳ |

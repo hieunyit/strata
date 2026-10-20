@@ -28,6 +28,7 @@ import (
 	"github.com/strata/strata/control-plane/admin"
 	"github.com/strata/strata/control-plane/api"
 	"github.com/strata/strata/control-plane/auth"
+	"github.com/strata/strata/control-plane/config"
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/goodbots"
@@ -105,7 +106,23 @@ func main() {
 	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
 	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the object store (-s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
 	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the object store (-s3-*) and activated")
+	configPath := flag.String("config", os.Getenv("STRATA_CONFIG"), "YAML configuration file (CP-A02); flags given here override it. Also: strata-control-plane config validate|show -config <file>")
+	if len(os.Args) > 1 && os.Args[1] == "config" {
+		os.Exit(configCommand(os.Args[2:]))
+	}
 	flag.Parse()
+	if *configPath != "" {
+		explicit := map[string]bool{}
+		flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+		file, err := config.Load(*configPath)
+		if err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
+		if _, err := file.Apply(flag.CommandLine, explicit); err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
+		log.Printf("[INFO] configuration from %s (flags given on the command line override it)", *configPath)
+	}
 	mx := metrics.New(version, commit)
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -855,4 +872,40 @@ func readiness(pool *pgxpool.Pool, keeper *leaseKeeper, events ingest.EventStore
 		}
 		return out, ready
 	}
+}
+
+// configCommand runs "config validate" or "config show [--effective]" on a
+// configuration file (-config, or STRATA_CONFIG): it decodes the file,
+// applies it to the flags defined above and reports, without starting
+// anything. Secrets are never printed.
+func configCommand(args []string) int {
+	fs := flag.NewFlagSet("config", flag.ContinueOnError)
+	path := fs.String("config", os.Getenv("STRATA_CONFIG"), "YAML configuration file")
+	_ = fs.Bool("effective", true, "show: the effective value of every setting and its source")
+	if len(args) == 0 || (args[0] != "validate" && args[0] != "show") {
+		fmt.Fprintln(os.Stderr, "usage: strata-control-plane config validate|show [-effective] -config <file>")
+		return 2
+	}
+	verb := args[0]
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if *path == "" {
+		fmt.Fprintln(os.Stderr, "config: -config <file> (or STRATA_CONFIG) is required")
+		return 2
+	}
+	file, err := config.Load(*path)
+	if err == nil {
+		var src map[string]config.Source
+		if src, err = file.Apply(flag.CommandLine, nil); err == nil {
+			if verb == "show" {
+				fmt.Print(config.Effective(flag.CommandLine, src))
+			} else {
+				fmt.Printf("%s: valid\n", *path)
+			}
+			return 0
+		}
+	}
+	fmt.Fprintln(os.Stderr, err)
+	return 1
 }

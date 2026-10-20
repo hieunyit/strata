@@ -1,0 +1,59 @@
+# Strata control plane configuration (CP-A02), version 1.
+# Every key maps to a command line flag (see docs/design/nginx-module.md);
+# a flag given on the command line overrides the file. Secrets are never
+# written here: *_file keys name files (mode 600) whose content becomes the
+# environment variable the control plane reads, unless it is already set.
+# Relative paths are relative to this file's directory.
+version: 1
+
+server:
+  http:
+    listen: ":8080"
+  fleet:
+    listen: ":8443"
+    tls_ca: pki/ca.pem
+    tls_cert: pki/cp.pem
+    tls_key: pki/cp-key.pem
+    node_ca_cert: pki/node-ca.pem
+    node_ca_key: pki/node-ca-key.pem
+  metrics:
+    listen: "127.0.0.1:9100"
+  single_control_plane: true
+  lease_ttl: 30s
+
+database:
+  dsn_file: secrets/postgres-dsn
+
+auth:
+  local:
+    enabled: true
+    session_ttl: 8h
+    admin_password_file: secrets/admin-password
+
+events:
+  retention_days: 30
+  clickhouse:
+    address: "clickhouse:9000"
+    username: strata
+    password_file: secrets/clickhouse-password
+
+bundles:
+  rules: [/opt/strata/rules.yaml]
+  signer:
+    type: file
+    key_file: keys/bundle-signing.key
+    public_key: keys/bundle.pub
+  storage:
+    s3:
+      endpoint: "minio:9000"
+      secure: false
+      access_key_file: secrets/s3-access-key
+      secret_key_file: secrets/s3-secret-key
+
+replay:
+  binary: /usr/local/bin/strata-replay
+  corpus: /opt/strata/replay-corpus.parquet
+  timeout: 10m
+
+rollouts:
+  waves: ["1", "10%", "100%"]
