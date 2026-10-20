@@ -10,6 +10,7 @@ import { href } from '../router';
 import { useAuth } from '../context/AuthContext';
 import { canWritePolicies } from '../auth/roles';
 import { PolicyEditor } from '../components/policy/PolicyEditor';
+import { NewPolicy } from '../components/policy/NewPolicy';
 import { VersionReview } from '../components/policy/VersionReview';
 import { PolicyDiff } from '../components/policy/PolicyDiff';
 
@@ -33,6 +34,7 @@ export const PoliciesPage: React.FC = () => {
   useEffect(() => () => versionRead.current?.abort(), []);
   const [selected, setSelected] = useState<Policy | null>(null);
   const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [saved, setSaved] = useState<number | undefined>();
   const [versions, setVersions] = useState<PolicyVersion[]>([]);
@@ -75,14 +77,31 @@ export const PoliciesPage: React.FC = () => {
         title={t('policies.title')}
         description={t('policies.subtitle')}
         actions={
-          list.length > 0 && (
-            <button type="button" data-testid="export-csv-btn" onClick={exportCsv} className="btn">
-              <Download className="w-3.5 h-3.5" />
-              {t('common.exportCsv')}
-            </button>
-          )
+          <>
+            {canEdit && !creating && (
+              <button type="button" data-testid="new-policy-btn" onClick={() => setCreating(true)} className="btn">
+                {t('policies.new.open')}
+              </button>
+            )}
+            {list.length > 0 && (
+              <button type="button" data-testid="export-csv-btn" onClick={exportCsv} className="btn">
+                <Download className="w-3.5 h-3.5" />
+                {t('common.exportCsv')}
+              </button>
+            )}
+          </>
         }
       />
+      {creating && (
+        <NewPolicy
+          onCancel={() => setCreating(false)}
+          onCreated={(p) => {
+            setCreating(false);
+            refresh();
+            void open(p);
+          }}
+        />
+      )}
       <ErrorBanner message={error && t('common.refreshError', { error })} />
       {saved !== undefined && (
         <p className="mb-3 text-[13px] text-ok" role="status" data-testid="editor-saved">

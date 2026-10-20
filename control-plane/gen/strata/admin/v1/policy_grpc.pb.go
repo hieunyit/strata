@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PolicyService_ListPolicies_FullMethodName           = "/strata.admin.v1.PolicyService/ListPolicies"
+	PolicyService_ListPolicyTemplates_FullMethodName    = "/strata.admin.v1.PolicyService/ListPolicyTemplates"
 	PolicyService_GetPolicy_FullMethodName              = "/strata.admin.v1.PolicyService/GetPolicy"
 	PolicyService_CreatePolicy_FullMethodName           = "/strata.admin.v1.PolicyService/CreatePolicy"
 	PolicyService_UpdatePolicy_FullMethodName           = "/strata.admin.v1.PolicyService/UpdatePolicy"
@@ -47,6 +48,9 @@ const (
 type PolicyServiceClient interface {
 	// REST: GET /v1/policies
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
+	// REST: GET /v1/policyTemplates. The templates a new policy can start
+	// from (W20-S-01).
+	ListPolicyTemplates(ctx context.Context, in *ListPolicyTemplatesRequest, opts ...grpc.CallOption) (*ListPolicyTemplatesResponse, error)
 	// REST: GET /v1/policies/{policy_id}
 	GetPolicy(ctx context.Context, in *GetPolicyRequest, opts ...grpc.CallOption) (*GetPolicyResponse, error)
 	// REST: POST /v1/policies
@@ -94,6 +98,16 @@ func (c *policyServiceClient) ListPolicies(ctx context.Context, in *ListPolicies
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPoliciesResponse)
 	err := c.cc.Invoke(ctx, PolicyService_ListPolicies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) ListPolicyTemplates(ctx context.Context, in *ListPolicyTemplatesRequest, opts ...grpc.CallOption) (*ListPolicyTemplatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPolicyTemplatesResponse)
+	err := c.cc.Invoke(ctx, PolicyService_ListPolicyTemplates_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +238,9 @@ func (c *policyServiceClient) RejectPolicy(ctx context.Context, in *RejectPolicy
 type PolicyServiceServer interface {
 	// REST: GET /v1/policies
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
+	// REST: GET /v1/policyTemplates. The templates a new policy can start
+	// from (W20-S-01).
+	ListPolicyTemplates(context.Context, *ListPolicyTemplatesRequest) (*ListPolicyTemplatesResponse, error)
 	// REST: GET /v1/policies/{policy_id}
 	GetPolicy(context.Context, *GetPolicyRequest) (*GetPolicyResponse, error)
 	// REST: POST /v1/policies
@@ -269,6 +286,9 @@ type UnimplementedPolicyServiceServer struct{}
 
 func (UnimplementedPolicyServiceServer) ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPolicies not implemented")
+}
+func (UnimplementedPolicyServiceServer) ListPolicyTemplates(context.Context, *ListPolicyTemplatesRequest) (*ListPolicyTemplatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPolicyTemplates not implemented")
 }
 func (UnimplementedPolicyServiceServer) GetPolicy(context.Context, *GetPolicyRequest) (*GetPolicyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPolicy not implemented")
@@ -338,6 +358,24 @@ func _PolicyService_ListPolicies_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PolicyServiceServer).ListPolicies(ctx, req.(*ListPoliciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_ListPolicyTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPolicyTemplatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).ListPolicyTemplates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_ListPolicyTemplates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).ListPolicyTemplates(ctx, req.(*ListPolicyTemplatesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -550,6 +588,10 @@ var PolicyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPolicies",
 			Handler:    _PolicyService_ListPolicies_Handler,
+		},
+		{
+			MethodName: "ListPolicyTemplates",
+			Handler:    _PolicyService_ListPolicyTemplates_Handler,
 		},
 		{
 			MethodName: "GetPolicy",

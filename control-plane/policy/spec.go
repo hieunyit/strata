@@ -51,6 +51,9 @@ type Spec struct {
 	// GeoRules: the policy's own rules on the country and ASN of the
 	// client address (W19-G2-01, policies.schema.json geo_rules).
 	GeoRules []GeoRule `json:"geo_rules,omitempty"`
+	// Template: the template the policy started from (W20-S-01);
+	// informative, not passed to the compiler.
+	Template *TemplateRef `json:"template,omitempty"`
 }
 
 // GeoRule is one geo rule of a policy (W19-G2-01).
@@ -208,6 +211,9 @@ func (s Spec) Validate() error {
 	}
 	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow != 0 && (s.CRSParanoiaShadow < enforce || s.CRSParanoiaShadow > 4) {
 		return fmt.Errorf("crs_paranoia_shadow must be crs_paranoia (%d)..4, got %d", enforce, s.CRSParanoiaShadow)
+	}
+	if t := s.Template; t != nil && (!pluginPattern.MatchString(t.Name) || t.Version < 1) {
+		return fmt.Errorf("template: %q version %d is not a template reference", t.Name, t.Version)
 	}
 	if len(s.GeoRules) > MaxGeoRules {
 		return fmt.Errorf("geo_rules: at most %d", MaxGeoRules)
