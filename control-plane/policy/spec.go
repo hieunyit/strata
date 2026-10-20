@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -43,6 +44,9 @@ type Spec struct {
 	// CRSParanoiaShadow: CRS paranoia level run and reported without
 	// blocking, CRSParanoia..4; 0 = the enforced level.
 	CRSParanoiaShadow int `json:"crs_paranoia_shadow,omitempty"`
+	// CRSPlugins: the CRS plugins (rule exclusions) the policy runs,
+	// sorted (W17-S-01, policies.schema.json crs_plugins).
+	CRSPlugins []string `json:"crs_plugins,omitempty"`
 }
 
 // ParanoiaLevels of the spec, defaults applied: (enforced, shadow).
@@ -59,6 +63,12 @@ func (s *Spec) Normalize() {
 	}
 	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow == enforce {
 		s.CRSParanoiaShadow = 0
+	}
+	if len(s.CRSPlugins) == 0 {
+		s.CRSPlugins = nil
+	} else {
+		s.CRSPlugins = append([]string(nil), s.CRSPlugins...)
+		sort.Strings(s.CRSPlugins)
 	}
 }
 
@@ -77,6 +87,9 @@ type Privacy struct {
 }
 
 var fieldPattern = regexp.MustCompile(`^[!-~]{1,64}$`)
+
+// pluginPattern: a CRS plugin name (policies.schema.json crs_plugins).
+var pluginPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
 // Response is the policy's response layer.
 type Response struct {
@@ -140,6 +153,16 @@ func (s Spec) Validate() error {
 	}
 	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow != 0 && (s.CRSParanoiaShadow < enforce || s.CRSParanoiaShadow > 4) {
 		return fmt.Errorf("crs_paranoia_shadow must be crs_paranoia (%d)..4, got %d", enforce, s.CRSParanoiaShadow)
+	}
+	if len(s.CRSPlugins) > 16 {
+		return errors.New("crs_plugins: at most 16")
+	}
+	seenPlugins := map[string]bool{}
+	for _, p := range s.CRSPlugins {
+		if !pluginPattern.MatchString(p) || seenPlugins[p] {
+			return fmt.Errorf("crs_plugins: %q is invalid or listed twice (1 to 32 of a-z, 0-9, -)", p)
+		}
+		seenPlugins[p] = true
 	}
 	if s.MaxArgs < 0 || s.MaxArgs > 1020 {
 		return fmt.Errorf("max_args must be 1..1020, got %d", s.MaxArgs)

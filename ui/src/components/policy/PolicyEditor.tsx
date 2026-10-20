@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, X } from 'lucide-react';
 import { ApiError, Policy, apiClient } from '../../api/client';
-import { DATA_GUARDS, PARANOIA_LEVELS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, paranoiaLevels, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
+import { CRS_PLUGINS, DATA_GUARDS, PARANOIA_LEVELS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, paranoiaLevels, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
@@ -46,6 +46,9 @@ export const PolicyEditor: React.FC<{
   };
 
   const [paranoia, paranoiaShadow] = paranoiaLevels(spec);
+  const plugins = spec.crs_plugins ?? [];
+  const togglePlugin = (p: string) =>
+    update({ ...spec, crs_plugins: plugins.includes(p) ? plugins.filter((x) => x !== p) : [...plugins, p] });
   const guards = spec.response?.data_guard ?? [];
   const setResponse = (patch: Partial<NonNullable<PolicySpec['response']>>) =>
     update({ ...spec, response: { ...spec.response, ...patch } });
@@ -186,6 +189,26 @@ export const PolicyEditor: React.FC<{
             </div>
             <p className="text-xs text-muted sm:col-span-2">{t('editor.paranoiaNote')}</p>
           </div>
+          <fieldset className="space-y-1.5 text-[13px]" data-testid="editor-plugins">
+            <legend className="label">{t('editor.plugins')}</legend>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {CRS_PLUGINS.map((p) => (
+                <label key={p} className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={plugins.includes(p)}
+                    onChange={() => togglePlugin(p)}
+                    data-testid={`editor-plugin-${p}`}
+                  />
+                  {t(`editor.plugin.${p}`)}
+                </label>
+              ))}
+            </div>
+            {plugins.filter((p) => !(CRS_PLUGINS as readonly string[]).includes(p)).length > 0 && (
+              <p className="text-xs text-muted">{t('editor.pluginsOther', { list: plugins.filter((p) => !(CRS_PLUGINS as readonly string[]).includes(p)).join(', ') })}</p>
+            )}
+            <p className="text-xs text-muted">{t('editor.pluginsNote')}</p>
+          </fieldset>
           <fieldset className="space-y-1.5 text-[13px]">
             <legend className="label">{t('editor.response')}</legend>
             <label className="flex items-center gap-1.5">

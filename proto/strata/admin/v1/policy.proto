@@ -110,6 +110,12 @@ message PolicySpec {
   // above 1: upgrade them first. A bundle with PL2 rules is larger (about
   // 29 MB with the signature pack, above Vault transit's request limit).
   uint32 crs_paranoia_shadow = 12;
+  // W17-S-01: CRS plugins (rule exclusions for an application) the policy
+  // runs, e.g. wordpress, nextcloud: on the application's known paths and
+  // fields they take listed CRS rules or targets away. Each must have rules
+  // in the deployed rule set (rules/crs-plugins). Modules from before the
+  // setting refuse bundles with plugins: upgrade them first.
+  repeated string crs_plugins = 13;
 }
 
 // Control-plane authorization metadata; not runtime policy parameters.

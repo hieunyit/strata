@@ -45,3 +45,23 @@ func TestPolicyParanoiaRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// W17-S-01: CRS plugins through the admin API, stored sorted.
+func TestPolicyPluginsRoundTrip(t *testing.T) {
+	raw, err := specOf(&adminv1.PolicySpec{Mode: adminv1.PolicySpec_MODE_SHADOW, CrsPlugins: []string{"wordpress", "drupal"}})
+	if err != nil || string(raw) != `{"mode":"shadow","crs_plugins":["drupal","wordpress"]}` {
+		t.Fatalf("stored %s %v", raw, err)
+	}
+	pb := specPB(raw)
+	if len(pb.GetCrsPlugins()) != 2 || pb.GetCrsPlugins()[0] != "drupal" {
+		t.Errorf("read back %v", pb.GetCrsPlugins())
+	}
+	if again, err := specOf(pb); err != nil || string(again) != string(raw) {
+		t.Errorf("round trip %s %v", again, err)
+	}
+	for _, bad := range [][]string{{"Drupal"}, {"x", "x"}, {"a/b"}} {
+		if _, err := specOf(&adminv1.PolicySpec{Mode: adminv1.PolicySpec_MODE_SHADOW, CrsPlugins: bad}); err == nil {
+			t.Errorf("%v accepted", bad)
+		}
+	}
+}

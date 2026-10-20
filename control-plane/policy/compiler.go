@@ -123,13 +123,14 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		FailOn      string      `json:"fail_on_findings,omitempty"`
 		Paranoia    int         `json:"crs_paranoia,omitempty"`
 		ParaShadow  int         `json:"crs_paranoia_shadow,omitempty"`
+		Plugins     []string    `json:"crs_plugins,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
 		items = append(items, item{StagedRules: staged[p.Name], Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
 			Canary: p.Spec.CanaryPercent, MaxArgs: p.Spec.MaxArgs, FailOn: p.Spec.FailOnFindings,
-			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow})
+			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow, Plugins: p.Spec.CRSPlugins})
 	}
 	doc["policies"] = items
 	if c.BlockPage != "" {

@@ -57,3 +57,29 @@ describe('CRS paranoia levels', () => {
     expect(screen.queryByTestId('editor-advanced')).not.toBeInTheDocument();
   });
 });
+
+// W17-S-01: CRS plugins.
+describe('CRS plugins', () => {
+  it('are stored sorted, none is absent, YAML both ways', () => {
+    expect(normalizeSpec({ mode: 'MODE_SHADOW', crs_plugins: ['wordpress', 'drupal'] })).toEqual({ mode: 'MODE_SHADOW', crs_plugins: ['drupal', 'wordpress'] });
+    expect(normalizeSpec({ mode: 'MODE_SHADOW', crs_plugins: [] })).toEqual({ mode: 'MODE_SHADOW' });
+    expect(specToYaml({ mode: 'MODE_SHADOW', crs_plugins: ['wordpress', 'drupal'] })).toBe('mode: shadow\ncrs_plugins: [drupal, wordpress]\n');
+    expect(yamlToSpec('mode: shadow\ncrs_plugins: [wordpress]\n').spec).toEqual({ mode: 'MODE_SHADOW', crs_plugins: ['wordpress'] });
+    expect(yamlToSpec('mode: shadow\ncrs_plugins:\n  - nextcloud\n  - drupal\n').spec).toEqual({ mode: 'MODE_SHADOW', crs_plugins: ['nextcloud', 'drupal'] });
+    expect(yamlToSpec('mode: shadow\ncrs_plugins: [WordPress]\n').error).toMatchObject({ line: 2, code: 'plugin' });
+    expect(yamlToSpec('mode: shadow\ncrs_plugins: [drupal, drupal]\n').error).toMatchObject({ line: 2, code: 'pluginTwice' });
+    const general = diffSpecs({ mode: 'MODE_SHADOW' }, { mode: 'MODE_SHADOW', crs_plugins: ['wordpress'] }).find((b) => b.block === 'general')!;
+    expect(general.fields.find((f) => f.key === 'crs_plugins')).toMatchObject({ from: '[]', to: '[wordpress]', changed: true });
+  });
+
+  it('are picked in the form and saved', async () => {
+    const update = vi.spyOn(apiClient, 'updatePolicy').mockResolvedValue({ id: 'resource-api', version: 2 });
+    render(<PolicyEditor policy={{ id: 'resource-api', name: 'example-api', etag: 'e1', spec: { mode: 'MODE_SHADOW' } }} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('editor-plugin-wordpress'));
+    fireEvent.click(screen.getByTestId('editor-plugin-drupal'));
+    expect(screen.getByTestId('editor-yaml')).toHaveValue('mode: shadow\ncrs_plugins: [drupal, wordpress]\n');
+    fireEvent.click(screen.getByTestId('editor-plugin-drupal'));
+    fireEvent.click(screen.getByTestId('editor-save'));
+    await waitFor(() => expect(update).toHaveBeenCalledWith('resource-api', { mode: 'MODE_SHADOW', crs_plugins: ['wordpress'] }, 'e1'));
+  });
+});

@@ -483,7 +483,9 @@
       "canary": "canary_percent là số từ 0.01 đến 99.99, tối đa hai chữ số thập phân",
       "canaryMode": "canary_percent chỉ dùng với mode enforce",
       "paranoia": "{{key}} là mức từ 1 đến 4",
-      "paranoiaShadow": "crs_paranoia_shadow không được thấp hơn crs_paranoia"
+      "paranoiaShadow": "crs_paranoia_shadow không được thấp hơn crs_paranoia",
+      "plugin": "crs_plugins: \"{{value}}\" không phải tên plugin (a-z, 0-9, -)",
+      "pluginTwice": "crs_plugins có một plugin hai lần"
     },
     "canary": "Canary (% client bị chặn)",
     "canaryNote": "Để trống: chặn với mọi client. Client ngoài nhóm canary chạy shadow; control plane tự ép shadow nếu canary tệ hơn nhóm shadow.",
@@ -491,6 +493,19 @@
     "paranoiaShadow": "Mức paranoia CRS chạy shadow",
     "paranoiaLevel": "Mức {{level}}",
     "paranoiaShadowNone": "Không có mức nào trên mức chặn",
+    "plugins": "Plugin CRS (loại trừ rule cho một ứng dụng)",
+    "plugin": {
+      "wordpress": "WordPress",
+      "drupal": "Drupal",
+      "nextcloud": "Nextcloud",
+      "phpmyadmin": "phpMyAdmin",
+      "phpbb": "phpBB",
+      "xenforo": "XenForo",
+      "dokuwiki": "DokuWiki",
+      "cpanel": "cPanel"
+    },
+    "pluginsOther": "Còn đặt thêm (không có trong danh sách): {{list}}",
+    "pluginsNote": "Trên các đường dẫn và trường đã biết của ứng dụng, plugin gỡ một số rule CRS hoặc target của chúng để lưu lượng bình thường không bị khớp; chỉ dùng cho policy đứng trước đúng ứng dụng đó. Bộ rule đang deploy phải có plugin (rules/crs-plugins). Node phải chạy module hỗ trợ cài đặt này.",
     "paranoiaNote": "Mức cao bắt được nhiều tấn công hơn nhưng tăng false positive: ở mức 2 khoảng 9% request hợp lệ bị khớp. Rule trên mức chặn tới mức shadow chỉ được báo, không bao giờ chặn. Hãy chạy thử một mức ở shadow và xem false positive trước khi chặn. Node phải chạy module hỗ trợ cài đặt này."
   },
   "diff": {
@@ -518,6 +533,7 @@
       "canary_percent": "Canary (%)",
       "crs_paranoia": "Mức paranoia CRS chặn",
       "crs_paranoia_shadow": "Mức paranoia CRS chạy shadow",
+      "crs_plugins": "Plugin CRS",
       "advanced": "Exception, quyền riêng tư và giới hạn"
     }
   },

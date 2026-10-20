@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -43,7 +44,8 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "enforce", FailOnFindings: "pass"}, {Mode: "enforce", FailOnFindings: "block"},
 		// W17-S-01: CRS paranoia levels
 		{Mode: "enforce", CRSParanoia: 1}, {Mode: "enforce", CRSParanoia: 4}, {Mode: "enforce", CRSParanoiaShadow: 2},
-		{Mode: "enforce", CRSParanoia: 2, CRSParanoiaShadow: 2}, {Mode: "shadow", CRSParanoia: 2, CRSParanoiaShadow: 4}}
+		{Mode: "enforce", CRSParanoia: 2, CRSParanoiaShadow: 2}, {Mode: "shadow", CRSParanoia: 2, CRSParanoiaShadow: 4},
+		{Mode: "shadow", CRSPlugins: []string{"wordpress", "nextcloud"}}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -63,7 +65,10 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "enforce", MaxArgs: -1}, {Mode: "enforce", MaxArgs: 1021},
 		{Mode: "enforce", FailOnFindings: "maybe"},
 		{Mode: "enforce", CRSParanoia: -1}, {Mode: "enforce", CRSParanoia: 5}, {Mode: "enforce", CRSParanoiaShadow: 5},
-		{Mode: "enforce", CRSParanoiaShadow: -1}, {Mode: "enforce", CRSParanoia: 3, CRSParanoiaShadow: 2}}
+		{Mode: "enforce", CRSParanoiaShadow: -1}, {Mode: "enforce", CRSParanoia: 3, CRSParanoiaShadow: 2},
+		{Mode: "shadow", CRSPlugins: []string{"WordPress"}}, {Mode: "shadow", CRSPlugins: []string{"wordpress", "wordpress"}},
+		{Mode: "shadow", CRSPlugins: []string{""}}, {Mode: "shadow", CRSPlugins: []string{"../x"}},
+		{Mode: "shadow", CRSPlugins: make([]string, 17)}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)
@@ -89,6 +94,17 @@ func TestSpecParanoiaNormalize(t *testing.T) {
 		if e1 != e2 || s1 != s2 {
 			t.Errorf("%+v: levels changed (%d,%d) -> (%d,%d)", c.in, e1, s1, e2, s2)
 		}
+	}
+	// plugins are sorted, none is absent
+	s := Spec{Mode: "shadow", CRSPlugins: []string{"wordpress", "drupal"}}
+	s.Normalize()
+	if !reflect.DeepEqual(s.CRSPlugins, []string{"drupal", "wordpress"}) {
+		t.Errorf("plugins %v", s.CRSPlugins)
+	}
+	s.CRSPlugins = []string{}
+	s.Normalize()
+	if s.CRSPlugins != nil {
+		t.Errorf("empty plugins %v", s.CRSPlugins)
 	}
 	// the default stays out of the stored JSON
 	raw, _ := json.Marshal(Spec{Mode: "shadow"})
@@ -210,7 +226,7 @@ done
 	page := filepath.Join(dir, "block.html")
 	_ = os.WriteFile(page, []byte("<p>{{block_id}}</p>"), 0o644)
 	c := &Compiler{Binary: script, KeyFile: "/keys/seed", Rules: []string{"a.yaml", "b.yaml"}, BlockPage: page, SupportContact: "ops@example.test"}
-	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", CRSParanoia: 2, CRSParanoiaShadow: 3, Exceptions: []Exception{exampleException()}}}})
+	out, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", CRSParanoia: 2, CRSParanoiaShadow: 3, CRSPlugins: []string{"wordpress"}, Exceptions: []Exception{exampleException()}}}})
 	if err != nil || string(out) != "bundle" {
 		t.Fatalf("%q %v", out, err)
 	}
@@ -230,6 +246,7 @@ done
 	}
 	if doc.Policies[0]["name"] != "example-api" || doc.Policies[0]["mode"] != "enforce" || doc.Policies[0]["oversize"] != "block" || doc.Policies[0]["canary_percent"] != 5.0 || doc.Policies[0]["max_args"] != 200.0 || doc.Policies[0]["fail_on_findings"] != "block" ||
 		doc.Policies[0]["crs_paranoia"] != 2.0 || doc.Policies[0]["crs_paranoia_shadow"] != 3.0 ||
+		!reflect.DeepEqual(doc.Policies[0]["crs_plugins"], []any{"wordpress"}) ||
 		doc.BlockPage["html"] != "<p>{{block_id}}</p>" || doc.BlockPage["support_contact"] != "ops@example.test" {
 		t.Fatalf("policies file %s", pol)
 	}
