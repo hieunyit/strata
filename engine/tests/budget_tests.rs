@@ -45,6 +45,7 @@ fn rule(id: u32, conditions: Vec<CondDef>) -> RuleDef {
         any: false,
         block_alone: false,
         signature: false,
+        exclusion: None,
         conditions,
     }
 }

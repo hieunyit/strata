@@ -42,6 +42,10 @@ pub struct Engine {
     good_bots: crate::goodbots::GoodBots,
     /// CRS paranoia levels per policy index (section PARANOIA, W17-S-01)
     paranoia: Vec<crate::paranoia::Levels>,
+    /// exclusion rules (W17-S-01): their removals and the policies running
+    /// them, and per policy index the (rule ID, rule index) it runs
+    exclusions: crate::rule_exclusions::Exclusions,
+    exclusion_rules: Vec<Vec<(u32, u32)>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
     disabled: std::sync::RwLock<std::sync::Arc<[u32]>>,
@@ -187,6 +191,37 @@ impl Engine {
             &paranoid,
         )
         .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut index_of: Vec<(u32, u32)> = (0..tables.n_rules())
+            .filter_map(|i| {
+                tables
+                    .rule(i)
+                    .filter(|r| r.exclusion)
+                    .map(|r| (r.id, i as u32))
+            })
+            .collect();
+        index_of.sort_unstable();
+        let flagged: Vec<u32> = index_of.iter().map(|&(id, _)| id).collect();
+        let exclusions = crate::rule_exclusions::parse(
+            info.section(bytes, bundle::kind::EXCLUSIONS),
+            info.n_policies,
+            &flagged,
+            crate::rules::VARS.len(),
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
+        let exclusion_rules: Vec<Vec<(u32, u32)>> = (0..info.n_policies)
+            .map(|p| {
+                exclusions
+                    .enabled(p)
+                    .iter()
+                    .filter_map(|id| {
+                        index_of
+                            .binary_search_by_key(id, |&(i, _)| i)
+                            .ok()
+                            .map(|k| index_of[k])
+                    })
+                    .collect()
+            })
+            .collect();
         let body = crate::rules::code(crate::rules::STAGES, "request_body").unwrap_or(u8::MAX);
         let var_req_body =
             crate::rules::code(crate::rules::VARS, "request_body").unwrap_or(u8::MAX);
@@ -266,6 +301,8 @@ impl Engine {
             counters: crate::counters::PolicyCounters::new(n_policies),
             good_bots,
             paranoia,
+            exclusions,
+            exclusion_rules,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -291,6 +328,19 @@ impl Engine {
             .get(index as usize)
             .copied()
             .unwrap_or_default()
+    }
+
+    /// Removals of the exclusion rules (W17-S-01).
+    pub fn exclusions(&self) -> &crate::rule_exclusions::Exclusions {
+        &self.exclusions
+    }
+
+    /// The exclusion rules the policy at `index` runs, as (rule ID, rule
+    /// index) (W17-S-01).
+    pub fn exclusion_rules(&self, index: u32) -> &[(u32, u32)] {
+        self.exclusion_rules
+            .get(index as usize)
+            .map_or(&[], |v| &v[..])
     }
 
     /// Published crawler ranges of the bundle (W18-R-02).

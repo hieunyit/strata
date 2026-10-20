@@ -92,6 +92,11 @@
             "description": "W17-S-01: CRS paranoia level run in shadow, at least crs_paranoia (its value by default): CRS rules above crs_paranoia up to it run and are reported (Event ID EVT-, false positive table), but their score is kept apart and they never block, like the signature pack in shadow. Try a higher level this way before raising crs_paranoia. Rules above every policy's level are left out of the bundle.",
             "type": "integer", "minimum": 1, "maximum": 4
           },
+          "crs_plugins": {
+            "description": "W17-S-01: CRS plugins (rule exclusions for an application: wordpress, drupal, nextcloud, phpmyadmin, phpbb, xenforo, dokuwiki, cpanel) the policy runs: on that application's known paths and fields, they take listed CRS rules or targets away so its normal traffic does not match. Each name must have rules in the bundle's rule set. Engines from before the setting refuse a bundle with them: upgrade the module on every node first.",
+            "type": "array", "uniqueItems": true, "maxItems": 16,
+            "items": { "type": "string", "pattern": "^[a-z0-9-]{1,32}$" }
+          },
           "max_snippet_size": {
             "description": "Longest input snippet of a match in the policy's events, in bytes, masked before it is cut (P-01 §1b): 128 by default; 2048 or 4096 to investigate. Engines from before the setting refuse a bundle with 2048 or 4096: upgrade the module on every node first.",
             "enum": [128, 2048, 4096]

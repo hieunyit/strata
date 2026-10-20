@@ -155,6 +155,9 @@ pub struct Tx {
     /// their own score and never block
     signatures: crate::bundle::Signatures,
     sig_score: i32,
+    /// exclusion rules matched so far (W17-S-01): their removals hold for
+    /// the later stages
+    excluded: Vec<u32>,
     sig_matched: bool,
     staged_score: i32,
     staged_any: bool,
@@ -333,6 +336,7 @@ impl Tx {
             degraded: flags & TXF_DEGRADED != 0,
             signatures: crate::bundle::Signatures::Shadow,
             sig_score: 0,
+            excluded: vec![],
             sig_matched: false,
             staged_score: 0,
             staged_any: false,
@@ -976,6 +980,11 @@ impl Tx {
                 &self.disabled,
                 self.policy_index
                     .map(|index| (index, engine.exceptions(index))),
+                self.policy_index.map(|index| crate::rule_exclusions::Pass {
+                    table: engine.exclusions(),
+                    rules: engine.exclusion_rules(index),
+                    active: &mut self.excluded,
+                }),
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
@@ -1052,6 +1061,11 @@ impl Tx {
             &self.disabled,
             self.policy_index
                 .map(|index| (index, engine.exceptions(index))),
+            self.policy_index.map(|index| crate::rule_exclusions::Pass {
+                table: engine.exclusions(),
+                rules: engine.exclusion_rules(index),
+                active: &mut self.excluded,
+            }),
             self.budget.as_mut(),
             &mut |v| found.push(v),
         );

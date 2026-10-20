@@ -39,6 +39,8 @@ fn rule(id: u32, conditions: Vec<CondDef>) -> RuleDef {
         paranoia: 1,
         any: false,
         block_alone: false,
+        signature: false,
+        exclusion: None,
         conditions,
     }
 }

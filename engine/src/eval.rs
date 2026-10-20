@@ -1319,6 +1319,8 @@ struct Ctx<'t, 'b, 'a> {
     /// transformed values (owned) -> conditions matched by the scan
     scans_by_bytes: ContentScans,
     active_exceptions: Vec<&'t crate::exceptions::Exception>,
+    /// removals of the exclusion rules matched so far (W17-S-01)
+    removals: Vec<&'t crate::rule_exclusions::Removal>,
     /// per scan group of the prefilter: the gates that hold, once computed
     groups: Vec<Option<Vec<u32>>>,
     /// #28: what the prefilter scanned, value by value
@@ -1801,6 +1803,24 @@ fn condition(
             } else {
                 ""
             };
+        // W17-S-01: values an exclusion rule took away from this rule
+        if !from_prev
+            && ctx
+                .removals
+                .iter()
+                .any(|x| x.var == t.var && x.covers(rule_id))
+        {
+            let removed = |v: &TargetVal<'_>| {
+                ctx.removals
+                    .iter()
+                    .any(|x| x.removes_value(rule_id, t.var, v.name))
+            };
+            match vals {
+                TargetVals::One(ref v) if removed(v) => vals = TargetVals::Empty,
+                TargetVals::Many(ref mut values) => values.retain(|v| !removed(v)),
+                _ => {}
+            }
+        }
         if !namespace.is_empty()
             && ctx.active_exceptions.iter().any(|e| e.rule_id == rule_id)
             && let TargetVals::Many(ref mut values) = vals
@@ -2202,6 +2222,7 @@ pub fn evaluate(
         &[],
         None,
         None,
+        None,
         report,
     );
 }
@@ -2238,6 +2259,7 @@ pub fn evaluate_with_budget(
     signatures: bool,
     disabled: &[u32],
     exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
+    exclusions: Option<crate::rule_exclusions::Pass<'_>>,
     mut budget: Option<&mut crate::budget::TxBudget>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), crate::budget::BudgetExceeded> {
@@ -2428,11 +2450,38 @@ pub fn evaluate_with_budget(
         scans: HashMap::with_hasher(FastBuildHasher::default()),
         scans_by_bytes: ContentScans::with_hasher(operators.content_hasher.clone()),
         active_exceptions,
+        removals: vec![],
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],
         pass: Pass::default(),
         budget,
         budget_exceeded: false,
     };
+    // W17-S-01: the exclusion rules of this stage run before the others;
+    // what the matched ones remove holds for the rest of the transaction
+    if let Some(x) = exclusions {
+        for &(id, index) in x.rules {
+            let Some(r) = tables.rule(index as usize) else {
+                continue;
+            };
+            if r.stage != stage || x.active.contains(&id) {
+                continue;
+            }
+            if let Some(bgt) = ctx.budget.as_mut() {
+                bgt.check_cheap()?;
+            }
+            if let Some((true, _)) = rule_matches(&mut ctx, &d, &r) {
+                x.active.push(id);
+            }
+            if ctx.budget_exceeded {
+                return Err(crate::budget::BudgetExceeded);
+            }
+        }
+        ctx.removals = x
+            .active
+            .iter()
+            .flat_map(|&id| x.table.removals(id))
+            .collect();
+    }
     // with the prefilter, only the rules that may match are visited
     let order: Vec<u32> = match prefilter {
         Some(pf) if !degraded => {
@@ -2456,9 +2505,11 @@ pub fn evaluate_with_budget(
         let Some(r) = tables.rule(i) else { continue };
         let role = req.paranoia.role(r.paranoia);
         if r.stage != stage
+            || r.exclusion
             || role == crate::paranoia::Role::Skip
             || (r.signature && !signatures)
             || (!disabled.is_empty() && disabled.binary_search(&r.id).is_ok())
+            || ctx.removals.iter().any(|x| x.removes_rule(r.id))
         {
             continue;
         }

@@ -26,10 +26,10 @@
       "required": ["id", "name", "layer", "stage", "match", "score", "severity", "metadata"],
       "properties": {
         "id": {
-          "description": "Fixed, never reused. 100000-199999 protocol, 200000-299999 schema, 300000-399999 semantic, 400000-499999 imported signatures (Sigma, ET), 500000-599999 behavior/bot, 600000-699999 response, 700000-799999 CVE virtual patch, 800000-899999 organization, 900000-999999 OWASP CRS (original ids).",
+          "description": "Fixed, never reused. 100000-199999 protocol, 200000-299999 schema, 300000-399999 semantic, 400000-499999 imported signatures (Sigma, ET), 500000-599999 behavior/bot, 600000-699999 response, 700000-799999 CVE virtual patch, 800000-899999 organization, 900000-999999 OWASP CRS (original ids). Exclusion rules (with exclude) only: up to 9999999, e.g. the CRS plugins' own ids (9507100 WordPress).",
           "type": "integer",
           "minimum": 100000,
-          "maximum": 999999
+          "maximum": 9999999
         },
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
         "layer": {
@@ -49,6 +49,28 @@
         "severity": { "enum": ["critical", "error", "warning", "notice"] },
         "paranoia_level": { "type": "integer", "minimum": 1, "maximum": 4 },
         "labels": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }, "uniqueItems": true },
+        "exclude": {
+          "description": "W17-S-01: makes the rule an exclusion rule, as a CRS plugin's ctl:ruleRemoveById / ctl:ruleRemoveTargetById. Its conditions run at its stage before the other rules of that stage; when they match, each entry removes, for the rest of the request, the listed rules (no target) or one target of them (they do not see those values: the variable, or its one key; request_headers keys ignore ASCII case). It never scores or reports (score 0) and runs only for the policies listing its metadata.plugin in crs_plugins. Engines from before it refuse the bundle.",
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "rules": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } },
+              "rule_ranges": {
+                "type": "array", "minItems": 1,
+                "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } }
+              },
+              "target": {
+                "type": "object", "additionalProperties": false, "required": ["var"],
+                "properties": {
+                  "var": { "$ref": "#/$defs/target/properties/var" },
+                  "key": { "type": "string", "minLength": 1, "maxLength": 256 }
+                }
+              }
+            },
+            "anyOf": [{ "required": ["rules"] }, { "required": ["rule_ranges"] }]
+          }
+        },
         "metadata": { "$ref": "#/$defs/metadata" }
       },
       "allOf": [
@@ -67,6 +89,12 @@
         {
           "if": { "properties": { "metadata": { "properties": { "source": { "enum": ["sigma", "et-open"] } } } } },
           "then": { "properties": { "id": { "minimum": 400000, "maximum": 499999 } } }
+        },
+        {
+          "description": "Only exclusion rules go past 999999; they never score and name their plugin.",
+          "if": { "required": ["exclude"] },
+          "then": { "properties": { "score": { "const": 0 }, "metadata": { "required": ["plugin"] } } },
+          "else": { "properties": { "id": { "maximum": 999999 } } }
         }
       ]
     },
@@ -176,7 +204,8 @@
       "additionalProperties": false,
       "required": ["source", "license"],
       "properties": {
-        "source": { "enum": ["strata", "crs", "sigma", "et-open", "crawler-user-agents", "organization"] },
+        "source": { "enum": ["strata", "crs", "crs-plugin", "sigma", "et-open", "crawler-user-agents", "organization"] },
+        "plugin": { "description": "W17-S-01: the CRS plugin of an exclusion rule (e.g. wordpress); a policy runs it when it lists the name in crs_plugins.", "type": "string", "pattern": "^[a-z0-9-]{1,32}$" },
         "upstream_id": { "type": "string", "minLength": 1 },
         "upstream_version": { "type": "string", "minLength": 1 },
         "license": { "description": "SPDX identifier, e.g. Apache-2.0, MIT, DRL-1.1, BSD-3-Clause.", "type": "string", "minLength": 1 },
@@ -197,7 +226,7 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "source": { "enum": ["crs", "sigma", "et-open", "crawler-user-agents"] } } },
+          "if": { "properties": { "source": { "enum": ["crs", "crs-plugin", "sigma", "et-open", "crawler-user-agents"] } } },
           "then": { "required": ["upstream_id", "upstream_version", "author"] }
         }
       ]

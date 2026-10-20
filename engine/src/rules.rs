@@ -8,7 +8,10 @@
 //!                   rule blocks on its own, 0: it only adds to the score;
 //!                   bit 2: signature pack (RV-S-01), the policy's
 //!                   `signatures` setting applies; both were reserved,
-//!                   bundles from before them keep their meaning)
+//!                   bundles from before them keep their meaning; bit 3:
+//!                   exclusion rule (W17-S-01, `crate::rule_exclusions`):
+//!                   ID up to 9,999,999, score 0, no other flag, its
+//!                   removals in section EXCLUSIONS)
 //!                   | score i32 | cond_first u32
 //!                   | cond_count u32 | name_off u32 | name_len u32
 //!                   | paranoia u8 | reserved [u8; 3]
@@ -259,6 +262,9 @@ pub struct RuleDef {
     /// signature pack (Sigma, ET Open, bot lists: `signature_source`): the
     /// policy decides whether it runs and whether it may block (RV-S-01)
     pub signature: bool,
+    /// exclusion rule (W17-S-01): when it matches, its removals (section
+    /// EXCLUSIONS) apply; it never scores or reports
+    pub exclusion: Option<crate::rule_exclusions::RuleExclusion>,
     pub conditions: Vec<CondDef>,
 }
 
@@ -310,7 +316,10 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
     for r in rules {
         let (name_off, name_len) = pool.add(r.name.as_bytes());
         put_u32(&mut rt, r.id);
-        let flags = u8::from(r.any) | (u8::from(r.block_alone) << 1) | (u8::from(r.signature) << 2);
+        let flags = u8::from(r.any)
+            | (u8::from(r.block_alone) << 1)
+            | (u8::from(r.signature) << 2)
+            | (u8::from(r.exclusion.is_some()) << 3);
         rt.extend_from_slice(&[r.layer, r.stage, r.severity, flags]);
         rt.extend_from_slice(&r.score.to_le_bytes());
         put_u32(&mut rt, cond_i);
@@ -627,6 +636,7 @@ pub struct RuleView<'a> {
     pub any: bool,
     pub block_alone: bool,
     pub signature: bool,
+    pub exclusion: bool,
     pub cond_first: u32,
     pub cond_count: u32,
 }
@@ -693,11 +703,14 @@ impl<'a> Tables<'a> {
             }
         }
         for r in rules.as_chunks::<RULE_LEN>().0 {
-            if !(100_000..=999_999).contains(&u32_at(r, 0))
+            let exclusion = r[7] & 8 != 0;
+            let max_id = if exclusion { 9_999_999 } else { 999_999 };
+            if !(100_000..=max_id).contains(&u32_at(r, 0))
                 || r[4] as usize >= LAYERS.len()
                 || r[5] as usize >= STAGES.len()
                 || r[6] as usize >= SEVERITIES.len()
-                || r[7] & !0b111 != 0
+                || r[7] & !0b1111 != 0
+                || (exclusion && (r[7] & 0b110 != 0 || i32_at(r, 8) != 0))
                 || !in_range(u32_at(r, 12), u32_at(r, 16), n_conds)
                 || !str_ok(u32_at(r, 20), u32_at(r, 24), strings)
                 || r[28] > 4
@@ -867,6 +880,7 @@ impl<'a> Tables<'a> {
             any: r[7] & 1 == 1,
             block_alone: r[7] & 2 != 0,
             signature: r[7] & 4 != 0,
+            exclusion: r[7] & 8 != 0,
             score: i32_at(r, 8),
             cond_first: u32_at(r, 12),
             cond_count: u32_at(r, 16),
@@ -901,6 +915,7 @@ mod tests {
                 any: false,
                 block_alone: false,
                 signature: false,
+                exclusion: None,
                 conditions: vec![CondDef {
                     targets: vec![
                         TargetDef {
@@ -937,6 +952,7 @@ mod tests {
                 any: true,
                 block_alone: true,
                 signature: false,
+                exclusion: None,
                 conditions: vec![
                     CondDef {
                         targets: vec![TargetDef {
@@ -1071,7 +1087,9 @@ mod tests {
             (kind::CONDITIONS, 8 + 4, 99, "bad condition record"), // transform code
             (kind::CONDITIONS, 8 + 24, 9, "bad condition record"), // target_count
             (kind::RULES, 8 + 4, 9, "bad rule record"),         // layer
-            (kind::RULES, 8 + 7, 0xff, "bad rule record"),      // flags byte (bits 0-2 only)
+            (kind::RULES, 8 + 7, 0xff, "bad rule record"),      // flags byte (bits 0-3 only)
+            (kind::RULES, 8 + 7, 0x10, "bad rule record"),      // flag bit 4
+            (kind::RULES, 8 + 7, 0x08, "bad rule record"),      // exclusion with a score
             (kind::RULES, 8 + 16, 7, "bad rule record"),        // cond_count
             (kind::TARGETS, 8, 77, "bad target record"),        // var
             (kind::TARGETS, 8 + 16, 50, "bad target record"),   // exclude_count
@@ -1089,6 +1107,38 @@ mod tests {
                 "kind {k} off {off}"
             );
             sections = saved;
+        }
+    }
+
+    #[test]
+    fn exclusion_records() {
+        let exclusion = Some(crate::rule_exclusions::RuleExclusion {
+            plugin: "example-cms".into(),
+            removals: vec![],
+        });
+        let check = |id: u32, score: i32, block_alone: bool, x: &Option<_>| {
+            let mut rules = sample();
+            rules[0].id = id;
+            rules[0].score = score;
+            rules[0].block_alone = block_alone;
+            rules[0].exclusion = x.clone();
+            validate(&bundle_of(&encode(&rules, None)))
+        };
+        // an exclusion rule may use the plugins' 7-digit ids, never scores
+        assert!(check(9_507_100, 0, false, &exclusion).is_ok());
+        let t = encode(&sample(), None);
+        assert!(validate(&bundle_of(&t)).is_ok());
+        for (id, score, block_alone, x) in [
+            (9_507_100, 0, false, &None),
+            (10_000_000, 0, false, &exclusion),
+            (9_507_100, 5, false, &exclusion),
+            (9_507_100, 0, true, &exclusion),
+        ] {
+            assert_eq!(
+                check(id, score, block_alone, x),
+                Err(Error::BadLayout("bad rule record")),
+                "{id} {score} {block_alone}"
+            );
         }
     }
 

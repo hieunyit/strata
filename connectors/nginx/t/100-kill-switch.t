@@ -253,6 +253,9 @@ subtest "the protocol layer can be switched off too, and everything back on" => 
 subtest "a bad count is ignored, the list in force stays" => sub {
     disable(STUB);
     ok(defined within("/t?STRATA-TEST-BLOCK", "200"), "off");
+    # the requests of within may all reach one worker: give every worker a
+    # timer tick with the valid list before it goes bad
+    sleep 0.5;
     seqlock(sub { my $fh = shift; seek $fh, 2128, 0; print $fh pack("L<", 481) });
     sleep 0.5;
     is(blocked_by_all("/t?STRATA-TEST-BLOCK"), "200", "still off");

@@ -25,6 +25,7 @@ pub fn image(entries: &[Exception], flagged: bool) -> Vec<u8> {
         any: false,
         block_alone: false,
         signature: false,
+        exclusion: None,
         conditions: vec![CondDef {
             targets: vec![
                 TargetDef {

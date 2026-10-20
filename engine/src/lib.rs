@@ -26,6 +26,7 @@ pub mod multipart;
 pub mod operators;
 pub mod paranoia;
 pub mod privacy;
+pub mod rule_exclusions;
 pub mod rulecost;
 pub mod rules;
 pub mod staging;
