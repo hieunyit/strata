@@ -550,6 +550,9 @@ func (s *ClickHouseStore) SetNodeSeq(ctx context.Context, nodeID string, seq uin
 }
 
 // Close closes the underlying ClickHouse connection.
+// Ping checks the connection (GET /readyz).
+func (s *ClickHouseStore) Ping(ctx context.Context) error { return s.conn.Ping(ctx) }
+
 func (s *ClickHouseStore) Close() error {
 	return s.conn.Close()
 }

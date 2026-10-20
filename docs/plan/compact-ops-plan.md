@@ -186,18 +186,17 @@ nhau; cấu hình sai dừng với thông báo chỉ đúng khóa; không secret
 
 **Việc**
 
-1. **Deploy không giữ lock khi build.** Hiện `Store.WithBundleLock` giữ `pg_advisory_lock`
-   suốt compile, ký (có thể qua Vault) và upload. Đổi thành ba bước:
-   - đặt chỗ version: transaction ngắn ghi `bundles` với trạng thái `BUILDING`, kèm
-     người deploy;
-   - build, ký, xác minh, upload ngoài transaction;
-   - xác nhận: transaction ngắn chuyển `READY`, ghi `contents`, chuyển version policy sang
-     DEPLOYED, ghi audit, tạo rollout.
-   Build lỗi → `FAILED` (version bị bỏ qua, không dùng lại). Lần khởi động sau đánh FAILED
-   cho `BUILDING` cũ hơn timeout.
-2. **Một control plane hoạt động**: lease trong PostgreSQL (bảng `leader_lease`: holder, hết
-   hạn, gia hạn mỗi 10 s, hết hạn 30 s). Bản không giữ lease chỉ phục vụ đọc hoặc từ chối khởi
-   động ở chế độ Compact. Fleet chỉ chạy trên bản giữ lease.
+1. **Deploy tuần tự, chờ có giới hạn** (điều chỉnh khi làm, 20/10, theo quyền tự quyết PO giao):
+   giữ khóa bundle trong lúc build vì chốt replay kiểm theo bundle đang chạy, và khóa bảo đảm bundle
+   đó không đổi tới khi deploy ghi xong; tách thành "đặt chỗ → build → xác nhận" chỉ đổi việc chờ
+   thành lỗi mà thêm rủi ro với M4 staging. Thêm giới hạn chờ khóa (`Store.BundleLockWait`, mặc
+   định 2 phút): quá hạn trả 409 "another deploy is in progress"; khóa phiên đã có sẵn cơ chế hủy
+   kết nối khi không chắc trạng thái. Có test deploy đồng thời (chỗ trống CP-A01 tìm ra).
+2. **Một control plane hoạt động**: lease trong PostgreSQL (bảng `control_plane_lease`, migration
+   0027: holder `host/pid/ngẫu nhiên`, fencing, hết hạn 30 s, gia hạn mỗi 10 s). Bản thứ hai chờ
+   lease hết hạn rồi bỏ cuộc (không khởi động). Bản đang giữ mà mất lease hoặc không gia hạn kịp
+   thì thoát. Khởi động lại sau sự cố trên cùng máy giành lại ngay khi tiến trình cũ chắc chắn đã
+   chết. Cờ `-single-control-plane` (mặc định bật), `-lease-ttl`.
 3. **Phục hồi operation**: đã có cho replay (`ClaimOperation` đánh FAILED khi quá hạn); áp
    cùng cách cho rollout và lệnh node.
 4. Pool PostgreSQL có giới hạn kết nối và timeout câu lệnh; mất kết nối thì `/readyz` báo lỗi,

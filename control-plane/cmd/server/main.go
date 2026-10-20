@@ -85,6 +85,8 @@ func main() {
 	s3Endpoint := flag.String("s3-endpoint", "", "Object store host:port for bundles; keys from STRATA_S3_ACCESS_KEY, STRATA_S3_SECRET_KEY")
 	s3Bucket := flag.String("s3-bucket", "strata-bundles", "Bucket for bundles")
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
+	singleCP := flag.Bool("single-control-plane", true, "Hold the control plane lease in PostgreSQL: one control plane serves at a time (the Fleet state lives in this process); a second one waits for the lease to expire, then gives up")
+	leaseTTL := flag.Duration("lease-ttl", 30*time.Second, "Lifetime of the control plane lease; renewed every third of it")
 	replayApproved := flag.Bool("replay-sampling-approved", false,
 		"Allow sampling real traffic for replay (W12-N-01); only once the sample format (docs/spec/replay-sample.md) passed legal review")
 	replayBin := flag.String("replay", "", "strata-replay binary: each new policy version is replayed against the bundle in force on the policy's traffic samples and -replay-corpus (W13-G2-01); empty: no replay. Needs deploys (signer, -bundle-pubkey, -s3-*)")
@@ -127,6 +129,7 @@ func main() {
 
 	presence := fleet.NewPresence()
 	var pg *store.Store
+	var keeper *leaseKeeper
 	var pool *pgxpool.Pool
 
 	// PostgreSQL: the DSN carries a password, so it comes from the
@@ -150,6 +153,16 @@ func main() {
 		}
 		log.Printf("[INFO] PostgreSQL schema at version %d", latest)
 		pg = store.New(pool)
+		if *singleCP {
+			keeper = &leaseKeeper{store: pg, ttl: *leaseTTL}
+			if err := keeper.acquire(ctx, leaseHolder()); err != nil {
+				log.Fatalf("[FATAL] control plane lease: %v (another control plane serves this database; -single-control-plane=false only with a multi-replica setup)", err)
+			}
+			go keeper.keep(ctx, func(msg string) {
+				log.Printf("[FATAL] %s; exiting", msg)
+				os.Exit(1)
+			})
+		}
 	} else {
 		log.Println("[WARN] STRATA_POSTGRES_DSN is not set: no database (policies, nodes and audit are unavailable)")
 	}
@@ -422,6 +435,7 @@ func main() {
 		Local:           local,
 		Audit:           auditReader(pg),
 		OIDC:            dispatch.OIDC != nil,
+		Ready:           readiness(pool, keeper, store),
 	}, store)
 
 	allowedOrigins := map[string]bool{}
@@ -804,4 +818,41 @@ func seedDemoEvents(store *ingest.MockEventStore) {
 
 	_ = store.SaveEvents(context.Background(), events)
 	log.Printf("[INFO] Pre-seeded %d demo events into memory store\n", len(events))
+}
+
+// readiness reports the components GET /readyz checks (CP-A03): PostgreSQL
+// and the lease make the control plane ready; ClickHouse only degrades it
+// (events and statistics), sign-in and policies still work.
+func readiness(pool *pgxpool.Pool, keeper *leaseKeeper, events ingest.EventStore) func(context.Context) (map[string]string, bool) {
+	return func(ctx context.Context) (map[string]string, bool) {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		out, ready := map[string]string{}, true
+		switch {
+		case pool == nil:
+			out["postgres"] = "disabled"
+		case pool.Ping(ctx) != nil:
+			out["postgres"], ready = "error", false
+		default:
+			out["postgres"] = "ok"
+		}
+		switch {
+		case keeper == nil:
+			out["lease"] = "disabled"
+		case keeper.held.Load():
+			out["lease"] = "held"
+		default:
+			out["lease"], ready = "lost", false
+		}
+		if ch, ok := events.(interface{ Ping(context.Context) error }); ok {
+			if ch.Ping(ctx) != nil {
+				out["clickhouse"] = "degraded"
+			} else {
+				out["clickhouse"] = "ok"
+			}
+		} else {
+			out["clickhouse"] = "disabled"
+		}
+		return out, ready
+	}
 }

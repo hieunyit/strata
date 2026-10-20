@@ -275,6 +275,9 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 		return nil, status.Error(codes.FailedPrecondition, replayErr.Error())
 	case errors.As(err, &costErr):
 		return nil, status.Error(codes.InvalidArgument, costErr.Error())
+	case errors.Is(err, store.ErrBundleBusy):
+		// grpc-gateway answers ABORTED with 409 Conflict: try again later
+		return nil, status.Error(codes.Aborted, "another deploy is in progress; try again when it is done")
 	case err != nil:
 		return nil, internal("deploy", err)
 	}
