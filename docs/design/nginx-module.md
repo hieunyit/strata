@@ -647,6 +647,7 @@ Kết quả gồm decision trace đầy đủ: policy và phiên bản bundle, c
 - Người dùng: OIDC (Keycloak, Azure AD…) hoặc LDAP qua OIDC bridge; token ngắn hạn.
 - Tài khoản cục bộ (tùy chọn, cờ `-local-auth`, W10): tên đăng nhập và mật khẩu argon2id trong PostgreSQL, cho cài đặt nhỏ không có IdP; dùng thay hoặc cùng OIDC. Token phiên `stl_…` (DB chỉ giữ SHA-256, hết hạn sau 8 giờ), khóa tài khoản sau 5 lần sai, giới hạn theo IP, mọi thay đổi vào audit. API: `POST /v1/auth/login`, `/v1/auth/logout`, `/v1/auth/password`, `GET /v1/auth/methods`, `GET /v1/auth/me`, `GET/POST/PATCH/DELETE /v1/users`.
 - Tự động hóa: service account với token có phạm vi (`policies:read`, `policies:deploy`, `events:read`…), có hạn dùng, thu hồi được.
+- Định danh (CP-SEC-01): subject của người gọi luôn có không gian tên riêng: `local:<tên>` (tài khoản cục bộ), `sa:<id>` (service account), `oidc:<sub>` (token OIDC; token không có `sub` bị từ chối). Bốn mắt, audit và khóa chống trùng request so theo subject này, nên một IdP cấp `sub` dạng `local:admin` không trùng được với tài khoản cục bộ. Migration 0026 chuyển subject OIDC đã lưu sang dạng mới; `audit_log` giữ nguyên như đã ghi.
 - RBAC theo vai trò `viewer`, `operator`, `approver`, `admin`, giới hạn theo connector group; người tạo bản nháp không tự duyệt được bản của mình (quy tắc 4 mắt, luôn bật, kể cả lab và staging: script dùng `lab-approver` để duyệt).
 - Agent không dùng API này; agent chỉ được gọi `FleetService` bằng chứng chỉ node.
 

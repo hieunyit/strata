@@ -77,6 +77,12 @@ func NewVerifier(ctx context.Context, cfg Config) (*Verifier, error) {
 	}, nil
 }
 
+// OIDCSubjectPrefix marks the principals of OIDC tokens: the subject is
+// "oidc:" and the token's sub. Local accounts are "local:" (localauth),
+// service accounts "sa:"; four eyes, audit and idempotency compare these
+// subjects, so the namespaces must never overlap.
+const OIDCSubjectPrefix = "oidc:"
+
 // Authenticate verifies a raw token (signature, issuer, audience, expiry)
 // and returns its caller.
 func (v *Verifier) Authenticate(ctx context.Context, raw string) (*Principal, error) {
@@ -91,9 +97,14 @@ func (v *Verifier) Authenticate(ctx context.Context, raw string) (*Principal, er
 	if err := tok.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("%w: claims: %v", ErrUnauthenticated, err)
 	}
+	if tok.Subject == "" {
+		return nil, fmt.Errorf("%w: token without a subject", ErrUnauthenticated)
+	}
 	name, _ := claims["preferred_username"].(string)
 	return &Principal{
-		Subject: tok.Subject,
+		// own namespace (CP-SEC-01): an IdP subject never equals a local
+		// account (local:) or a service account (sa:), whatever it holds
+		Subject: OIDCSubjectPrefix + tok.Subject,
 		Name:    name,
 		Roles:   ParseRoles(stringsAt(claims, v.rolesClaim)),
 	}, nil

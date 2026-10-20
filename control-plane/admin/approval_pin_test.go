@@ -20,7 +20,8 @@ import (
 func TestApproveReplayPinRESTInPostgres(t *testing.T) {
 	ctx := t.Context()
 	pg := store.New(localauthtest.Pool(t))
-	author := store.Audit{Actor: "author", Subject: "author"}
+	// the author signs in through OIDC: its stored subject is namespaced (CP-SEC-01)
+	author := store.Audit{Actor: "author", Subject: auth.OIDCSubjectPrefix + "author"}
 	for _, id := range []string{"example-api", "other-api", "legacy-api"} {
 		if _, err := pg.CreatePolicy(ctx, store.Policy{ID: id, Name: id, Spec: []byte(`{}`)}, author); err != nil {
 			t.Fatal(err)
