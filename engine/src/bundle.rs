@@ -66,8 +66,12 @@ pub mod kind {
     /// Removals of the exclusion rules (rule flag bit 3) and the policies
     /// that run them (W17-S-01, `crate::rule_exclusions`).
     pub const EXCLUSIONS: u32 = 14;
+    /// Networks of the countries and ASNs rules name (W19-R-01,
+    /// `crate::geo`). Optional: engines before it skip the section, and
+    /// refuse rules on geo_country / geo_asn (unknown targets).
+    pub const GEO: u32 = 15;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 14;
+    pub const KNOWN: u32 = 15;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

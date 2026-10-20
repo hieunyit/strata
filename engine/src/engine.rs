@@ -45,6 +45,8 @@ pub struct Engine {
     /// exclusion rules (W17-S-01): their removals and the policies running
     /// them, and per policy index the (rule ID, rule index) it runs
     exclusions: crate::rule_exclusions::Exclusions,
+    /// networks of the countries and ASNs rules name (section GEO, W19-R-01)
+    geo: crate::geo::Geo,
     exclusion_rules: Vec<Vec<(u32, u32)>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
@@ -181,6 +183,8 @@ impl Engine {
         }
         let good_bots = crate::goodbots::parse(info.section(bytes, bundle::kind::GOOD_BOTS))
             .map_err(|e| (E_BUNDLE, e.message()))?;
+        let geo = crate::geo::parse(info.section(bytes, bundle::kind::GEO))
+            .map_err(|e| (E_BUNDLE, e.message()))?;
         let paranoid: Vec<u32> = bundle::policies(bytes, &info)
             .filter(|p| p.paranoia)
             .map(|p| p.index)
@@ -303,6 +307,7 @@ impl Engine {
             paranoia,
             exclusions,
             exclusion_rules,
+            geo,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -341,6 +346,11 @@ impl Engine {
         self.exclusion_rules
             .get(index as usize)
             .map_or(&[], |v| &v[..])
+    }
+
+    /// Networks of the countries and ASNs the bundle's rules name (W19-R-01).
+    pub fn geo(&self) -> &crate::geo::Geo {
+        &self.geo
     }
 
     /// Published crawler ranges of the bundle (W18-R-02).

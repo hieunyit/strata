@@ -710,7 +710,7 @@ Bộ lọc trên cùng và cú bấm trên bản đồ áp dụng cho cả trang
 | MaxMind GeoLite2 | Tương tự, độ chính xác thấp hơn | Miễn phí, cần tài khoản, license key và tuân thủ EULA |
 | DB-IP Lite | Quốc gia, thành phố, ASN | Giấy phép CC BY 4.0, phải ghi nguồn trên UI |
 
-Control plane tải cơ sở dữ liệu `.mmdb` theo lịch (mặc định hằng tuần), lưu phiên bản trong object storage. Khi có rule chặn theo geo/ASN (phase 3), cơ sở dữ liệu này cũng được đóng vào bundle để engine tra ngay tại node.
+Control plane tải cơ sở dữ liệu `.mmdb` theo lịch (mặc định hằng tuần), lưu phiên bản trong object storage. Khi có rule chặn theo geo/ASN, compiler lấy từ cơ sở dữ liệu này đúng các dải IP của quốc gia và ASN mà rule nhắc tới, đóng vào bundle (section `GEO`) để engine tra ngay tại node; không đóng nguyên `.mmdb` (PO duyệt 21/10/2026: bundle nhỏ, không vượt giới hạn ký của Vault). Chi tiết: `docs/design/control-file.md`, W19-R-01.
 
 **Pipeline**
 
