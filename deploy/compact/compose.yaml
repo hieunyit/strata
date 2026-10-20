@@ -21,6 +21,8 @@ services:
       interval: 5s
       retries: 30
     mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    # optional CPU pinning, e.g. STRATA_CPUSET=2-5
+    cpuset: "${STRATA_CPUSET:-}"
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.8.33
@@ -40,6 +42,8 @@ services:
       interval: 5s
       retries: 30
     mem_limit: ${CLICKHOUSE_MEM_LIMIT:-3g}
+    # optional CPU pinning, e.g. STRATA_CPUSET=2-5
+    cpuset: "${STRATA_CPUSET:-}"
 
   control-plane:
     image: strata-control-plane:${STRATA_VERSION:-compact}
@@ -58,7 +62,12 @@ services:
       - -replay=/usr/local/bin/strata-replay
       - -replay-corpus=/opt/strata/replay-corpus.parquet
     volumes:
-      - strata-data:/var/lib/strata
+      # nocopy: the image's directory (owner 1001) is not copied in, so the
+      # ownership install.sh gives the volume stays
+      - type: volume
+        source: strata-data
+        target: /var/lib/strata
+        volume: { nocopy: true }
       - ${STRATA_BACKUP_DIR:-./backups}:/var/backups/strata
     ports:
       # UI and API: put a TLS proxy in front, or keep it on loopback
@@ -69,6 +78,8 @@ services:
       postgres: { condition: service_healthy }
       # not ClickHouse: the control plane runs without it, events degraded (CP-A08)
     mem_limit: ${STRATA_MEM_LIMIT:-2g}
+    # optional CPU pinning, e.g. STRATA_CPUSET=2-5
+    cpuset: "${STRATA_CPUSET:-}"
 
 volumes:
   postgres:

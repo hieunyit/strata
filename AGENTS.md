@@ -30,7 +30,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | 🔄 Phần auth đã đạt: định danh tách (CP-SEC-01), token sai issuer/audience/hết hạn/khóa lạ/`alg: none` bị từ chối (`TestVerifier_RejectsBadTokens`), local + OIDC cùng lúc (`TestDispatchAndLocalUsername`), UI chỉ hiện SSO khi bật, chuyển hướng sau đăng nhập cố định về gốc. Overlay compose Keycloak làm cùng compose Compact ở CP-A09 |
 | CP-A07 | Artifact trên filesystem, file signer mặc định | Claude Code (strata-59) | CP-A02, CP-A03, CP-SEC-02 | ✅ `policy.FS` (`-objects-dir`), dọn artifact theo DB; `docs/reports/cp-a07.md` |
 | CP-A08 | UI nhúng; ClickHouse suy giảm rõ | Claude Code (strata-59) | CP-A02 | ✅ `control-plane/webui`, `ingest/chmigrate.go`, 503 `EVENTS_UNAVAILABLE`; `docs/reports/cp-a08.md` |
-| CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | 🔄 backup/restore xong (`control-plane/backup`, migration 0028); đóng gói Compact đang làm; `docs/reports/cp-a09.md` |
+| CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | ✅ `control-plane/backup` (#288), `deploy/compact`, `tests/e2e/compact-drill.sh`; `docs/reports/cp-a09.md` |
 | CP-B02, B01, B04, B05 | Inventory, ứng dụng, phát hành thống nhất, sức khỏe | — | Compact Preview | ⏳ |
 | CP-C03, C01, C02, C04, C05 | Privacy/bảo mật quản trị, điều tra, rule/exception, cảnh báo, API discovery | — | xem §3 của kế hoạch | ⏳ |
 

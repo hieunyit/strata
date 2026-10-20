@@ -5,11 +5,12 @@
 # then starts it again. On a new machine run install.sh first.
 # Usage: deploy/compact/restore.sh <archive> <passphrase-file> [-yes]
 set -euo pipefail
+# shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 [ $# -ge 2 ] || die "usage: restore.sh <archive> <passphrase-file> [-yes]"
 archive=$(realpath "$1") pass=$(realpath "$2")
 shift 2
-[ -f "$archive" ] && [ -f "$pass" ] || die "archive or passphrase file missing"
+if [ ! -f "$archive" ] || [ ! -f "$pass" ]; then die "archive or passphrase file missing"; fi
 load_env
 "${compose[@]}" stop control-plane
 tty=(); [ -t 0 ] || tty=(-T)

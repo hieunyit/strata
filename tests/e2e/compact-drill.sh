@@ -12,12 +12,12 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work=$(mktemp -d)
 export STRATA_COMPACT_STATE=$work/state STRATA_BACKUP_DIR=$work/backups
-export STRATA_COMPACT_PROJECT=strata-compact-drill STRATA_HTTP_PORT=${DRILL_HTTP_PORT:-28080} STRATA_FLEET_PORT=${DRILL_FLEET_PORT:-28443}
+export STRATA_COMPACT_PROJECT=strata-compact-drill STRATA_HTTP_PORT=${DRILL_HTTP_PORT:-47080} STRATA_FLEET_PORT=${DRILL_FLEET_PORT:-47443}
 cp=http://127.0.0.1:$STRATA_HTTP_PORT
 compact=$root/deploy/compact
 c() { docker compose -p "$STRATA_COMPACT_PROJECT" -f "$compact/compose.yaml" --env-file "$STRATA_COMPACT_STATE/env" "$@"; }
 cleanup() {
-    [ -f "$STRATA_COMPACT_STATE/env" ] && c down -v >/dev/null 2>&1 || true
+    if [ -f "$STRATA_COMPACT_STATE/env" ]; then c down -v >/dev/null 2>&1 || true; fi
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -40,10 +40,23 @@ def call(method, path, body=None, token=None):
     r = urllib.request.Request(cp + path, method=method, data=body.encode() if body else None, headers=h)
     with urllib.request.urlopen(r) as resp:
         return json.loads(resp.read() or b"{}")
-pw = open(f"{work}/{user}.pw").read().strip()
-tok = call("POST", "/v1/auth/login", json.dumps({"username": user, "password": pw}))["token"]
+import os
+cache = f"{work}/{user}.tok"  # one session per account: logins are throttled
+def login():
+    pw = open(f"{work}/{user}.pw").read().strip()
+    tok = call("POST", "/v1/auth/login", json.dumps({"username": user, "password": pw}))["token"]
+    fd = os.open(cache, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.write(fd, tok.encode()); os.close(fd)
+    return tok
+tok = open(cache).read() if os.path.exists(cache) else login()
 try:
-    print(json.dumps(call(method, path, body, tok)))
+    try:
+        out = call(method, path, body, tok)
+    except urllib.error.HTTPError as e:
+        if e.code != 401:
+            raise
+        out = call(method, path, body, login())  # the session ended (restore, new install)
+    print(json.dumps(out))
 except urllib.error.HTTPError as e:
     sys.exit(f"{method} {path}: HTTP {e.code} {e.read()[:300]!r}")
 EOF
@@ -55,7 +68,8 @@ pubkey() { c run --rm --no-deps -T --entrypoint sha256sum control-plane /var/lib
 # the second account (four eyes), deploy; prints the bundle version
 deploy_mode() {
     local mode=$1 etag v op state
-    if etag=$(api admin GET /v1/policies/example-api 2>/dev/null | field policy.etag); then
+    # absent the first time: created instead
+    if etag=$(api admin GET /v1/policies/example-api 2>/dev/null | field policy.etag 2>/dev/null); then
         api admin PATCH /v1/policies/example-api "{\"etag\":\"$etag\",\"spec\":{\"mode\":\"$mode\"}}" >/dev/null
     else
         api admin POST /v1/policies "{\"id\":\"example-api\",\"name\":\"example-api\",\"spec\":{\"mode\":\"$mode\"}}" >/dev/null

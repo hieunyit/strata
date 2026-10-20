@@ -6,6 +6,7 @@
 # Usage: deploy/compact/install.sh -name <host or IP the nodes reach>[,more]
 #            [-admin-password-file <file>]   (default: asked twice)
 set -euo pipefail
+# shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 name="" pwfile=""
 while [ $# -gt 0 ]; do

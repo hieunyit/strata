@@ -23,7 +23,9 @@ rm -rf "$out/rules-pkg"
 (cd tools/strata-rules && PATH="$CARGO_TARGET_DIR/release:$PATH" go run . release --repo ../.. --pack core --version "compact-$version" \
     --key "$key" --out "../../$out/rules-pkg")
 irs=("$out"/rules-pkg/*.rules.json)
-[ "${#irs[@]}" = 1 ] && [ -f "${irs[0]}" ] || { echo "build: want one rule IR (*.rules.json) from the core pack" >&2; ls "$out/rules-pkg" >&2; exit 1; }
+if [ "${#irs[@]}" != 1 ] || [ ! -f "${irs[0]}" ]; then
+    echo "build: want one rule IR (*.rules.json) from the core pack" >&2; ls "$out/rules-pkg" >&2; exit 1
+fi
 cp "${irs[0]}" "$dist/rules/core.rules.json"
 cp "$out/rules-pkg/NOTICE" "$dist/rules/NOTICE" # licenses of the imported rules (CRS: Apache-2.0)
 

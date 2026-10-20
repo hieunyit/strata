@@ -55,4 +55,55 @@ Ngày: 20/10/2026. Người làm: Claude Code (strata-59). Kế hoạch: `docs/p
 
 ## Phần 2 · Đóng gói Compact
 
-Đang làm.
+### Làm gì
+
+| Phần | Ở đâu |
+| --- | --- |
+| Image `strata-control-plane:<version>`: control plane (UI nhúng), `strata-compile`, `strata-replay`, gói rule core (588 rule CRS/protocol/virtual patch, `NOTICE` giấy phép), corpus replay, `pg_dump`/`pg_restore` 17 (PGDG); Ubuntu noble, user không phải root, healthcheck | `deploy/compact/Dockerfile`, `build.sh`, `build-inner.sh` |
+| Compose 3 dịch vụ: PostgreSQL 17.11 và ClickHouse 25.8.33 ghim, volume riêng từng dịch vụ, healthcheck, `mem_limit`, `cpuset` tùy chọn; UI/API chỉ loopback mặc định, Fleet mở | `deploy/compact/compose.yaml` |
+| ClickHouse cho máy nhỏ: 75% giới hạn bộ nhớ container, cache nhỏ, log hệ thống 7 ngày; mỗi truy vấn ≤ 1 GiB, GROUP BY/ORDER BY tràn ra đĩa | `deploy/compact/clickhouse/*.xml` |
+| `install.sh` (mật khẩu, databases, quyền volume, `init`, chạy), `backup.sh`, `restore.sh` | `deploy/compact/*.sh` |
+| Overlay Keycloak (realm không có user hay secret của lab; bật bằng cấu hình, không build lại) | `deploy/compact/compose.keycloak.yaml`, `keycloak/strata-realm.json` |
+| Hướng dẫn: cài, cấu hình, Keycloak, backup/restore, nâng cấp (kể cả PostgreSQL major), đầy đĩa | `deploy/compact/README.md` |
+| Diễn tập restore vào bản cài sạch | `tests/e2e/compact-drill.sh` |
+| Restore giữ mật khẩu database/ClickHouse của máy đích (`backup.MachineSecrets`) | `control-plane/backup/backup.go` |
+
+### Quyết định khi làm
+
+- **Control plane chạy với uid/gid của người cài** (`STRATA_UID/GID`; `install.sh` gán volume
+  một lần, volume gắn `nocopy` để Docker không chép lại thư mục của image và đổi chủ): file backup
+  và passphrase thuộc người vận hành, không file nào phải mở quyền đọc cho người khác.
+- **Restore giữ `secrets/postgres-dsn` và `secrets/clickhouse-password` của máy đích**: khôi phục
+  sang máy mới (cài mới, mật khẩu mới) mà không làm control plane mất kết nối; DSN dùng để restore
+  vốn đã là của máy đích (phần 1).
+- **Gói rule trong image là gói core build từ repo** (`strata-rules release --pack core`), không
+  phải rule mẫu của lab; gói signature (Sigma, ET Open) không đóng vào image, vì hiện nó theo quy
+  trình phát hành riêng (staging `--signatures`).
+- **Overlay chỉ có Keycloak**. MinIO, Vault và giám sát không làm overlay: Compact không cần chúng
+  (artifact trên đĩa, khóa file, `/readyz`), còn lab (`deploy/lab/compose.yaml`) là mẫu đầy đủ
+  cho ai cần. Kế hoạch ghi bốn overlay; bỏ ba overlay này theo quyền tự quyết PO giao.
+- **Keycloak trong overlay ở chế độ dev**, lưu trong volume riêng: README yêu cầu đặt sau TLS
+  trước khi người ngoài máy đăng nhập.
+- **Không tự nâng PostgreSQL major**: tag ghim; README mô tả quy trình backup, đổi image, cài,
+  restore.
+
+### Kiểm
+
+- shellcheck 0.10 các script (chỉ còn một ghi chú info có chủ ý).
+- `tests/e2e/compact-drill.sh` (CPU 6–10, cổng 47080/47443) pass hai lần:
+  1. Cài (`readyz` ok, UI nhúng trả trang), tạo tài khoản approver, `example-api` qua four eyes
+     (replay DONE trên corpus 4.281 request) được deploy thành bundle 1 với gói core.
+  2. Backup 15 MB, mã hóa (không thấy `PGDMP`). Sau đó deploy thêm bundle 2.
+  3. `down -v` và xóa `.state/env`, cài lại sạch: mật khẩu mới, khóa ký mới.
+  4. Restore: mật khẩu admin cũ dùng được, `example-api` về MODE_SHADOW, bundle về `[1]`,
+     public key ký bundle là của backup (node vẫn tin), deploy tiếp ra bundle 2, `readyz` ok.
+
+  Lần chạy đầu gặp hai lỗi đã sửa: volume dữ liệu bị Docker chép lại thư mục của image và đổi chủ
+  (thêm `nocopy`), và cổng 28080 trùng staging (đổi sang 47080).
+- Gate Go (`backup` sau thay đổi máy đích): xem PR.
+
+## Còn lại
+
+- Overlay MinIO, Vault, giám sát: không làm (xem quyết định).
+- Kiểm thử nâng cấp PostgreSQL major theo README: chưa diễn tập.
+- Image chưa phát hành lên registry: build tại chỗ bằng `deploy/compact/build.sh`.

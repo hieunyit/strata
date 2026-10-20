@@ -34,6 +34,8 @@ services:
       interval: 10s
       retries: 30
     mem_limit: ${KEYCLOAK_MEM_LIMIT:-1g}
+    # optional CPU pinning, e.g. STRATA_CPUSET=2-5
+    cpuset: "${STRATA_CPUSET:-}"
 
 volumes:
   keycloak:

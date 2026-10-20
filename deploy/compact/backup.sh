@@ -6,6 +6,7 @@
 # Usage: deploy/compact/backup.sh <passphrase-file> [archive name]
 #   archive in $STRATA_BACKUP_DIR (default deploy/compact/backups)
 set -euo pipefail
+# shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 [ $# -ge 1 ] || die "usage: backup.sh <passphrase-file> [archive name]"
 pass=$(realpath "$1")
