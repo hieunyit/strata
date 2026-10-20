@@ -270,3 +270,20 @@ func (r *Result) Report(w io.Writer, version string) {
 		fmt.Fprintf(w, "| %s | %s | %s |\n", s.Group, s.Test, s.Reason)
 	}
 }
+
+// Sorted orders cases by test, then rule, then expectation, so a file of
+// them is the same from one run to the next.
+func Sorted(cases []Case) []Case {
+	out := append([]Case(nil), cases...)
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.Test != b.Test {
+			return a.Test < b.Test
+		}
+		if a.Rule != b.Rule {
+			return a.Rule < b.Rule
+		}
+		return a.Expect < b.Expect
+	})
+	return out
+}

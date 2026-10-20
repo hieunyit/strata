@@ -29,6 +29,9 @@ type Tools struct {
 	// Paranoia: the CRS paranoia level the test policy enforces
 	// (crs_paranoia, W17-S-01); 0 or 1: the default.
 	Paranoia int
+	// Plugins: the CRS plugins the test policy runs (crs_plugins,
+	// W17-S-01); the bundle also has policy PolicyWithout, which does not.
+	Plugins []string
 }
 
 // Find locates the binaries: $STRATA_COMPILE / $STRATA_EVAL, then
@@ -109,6 +112,9 @@ type Bundle struct {
 // it may block.
 const PolicyName = "strata-rules"
 
+// PolicyWithout: the test policy without Tools.Plugins.
+const PolicyWithout = "strata-rules-without-plugins"
+
 // Build compiles IR documents (JSON) into a bundle signed with a fresh
 // key, in a temporary directory removed by Close.
 func (t Tools) Build(irDocs [][]byte) (*Bundle, error) {
@@ -136,7 +142,12 @@ func (t Tools) Build(irDocs [][]byte) (*Bundle, error) {
 	if t.Paranoia > 1 {
 		paranoia = `,"crs_paranoia":` + strconv.Itoa(t.Paranoia)
 	}
-	if err := os.WriteFile(pol, []byte(`{"policies":[{"name":"`+PolicyName+`","mode":"enforce","signatures":"enforce"`+paranoia+`}]}`), 0o644); err != nil {
+	policies := `{"name":"` + PolicyName + `","mode":"enforce","signatures":"enforce"` + paranoia
+	if len(t.Plugins) > 0 {
+		names, _ := json.Marshal(t.Plugins)
+		policies += `,"crs_plugins":` + string(names) + `},{"name":"` + PolicyWithout + `","mode":"enforce","signatures":"enforce"` + paranoia
+	}
+	if err := os.WriteFile(pol, []byte(`{"policies":[`+policies+`}]}`), 0o644); err != nil {
 		b.Close()
 		return nil, err
 	}
@@ -197,6 +208,11 @@ func (v Verdict) Matched(id uint32) bool {
 
 // Eval runs reqs through the bundle under the test policy, in order.
 func (t Tools) Eval(b *Bundle, reqs []Request) ([]Verdict, error) {
+	return t.EvalPolicy(b, reqs, PolicyName)
+}
+
+// EvalPolicy runs reqs through the bundle under one of its policies.
+func (t Tools) EvalPolicy(b *Bundle, reqs []Request, policy string) ([]Verdict, error) {
 	var in bytes.Buffer
 	enc := json.NewEncoder(&in)
 	for _, r := range reqs {
@@ -205,7 +221,7 @@ func (t Tools) Eval(b *Bundle, reqs []Request) ([]Verdict, error) {
 		}
 	}
 	var stderr bytes.Buffer
-	cmd := exec.Command(t.EvalBin, "--bundle", b.Path, "--pubkey", b.PubKey, "--policy", PolicyName)
+	cmd := exec.Command(t.EvalBin, "--bundle", b.Path, "--pubkey", b.PubKey, "--policy", policy)
 	cmd.Stdin = &in
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

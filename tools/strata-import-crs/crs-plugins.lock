@@ -1,0 +1,12 @@
+# The CRS rule exclusion plugins Strata imports (W17-S-01), from
+# https://github.com/coreruleset/<name>-rule-exclusions-plugin (Apache-2.0).
+# fetch-crs-plugins.sh downloads each release tag and checks its hash.
+# name version sha256
+wordpress v1.2.0 8a1fc80dcf6030b13f856dcaa72dcac898b4375fe5a41689ed96d6e895929439
+drupal v1.0.0 4e13d483a64a93d0626f3f83537960084872146e4dba0e8018def3a28c7a659c
+nextcloud v1.7.1 654277708505cd3fb7ce3845f529c3b89f3d5001ea18eb59dcbdd4682a74dcbd
+phpmyadmin v1.1.0 d3aa264dfe9e8e7b67872079e428ca79e935df0da72fe04f0059d74ff8dac4b6
+phpbb v1.0.0 d0a7aa795924f87204f7938aeecf1f4b3570478c00fb0a77e90c625b533ac184
+xenforo v1.0.0 88374c4821432373fa6bf4ec7516f2a9f3a8d862c1247f050d6ca519fac2676a
+dokuwiki v1.0.0 4566dabdaaf943b9a14462f1512e14e9e69446041e9b30be6926c2cd8fae3e08
+cpanel v1.0.0 cfa119955dc23122ad84e33eaa5ca8393346c21ef84c48e0eb878332656cc6dc

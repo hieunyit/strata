@@ -91,3 +91,21 @@ func TestSyntaxErrorsAreReported(t *testing.T) {
 		t.Fatalf("unterminated chain: %v", f.Errors)
 	}
 }
+
+func TestCtlValues(t *testing.T) {
+	f := parse(t, `SecRule REQUEST_FILENAME "@endsWith /wp-login.php" \
+    "id:9507101,phase:2,pass,t:none,nolog,\
+    ctl:ruleRemoveTargetById=920230;ARGS:redirect_to,\
+    ctl:ruleRemoveById=921180,\
+    chain"
+    SecRule &ARGS:action "@eq 1" "t:none,ctl:ruleRemoveTargetByTag=OWASP_CRS;ARGS:pass1"
+`)
+	if len(f.Errors) != 0 || len(f.Rules) != 1 {
+		t.Fatalf("%+v %+v", f.Errors, f.Rules)
+	}
+	c := f.Rules[0].Chain
+	want := [][]string{{"ruleRemoveTargetById=920230;ARGS:redirect_to", "ruleRemoveById=921180"}, {"ruleRemoveTargetByTag=OWASP_CRS;ARGS:pass1"}}
+	if !reflect.DeepEqual([][]string{c[0].Ctls, c[1].Ctls}, want) {
+		t.Errorf("ctls %q", [][]string{c[0].Ctls, c[1].Ctls})
+	}
+}

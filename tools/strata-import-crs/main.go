@@ -4,6 +4,7 @@
 //	strata-import-crs inventory --crs <coreruleset dir> [--out docs/crs-inventory.csv]
 //	strata-import-crs ftw --crs <coreruleset dir> [--out corpus/crs-ftw] [--report docs/crs-ftw-unconverted.md]
 //	strata-import-crs import --crs <coreruleset dir> [--out rules/crs] [--report docs/crs-import-report.md] [--compile strata-compile]
+//	strata-import-crs plugins --crs <coreruleset dir> --plugins <dir> [--out rules/crs-plugins] [--report docs/crs-plugins-import-report.md] [--compile strata-compile]
 //
 // The CRS directory is the one fetch-crs.sh prints.
 package main
@@ -27,6 +28,10 @@ func main() {
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "import" {
 		importCmd()
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "plugins" {
+		pluginsCmd()
 		return
 	}
 	if len(os.Args) < 2 || os.Args[1] != "inventory" {
@@ -184,4 +189,89 @@ func importCmd() {
 		die(err)
 	}
 	fmt.Fprintf(os.Stderr, "strata-import-crs: CRS %s, %d rules read, %d imported into %s, the rest in %s\n", inv.Version, total, imported, *out, *rep)
+}
+
+// pluginsCmd imports the CRS rule exclusion plugins pinned in
+// crs-plugins.lock (W17-S-01) as IR exclusion rules, one file per plugin.
+func pluginsCmd() {
+	fs := flag.NewFlagSet("plugins", flag.ExitOnError)
+	crs := fs.String("crs", "", "CRS release directory (for its tags)")
+	dir := fs.String("plugins", "", "directory fetch-crs-plugins.sh prints")
+	lock := fs.String("lock", "crs-plugins.lock", "the pinned plugins")
+	out := fs.String("out", "../../rules/crs-plugins", "IR directory")
+	rep := fs.String("report", "../../docs/crs-plugins-import-report.md", "import report")
+	compile := fs.String("compile", "", "strata-compile: each plugin must compile")
+	ftwOut := fs.String("ftw-out", "../../corpus/crs-plugins-ftw", "the plugins' go-ftw tests, converted (one <plugin>.jsonl each)")
+	_ = fs.Parse(os.Args[2:])
+	die := func(err error) {
+		fmt.Fprintln(os.Stderr, "strata-import-crs:", err)
+		os.Exit(1)
+	}
+	if *crs == "" || *dir == "" {
+		die(errors.New("--crs and --plugins are required"))
+	}
+	plugins, err := importer.ReadPluginLock(*lock, *dir)
+	if err != nil {
+		die(err)
+	}
+	tags, universe, err := importer.CRSTags(*crs)
+	if err != nil {
+		die(err)
+	}
+	defaults, err := importer.ReadDefaults(filepath.Join(*crs, "rules", "REQUEST-901-INITIALIZATION.conf"))
+	if err != nil {
+		die(err)
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		die(err)
+	}
+	var results []*importer.PluginResult
+	for _, p := range plugins {
+		r, err := importer.ImportPlugin(p, tags, universe, *crs, defaults)
+		if err != nil {
+			die(fmt.Errorf("%s: %w", p.Name, err))
+		}
+		doc, err := importer.Marshal(r.Imported, p.Version)
+		if err != nil {
+			die(err)
+		}
+		path := filepath.Join(*out, p.Name+".yaml")
+		if err := os.WriteFile(path, doc, 0o644); err != nil {
+			die(err)
+		}
+		if *compile != "" {
+			if err := importer.CompilePlugin(*compile, path, p.Name); err != nil {
+				die(err)
+			}
+		}
+		tests, err := ftw.Convert(filepath.Join(p.Dir, "tests", "regression"))
+		if err != nil {
+			die(fmt.Errorf("%s tests: %w", p.Name, err))
+		}
+		var cases []ftw.Case
+		for _, g := range tests.Groups {
+			cases = append(cases, g...)
+		}
+		r.Tests, r.TestsRead, r.TestsSkipped = len(cases), tests.Total, len(tests.Skipped)
+		if len(cases) > 0 {
+			one := &ftw.Result{Groups: map[string][]ftw.Case{p.Name: ftw.Sorted(cases)}}
+			if err := one.Write(*ftwOut); err != nil {
+				die(err)
+			}
+		}
+		results = append(results, r)
+	}
+	f, err := os.Create(*rep)
+	if err != nil {
+		die(err)
+	}
+	importer.PluginReport(f, plugins, results)
+	if err := f.Close(); err != nil {
+		die(err)
+	}
+	n := 0
+	for _, r := range results {
+		n += len(r.Imported.Rules)
+	}
+	fmt.Fprintf(os.Stderr, "strata-import-crs: %d plugins, %d exclusion rules into %s\n", len(plugins), n, *out)
 }
