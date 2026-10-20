@@ -4,6 +4,8 @@ import { Save, X } from 'lucide-react';
 import { ApiError, Policy, apiClient } from '../../api/client';
 import { CRS_PLUGINS, DATA_GUARDS, PARANOIA_LEVELS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, paranoiaLevels, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
+import { GeoRulesEditor } from './GeoRulesEditor';
+import { geoRuleValid } from '../../lib/geoRules';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
 // in sync both ways. Saving makes a new version of the policy in state
@@ -81,7 +83,7 @@ export const PolicyEditor: React.FC<{
               type="button"
               className="btn-primary"
               onClick={() => void save()}
-              disabled={!dirty || !!yamlError || saving}
+              disabled={!dirty || !!yamlError || saving || !(spec.geo_rules ?? []).every(geoRuleValid)}
               data-testid="editor-save"
             >
               <Save className="w-3.5 h-3.5" />
@@ -189,6 +191,7 @@ export const PolicyEditor: React.FC<{
             </div>
             <p className="text-xs text-muted sm:col-span-2">{t('editor.paranoiaNote')}</p>
           </div>
+          <GeoRulesEditor rules={spec.geo_rules ?? []} onChange={(rules) => update({ ...spec, geo_rules: rules })} />
           <fieldset className="space-y-1.5 text-[13px]" data-testid="editor-plugins">
             <legend className="label">{t('editor.plugins')}</legend>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">

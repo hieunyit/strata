@@ -8,6 +8,9 @@ import { apiClient, Event, GeoCount, GeoBucket, GeoDelta, GeoFilters, GeoSnapsho
 import { EventsTable } from '../components/events/EventsTable';
 import { RangeKey, isRange, windowOf } from '../lib/timeRange';
 import { Route, replaceQuery } from '../router';
+import { GeoBlockAction } from '../components/map/GeoBlockAction';
+import { useAuth } from '../context/AuthContext';
+import { canWritePolicies } from '../auth/roles';
 
 // Attack map (W18-F-01, nginx-module.md › Bản đồ GeoIP › Hiển thị): one
 // filter set for every panel; a click on a country, ASN or attack type
@@ -129,6 +132,7 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
   const [range, setRange] = useState<RangeKey>(isRange(route.query?.range, ranges) ? (route.query!.range as RangeKey) : '24h');
   const [filters, setFilters] = useState<GeoFilters>(() => filtersOf(route.query));
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const { roles } = useAuth();
   const [data, setData] = useState<Data | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -349,6 +353,18 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
           </button>
         )}
       </div>
+      {canWritePolicies(roles) && policies.length > 0 && (filters.asn || (filters.country && filters.country !== 'INTERNAL')) && (
+        <div className="mb-4">
+          <GeoBlockAction
+            key={`${filters.country ?? ''}|${filters.asn ?? ''}`}
+            country={filters.asn ? undefined : filters.country}
+            asn={filters.asn ? Number(filters.asn) : undefined}
+            label={filters.asn ? `AS${filters.asn}` : regionName(filters.country!)}
+            policies={policies}
+            defaultPolicy={filters.policy_id}
+          />
+        </div>
+      )}
 
       <section className="panel mb-5" data-testid="map-basemap-pending">
         <div className="flex items-start gap-3 px-4 py-4 text-[13px]">

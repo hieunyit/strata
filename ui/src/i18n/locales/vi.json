@@ -506,7 +506,22 @@
     },
     "pluginsOther": "Còn đặt thêm (không có trong danh sách): {{list}}",
     "pluginsNote": "Trên các đường dẫn và trường đã biết của ứng dụng, plugin gỡ một số rule CRS hoặc target của chúng để lưu lượng bình thường không bị khớp; chỉ dùng cho policy đứng trước đúng ứng dụng đó. Bộ rule đang deploy phải có plugin (rules/crs-plugins). Node phải chạy module hỗ trợ cài đặt này.",
-    "paranoiaNote": "Mức cao bắt được nhiều tấn công hơn nhưng tăng false positive: ở mức 2 khoảng 9% request hợp lệ bị khớp. Rule trên mức chặn tới mức shadow chỉ được báo, không bao giờ chặn. Hãy chạy thử một mức ở shadow và xem false positive trước khi chặn. Node phải chạy module hỗ trợ cài đặt này."
+    "paranoiaNote": "Mức cao bắt được nhiều tấn công hơn nhưng tăng false positive: ở mức 2 khoảng 9% request hợp lệ bị khớp. Rule trên mức chặn tới mức shadow chỉ được báo, không bao giờ chặn. Hãy chạy thử một mức ở shadow và xem false positive trước khi chặn. Node phải chạy module hỗ trợ cài đặt này.",
+    "geo": {
+      "title": "Rule geo (quốc gia và ASN của client)",
+      "new": "mới",
+      "action": "Hành động",
+      "block": "Chặn",
+      "log": "Chỉ ghi log",
+      "not": "Mọi địa chỉ nằm ngoài các mục này",
+      "remove": "Xóa rule",
+      "countries": "Quốc gia: VN, US",
+      "asns": "ASN: 7552, 15169",
+      "bad": "Không phải mã quốc gia hay ASN: {{list}}",
+      "empty": "Cần ít nhất một quốc gia hoặc ASN",
+      "add": "Thêm rule geo",
+      "note": "Rule chặn (hoặc ghi log) địa chỉ client thuộc các quốc gia hoặc ASN của nó, hoặc với \"nằm ngoài\" mọi địa chỉ khác trừ địa chỉ nội bộ. Rule chỉ chạy cho policy này, sau replay, duyệt và deploy. Control plane cần cơ sở dữ liệu GeoIP (City cho quốc gia, ASN cho ASN); bundle chỉ mang các dải mạng được nhắc tới."
+    }
   },
   "diff": {
     "title": "So sánh phiên bản của {{name}}",
@@ -534,7 +549,8 @@
       "crs_paranoia": "Mức paranoia CRS chặn",
       "crs_paranoia_shadow": "Mức paranoia CRS chạy shadow",
       "crs_plugins": "Plugin CRS",
-      "advanced": "Exception, quyền riêng tư và giới hạn"
+      "advanced": "Exception, quyền riêng tư và giới hạn",
+      "geo_rules": "Rule geo"
     }
   },
   "stagingNotices": {
@@ -793,6 +809,18 @@
       "protocol": "Giao thức",
       "custom": "Rule riêng",
       "other": "Khác"
+    },
+    "geoAction": {
+      "open": "Tạo rule cho {{target}}",
+      "title": "Rule geo cho {{target}}",
+      "policy": "Policy",
+      "create": "Tạo bản nháp",
+      "note": "Thêm một rule geo vào policy thành phiên bản nháp mới; chỉ có hiệu lực sau replay, duyệt và deploy.",
+      "exists": "{{policy}} đã có rule cho {{target}}.",
+      "saved": "Bản nháp phiên bản {{version}} của {{policy}} có rule cho {{target}}.",
+      "failed": "Không tạo được rule: {{error}}",
+      "noPolicy": "Policy không còn tồn tại",
+      "review": "Xem ở trang Policy"
     }
   }
 }

@@ -4,11 +4,12 @@
 // editor writes them (shadow, block, true...), after normalizeSpec, so a
 // field the API leaves out and its default compare equal.
 import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec, paranoiaLevels } from './policyYaml';
+import { geoRuleSummary } from './geoRules';
 
 export type DiffBlock = 'general' | 'response' | 'advanced';
 
 export interface FieldDiff {
-  key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow' | 'crs_plugins'
+  key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow' | 'crs_plugins' | 'geo_rules'
     | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
   from: string;
   to: string;
@@ -43,6 +44,7 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
     field('crs_paranoia', String(paranoiaLevels(a)[0]), String(paranoiaLevels(b)[0])),
     field('crs_paranoia_shadow', String(paranoiaLevels(a)[1]), String(paranoiaLevels(b)[1])),
     field('crs_plugins', `[${(a.crs_plugins ?? []).join(', ')}]`, `[${(b.crs_plugins ?? []).join(', ')}]`),
+    field('geo_rules', (a.geo_rules ?? []).map(geoRuleSummary).join('; ') || '—', (b.geo_rules ?? []).map(geoRuleSummary).join('; ') || '—'),
   ];
   // data_guard is a set: order does not count
   const order = (l: string[]) => DATA_GUARDS.filter((g) => l.includes(g));
