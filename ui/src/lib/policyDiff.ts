@@ -8,7 +8,7 @@ import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec, paranoiaLevels } 
 export type DiffBlock = 'general' | 'response' | 'advanced';
 
 export interface FieldDiff {
-  key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow'
+  key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow' | 'crs_plugins'
     | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
   from: string;
   to: string;
@@ -42,6 +42,7 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
     field('canary_percent', a.canary_percent ? String(a.canary_percent) : '—', b.canary_percent ? String(b.canary_percent) : '—'),
     field('crs_paranoia', String(paranoiaLevels(a)[0]), String(paranoiaLevels(b)[0])),
     field('crs_paranoia_shadow', String(paranoiaLevels(a)[1]), String(paranoiaLevels(b)[1])),
+    field('crs_plugins', `[${(a.crs_plugins ?? []).join(', ')}]`, `[${(b.crs_plugins ?? []).join(', ')}]`),
   ];
   // data_guard is a set: order does not count
   const order = (l: string[]) => DATA_GUARDS.filter((g) => l.includes(g));

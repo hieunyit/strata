@@ -62,7 +62,8 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
 		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()],
-		CRSParanoia: int(pb.GetCrsParanoia()), CRSParanoiaShadow: int(pb.GetCrsParanoiaShadow())}
+		CRSParanoia: int(pb.GetCrsParanoia()), CRSParanoiaShadow: int(pb.GetCrsParanoiaShadow()),
+		CRSPlugins: append([]string(nil), pb.GetCrsPlugins()...)}
 	for _, e := range pb.GetExceptions() {
 		if e == nil {
 			return nil, status.Error(codes.InvalidArgument, "nil policy exception")
@@ -97,7 +98,8 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings],
-		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow)}
+		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow),
+		CrsPlugins: append([]string(nil), s.CRSPlugins...)}
 	for _, e := range s.Exceptions {
 		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
 	}

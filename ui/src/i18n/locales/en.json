@@ -489,7 +489,9 @@
       "canary": "canary_percent is a number from 0.01 to 99.99 with at most two decimals",
       "canaryMode": "canary_percent needs mode enforce",
       "paranoia": "{{key}} is a level from 1 to 4",
-      "paranoiaShadow": "crs_paranoia_shadow cannot be below crs_paranoia"
+      "paranoiaShadow": "crs_paranoia_shadow cannot be below crs_paranoia",
+      "plugin": "crs_plugins: \"{{value}}\" is not a plugin name (a-z, 0-9, -)",
+      "pluginTwice": "crs_plugins lists a plugin twice"
     },
     "canary": "Canary (% of clients blocked)",
     "canaryNote": "Empty: every client. Clients outside the canary run in shadow; the control plane forces shadow if the canary does worse than its shadow group.",
@@ -497,6 +499,19 @@
     "paranoiaShadow": "CRS paranoia level in shadow",
     "paranoiaLevel": "Level {{level}}",
     "paranoiaShadowNone": "None above the enforced level",
+    "plugins": "CRS plugins (rule exclusions for an application)",
+    "plugin": {
+      "wordpress": "WordPress",
+      "drupal": "Drupal",
+      "nextcloud": "Nextcloud",
+      "phpmyadmin": "phpMyAdmin",
+      "phpbb": "phpBB",
+      "xenforo": "XenForo",
+      "dokuwiki": "DokuWiki",
+      "cpanel": "cPanel"
+    },
+    "pluginsOther": "Also set (not in this list): {{list}}",
+    "pluginsNote": "On the application's known paths and fields, a plugin takes listed CRS rules or targets away so its normal traffic does not match; only for policies in front of that application. The deployed rule set must contain the plugin (rules/crs-plugins). Nodes must run a module that supports the setting.",
     "paranoiaNote": "Higher levels catch more attacks and raise false positives: about 9% of benign requests match at level 2. Rules above the enforced level up to the shadow level are only reported, never block. Try a level in shadow and review its false positives before enforcing it. Nodes must run a module that supports the setting."
   },
   "diff": {
@@ -524,6 +539,7 @@
       "canary_percent": "Canary (%)",
       "crs_paranoia": "CRS paranoia level enforced",
       "crs_paranoia_shadow": "CRS paranoia level in shadow",
+      "crs_plugins": "CRS plugins",
       "advanced": "Exceptions, privacy and limits"
     }
   },

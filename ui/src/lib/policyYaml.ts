@@ -29,6 +29,8 @@ export function specToYaml(spec: PolicySpec): string {
   const [enforce, shadow] = paranoiaLevels(spec);
   if (enforce > 1) lines.push(`crs_paranoia: ${enforce}`);
   if (shadow > enforce) lines.push(`crs_paranoia_shadow: ${shadow}`);
+  const plugins = [...new Set(spec.crs_plugins ?? [])].sort();
+  if (plugins.length) lines.push(`crs_plugins: [${plugins.join(', ')}]`);
   const r = spec.response;
   const guards = (r?.data_guard ?? []).filter((g) => (DATA_GUARDS as readonly string[]).includes(g));
   if (r && (r.allowed_codes_check || r.db_errors || guards.length)) {
@@ -45,7 +47,12 @@ export function specToYaml(spec: PolicySpec): string {
 export type YamlErrorCode =
   | 'tab' | 'indent' | 'keyValue' | 'twice' | 'mode' | 'oversize' | 'responseNext'
   | 'bool' | 'list' | 'guard' | 'guardTwice' | 'unknown' | 'modeRequired' | 'canary' | 'canaryMode'
-  | 'paranoia' | 'paranoiaShadow';
+  | 'paranoia' | 'paranoiaShadow' | 'plugin' | 'pluginTwice';
+
+// CRS plugins (W17-S-01): rule exclusions for an application, as pinned in
+// tools/strata-import-crs/crs-plugins.lock (rules/crs-plugins/).
+export const CRS_PLUGINS = ['wordpress', 'drupal', 'nextcloud', 'phpmyadmin', 'phpbb', 'xenforo', 'dokuwiki', 'cpanel'] as const;
+const pluginName = /^[a-z0-9-]{1,32}$/;
 
 // CRS paranoia levels (W17-S-01): rules up to crs_paranoia block, those
 // above it up to crs_paranoia_shadow are only reported. Absent or 0 means
@@ -167,6 +174,25 @@ export function yamlToSpec(text: string): ParseResult {
         }
         break;
       }
+      case 'crs_plugins': {
+        let list: string[] | YamlError;
+        if (rest.trim() === '') {
+          list = [];
+          while (i < lines.length && lines[i].indent > 0 && lines[i].text.startsWith('- ')) {
+            list.push(scalar(lines[i].text.slice(2)));
+            i++;
+          }
+        } else {
+          list = flowList(rest, l.n);
+        }
+        if (isErr(list)) return { error: list };
+        for (const p of list) {
+          if (!pluginName.test(p)) return fail(l.n, 'plugin', { value: p });
+        }
+        if (new Set(list).size !== list.length) return fail(l.n, 'pluginTwice');
+        spec.crs_plugins = list;
+        break;
+      }
       case 'response': {
         if (rest.trim() !== '' && rest.trim() !== '{}') return fail(l.n, 'responseNext');
         const resp: NonNullable<PolicySpec['response']> = {};
@@ -227,6 +253,9 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
   delete out.response;
   delete out.crs_paranoia;
   delete out.crs_paranoia_shadow;
+  delete out.crs_plugins;
+  const plugins = [...new Set(spec.crs_plugins ?? [])].sort();
+  if (plugins.length) out.crs_plugins = plugins;
   // stored as the API stores them: level 1 and a shadow level equal to
   // the enforced one are left out
   const [enforce, shadow] = paranoiaLevels(spec);
@@ -251,12 +280,13 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
 export function mergeYamlSpec(base: PolicySpec, editable: PolicySpec): PolicySpec {
   return normalizeSpec({ ...base, mode: editable.mode, oversize: editable.oversize,
     canary_percent: editable.canary_percent, response: editable.response,
-    crs_paranoia: editable.crs_paranoia, crs_paranoia_shadow: editable.crs_paranoia_shadow });
+    crs_paranoia: editable.crs_paranoia, crs_paranoia_shadow: editable.crs_paranoia_shadow,
+    crs_plugins: editable.crs_plugins });
 }
 
 export function advancedSpec(spec: PolicySpec): Record<string, unknown> {
   const out: Record<string, unknown> = { ...spec };
-  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow']) delete out[key];
+  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow', 'crs_plugins']) delete out[key];
   // Zero/empty values emitted by protojson are equivalent to an absent default.
   for (const [key, value] of Object.entries(out)) {
     if (value === 0 || value === null || value === '' || (Array.isArray(value) && !value.length)

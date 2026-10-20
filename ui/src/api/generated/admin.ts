@@ -641,6 +641,14 @@ export interface components {
        * 29 MB with the signature pack, above Vault transit's request limit).
        */
       crs_paranoia_shadow?: number;
+      /**
+       * @description W17-S-01: CRS plugins (rule exclusions for an application) the policy
+       * runs, e.g. wordpress, nextcloud: on the application's known paths and
+       * fields they take listed CRS rules or targets away. Each must have rules
+       * in the deployed rule set (rules/crs-plugins). Modules from before the
+       * setting refuse bundles with plugins: upgrade them first.
+       */
+      crs_plugins?: string[];
     };
     v1PolicyVersion: {
       policy_id?: string;
