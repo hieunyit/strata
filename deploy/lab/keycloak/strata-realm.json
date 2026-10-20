@@ -93,12 +93,16 @@
       "redirectUris": [
         "http://127.0.0.1:18088/*",
         "http://localhost:18088/*",
+        "http://127.0.0.1:18090/*",
+        "http://localhost:18090/*",
         "http://127.0.0.1:5173/*",
         "http://localhost:5173/*"
       ],
       "webOrigins": [
         "http://127.0.0.1:18088",
         "http://localhost:18088",
+        "http://127.0.0.1:18090",
+        "http://localhost:18090",
         "http://127.0.0.1:5173",
         "http://localhost:5173"
       ],

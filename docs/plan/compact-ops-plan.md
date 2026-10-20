@@ -357,6 +357,9 @@ có bản ghi thì nhảy qua thay vì kẹt (không ghi đè, giữ bất biế
 - Ingest khi ClickHouse lỗi: control plane trả lỗi có thể thử lại để agent giữ trong spool (đã
   có); kiểm lại bằng fault test (mục 8).
 
+*Trạng thái 20/10:* làm xong, báo cáo `docs/reports/cp-a08.md`. Cấm HTML thô bằng test quét mã
+nguồn (UI chưa có ESLint); user ClickHouse riêng cho truy vấn UI dời sang A09 cùng compose.
+
 **Lỗi và lỗ hổng có thể phát sinh**
 
 | Rủi ro | Giảm thiểu |

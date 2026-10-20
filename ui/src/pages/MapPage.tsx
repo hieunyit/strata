@@ -4,7 +4,7 @@ import { Pause, Play, RefreshCw, X, MapPinOff } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
-import { apiClient, Event, GeoCount, GeoBucket, GeoDelta, GeoFilters, GeoSnapshot, Policy, SearchEventsRequest } from '../api/client';
+import { apiClient, Event, GeoCount, GeoBucket, GeoDelta, GeoFilters, GeoSnapshot, Policy, SearchEventsRequest, isEventsUnavailable } from '../api/client';
 import { EventsTable } from '../components/events/EventsTable';
 import { RangeKey, isRange, windowOf } from '../lib/timeRange';
 import { Route, replaceQuery } from '../router';
@@ -185,7 +185,13 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
         setUpdated(new Date());
         lastRest.current = Date.now();
       } catch (e) {
-        if (gen === generation.current) setError(e instanceof Error ? e.message : String(e));
+        if (gen !== generation.current) return;
+        if (isEventsUnavailable(e)) {
+          setData(undefined); // no map rather than an empty one (CP-A08)
+          setError(t('errors.eventsUnavailable'));
+          return;
+        }
+        setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (gen === generation.current) setLoading(false);
       }
@@ -202,12 +208,12 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
         const res = await apiClient.searchEvents(eventsRequest(range, filters, tokens[page] || undefined));
         setEvents({ list: res.events ?? [], total: res.total_matched ?? 0, next: res.next_page_token || undefined });
       } catch (e) {
-        setEvents({ list: [], total: 0, error: e instanceof Error ? e.message : String(e) });
+        setEvents({ list: [], total: 0, error: isEventsUnavailable(e) ? t('errors.eventsUnavailable') : e instanceof Error ? e.message : String(e) });
       } finally {
         setEventsLoading(false);
       }
     },
-    [range, filters],
+    [range, filters, t],
   );
   useEffect(() => {
     setEventPage(0);

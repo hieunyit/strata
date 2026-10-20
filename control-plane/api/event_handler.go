@@ -41,6 +41,14 @@ func writeError(w http.ResponseWriter, status int, message string, blockID strin
 	})
 }
 
+// eventsUnavailable answers a failed event store query: 503, so that no
+// client mistakes it for "no events".
+func eventsUnavailable(w http.ResponseWriter, blockID string) {
+	writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{
+		Error: "event data unavailable", BlockID: blockID, Code: http.StatusServiceUnavailable, Reason: ReasonEventsUnavailable,
+	})
+}
+
 func maskIP(ip string) string {
 	if strings.Contains(ip, ".") {
 		parts := strings.Split(ip, ".")
@@ -113,7 +121,7 @@ func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("[ERROR] failed to query event %s: %v", blockID, err)
-		writeError(w, http.StatusInternalServerError, "internal server error", blockID)
+		eventsUnavailable(w, blockID)
 		return
 	}
 
@@ -196,7 +204,7 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 	res, err := h.store.SearchEvents(r.Context(), filter)
 	if err != nil {
 		log.Printf("[ERROR] failed to search events: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error", "")
+		eventsUnavailable(w, "")
 		return
 	}
 

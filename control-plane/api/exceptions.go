@@ -113,7 +113,7 @@ func (s *Server) HandleExceptionFromBlock(w http.ResponseWriter, r *http.Request
 		if errors.Is(err, ingest.ErrEventNotFound) {
 			writeError(w, 404, "event not found", req.BlockID)
 		} else {
-			writeError(w, 503, "events unavailable", req.BlockID)
+			eventsUnavailable(w, req.BlockID)
 		}
 		return
 	}

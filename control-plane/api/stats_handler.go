@@ -72,7 +72,7 @@ func (h *EventHandler) HandleOverview(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("[ERROR] overview statistics: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error", "")
+		eventsUnavailable(w, "")
 		return
 	}
 	ids := make([]uint32, 0, len(o.TopRules))

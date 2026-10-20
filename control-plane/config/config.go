@@ -53,6 +53,7 @@ type File struct {
 			Listen         *string  `yaml:"listen" flag:"addr"`
 			CORSOrigins    []string `yaml:"cors_origins" flag:"cors-origins"`
 			TrustedProxies []string `yaml:"trusted_proxies" flag:"trusted-proxies"`
+			UI             *bool    `yaml:"ui" flag:"ui"`
 		} `yaml:"http"`
 		Fleet struct {
 			Listen      *string `yaml:"listen" flag:"grpc-addr"`
@@ -92,6 +93,7 @@ type File struct {
 			DiscoveryURL *string `yaml:"discovery_url" flag:"oidc-discovery-url"`
 			Audience     *string `yaml:"audience" flag:"oidc-audience"`
 			RolesClaim   *string `yaml:"roles_claim" flag:"oidc-roles-claim"`
+			UIClientID   *string `yaml:"ui_client_id" flag:"ui-oidc-client-id"`
 		} `yaml:"oidc"`
 	} `yaml:"auth"`
 

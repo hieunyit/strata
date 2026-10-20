@@ -22,7 +22,7 @@ MKBUNDLE := target/release/mkbundle
 COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
-.PHONY: FORCE crs-plugins-import test-crs-plugins fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test test-crs-ftw-pl2 poc clean \
+.PHONY: FORCE control-plane-ui control-plane-bin crs-plugins-import test-crs-plugins fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test test-crs-ftw-pl2 poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind mutate coraza-diff bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines test-alerts
 
@@ -400,3 +400,15 @@ poc:
 clean:
 	cargo clean
 	rm -rf $(BUILD)
+
+# The Web UI inside the control plane binary (CP-A08): builds ui/ (needs
+# node; on this host build/ui.sh runs it in the Playwright image) and copies
+# ui/dist into control-plane/webui/dist, which go:embed takes. A binary built
+# without it serves the API only.
+control-plane-ui:
+	cd ui && npm ci --no-audit --no-fund && npm run build
+	find control-plane/webui/dist -mindepth 1 ! -name .gitkeep -delete
+	cp -R ui/dist/. control-plane/webui/dist/
+
+control-plane-bin:
+	cd control-plane && CGO_ENABLED=0 go build -trimpath -o ../build/strata-control-plane ./cmd/server

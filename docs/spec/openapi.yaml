@@ -1998,6 +1998,9 @@ components:
           type: string
         code:
           type: integer
+        reason:
+          type: string
+          description: Machine-readable cause. EVENTS_UNAVAILABLE (HTTP 503) means the event store (ClickHouse) did not answer; clients show the data source as unavailable, never an empty result (CP-A08).
   securitySchemes:
     bearerAuth:
       type: http

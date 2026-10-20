@@ -4,7 +4,7 @@ import { Pause, Play, RefreshCw } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount, relativeTime } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
-import { apiClient, Overview, FleetNode, Rollout, Policy } from '../api/client';
+import { apiClient, Overview, FleetNode, Rollout, Policy, isEventsUnavailable } from '../api/client';
 import { RangeKey, overviewRanges, isRange, windowOf } from '../lib/timeRange';
 import { Route, href, replaceQuery } from '../router';
 import { useAuth } from '../context/AuthContext';
@@ -63,6 +63,8 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [data, setData] = useState<Data | undefined>();
   const [error, setError] = useState<string | undefined>();
+  // ClickHouse down (CP-A08): no numbers at all, rather than zeros or stale ones
+  const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(true);
   const [updated, setUpdated] = useState<string | undefined>();
@@ -71,8 +73,15 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
     try {
       setData(await load(range, policy));
       setError(undefined);
+      setUnavailable(false);
       setUpdated(new Date().toISOString());
     } catch (e) {
+      if (isEventsUnavailable(e)) {
+        setData(undefined);
+        setUnavailable(true);
+        setError(undefined);
+        return;
+      }
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
@@ -140,33 +149,33 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           </>
         }
       />
-      <ErrorBanner message={error && t('common.refreshError', { error })} />
+      <ErrorBanner message={unavailable ? t('errors.eventsUnavailable') : error && t('common.refreshError', { error })} testId="overview-error" />
 
       <section className="panel mb-5" aria-label={t('overview.totals')}>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 px-5">
-          <Kpi testId="kpi-events" label={t('overview.kpi.events')} value={loading && !o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
+          <Kpi testId="kpi-events" label={t('overview.kpi.events')} value={!o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
           <Kpi
             testId="kpi-blocked"
             tone="block"
             label={t('overview.kpi.blocked')}
-            value={loading && !o ? '—' : formatCount(totals?.block, locale)}
+            value={!o ? '—' : formatCount(totals?.block, locale)}
             note={totals ? t('overview.kpi.share', { pct: pct(totals.block, totals.events) }) : undefined}
           />
           <Kpi
             testId="kpi-shadow"
             tone="shadow"
             label={t('overview.kpi.shadow')}
-            value={loading && !o ? '—' : formatCount(totals?.shadow, locale)}
+            value={!o ? '—' : formatCount(totals?.shadow, locale)}
             note={t('overview.kpi.shadowNote')}
           />
           <Kpi
             testId="kpi-unchecked"
             tone={totals && totals.error > 0 ? 'unchecked' : undefined}
             label={t('overview.kpi.unchecked')}
-            value={loading && !o ? '—' : formatCount(totals?.error, locale)}
+            value={!o ? '—' : formatCount(totals?.error, locale)}
             note={totals ? t('overview.kpi.uncheckedNote', { pct: pct(totals.error ?? 0, totals.events) }) : undefined}
           />
-          <Kpi testId="kpi-clients" label={t('overview.kpi.clients')} value={loading && !o ? '—' : formatCount(totals?.clients, locale)} note={t('overview.kpi.policies', { count: totals?.policies ?? 0 })} />
+          <Kpi testId="kpi-clients" label={t('overview.kpi.clients')} value={!o ? '—' : formatCount(totals?.clients, locale)} note={t('overview.kpi.policies', { count: totals?.policies ?? 0 })} />
           <Kpi
             testId="kpi-nodes"
             label={t('overview.kpi.nodes')}
@@ -195,7 +204,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           {o && totals && totals.events > 0 ? (
             <StrataChart series={o.series} stepSeconds={o.step_seconds} />
           ) : (
-            <Empty testId="overview-empty">{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
+            <Empty testId="overview-empty">{loading ? t('common.loading') : !o ? t('errors.noData') : t('overview.noEvents')}</Empty>
           )}
         </div>
       </section>
@@ -236,7 +245,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
               </tbody>
             </table>
           ) : (
-            <Empty>{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
+            <Empty>{loading ? t('common.loading') : !o ? t('errors.noData') : t('overview.noEvents')}</Empty>
           )}
         </section>
 
@@ -273,7 +282,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
               </tbody>
             </table>
           ) : (
-            <Empty>{loading ? t('common.loading') : t('overview.noEvents')}</Empty>
+            <Empty>{loading ? t('common.loading') : !o ? t('errors.noData') : t('overview.noEvents')}</Empty>
           )}
         </section>
 
@@ -309,7 +318,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
               </tbody>
             </table>
           ) : (
-            <Empty testId="inspection-empty">{loading ? t('common.loading') : t('overview.inspection.empty')}</Empty>
+            <Empty testId="inspection-empty">{loading ? t('common.loading') : !o ? t('errors.noData') : t('overview.inspection.empty')}</Empty>
           )}
         </section>
 

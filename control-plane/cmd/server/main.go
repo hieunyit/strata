@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/strata/strata/control-plane/rulecat"
@@ -40,6 +41,7 @@ import (
 	"github.com/strata/strata/control-plane/replay"
 	"github.com/strata/strata/control-plane/rulehealth"
 	"github.com/strata/strata/control-plane/store"
+	"github.com/strata/strata/control-plane/webui"
 )
 
 // Set at build time: -ldflags "-X main.version=... -X main.commit=...".
@@ -106,7 +108,9 @@ func main() {
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
-	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
+	corsOrigins := flag.String("cors-origins", "", "Comma-separated origins allowed to call the REST API from another origin; empty: none (the UI is served on the API's origin, and npm run dev proxies /v1)")
+	serveUI := flag.Bool("ui", true, "Serve the Web UI built into this binary on -addr, next to the API (CP-A08)")
+	uiClientID := flag.String("ui-oidc-client-id", "strata-ui", "OIDC client the Web UI signs in with, given to it in /config.json with -oidc-issuer as the authority")
 	geoIPCity := flag.String("geoip-city", "", "Operator-provided GeoIP2/GeoLite2 City .mmdb file (optional)")
 	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
 	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the artifact store (-objects-dir or -s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
@@ -208,7 +212,7 @@ func main() {
 		store = memStore
 	} else {
 		log.Printf("[INFO] Connecting to ClickHouse at %s\n", *chAddr)
-		chStore, err := ingest.NewClickHouseStore(ctx, ingest.ClickHouseConfig{
+		chStore, err := ingest.OpenClickHouseStore(ingest.ClickHouseConfig{
 			Addr:     *chAddr,
 			Database: "default",
 			Username: *chUser,
@@ -216,22 +220,17 @@ func main() {
 			Table:    "events",
 		})
 		if err != nil {
-			log.Fatalf("[FATAL] Failed to connect to ClickHouse: %v", err)
+			log.Fatalf("[FATAL] ClickHouse: %v", err)
 		}
 		defer chStore.Close()
-		if err := chStore.EnsureColumns(ctx); err != nil {
-			log.Fatalf("[FATAL] ClickHouse: %v", err)
-		}
-		if err := chStore.EnsureTTL(ctx, *ttlDays); err != nil {
-			log.Fatalf("[FATAL] %v", err)
-		}
-		if err := chStore.EnsurePolicyRequests(ctx, *ttlDays); err != nil {
-			log.Fatalf("[FATAL] ClickHouse: %v", err)
-		}
-		if err := chStore.EnsureGeoAggregates(ctx, *geoMonths); err != nil {
-			log.Fatalf("[FATAL] ClickHouse: %v", err)
-		}
-		go backfillGeoAggregates(ctx, chStore, *ttlDays)
+		// ClickHouse down does not stop the control plane (CP-A08): sign-in,
+		// policies and deploys work; events and statistics are degraded
+		// (GET /readyz) until the schema is migrated
+		go func() {
+			if migrateClickHouse(ctx, chStore, *ttlDays, *geoMonths) {
+				backfillGeoAggregates(ctx, chStore, *ttlDays)
+			}
+		}()
 		store = chStore
 	}
 
@@ -510,6 +509,19 @@ func main() {
 			allowedOrigins[o] = true
 		}
 	}
+	// the Web UI on the API's origin (CP-A08): /v1/, /healthz and /readyz
+	// stay the API's, everything else is the UI
+	web := srv.Handler()
+	if assets := webui.Embedded(); *serveUI && assets != nil {
+		cfg := webui.Config{}
+		if *oidcIssuer != "" {
+			cfg = webui.Config{OIDCAuthority: *oidcIssuer, OIDCClientID: *uiClientID}
+		}
+		web = webui.Handler(web, assets, cfg)
+		log.Printf("[INFO] Web UI %s served on %s", webui.Version(assets), *addr)
+	} else if *serveUI {
+		log.Printf("[INFO] this build carries no Web UI (make control-plane-ui embeds it): API only on %s", *addr)
+	}
 	handlerWithCORS := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if allowedOrigins[origin] {
@@ -522,7 +534,7 @@ func main() {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		srv.Handler().ServeHTTP(w, r)
+		web.ServeHTTP(w, r)
 	})
 
 	server := &http.Server{
@@ -881,6 +893,37 @@ func seedDemoEvents(store *ingest.MockEventStore) {
 	log.Printf("[INFO] Pre-seeded %d demo events into memory store\n", len(events))
 }
 
+// migrateClickHouse applies the ClickHouse migrations and the retention
+// settings, trying again while ClickHouse is unreachable (every 5 s, up to
+// a minute apart). False when ctx ended or the schema is newer than this
+// build (then the events part stays degraded; see the log).
+func migrateClickHouse(ctx context.Context, ch *ingest.ClickHouseStore, ttlDays, geoMonths int) bool {
+	wait := 5 * time.Second
+	for {
+		applied, err := ch.Migrate(ctx)
+		if err == nil {
+			err = ch.Configure(ctx, ttlDays, geoMonths)
+		}
+		switch {
+		case err == nil:
+			if len(applied) > 0 {
+				log.Printf("[INFO] ClickHouse: migrations %v applied, schema at %d", applied, ingest.LatestCHMigration())
+			}
+			return true
+		case errors.Is(err, ingest.ErrCHSchemaNewer):
+			log.Printf("[ERROR] %v: events stay unavailable until this control plane is upgraded", err)
+			return false
+		}
+		log.Printf("[WARN] ClickHouse not ready (events degraded), trying again in %s: %v", wait, err)
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(wait):
+		}
+		wait = min(2*wait, time.Minute)
+	}
+}
+
 // readiness reports the components GET /readyz checks (CP-A03): PostgreSQL
 // and the lease make the control plane ready; ClickHouse only degrades it
 // (events and statistics), sign-in and policies still work.
@@ -905,8 +948,12 @@ func readiness(pool *pgxpool.Pool, keeper *leaseKeeper, events ingest.EventStore
 		default:
 			out["lease"], ready = "lost", false
 		}
-		if ch, ok := events.(interface{ Ping(context.Context) error }); ok {
-			if ch.Ping(ctx) != nil {
+		if ch, ok := events.(interface {
+			Ping(context.Context) error
+			Migrated() bool
+		}); ok {
+			// unreachable, or its schema not migrated yet
+			if !ch.Migrated() || ch.Ping(ctx) != nil {
 				out["clickhouse"] = "degraded"
 			} else {
 				out["clickhouse"] = "ok"

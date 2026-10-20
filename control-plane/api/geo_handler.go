@@ -135,7 +135,7 @@ func (h *EventHandler) statsFailed(w http.ResponseWriter, r *http.Request, what 
 		return
 	}
 	log.Printf("[ERROR] %s statistics: %v", what, err)
-	writeError(w, http.StatusInternalServerError, "internal server error", "")
+	eventsUnavailable(w, "")
 }
 
 // HandleGeoStats handles GET /v1/stats/geo?from=&to=&groupBy=country|city|asn|attack_type

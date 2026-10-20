@@ -786,6 +786,8 @@ export interface components {
       error: string;
       block_id?: string;
       code?: number;
+      /** @description Machine-readable cause. EVENTS_UNAVAILABLE (HTTP 503) means the event store (ClickHouse) did not answer; clients show the data source as unavailable, never an empty result (CP-A08). */
+      reason?: string;
     };
   };
   responses: {
