@@ -77,6 +77,20 @@ func NewVerifier(ctx context.Context, cfg Config) (*Verifier, error) {
 	}, nil
 }
 
+// MaxClockSkew bounds how far in the future a token may say it was issued
+// (iat) or becomes valid (nbf): beyond it the IdP's clock or the token is
+// wrong (CP-A06). go-oidc checks exp strictly and nbf with 5 minutes.
+const MaxClockSkew = 2 * time.Minute
+
+// claimTime reads a NumericDate claim; ok false when absent or not a number.
+func claimTime(claims map[string]any, name string) (time.Time, bool) {
+	f, ok := claims[name].(float64)
+	if !ok {
+		return time.Time{}, false
+	}
+	return time.Unix(int64(f), 0), true
+}
+
 // OIDCSubjectPrefix marks the principals of OIDC tokens: the subject is
 // "oidc:" and the token's sub. Local accounts are "local:" (localauth),
 // service accounts "sa:"; four eyes, audit and idempotency compare these
@@ -99,6 +113,12 @@ func (v *Verifier) Authenticate(ctx context.Context, raw string) (*Principal, er
 	}
 	if tok.Subject == "" {
 		return nil, fmt.Errorf("%w: token without a subject", ErrUnauthenticated)
+	}
+	limit := time.Now().Add(MaxClockSkew)
+	for _, c := range []string{"iat", "nbf"} {
+		if at, ok := claimTime(claims, c); ok && at.After(limit) {
+			return nil, fmt.Errorf("%w: %s %s is in the future (clock skew over %s)", ErrUnauthenticated, c, at.UTC().Format(time.RFC3339), MaxClockSkew)
+		}
 	}
 	name, _ := claims["preferred_username"].(string)
 	return &Principal{

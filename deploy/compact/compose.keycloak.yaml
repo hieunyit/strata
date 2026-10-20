@@ -28,7 +28,7 @@ services:
     ports: ["${STRATA_IDP_BIND:-127.0.0.1}:${STRATA_IDP_PORT:-8180}:8080"]
     volumes:
       - ./keycloak/strata-realm.json:/opt/keycloak/data/import/strata-realm.json:ro
-      - keycloak:/opt/keycloak/data/h2
+      - keycloak:/opt/keycloak/data
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
       interval: 10s

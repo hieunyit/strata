@@ -261,6 +261,10 @@ func main() {
 			log.Fatalf("[FATAL] %v", err)
 		}
 		dispatch.OIDC = v
+		if pg != nil {
+			// admins who signed in through the IdP (CP-A06)
+			dispatch.OIDC = &auth.RecordAdmins{Authenticator: v, Record: pg.RecordOIDCAdmin}
+		}
 	}
 	var local *localauth.Handler
 	if *localAuth {
@@ -292,6 +296,11 @@ func main() {
 		dispatch.Local = svc
 		go svc.CleanExpired(ctx, 10*time.Minute)
 		log.Printf("[INFO] local accounts enabled (sessions last %s)", *localTTL)
+	}
+	if !*localAuth && dispatch.OIDC != nil && pool != nil {
+		if err := checkLocalOff(ctx, localauth.NewStore(pool).CountUsers, pg.OIDCAdminSignedIn); err != nil {
+			log.Fatalf("[FATAL] %v", err)
+		}
 	}
 	var machineAccounts auth.ServiceAccountStore
 	if pg != nil {

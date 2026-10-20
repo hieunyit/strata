@@ -86,7 +86,7 @@ func TestMigrationsUpDownOnEmptyDatabase(t *testing.T) {
 	}
 	want := []string{"audit_log", "bundle_version_floor", "bundles", "canary_trips", "connector_groups", "control_plane_lease", "disabled_rules", "enrollment_tokens",
 		"event_annotation_requests", "event_annotations", "ingest_sequences", "local_sessions", "local_users",
-		"machine_accounts", "machine_requests", "machine_tokens", "node_commands", "nodes", "operations",
+		"machine_accounts", "machine_requests", "machine_tokens", "node_commands", "nodes", "oidc_admin_sign_ins", "operations",
 		"policies", "policy_edit_requests", "policy_versions", "replay_sampling", "role_bindings", "rollout_nodes", "rollouts",
 		"rule_annotation_context", "rule_staging_actions", "secrets", "service_accounts"}
 	if got := userTables(t, pool); strings.Join(got, ",") != strings.Join(want, ",") {
