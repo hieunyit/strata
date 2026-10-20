@@ -274,9 +274,10 @@ khoản local), deploy, không cần IdP.
 **Nghiệm thu**: e2e local-only, OIDC-only, local + OIDC; bật hay tắt Keycloak chỉ đổi cấu hình,
 không build lại.
 
-*Trạng thái 20/10:* phần auth đã có test sẵn (xem dòng CP-A06 trong `AGENTS.md`). Overlay
-`compose.keycloak.yaml` chỉ có nghĩa cùng compose Compact, nên làm trong CP-A09 (quyết định khi
-làm, theo quyền tự quyết PO giao).
+*Trạng thái 20/10:* làm xong (báo cáo `docs/reports/cp-a06.md`): giới hạn lệch đồng hồ, test
+role mapping, chặn tắt local auth khi chưa có admin OIDC đăng nhập (migration 0029); overlay
+`compose.keycloak.yaml` (CP-A09); nghiệm thu local-only, OIDC-only, local + OIDC, bật/tắt chỉ đổi
+cấu hình bằng `tests/e2e/compact-oidc.sh`.
 
 **Lỗi và lỗ hổng có thể phát sinh**
 
