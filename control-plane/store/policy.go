@@ -15,6 +15,9 @@ import (
 // ErrEtagMismatch: the policy changed since the caller read it.
 var ErrEtagMismatch = errors.New("store: etag does not match")
 
+// ErrBundleBusy: another deploy holds the bundle lock past the wait.
+var ErrBundleBusy = errors.New("store: another deploy is in progress")
+
 // ErrFourEyes: whoever drafted or submitted a version cannot approve it.
 var ErrFourEyes = errors.New("store: whoever drafted or submitted a version cannot approve it")
 
@@ -398,7 +401,21 @@ func (s *Store) WithBundleLock(ctx context.Context, build func(next uint64) erro
 			outErr = errors.Join(outErr, fmt.Errorf("store: discard bundle lock session: %w", err))
 		}
 	}()
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", int64(lockBundles)); err != nil {
+	// deploys are serialized: the replay gate checks against the bundle in
+	// force, which must not change before this one is recorded. Waiting
+	// is bounded (CP-A03): the caller is told another deploy is running.
+	wait := s.BundleLockWait
+	if wait <= 0 {
+		wait = DefaultBundleLockWait
+	}
+	lockCtx, cancelLock := context.WithTimeout(ctx, wait)
+	_, err = conn.Exec(lockCtx, "SELECT pg_advisory_lock($1)", int64(lockBundles))
+	timedOut := errors.Is(lockCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil
+	cancelLock()
+	if err != nil {
+		if timedOut {
+			return fmt.Errorf("%w (waited %s)", ErrBundleBusy, wait)
+		}
 		return fmt.Errorf("store: bundle lock: %w", err)
 	}
 	locked = true

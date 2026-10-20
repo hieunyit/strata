@@ -53,6 +53,9 @@ type ServerConfig struct {
 	Audit AuditStore
 	// OIDC tells the UI whether single sign-on is configured.
 	OIDC bool
+	// Ready reports the components for GET /readyz and whether the control
+	// plane can serve (CP-A03); nil: always ready.
+	Ready func(context.Context) (map[string]string, bool)
 }
 
 // AuthMethods is GET /v1/auth/methods: how the UI may sign in.
@@ -192,6 +195,21 @@ func (s *Server) registerRoutes() {
 	// Liveness for the container healthcheck; it reveals nothing.
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
+	})
+	// Readiness: component states only (ok, error, degraded, disabled),
+	// no addresses or messages; 503 when the control plane cannot serve.
+	s.mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if s.cfg.Ready == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ready": true})
+			return
+		}
+		parts, ready := s.cfg.Ready(r.Context())
+		code := http.StatusOK
+		if !ready {
+			code = http.StatusServiceUnavailable
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, code, map[string]any{"ready": ready, "components": parts})
 	})
 	s.mux.Handle("/v1/", auth.Middleware(s.cfg.Auth, v1))
 }

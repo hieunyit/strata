@@ -449,7 +449,7 @@ Khi một policy được deploy, compiler tạo và ký bundle, lưu vào objec
 | PostgreSQL | Policy, version, node, role binding, audit | HA bằng Patroni |
 | Object storage | Bundle, corpus replay | S3 / MinIO |
 
-*Bản Compact (PO 19/10/2026, `docs/plan/compact-ops-plan.md`):* mặc định chỉ chạy **một control
+*Bản Compact (PO 19/10/2026, `docs/plan/compact-ops-plan.md`):* mặc định chỉ chạy **một control **Lease (CP-A03):** control plane giữ lease trong bảng `control_plane_lease` (cờ `-single-control-plane`, mặc định bật; `-lease-ttl` 30 s, gia hạn mỗi 10 s); bản thứ hai chờ lease hết hạn rồi dừng; bản mất lease thì thoát; khởi động lại sau sự cố trên cùng máy giành lại ngay khi tiến trình cũ (cùng host, PID trùng hoặc không còn) đã chết. Deploy chạy tuần tự dưới khóa bundle, chờ tối đa 2 phút rồi trả 409. `GET /readyz` (không cần token): trạng thái `postgres`, `lease`, `clickhouse` (ok, error, degraded, disabled), 503 khi PostgreSQL hoặc lease không ổn; ClickHouse lỗi chỉ là `degraded`.
 plane** (UI nhúng trong binary) cùng **PostgreSQL** và **ClickHouse** đi kèm. Artifact lưu trên
 **filesystem**, ký bundle bằng **file Ed25519**, xác thực bằng **tài khoản cục bộ**. OIDC
 (Keycloak hoặc IdP khác), S3/MinIO, Vault transit, PostgreSQL ngoài có HA và giám sát

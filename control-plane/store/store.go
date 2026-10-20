@@ -25,7 +25,16 @@ var (
 )
 
 // Store wraps a pool.
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool *pgxpool.Pool
+	// BundleLockWait bounds how long a deploy waits for another one to
+	// finish (CP-A03); ErrBundleBusy after it. 0: DefaultBundleLockWait.
+	BundleLockWait time.Duration
+}
+
+// DefaultBundleLockWait: a deploy compiles, signs and uploads while it
+// holds the bundle lock (10–40 s with the whole signature package).
+const DefaultBundleLockWait = 2 * time.Minute
 
 // New returns a store on pool.
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }

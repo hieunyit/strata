@@ -25,7 +25,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-SEC-02 | Tên policy không chỉ gồm dấu chấm (`policy.ValidName`); kiểm khóa object từng đoạn làm ở CP-A07 | Claude Code (strata-59) | — | ✅ PR #274 |
 | CP-A01 | Kiểm kê dữ liệu, bất biến, trạng thái RAM; đo nền | Claude Code (strata-59) | — | ✅ `docs/reports/cp-a01.md`: 28 bảng PG, 3 bảng ClickHouse, file/object, trạng thái RAM; bất biến kèm test (thiếu test deploy đồng thời → CP-A03); RAM idle phần giữ ≈ 733 MiB, phần thành tùy chọn ≈ 1,2 GiB |
 | CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ⏳ |
-| CP-A03 | Gia cố PostgreSQL: deploy không giữ lock khi build, lease một control plane, phục hồi operation | Claude Code (strata-59) | CP-A01 | ⏳ |
+| CP-A03 | Gia cố PostgreSQL: deploy tuần tự có giới hạn chờ, lease một control plane, `/readyz` | Claude Code (strata-59) | CP-A01 | ✅ migration 0027; `docs/reports/cp-a03.md` |
 | CP-A05 | Local auth mặc định, `strata init`, `admin recover` | Claude Code (strata-59) | CP-A02 | ⏳ |
 | CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | ⏳ |
 | CP-A07 | Artifact trên filesystem, file signer mặc định | Claude Code (strata-59) | CP-A02, CP-A03, CP-SEC-02 | ⏳ |
