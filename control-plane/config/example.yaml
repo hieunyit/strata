@@ -43,12 +43,18 @@ bundles:
     type: file
     key_file: keys/bundle-signing.key
     public_key: keys/bundle.pub
+  # one of local (a directory, CP-A07) or s3
   storage:
-    s3:
-      endpoint: "minio:9000"
-      secure: false
-      access_key_file: secrets/s3-access-key
-      secret_key_file: secrets/s3-secret-key
+    local:
+      path: /var/lib/strata/objects
+      keep_bundles: 10    # besides those nodes run or should run
+      sample_days: 7      # replay samples
+      prune_interval: 1h
+    # s3:
+    #   endpoint: "minio:9000"
+    #   secure: false
+    #   access_key_file: secrets/s3-access-key
+    #   secret_key_file: secrets/s3-secret-key
 
 replay:
   binary: /usr/local/bin/strata-replay

@@ -67,6 +67,11 @@ type GeoIPUpdater struct {
 	Enricher        *GeoIPEnricher
 	Client          *http.Client // default: 10 minute timeout
 	Now             func() time.Time
+	// PruneOld, when set, is called after a new version is stored and
+	// active, with it and the version it replaced: it removes the other
+	// stored versions (CP-A07, policy.PruneGeoIP). An object store with a
+	// lifecycle rule leaves it nil.
+	PruneOld func(ctx context.Context, keep []string) error
 
 	mu          sync.Mutex // one update at a time
 	lastSuccess atomic.Int64
@@ -147,10 +152,16 @@ func (u *GeoIPUpdater) LoadLatest(ctx context.Context) (*GeoIPManifest, error) {
 func (u *GeoIPUpdater) Update(ctx context.Context) (string, bool, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	prev := u.Enricher.Version()
 	version, changed, err := u.update(ctx)
 	if err != nil {
 		u.failures.Add(1)
 		return u.Enricher.Version(), false, err
+	}
+	if changed && u.PruneOld != nil {
+		if err := u.PruneOld(ctx, []string{version, prev}); err != nil {
+			log.Printf("[WARN] GeoIP: removing old versions: %v", err)
+		}
 	}
 	u.lastSuccess.Store(u.now().UnixNano())
 	return version, changed, nil

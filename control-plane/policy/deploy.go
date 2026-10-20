@@ -6,7 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
+	"path"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/strata/strata/agent/pkg/bundlefmt"
 	"github.com/strata/strata/control-plane/store"
@@ -55,6 +59,53 @@ func ObjectKey(version uint64) string {
 	return fmt.Sprintf("bundles/%020d/bundle-%d.sbn", version, version)
 }
 
+// FreeVersion returns next, or past the newest bundle in the store when
+// next is already taken there: a bundle uploaded by a deploy that failed
+// before it was recorded, or a database restored behind its artifacts
+// (CP-A07). Immutable keys (FS) refuse other content under that key, and a
+// version a node may have installed is never reused. Stores that cannot
+// list keep next.
+func FreeVersion(ctx context.Context, objects Objects, next uint64) (uint64, error) {
+	l, ok := objects.(interface {
+		List(ctx context.Context, prefix string) ([]ObjectInfo, error)
+	})
+	if !ok {
+		return next, nil
+	}
+	taken, err := l.List(ctx, path.Dir(ObjectKey(next))+"/")
+	if err != nil || len(taken) == 0 {
+		return next, err
+	}
+	all, err := l.List(ctx, "bundles/")
+	if err != nil {
+		return 0, err
+	}
+	for _, o := range all {
+		seg, _, _ := strings.Cut(strings.TrimPrefix(o.Key, "bundles/"), "/")
+		if v, err := strconv.ParseUint(seg, 10, 64); err == nil && v >= next && v < math.MaxInt64 {
+			next = v + 1
+		}
+	}
+	return next, nil
+}
+
+// enoughSpace refuses a deploy before it builds when the artifact
+// directory is nearly full (a store that cannot tell passes).
+func enoughSpace(objects Objects) error {
+	f, ok := objects.(interface{ FreeBytes() (uint64, error) })
+	if !ok {
+		return nil
+	}
+	free, err := f.FreeBytes()
+	if err != nil {
+		return err
+	}
+	if free < MinFreeBytes {
+		return fmt.Errorf("policy: %d MiB free for artifacts, a deploy needs %d MiB: free space or prune old bundles", free>>20, MinFreeBytes>>20)
+	}
+	return nil
+}
+
 // Deploy builds the next bundle from the newest approved version of every
 // policy, verifies it, uploads it, records it and starts its rollout.
 func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (Deployment, error) {
@@ -72,6 +123,13 @@ func (d *Deployer) Deploy(ctx context.Context, a store.Audit) (Deployment, error
 func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, error) {
 	var out store.Bundle
 	err := d.Store.WithBundleLock(ctx, func(next uint64) error {
+		next, err := FreeVersion(ctx, d.Objects, next)
+		if err != nil {
+			return err
+		}
+		if err := enoughSpace(d.Objects); err != nil {
+			return err
+		}
 		ps, err := d.Store.DeployablePolicies(ctx)
 		if err != nil {
 			return err

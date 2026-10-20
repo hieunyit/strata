@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/strata/strata/control-plane/policy"
 )
 
 type memObjects struct {
@@ -301,5 +303,42 @@ func TestGeoIPUpdateRunDownloadsWhenNothingIsStored(t *testing.T) {
 	}
 	if loc, _ := enricher.Resolve(net.ParseIP("81.2.69.142").String()); loc == nil || loc.City != "London" {
 		t.Fatalf("lookup after Run: %+v", loc)
+	}
+}
+
+// CP-A07: with artifacts in a directory, databases are immutable and the
+// manifests are not: a version downloaded again after another one (A, B,
+// A) is stored and activated again, and the pointer follows.
+func TestGeoIPUpdateWithFilesystemObjects(t *testing.T) {
+	s := newGeoServer(t)
+	objects, err := policy.NewFS(t.TempDir(), policy.DefaultMutableKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { objects.Close() })
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	enricher := NewGeoIPEnricher(nil)
+	update := func(asn bool) string {
+		t.Helper()
+		now = now.Add(time.Hour)
+		u := &GeoIPUpdater{CityURL: s.URL + "/city.tar.gz", Objects: objects, Enricher: enricher, Now: func() time.Time { return now }}
+		if asn {
+			u.ASNURL = s.URL + "/asn.mmdb"
+		}
+		v, changed, err := u.Update(t.Context())
+		if err != nil || !changed {
+			t.Fatalf("update: %q %v %v", v, changed, err)
+		}
+		return v
+	}
+	a := update(false)
+	b := update(true)
+	if again := update(false); again != a || a == b {
+		t.Fatalf("versions %s, %s, %s", a, b, again)
+	}
+	other := NewGeoIPEnricher(nil)
+	m, err := (&GeoIPUpdater{Objects: objects, Enricher: other}).LoadLatest(t.Context())
+	if err != nil || m == nil || m.Version != a || !m.FetchedAt.Equal(now) || other.Version() != a {
+		t.Fatalf("latest: %+v %v", m, err)
 	}
 }

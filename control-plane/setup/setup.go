@@ -30,6 +30,7 @@ const (
 	PKIDir       = "pki"
 	KeysDir      = "keys"
 	SecretsDir   = "secrets"
+	ObjectsDir   = "objects"                 // artifacts without an object store (CP-A07)
 	BundleKey    = "keys/bundle-signing.key" // Ed25519 seed, 32 bytes
 	BundlePub    = "keys/bundle.pub"         // Ed25519 public key, 32 bytes
 	CACert       = "pki/ca.pem"
@@ -284,7 +285,8 @@ func BundleKeys(dir string, bundlesExist bool, r *Result) error {
 
 // Config writes a configuration file for this data directory when there is
 // none: local accounts, the generated PKI and signing key, the DSN and
-// ClickHouse password from secret files.
+// ClickHouse password from secret files, artifacts in s3Endpoint or, when
+// empty, in ObjectsDir.
 func Config(dir, clickhouse, s3Endpoint string, r *Result) error {
 	path := filepath.Join(dir, ConfigFile)
 	ok, err := exists(path)
@@ -326,6 +328,8 @@ bundles:
 `, CACert, ServerCert, ServerKey, NodeCACert, NodeCAKey, DSNFile, clickhouse, CHPassword, BundleKey, BundlePub)
 	if s3Endpoint != "" {
 		fmt.Fprintf(&b, "  storage:\n    s3:\n      endpoint: %q\n", s3Endpoint)
+	} else {
+		fmt.Fprintf(&b, "  storage:\n    local:\n      path: %s\n", ObjectsDir)
 	}
 	if err := writeNew(path, []byte(b.String()), 0o600); err != nil {
 		return err
