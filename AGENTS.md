@@ -26,8 +26,8 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-A01 | Kiểm kê dữ liệu, bất biến, trạng thái RAM; đo nền | Claude Code (strata-59) | — | ✅ `docs/reports/cp-a01.md`: 28 bảng PG, 3 bảng ClickHouse, file/object, trạng thái RAM; bất biến kèm test (thiếu test deploy đồng thời → CP-A03); RAM idle phần giữ ≈ 733 MiB, phần thành tùy chọn ≈ 1,2 GiB |
 | CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ✅ `control-plane/config`, `example.yaml`; `docs/reports/cp-a02.md` |
 | CP-A03 | Gia cố PostgreSQL: deploy tuần tự có giới hạn chờ, lease một control plane, `/readyz` | Claude Code (strata-59) | CP-A01 | ✅ migration 0027; `docs/reports/cp-a03.md` |
-| CP-A05 | Local auth mặc định, `strata init`, `admin recover` | Claude Code (strata-59) | CP-A02 | ⏳ |
-| CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | ⏳ |
+| CP-A05 | Local auth mặc định, `strata init`, `admin recover` | Claude Code (strata-59) | CP-A02 | ✅ `control-plane/setup`, `cmd/server/initcmd.go`; `docs/reports/cp-a05.md` |
+| CP-A06 | OIDC/Keycloak tùy chọn (overlay) | Claude Code (strata-59) | CP-A05, CP-SEC-01 | 🔄 Phần auth đã đạt: định danh tách (CP-SEC-01), token sai issuer/audience/hết hạn/khóa lạ/`alg: none` bị từ chối (`TestVerifier_RejectsBadTokens`), local + OIDC cùng lúc (`TestDispatchAndLocalUsername`), UI chỉ hiện SSO khi bật, chuyển hướng sau đăng nhập cố định về gốc. Overlay compose Keycloak làm cùng compose Compact ở CP-A09 |
 | CP-A07 | Artifact trên filesystem, file signer mặc định | Claude Code (strata-59) | CP-A02, CP-A03, CP-SEC-02 | ⏳ |
 | CP-A08 | UI nhúng; ClickHouse suy giảm rõ | Claude Code (strata-59) | CP-A02 | ⏳ |
 | CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | ⏳ |
