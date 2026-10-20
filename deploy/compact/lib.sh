@@ -2,7 +2,7 @@
 # Shared by install.sh, backup.sh and restore.sh.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 state=${STRATA_COMPACT_STATE:-$here/.state}
-compose=(docker compose -f "$here/compose.yaml")
+compose=(docker compose -p "${STRATA_COMPACT_PROJECT:-strata-compact}" -f "$here/compose.yaml")
 [ -n "${STRATA_COMPACT_OVERLAY:-}" ] && compose+=(-f "$STRATA_COMPACT_OVERLAY")
 compose+=(--env-file "$state/env")
 die() { echo "$(basename "$0"): $*" >&2; exit 1; }

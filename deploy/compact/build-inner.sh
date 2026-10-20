@@ -10,7 +10,8 @@ dist=$out/dist
 export CARGO_TARGET_DIR=$PWD/build/lab/target
 rm -rf "$dist" && mkdir -p "$dist/bin" "$dist/rules"
 
-cargo build --release -p strata-compiler -p strata-replay
+# strata-eval: the rule pack release runs every rule's tests
+cargo build --release -p strata-compiler -p strata-replay -p strata-eval
 cp "$CARGO_TARGET_DIR/release/strata-compile" "$CARGO_TARGET_DIR/release/strata-replay" "$dist/bin/"
 
 # the core rule pack as rule IR the control plane compiles into every
