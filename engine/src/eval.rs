@@ -322,6 +322,8 @@ pub const SUPPORTED_VARS: &[&str] = &[
     "bot_claim",
     "bot_verified",
     "basename",
+    "geo_country",
+    "geo_asn",
     "multipart_part_headers",
 ];
 
@@ -374,6 +376,8 @@ pub struct Request<'a> {
     pub ja4: &'a [u8],
     /// published crawler ranges of the bundle (W18-R-02)
     pub good_bots: &'a crate::goodbots::GoodBots,
+    /// networks of the countries and ASNs rules name (W19-R-01)
+    pub geo: &'a crate::geo::Geo,
     /// the policy's CRS paranoia levels (W17-S-01)
     pub paranoia: crate::paranoia::Levels,
     pub headers: &'a [(&'a [u8], &'a [u8])],
@@ -1497,6 +1501,16 @@ fn values<'d>(
                     verified
                 },
             }),
+            None => TargetVals::Empty,
+        }
+    } else if v == const { var("geo_country") } || v == const { var("geo_asn") } {
+        let kind = if v == const { var("geo_country") } {
+            crate::geo::Kind::Country
+        } else {
+            crate::geo::Kind::Asn
+        };
+        match r.geo.lookup(kind, r.client_addr) {
+            Some(val) => TargetVals::One(TargetVal { name: None, val }),
             None => TargetVals::Empty,
         }
     } else if v == const { var("tls_ja4") } {

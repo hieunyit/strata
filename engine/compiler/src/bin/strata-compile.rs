@@ -5,7 +5,7 @@
 //!                --version <n> --out <file>
 //!                [--rules <file>]... [--created-at <ms>] [--rollback]
 //!                [--cost-report <file>] [--identity-key <file>] [--no-hs-block]
-//!                [--good-bots <file>]
+//!                [--good-bots <file>] [--geo <file>]
 //! ```
 //! Files are JSON or YAML by extension. Without --created-at the current
 //! time is used (fixtures pass it to stay reproducible).
@@ -26,7 +26,7 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use strata_compiler::{
-    Build, Options, compile_unsigned_opts, good_bots_from_json, load, policies_from,
+    Build, Options, compile_unsigned_opts, geo_from_json, good_bots_from_json, load, policies_from,
     read_identity_key, rules_from_ir,
 };
 
@@ -36,6 +36,7 @@ fn run(args: &[String]) -> Result<(), String> {
     let (mut created, mut rollback, mut unsigned, mut cost_report) = (None, false, false, None);
     let mut identity_key: Option<String> = None;
     let mut good_bots: Option<String> = None;
+    let mut geo: Option<String> = None;
     // HYPERSCAN_BLOCK by default (PO 14/10/2026)
     let mut opts = Options { hs_block: true };
     let mut it = args.iter();
@@ -63,6 +64,7 @@ fn run(args: &[String]) -> Result<(), String> {
             "--rollback" => rollback = true,
             "--identity-key" => identity_key = Some(val()?),
             "--good-bots" => good_bots = Some(val()?),
+            "--geo" => geo = Some(val()?),
             "--hs-block" => opts.hs_block = true,
             "--no-hs-block" => opts.hs_block = false,
             "--unsigned" => unsigned = true,
@@ -99,6 +101,12 @@ fn run(args: &[String]) -> Result<(), String> {
     if let Some(f) = &good_bots {
         let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
         pol.good_bots = good_bots_from_json(&b).map_err(|e| format!("{f}: {e}"))?;
+    }
+    // networks of countries and ASNs (W19-R-01): section GEO, those the
+    // rules name
+    if let Some(f) = &geo {
+        let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
+        pol.geo = geo_from_json(&b).map_err(|e| format!("{f}: {e}"))?;
     }
     let created_at_ms = created.unwrap_or_else(|| {
         SystemTime::now()

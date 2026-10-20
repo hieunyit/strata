@@ -326,6 +326,89 @@ pub struct Policies {
     /// published crawler ranges for section GOOD_BOTS (W18-R-02;
     /// strata-compile --good-bots, the control plane's latest list)
     pub good_bots: Vec<libstrata::goodbots::Crawler>,
+    /// networks per country and ASN (W19-R-01; strata-compile --geo, from
+    /// the control plane's GeoIP databases); only those rules name go into
+    /// section GEO
+    pub geo: Vec<libstrata::geo::Entry>,
+}
+
+/// Reads the networks the control plane extracts from its GeoIP databases
+/// (W19-R-01): `{"version": "...", "countries": {"VN": ["14.160.0.0/11",
+/// ...]}, "asns": {"7552": [...]}}`.
+pub fn geo_from_json(bytes: &[u8]) -> Result<Vec<libstrata::geo::Entry>> {
+    use libstrata::geo::{Kind, entry};
+    let doc: serde_json::Value = serde_json::from_slice(bytes).map_err(|e| format!("geo: {e}"))?;
+    let mut out = vec![];
+    for (field, kind) in [("countries", Kind::Country), ("asns", Kind::Asn)] {
+        let Some(map) = doc.get(field) else { continue };
+        let map = map
+            .as_object()
+            .ok_or_else(|| format!("geo: {field:?} is not an object"))?;
+        for (key, prefixes) in map {
+            let list: Vec<&str> = prefixes
+                .as_array()
+                .ok_or_else(|| format!("geo: {key}: not a list"))?
+                .iter()
+                .map(|p| {
+                    p.as_str()
+                        .ok_or_else(|| format!("geo: {key}: not a string"))
+                })
+                .collect::<Result<_>>()?;
+            out.push(entry(kind, key, &list).map_err(|e| format!("geo: {e}"))?);
+        }
+    }
+    Ok(out)
+}
+
+/// The countries and ASNs the rules name, from their conditions on
+/// geo_country / geo_asn (streq or pm only, so the names are known;
+/// `other` and `private` name none).
+fn geo_keys(rules: &[RuleDef]) -> Result<BTreeSet<(libstrata::geo::Kind, String)>> {
+    use libstrata::geo::Kind;
+    let var = |n| rules::code(rules::VARS, n).unwrap_or(u8::MAX);
+    let op = |n| rules::code(rules::OPERATORS, n).unwrap_or(u8::MAX);
+    let mut out = BTreeSet::new();
+    for r in rules {
+        for c in &r.conditions {
+            for t in &c.targets {
+                let kind = if t.var == var("geo_country") {
+                    Kind::Country
+                } else if t.var == var("geo_asn") {
+                    Kind::Asn
+                } else {
+                    continue;
+                };
+                let values: Vec<&[u8]> = match &c.value {
+                    rules::Value::Str(v) if c.op == op("streq") => vec![v],
+                    rules::Value::List(l) if c.op == op("pm") => l.iter().map(|v| &v[..]).collect(),
+                    _ => {
+                        return Err(format!(
+                            "rule {}: geo_country and geo_asn take streq or pm only",
+                            r.id
+                        ));
+                    }
+                };
+                if t.count || t.key.is_some() || !c.transforms.is_empty() || c.multi_match {
+                    return Err(format!(
+                        "rule {}: geo_country and geo_asn take no key, count or transformation",
+                        r.id
+                    ));
+                }
+                for v in values {
+                    let v =
+                        std::str::from_utf8(v).map_err(|_| format!("rule {}: geo value", r.id))?;
+                    if v == "other" || v == "private" {
+                        continue;
+                    }
+                    if !libstrata::geo::valid_key(kind, v) {
+                        return Err(format!("rule {}: {v:?} is not a {kind:?} (VN, 7552)", r.id));
+                    }
+                    out.insert((kind, v.to_string()));
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Reads the crawler ranges the control plane stores (W18-G2-02):
@@ -616,6 +699,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         plugins,
         identity_key: None,
         good_bots: vec![],
+        geo: vec![],
     })
 }
 
@@ -1190,6 +1274,21 @@ fn compile_unsigned_with(
     .map_err(|e| format!("rule exclusions: {}", e.message()))?;
     if !exclusions.is_empty() {
         sections.push((libstrata::bundle::kind::EXCLUSIONS, exclusions));
+    }
+    // W19-R-01: the networks of the countries and ASNs the rules name
+    let wanted = geo_keys(rules)?;
+    let mut geo = vec![];
+    for (kind, key) in &wanted {
+        let e = policies
+            .geo
+            .iter()
+            .find(|e| e.kind == *kind && &e.key == key)
+            .ok_or_else(|| format!("{kind:?} {key}: no networks (strata-compile --geo)"))?;
+        geo.push(e.clone());
+    }
+    let geo = libstrata::geo::encode(&geo).map_err(|e| format!("geo: {e}"))?;
+    if !geo.is_empty() {
+        sections.push((libstrata::bundle::kind::GEO, geo));
     }
     let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
     if !good_bots.is_empty() {

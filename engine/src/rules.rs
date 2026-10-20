@@ -111,6 +111,9 @@ pub const VARS: &[&str] = &[
     "bot_verified",
     // appended (W17-S-01)
     "basename",
+    // appended (W19-R-01)
+    "geo_country",
+    "geo_asn",
 ];
 
 /// ModSecurity-style field name for each variable in VARS.

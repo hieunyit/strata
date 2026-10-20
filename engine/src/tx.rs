@@ -955,6 +955,7 @@ impl Tx {
                 client_addr: line.part(5),
                 ja4: &self.ja4[..self.ja4_len],
                 good_bots: engine.good_bots(),
+                geo: engine.geo(),
                 paranoia: self
                     .policy_index
                     .map(|i| engine.paranoia(i))
@@ -1036,6 +1037,7 @@ impl Tx {
             client_addr: line.part(5),
             ja4: &self.ja4[..self.ja4_len],
             good_bots: engine.good_bots(),
+            geo: engine.geo(),
             paranoia: self
                 .policy_index
                 .map(|i| engine.paranoia(i))

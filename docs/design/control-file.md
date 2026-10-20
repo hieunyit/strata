@@ -52,7 +52,7 @@ Ba loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** c
 | bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 
-Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch), 8 `HYPERSCAN_BLOCK` (bản block mode của section 7, tùy chọn, #27), 9 `PRIVACY` (cài đặt privacy của policy, P-01 §1), 10 `EXCEPTIONS` (exception có scope chính xác và hạn dùng, bắt buộc bit 4/byte 62 ở mỗi policy liên quan), 11 `STAGING` (overlay log-only từng managed request rule, bắt buộc bit 5/byte 62), 12 `GOOD_BOTS` (dải IP crawler, W18-R-02), 13 `PARANOIA` (mức paranoia CRS của policy, bắt buộc bit 6/byte 62, W17-S-01), 14 `EXCLUSIONS` (phần gỡ của exclusion rule và policy chạy chúng, bắt buộc với rule có bit 3, W17-S-01). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit 2 = gói signature (RV-S-01: compiler đặt cho rule có `metadata.source` là `sigma`, `et-open`, `crawler-user-agents`), bit 3 = exclusion rule (W17-S-01: ID tới 9.999.999, điểm 0, không bit nào khác), bit khác phải = 0. Rule gói signature trong policy `signatures: shadow` vẫn chạy và được báo (Event ID `EVT-`, action `log`), nhưng điểm của chúng tính riêng và không bao giờ chặn; `off` bỏ qua chúng; `enforce` coi như rule thường. Libstrata trước RV-S-01 từ chối bundle có bit 2: nâng module trước. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Tương tự, libstrata trước W11-R-01 từ chối bundle có canary khác 0 (byte dự phòng khác 0): nâng module trên mọi node trước khi deploy policy có `canary_percent`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch), 8 `HYPERSCAN_BLOCK` (bản block mode của section 7, tùy chọn, #27), 9 `PRIVACY` (cài đặt privacy của policy, P-01 §1), 10 `EXCEPTIONS` (exception có scope chính xác và hạn dùng, bắt buộc bit 4/byte 62 ở mỗi policy liên quan), 11 `STAGING` (overlay log-only từng managed request rule, bắt buộc bit 5/byte 62), 12 `GOOD_BOTS` (dải IP crawler, W18-R-02), 13 `PARANOIA` (mức paranoia CRS của policy, bắt buộc bit 6/byte 62, W17-S-01), 14 `EXCLUSIONS` (phần gỡ của exclusion rule và policy chạy chúng, bắt buộc với rule có bit 3, W17-S-01), 15 `GEO` (dải IP của các quốc gia và ASN mà rule nhắc tới, W19-R-01). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit 2 = gói signature (RV-S-01: compiler đặt cho rule có `metadata.source` là `sigma`, `et-open`, `crawler-user-agents`), bit 3 = exclusion rule (W17-S-01: ID tới 9.999.999, điểm 0, không bit nào khác), bit khác phải = 0. Rule gói signature trong policy `signatures: shadow` vẫn chạy và được báo (Event ID `EVT-`, action `log`), nhưng điểm của chúng tính riêng và không bao giờ chặn; `off` bỏ qua chúng; `enforce` coi như rule thường. Libstrata trước RV-S-01 từ chối bundle có bit 2: nâng module trước. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Tương tự, libstrata trước W11-R-01 từ chối bundle có canary khác 0 (byte dự phòng khác 0): nâng module trên mọi node trước khi deploy policy có `canary_percent`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
 
 **W17-R-01, operator SSTI:** `detect_ssti` được nối cuối danh mục operator ở mã 18;
 18 mã cũ (0–17) giữ nguyên. Operator không có `value`, hỗ trợ transform/negate như
@@ -114,6 +114,26 @@ tăng dần theo rule ID, phần gỡ liên tiếp từ 0, mỗi rule ≥ 1; r�
 `(policy_index u32, rule_id u32)` tăng dần; rồi vùng key. Tập rule ID của section phải
 khớp chính xác các bản ghi có bit 3, sai thì từ chối. Engine cũ từ chối bit 3: nâng module
 trước.
+
+**W19-R-01, section 15 `GEO` và target `geo_country` / `geo_asn`:** bundle không mang
+cơ sở dữ liệu GeoIP; compiler lấy từ cơ sở dữ liệu của control plane
+(`strata-compile --geo`, JSON `{"countries": {"VN": [prefix...]}, "asns": {"7552":
+[...]}}`) đúng các mạng của quốc gia và ASN mà rule nhắc tới (điều kiện `streq`/`pm`
+trên hai biến này, không key, count hay transform; tên thiếu mạng thì compiler từ chối).
+Biến mã 31 `geo_country`: mã ISO của quốc gia chứa địa chỉ client trong số quốc gia của
+bundle; mã 32 `geo_asn`: số ASN thập phân, cùng quy tắc; `private` cho địa chỉ
+loopback, private, link-local, unique-local, unspecified; `other` cho địa chỉ khác;
+không có giá trị khi địa chỉ client không phải IP hoặc bundle không có mạng loại đó (điều
+kiện phủ định không khớp). Codec `SGE1` (little-endian): magic, `u32` số entry
+(1–1.024), rồi mỗi entry: `u8` loại (1 quốc gia, 2 ASN), `u8` độ dài khóa, khóa
+(`[A-Z]{2}` hoặc số 1..u32::MAX không có số 0 đầu), `u32` số dải IPv4, `u32` số dải
+IPv6 (mỗi loại ≤ 1.048.576), các dải IPv4 `(u32 đầu, u32 cuối)` rồi IPv6 `(u128 đầu,
+u128 cuối)`. Entry tăng dần theo (loại, khóa); trong một entry, dải tăng dần, không chồng
+không liền kề; giữa các entry cùng loại không dải nào chồng nhau (một địa chỉ một quốc
+gia, một ASN); sai thì engine từ chối bundle. Mỗi dải IPv4 tốn 8 byte, IPv6 32 byte.
+Section tùy chọn: engine cũ bỏ qua section lạ nhưng từ chối rule trên hai biến mới (mã
+lạ), nên nâng module trước. PO duyệt cách đóng dải này thay vì nguyên `.mmdb` (21/10):
+bundle không vượt giới hạn ký của Vault; vị trí trên sự kiện vẫn gắn ở Event ingest.
 
 **W17-R-01, operator CMDi:** `detect_cmdi` nối tiếp ở mã 19, cùng quy tắc như
 `detect_ssti` (không `value`, transform/negate như `detect_sqli`, engine cũ từ chối
