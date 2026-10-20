@@ -97,6 +97,10 @@ func (s *Server) HandleExceptionFromBlock(w http.ResponseWriter, r *http.Request
 	defer cancel()
 	cached, err := s.cfg.Exceptions.GetPolicyReplayEditResult(ctx, req.Etag, command, a)
 	if err == nil {
+		if !caller.CanResource("policies/"+cached.ID, auth.PermExceptionsWrite) {
+			writeJSON(w, 403, ErrorResponse{Error: "policy outside assigned scope", Code: 403})
+			return
+		}
 		s.exceptionDraftReply(w, req, cached, caller.Subject)
 		return
 	}
@@ -138,6 +142,10 @@ func (s *Server) HandleExceptionFromBlock(w http.ResponseWriter, r *http.Request
 	p, err := s.cfg.Exceptions.GetPolicyByName(ctx, event.PolicyID)
 	if err != nil {
 		exceptionWriteError(w, err, req.BlockID)
+		return
+	}
+	if !auth.FromContext(ctx).CanResource("policies/"+p.ID, auth.PermExceptionsWrite) {
+		writeJSON(w, 403, ErrorResponse{Error: "policy outside assigned write scope", Code: 403})
 		return
 	}
 	draft, err := s.cfg.Exceptions.EditPolicyAndReplayOnce(ctx, p.ID, req.Etag, command, a, func(before store.Policy) (json.RawMessage, error) {

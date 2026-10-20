@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 )
 
@@ -340,6 +341,13 @@ func (h *EventHandler) HandleGeoWatch(w http.ResponseWriter, r *http.Request) {
 		f.From, f.To = now.Add(-window), now.Add(time.Second)
 		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 		defer cancel()
+		if h.authenticate != nil {
+			principal, err := h.authenticate.Authenticate(ctx, auth.TokenFromRequest(r))
+			if err != nil || principal == nil || !principal.Can(auth.PermEventsRead) {
+				return nil, f, auth.ErrUnauthenticated
+			}
+			ctx = auth.WithPrincipal(ctx, principal)
+		}
 		rows, err := geoRows(ctx, g, groupBy, f)
 		return rows, f, err
 	}
@@ -379,6 +387,9 @@ func (h *EventHandler) HandleGeoWatch(w http.ResponseWriter, r *http.Request) {
 		case t := <-tick.C:
 			rows, cur, err := read(t.UTC())
 			if err != nil {
+				if errors.Is(err, auth.ErrUnauthenticated) {
+					return
+				}
 				if r.Context().Err() != nil {
 					return
 				}

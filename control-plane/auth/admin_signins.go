@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -50,6 +51,9 @@ func (r *RecordAdmins) Authenticate(ctx context.Context, raw string) (*Principal
 }
 
 func isAdmin(p *Principal) bool {
+	if p.Access != nil || !strings.HasPrefix(p.Subject, OIDCSubjectPrefix) {
+		return false
+	}
 	for _, r := range p.Roles {
 		if r == RoleAdmin {
 			return true
