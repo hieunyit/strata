@@ -63,8 +63,21 @@ này, chỉ kiểm lại bằng e2e (ký bằng file, không Vault).
 
 - `make test-go` phần control-plane (vet, `go test -race` kể cả test PostgreSQL với
   `STRATA_TEST_POSTGRES_DSN`, golangci-lint 0 issues): xanh.
-- `make e2e-go`: LAB_E2E
-- Lab: LAB_RESULT
+- `make e2e-go` hai lần: trên MinIO (exit 0, 689 s) và trên filesystem, mặc định mới (exit 0,
+  646 s; vet và golangci-lint 0 issues). Trên filesystem: `TestRolloutToRealAgents` (rollout theo
+  wave tới 3 agent thật, node kiểm chữ ký bằng khóa khác từ chối bundle và rollout dừng, abort,
+  kill -9 giữa lúc ghi bundle 64 MB rồi tải tiếp), `TestBundleRolloutSurvivesNetworkFaults`,
+  `TestNewNodeGetsTheFleetBundle`, `TestFourEyes`, `TestPolicyDraftReplay`; ký bằng file, không
+  Vault. Bốn test cần NGINX thật bị SKIP như trên MinIO.
+- Lab (20/10, control plane bản này, override thay `-s3-*` bằng `-objects-dir=/objects`, MinIO
+  **dừng** trong suốt lúc kiểm): chép 62 bundle từ MinIO sang volume (đường chuyển từ MinIO sang
+  filesystem, `mc mirror`); lúc khởi động bộ dọn xóa 48 bundle, giữ 14 (10 mới nhất và bundle
+  node đang chạy). Duyệt lại 30 policy (replay gate, như các lần lab trước); `lab-chain` pass
+  (bundle 63, 64 qua Fleet tới 2 node NGINX, rollout 17 s); `runbook-drill` pass (ép shadow, deploy
+  hỏng rồi rollback bằng bundle 66, tắt/bật module). File 0600, thư mục 0700, chủ `strata`, không
+  còn file tạm. Vault vẫn ký trong lab (khóa node tin là khóa Vault); ký bằng file đã kiểm ở e2e.
+- Ghi chú: lab trước khi kiểm đang khởi động lại liên tục (94 lần): image schema 26, DB đã ở 27
+  (CP-A03). Sau khi kiểm, lab được dựng lại từ `origin/main`.
 
 ## 5. Còn lại
 
