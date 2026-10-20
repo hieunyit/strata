@@ -24,6 +24,7 @@ interface NavItem {
 }
 
 export const navItems: NavItem[] = [
+  { page: 'applications', icon: FileCog },
   { page: 'overview', icon: LayoutDashboard },
   { page: 'map', icon: Globe2 },
   { page: 'events', icon: ScrollText },
@@ -43,7 +44,7 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
   onNavigate,
 }) => {
   const { t } = useTranslation();
-  const { roles, methods } = useAuth();
+  const { roles, methods, scoped } = useAuth();
   const current = active === 'event' ? 'events' : active;
   return (
     <nav aria-label={t('nav.main')} className="flex h-full flex-col bg-rail text-rail-ink">
@@ -58,7 +59,7 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
       </div>
       <ul className="mt-2 flex-1 space-y-0.5 px-2">
         {navItems
-          .filter((n) => !n.visible || n.visible(roles, methods.local))
+          .filter((n) => (!scoped || !['users','audit'].includes(n.page)) && (!n.visible || n.visible(roles, methods.local)))
           .map(({ page, icon: Icon }) => {
             const on = page === current;
             return (

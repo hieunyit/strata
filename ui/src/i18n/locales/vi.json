@@ -16,7 +16,8 @@
     "users": "Người dùng",
     "reviews": "Duyệt policy",
     "audit": "Kiểm toán",
-    "map": "Bản đồ"
+    "map": "Bản đồ",
+    "applications": "Ứng dụng"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -392,7 +393,8 @@
     "typeToConfirm": "Để xác nhận, hãy nhập",
     "below": "vào bên dưới:",
     "auditReason": "Lý do (bắt buộc cho nhật ký kiểm toán):",
-    "reasonPlaceholder": "Giải thích lý do thực hiện thao tác này…"
+    "reasonPlaceholder": "Giải thích lý do thực hiện thao tác này…",
+    "save": "Lưu"
   },
   "audit": {
     "title": "Nhật ký kiểm toán",
@@ -864,5 +866,49 @@
       "noPolicy": "Policy không còn tồn tại",
       "review": "Xem ở trang Policy"
     }
+  },
+  "applications": {
+    "title": "Ứng dụng",
+    "subtitle": "Tuyến, môi trường và quyền truy cập từng ứng dụng.",
+    "create": "Tạo ứng dụng",
+    "edit": "Sửa",
+    "empty": "Không có ứng dụng trong phạm vi của bạn.",
+    "unavailable": "Không lấy được thống kê ứng dụng.",
+    "saveFailed": "Không lưu được. Hãy tải lại ứng dụng trước khi thử lại lỗi xung đột.",
+    "owner": "Chủ sở hữu",
+    "environment": "Môi trường",
+    "all": "Mọi môi trường",
+    "protectionUnknown": "Chưa biết mức kiểm tra đầy đủ: bộ đếm request chưa phân chia theo tuyến. Sự kiện dưới đây thuộc 24 giờ qua; không có sự kiện không chứng minh lưu lượng đã được kiểm tra.",
+    "events": "Sự kiện",
+    "block": "Bị chặn",
+    "shadow": "Shadow",
+    "error": "Lỗi kiểm tra",
+    "host": "Host",
+    "path": "Tiền tố đường dẫn",
+    "policy": "Policy",
+    "schema": "Schema",
+    "updated": "Cập nhật cấu hình",
+    "permissions": "Vai trò theo phạm vi",
+    "subject": "Định danh tài khoản",
+    "role": "Vai trò",
+    "bind": "Cấp vai trò",
+    "revoke": "Thu hồi",
+    "id": "Mã định danh",
+    "name": "Tên",
+    "routeHelp": "Nhóm connector và policy phải tồn tại. Tuyến không được chồng lấn ứng dụng hay môi trường khác trong cùng nhóm.",
+    "environments": "Môi trường",
+    "routes": "Tuyến",
+    "moreButton": "Trang tiếp",
+    "first": "Trang đầu",
+    "group_id": "Nhóm connector",
+    "environment_id": "Mã môi trường",
+    "path_prefix": "Tiền tố đường dẫn",
+    "policy_id": "Mã policy",
+    "schema_id": "Tham chiếu schema",
+    "addEnvironment": "Thêm môi trường",
+    "addRoute": "Thêm tuyến",
+    "remove": "Xóa",
+    "policyChanges": "Cấu hình dự kiến và thay đổi policy gần đây",
+    "unknown": "Chưa biết"
   }
 }

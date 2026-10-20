@@ -16,6 +16,7 @@ export async function signedIn(page: Page, roles: string[], username = 'lab-oper
   await page.addInitScript((value) => {
     sessionStorage.setItem('oidc.user:http://127.0.0.1:18180/realms/strata:strata-ui', value);
   }, JSON.stringify(user));
+  await page.route('**/v1/auth/me',route=>route.fulfill({json:{username,roles,local:false,scoped:false,sensitive:roles.some(r=>r!=='viewer')}}));
   await page.route('**/v1/version', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: 'test', commit: '', api_version: 'v1' }) }),
   );

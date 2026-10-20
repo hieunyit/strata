@@ -25,7 +25,7 @@ const modeClass: Record<string, string> = {
 // the UI comes later.
 export const PoliciesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, scoped, policyPermissions } = useAuth();
   const canEdit = canWritePolicies(roles);
   const { data, error, loading, refresh } = usePolling(() => apiClient.listPolicies(), 0);
   const [reviewVersion, setReviewVersion] = useState<number>();
@@ -78,7 +78,7 @@ export const PoliciesPage: React.FC = () => {
         description={t('policies.subtitle')}
         actions={
           <>
-            {canEdit && !creating && (
+            {canEdit && !scoped && !creating && (
               <button type="button" data-testid="new-policy-btn" onClick={() => setCreating(true)} className="btn">
                 {t('policies.new.open')}
               </button>
@@ -192,7 +192,7 @@ export const PoliciesPage: React.FC = () => {
                         {t('policies.compare')}
                       </button>
                     )}
-                    {canEdit && !editing && (
+                    {canEdit && (!scoped || policyPermissions?.[selected.id ?? '']?.includes('policies:write')) && !editing && (
                       <button type="button" className="btn" onClick={() => setEditing(true)} data-testid="policy-edit">
                         <Pencil className="w-3.5 h-3.5" />
                         {t('editor.edit')}

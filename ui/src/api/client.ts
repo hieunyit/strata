@@ -29,6 +29,8 @@ export type OverviewBucket = components['schemas']['OverviewBucket'];
 export type RuleInfo = components['schemas']['RuleInfo'];
 export type AuthMethods = components['schemas']['AuthMethods'];
 export type LocalSession = components['schemas']['LocalSession'];
+export type Application = components['schemas']['Application'];
+export type ApplicationBinding = components['schemas']['ApplicationBinding'];
 export type Me = components['schemas']['Me'];
 export type LocalUser = components['schemas']['User'];
 export type CreateUserRequest = components['schemas']['CreateUserRequest'];
@@ -299,6 +301,24 @@ export const apiClient = {
     return call('/auth/logout', { method: 'POST' }, 'Failed to sign out');
   },
 
+  listApplications(after = ''): Promise<components['schemas']['ApplicationList']> {
+    return call(`/applications?after=${encodeURIComponent(after)}`, {method:'GET'}, 'Failed to read applications');
+  },
+  saveApplication(application:Application, create:boolean, request_id:string):Promise<components['schemas']['ApplicationResult']> {
+    return call(`/applications${create ? '' : '/'+encodeURIComponent(application.id)}`,{method:create?'POST':'PUT',body:JSON.stringify({application,request_id})},'Failed to save application');
+  },
+  applicationOverview(id:string,from:string,to:string,environment_id=''):Promise<Overview> {
+    return call(`/applications/${encodeURIComponent(id)}/overview?${new URLSearchParams({from,to,environment_id})}`,{method:'GET'},'Failed to read application statistics');
+  },
+  listApplicationBindings():Promise<components['schemas']['ApplicationBindings']> {
+    return call('/application-role-bindings',{method:'GET'},'Failed to read bindings');
+  },
+  createApplicationBinding(binding:ApplicationBinding):Promise<components['schemas']['ApplicationBindingResult']> {
+    return call('/application-role-bindings',{method:'POST',body:JSON.stringify({binding})},'Failed to bind role');
+  },
+  deleteApplicationBinding(id:number):Promise<void> {
+    return call(`/application-role-bindings/${id}`,{method:'DELETE'},'Failed to revoke role');
+  },
   /** GET /v1/auth/me */
   me(): Promise<Me> {
     return call('/auth/me', { method: 'GET' }, 'Failed to read the session');

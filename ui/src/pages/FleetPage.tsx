@@ -116,8 +116,8 @@ const RolloutPanel: React.FC<{ rollout?: Rollout; names: Map<string, string> }> 
 export const FleetPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { data, error, loading, refresh } = usePolling(load, 3000);
-  const { roles } = useAuth();
-  const canRevoke = roles.includes('admin');
+  const { roles, scoped } = useAuth();
+  const canRevoke = !scoped && roles.includes('admin');
   const [revokingNode, setRevokingNode] = useState<FleetNode | null>(null);
 
   const nodes = data?.nodes ?? [];

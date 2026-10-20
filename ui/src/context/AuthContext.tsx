@@ -13,6 +13,9 @@ interface AuthContextType {
   error?: string;
   username?: string;
   roles: UserRole[];
+  scoped?: boolean;
+  policyPermissions?: Record<string,string[]>;
+  sensitive?: boolean;
   role?: UserRole;
   // No role that may see full client IPs and input snippets.
   isViewer: boolean;
@@ -53,6 +56,9 @@ function makeMasks(isViewer: boolean) {
 interface SessionUser {
   username?: string;
   roles: UserRole[];
+  scoped?: boolean;
+  policyPermissions?: Record<string,string[]>;
+  sensitive?: boolean;
 }
 
 const oidcOnly: AuthMethods = { local: false, oidc: true };
@@ -66,9 +72,9 @@ function valueFor(
   error?: string,
 ): AuthContextType {
   const roles = user?.roles ?? [];
-  const isViewer = !roles.some((r) => r !== 'viewer');
+  const isViewer = user?.sensitive === false || !roles.some((r) => r !== 'viewer');
   return {
-    status, error, username: user?.username, roles, role: primaryRole(roles), isViewer, methods, isLocal,
+    status, error, username: user?.username, scoped:user?.scoped, policyPermissions:user?.policyPermissions, roles, role: primaryRole(roles), isViewer, methods, isLocal,
     ...actions, ...makeMasks(isViewer),
   };
 }
@@ -93,7 +99,7 @@ function fromUser(u: User | null): SessionUser | null {
   if (!u || u.expired) return null;
   return {
     username: (u.profile.preferred_username as string | undefined) ?? u.profile.sub,
-    roles: rolesFromAccessToken(u.access_token),
+    roles: rolesFromAccessToken(u.access_token), scoped:true, sensitive:false,
   };
 }
 
@@ -128,7 +134,7 @@ function writeLocal(s: LocalSession | null): void {
 
 const localUser = (s: LocalSession): SessionUser => ({
   username: s.username,
-  roles: knownRoles(s.roles ?? []),
+  roles: knownRoles(s.roles ?? []), scoped:true, sensitive:false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserManager }> = ({ children, manager }) => {
@@ -258,6 +264,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserM
     });
   }, [mgr, endLocal]);
 
+  // Resolve bindings from the API; token roles alone cannot represent app scopes.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const me = await apiClient.me();
+        if (!cancelled) setUser({username:me.username,roles:knownRoles(me.roles),scoped:me.scoped,policyPermissions:me.policy_permissions,sensitive:me.sensitive});
+      } catch { /* API authorization remains authoritative; retain conservative state. */ }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(),30000);
+    return () => {cancelled=true;window.clearInterval(timer);};
+  },[status,mgr,isLocal]);
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
@@ -266,6 +287,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserM
 export const StaticAuthProvider: React.FC<{
   children: React.ReactNode;
   roles: UserRole[];
+  scoped?: boolean;
+  policyPermissions?: Record<string,string[]>;
+  sensitive?: boolean;
   username?: string;
   isLocal?: boolean;
   methods?: AuthMethods;

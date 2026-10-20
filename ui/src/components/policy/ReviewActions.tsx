@@ -7,8 +7,8 @@ import { reviewableReplay } from './ReplaySummary';
 
 export type ReviewAction = 'submitted' | 'approved' | 'rejected' | 'replayed';
 export const ReviewActions: React.FC<{ version: PolicyVersion; operation?: Operation; disabled?: boolean; onChanged: (action: ReviewAction) => void }> = ({ version: v, operation, disabled, onChanged }) => {
-  const { t } = useTranslation(), { roles } = useAuth();
-  const writer = canWritePolicies(roles), reviewer = canApprovePolicies(roles);
+  const { t } = useTranslation(), { roles, scoped, policyPermissions } = useAuth();
+  const writer = canWritePolicies(roles) && (!scoped || !!policyPermissions?.[v.policy_id ?? '']?.includes('policies:write')), reviewer = canApprovePolicies(roles) && (!scoped || !!policyPermissions?.[v.policy_id ?? '']?.includes('policies:approve'));
   const [comment, setComment] = useState(''), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);
   const locked = useRef(false);
   const [reviewed, setReviewed] = useState<string>();
