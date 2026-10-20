@@ -419,8 +419,14 @@ func (s *Store) WithBundleLock(ctx context.Context, build func(next uint64) erro
 		return fmt.Errorf("store: bundle lock: %w", err)
 	}
 	locked = true
+	// above every bundle recorded, every version a node reported running,
+	// and the floor a restore set (CP-A09): never a number a node would
+	// take for older than what it runs
 	var last int64
-	if err := conn.QueryRow(ctx, "SELECT coalesce(max(version), 0) FROM bundles").Scan(&last); err != nil {
+	if err := conn.QueryRow(ctx, `SELECT greatest(
+		(SELECT coalesce(max(version), 0) FROM bundles),
+		(SELECT coalesce(max(bundle_version), 0) FROM nodes),
+		(SELECT coalesce(max(version), 0) FROM bundle_version_floor))`).Scan(&last); err != nil {
 		return fmt.Errorf("store: bundle version: %w", err)
 	}
 	return build(uint64(last) + 1)

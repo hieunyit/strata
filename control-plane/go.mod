@@ -3,6 +3,7 @@ module github.com/strata/strata/control-plane
 go 1.26.9
 
 require (
+	filippo.io/age v1.2.1
 	github.com/ClickHouse/clickhouse-go/v2 v2.49.0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/go-jose/go-jose/v4 v4.1.4

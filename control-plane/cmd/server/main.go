@@ -124,6 +124,10 @@ func main() {
 			os.Exit(initCommand(os.Args[2:]))
 		case "admin":
 			os.Exit(adminCommand(os.Args[2:]))
+		case "backup":
+			os.Exit(backupCommand(os.Args[2:]))
+		case "restore":
+			os.Exit(restoreCommand(os.Args[2:]))
 		}
 	}
 	flag.Parse()
