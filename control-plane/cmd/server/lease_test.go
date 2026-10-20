@@ -76,27 +76,11 @@ func TestLeaseKeeperInPostgres(t *testing.T) {
 	}
 }
 
-// A restart on the same host after a crash takes the lease over at once;
-// a live control plane on the same host, or one on another host, is waited
-// for.
-func TestLeaseTakeOverAfterCrashHere(t *testing.T) {
-	host, _ := os.Hostname()
-	if !deadHere(fmt.Sprintf("%s/%d/abcd", host, os.Getpid())) {
-		t.Fatal("a previous run with our pid is not dead")
-	}
-	if deadHere(fmt.Sprintf("%s/%d/abcd", host, os.Getppid())) {
-		t.Fatal("our parent counted as dead")
-	}
-	if !deadHere(fmt.Sprintf("%s/%d/abcd", host, 1<<22-7)) {
-		t.Fatal("a pid that does not exist counted as alive")
-	}
-	if deadHere(fmt.Sprintf("other-host/%d/abcd", os.Getpid())) || deadHere("garbage") {
-		t.Fatal("another host or a malformed holder counted as dead")
-	}
-	dsn := os.Getenv("STRATA_TEST_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("STRATA_TEST_POSTGRES_DSN not set")
-	}
+// A hostname and PID are not proof that a holder is dead: containers can
+// share a hostname but have separate PID namespaces. Even a missing PID
+// in this namespace must not allow stealing an unexpired lease.
+func TestLeaseDoesNotStealAcrossPIDNamespaces(t *testing.T) {
+	dsn := ownDatabase(t)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -107,18 +91,44 @@ func TestLeaseTakeOverAfterCrashHere(t *testing.T) {
 	if err := db.Migrate(ctx, pool, latest); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Migrate(context.Background(), pool, 0) })
 	s := store.New(pool)
-	crashed := fmt.Sprintf("%s/%d/dead", host, 1<<22-7)
-	if _, err := s.AcquireLease(ctx, crashed, time.Hour); err != nil {
+	host, err := os.Hostname()
+	if err != nil {
 		t.Fatal(err)
 	}
-	k := &leaseKeeper{store: s, ttl: time.Hour}
-	start := time.Now()
-	if err := k.acquire(ctx, leaseHolder()); err != nil || time.Since(start) > 5*time.Second {
-		t.Fatalf("restart after a crash waited: %v after %s", err, time.Since(start))
-	}
-	if k.lease.Fencing != 2 {
-		t.Fatalf("fencing %d", k.lease.Fencing)
+	for _, pid := range []int{os.Getpid(), 1<<22 - 7} {
+		t.Run(fmt.Sprint(pid), func(t *testing.T) {
+			if _, err := pool.Exec(ctx, "DELETE FROM control_plane_lease"); err != nil {
+				t.Fatal(err)
+			}
+			holder := fmt.Sprintf("%s/%d/existing-container", host, pid)
+			original, err := s.AcquireLease(ctx, holder, time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			k := &leaseKeeper{store: s, ttl: time.Minute}
+			waitCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			if err := k.acquire(waitCtx, leaseHolder()); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("unexpired holder was not respected: %v", err)
+			}
+			got, err := s.CurrentLease(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Holder != original.Holder || got.Fencing != original.Fencing || k.held.Load() {
+				t.Fatalf("unexpired lease changed: got %+v, original %+v", got, original)
+			}
+			// An actually expired lease remains recoverable after a crash.
+			if _, err := pool.Exec(ctx, "UPDATE control_plane_lease SET expires_at = now() - interval '1 second'"); err != nil {
+				t.Fatal(err)
+			}
+			if err := k.acquire(ctx, leaseHolder()); err != nil {
+				t.Fatal(err)
+			}
+			if k.lease.Fencing != original.Fencing+1 {
+				t.Fatalf("fencing %d", k.lease.Fencing)
+			}
+		})
 	}
 }

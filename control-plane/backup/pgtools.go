@@ -70,7 +70,11 @@ func (p PG) run(ctx context.Context, bin string, args []string, stdout io.Writer
 		return err
 	}
 	defer cleanup()
-	cmd := exec.CommandContext(ctx, bin, append(args, "--dbname="+dsn)...)
+	return runCommand(ctx, bin, append(args, "--dbname="+dsn), env, stdout)
+}
+
+func runCommand(ctx context.Context, bin string, args, env []string, stdout io.Writer) error {
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Env = env
 	cmd.Stdout = stdout
 	var stderr bytes.Buffer
@@ -94,11 +98,37 @@ func (p PG) Dump(ctx context.Context, w io.Writer) error {
 	return p.run(ctx, bin, []string{"--format=custom", "--no-owner", "--no-privileges"}, w)
 }
 
-// Restore loads a dump into the (emptied) database, in one transaction.
+// Restore replaces public and loads the dump in the same transaction.
+// Rendering the dump first avoids touching the target when pg_restore is
+// missing or the archive cannot be read. psql's single transaction covers
+// both the reset and all restored statements, including COPY data.
 func (p PG) Restore(ctx context.Context, file string) error {
 	bin := p.RestoreBin
 	if bin == "" {
 		bin = "pg_restore"
 	}
-	return p.run(ctx, bin, []string{"--no-owner", "--no-privileges", "--single-transaction", "--exit-on-error", file}, io.Discard)
+	psql := "psql"
+	if filepath.IsAbs(bin) {
+		psql = filepath.Join(filepath.Dir(bin), "psql")
+	}
+	if _, err := exec.LookPath(psql); err != nil {
+		return fmt.Errorf("backup: psql required for atomic restore: %w", err)
+	}
+	dir, err := os.MkdirTemp("", "strata-restore-sql-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	sql := filepath.Join(dir, "restore.sql")
+	if err := os.WriteFile(sql, nil, 0o600); err != nil {
+		return err
+	}
+	if err := runCommand(ctx, bin, []string{"--no-owner", "--no-privileges", "--file=" + sql, file}, os.Environ(), io.Discard); err != nil {
+		return err
+	}
+	reset := filepath.Join(dir, "reset.sql")
+	if err := os.WriteFile(reset, []byte("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;\n"), 0o600); err != nil {
+		return err
+	}
+	return p.run(ctx, psql, []string{"--no-psqlrc", "--single-transaction", "--set=ON_ERROR_STOP=1", "--file=" + reset, "--file=" + sql}, io.Discard)
 }

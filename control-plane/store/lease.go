@@ -51,23 +51,6 @@ func (s *Store) AcquireLease(ctx context.Context, holder string, ttl time.Durati
 	return l, nil
 }
 
-// TakeOverLease takes the lease from previous at once, before it expires:
-// only for a holder the caller knows is dead (the same host, its process
-// gone). Fails with ErrLeaseHeld when the holder is no longer previous.
-func (s *Store) TakeOverLease(ctx context.Context, holder, previous string, ttl time.Duration) (Lease, error) {
-	var l Lease
-	err := s.pool.QueryRow(ctx, `UPDATE control_plane_lease SET holder = $1, fencing = fencing + 1, renewed_at = now(),
-		expires_at = now() + $3::interval WHERE id = 1 AND holder = $2 RETURNING holder, fencing, expires_at`,
-		holder, previous, ttl.String()).Scan(&l.Holder, &l.Fencing, &l.ExpiresAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Lease{}, ErrLeaseHeld
-	}
-	if err != nil {
-		return Lease{}, fmt.Errorf("store: take over lease: %w", err)
-	}
-	return l, nil
-}
-
 // RenewLease extends a lease held with fencing; ErrLeaseLost when another
 // control plane took it.
 func (s *Store) RenewLease(ctx context.Context, l Lease, ttl time.Duration) (Lease, error) {

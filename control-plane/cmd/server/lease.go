@@ -8,10 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/strata/strata/control-plane/store"
@@ -33,26 +30,6 @@ func leaseHolder() string {
 	return fmt.Sprintf("%s/%d/%s", host, os.Getpid(), hex.EncodeToString(b))
 }
 
-// deadHere reports whether a lease holder ("host/pid/random") ran on this
-// host and its process is gone: its pid is ours (a previous run, as in a
-// container where both are pid 1) or no process has it any more.
-func deadHere(holder string) bool {
-	parts := strings.Split(holder, "/")
-	host, _ := os.Hostname()
-	if len(parts) != 3 || parts[0] != host {
-		return false
-	}
-	pid, err := strconv.Atoi(parts[1])
-	if err != nil || pid <= 0 {
-		return false
-	}
-	if pid == os.Getpid() {
-		return true
-	}
-	err = syscall.Kill(pid, 0)
-	return errors.Is(err, syscall.ESRCH)
-}
-
 // acquire waits up to ttl plus a margin for a lease left by a control plane
 // that stopped without releasing it, then gives up.
 func (k *leaseKeeper) acquire(ctx context.Context, holder string) error {
@@ -68,15 +45,9 @@ func (k *leaseKeeper) acquire(ctx context.Context, holder string) error {
 		if !errors.Is(err, store.ErrLeaseHeld) || time.Now().After(deadline) {
 			return err
 		}
-		if cur, cerr := k.store.CurrentLease(ctx); cerr == nil && deadHere(cur.Holder) {
-			// a crash and restart on this host: no need to wait for expiry
-			if l, terr := k.store.TakeOverLease(ctx, holder, cur.Holder, k.ttl); terr == nil {
-				k.lease = l
-				k.held.Store(true)
-				log.Printf("[INFO] control plane lease taken over from %s, whose process is gone (fencing %d)", cur.Holder, l.Fencing)
-				return nil
-			}
-		}
+		// Hostnames and PIDs are namespace-local. Neither a matching PID
+		// nor ESRCH here proves that another container's holder is dead.
+		// Only expiry/release in PostgreSQL permits taking over the lease.
 		log.Printf("[WARN] %v; waiting for it to expire", err)
 		select {
 		case <-ctx.Done():
