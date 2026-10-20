@@ -742,6 +742,9 @@
     "subtitle": "Token cho tác vụ tự động, có giới hạn quyền, thời hạn và nhật ký thay đổi."
   },
   "map": {
+    "events": "Sự kiện",
+    "eventsNote": "Cùng khoảng thời gian và bộ lọc với các bảng trên; bấm một dòng để mở decision trace",
+    "eventsError": "Không tải được sự kiện: {{error}}",
     "title": "Bản đồ tấn công",
     "subtitle": "Sự kiện theo quốc gia, ô địa lý, ASN và loại tấn công. Bấm một dòng để lọc cả trang.",
     "action": "Kết quả",

@@ -748,6 +748,9 @@
     "subtitle": "Automation tokens with explicit permissions, expiry and audited changes."
   },
   "map": {
+    "events": "Events",
+    "eventsNote": "Same window and filters as the panels; a row opens the decision trace",
+    "eventsError": "Could not load the events: {{error}}",
     "title": "Attack map",
     "subtitle": "Events by country, map cell, ASN and attack type. Click a row to filter the whole page.",
     "action": "Verdict",

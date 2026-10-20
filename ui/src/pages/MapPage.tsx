@@ -4,7 +4,8 @@ import { Pause, Play, RefreshCw, X, MapPinOff } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, RangeSwitch, ErrorBanner, SectionTitle, Empty, formatCount } from '../components/ui';
 import { StrataChart } from '../components/overview/StrataChart';
-import { apiClient, GeoCount, GeoBucket, GeoDelta, GeoFilters, GeoSnapshot, Policy } from '../api/client';
+import { apiClient, Event, GeoCount, GeoBucket, GeoDelta, GeoFilters, GeoSnapshot, Policy, SearchEventsRequest } from '../api/client';
+import { EventsTable } from '../components/events/EventsTable';
 import { RangeKey, isRange, windowOf } from '../lib/timeRange';
 import { Route, replaceQuery } from '../router';
 
@@ -21,6 +22,24 @@ const actions = ['block', 'shadow', 'pass', 'error'] as const;
 const filterKeys = ['policy_id', 'action', 'attack_type', 'country', 'asn'] as const;
 // other panels follow the live country stream at most this often
 const REST_THROTTLE_MS = 10_000;
+
+const EVENTS_PAGE = 20;
+
+// W19-F-01: the events behind the page's numbers, with the same window and
+// filters (the search counts countries, ASNs and attack types as the
+// aggregates do)
+export function eventsRequest(range: RangeKey, f: GeoFilters, pageToken?: string): SearchEventsRequest {
+  return {
+    ...windowOf(range),
+    policy_id: f.policy_id || undefined,
+    action: (f.action || undefined) as SearchEventsRequest['action'],
+    country: f.country || undefined,
+    asn: f.asn ? Number(f.asn) : undefined,
+    attack_type: f.attack_type || undefined,
+    page_size: EVENTS_PAGE,
+    page_token: pageToken,
+  };
+}
 
 interface Data {
   countries: GeoCount[];
@@ -118,6 +137,10 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
   const [updated, setUpdated] = useState<Date | undefined>();
   const generation = useRef(0);
   const lastRest = useRef(0);
+  const [events, setEvents] = useState<{ list: Event[]; total: number; next?: string; error?: string }>({ list: [], total: 0 });
+  const [eventPages, setEventPages] = useState<string[]>(['']); // page tokens, the first is ''
+  const [eventPage, setEventPage] = useState(0);
+  const [eventsLoading, setEventsLoading] = useState(true);
 
   const regionName = useCallback(
     (code: string) => {
@@ -165,6 +188,28 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
     },
     [range, filters],
   );
+
+  // the events table: first page on every filter or window change, the
+  // chosen page otherwise
+  const loadEvents = useCallback(
+    async (page: number, tokens: string[]) => {
+      setEventsLoading(true);
+      try {
+        const res = await apiClient.searchEvents(eventsRequest(range, filters, tokens[page] || undefined));
+        setEvents({ list: res.events ?? [], total: res.total_matched ?? 0, next: res.next_page_token || undefined });
+      } catch (e) {
+        setEvents({ list: [], total: 0, error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        setEventsLoading(false);
+      }
+    },
+    [range, filters],
+  );
+  useEffect(() => {
+    setEventPage(0);
+    setEventPages(['']);
+    void loadEvents(0, ['']);
+  }, [loadEvents]);
 
   useEffect(() => {
     setLoading(true);
@@ -369,6 +414,31 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
           locale={locale}
         />
       </div>
+
+      <section className="mt-5" data-testid="map-events">
+        <SectionTitle aside={t('map.eventsNote')}>{t('map.events')}</SectionTitle>
+        {events.error && <ErrorBanner message={t('map.eventsError', { error: events.error })} />}
+        <EventsTable
+          events={events.list}
+          isLoading={eventsLoading}
+          totalMatched={events.total}
+          offset={eventPage * EVENTS_PAGE}
+          hasNextPage={!!events.next}
+          hasPrevPage={eventPage > 0}
+          onNextPage={() => {
+            if (!events.next) return;
+            const tokens = eventPage + 1 < eventPages.length ? eventPages : [...eventPages, events.next];
+            setEventPages(tokens);
+            setEventPage(eventPage + 1);
+            void loadEvents(eventPage + 1, tokens);
+          }}
+          onPrevPage={() => {
+            if (eventPage === 0) return;
+            setEventPage(eventPage - 1);
+            void loadEvents(eventPage - 1, eventPages);
+          }}
+        />
+      </section>
 
       <p className="mt-4 text-xs text-faint" data-testid="map-status">
         {updated && t('overview.updated', { when: updated.toLocaleTimeString(locale) })}

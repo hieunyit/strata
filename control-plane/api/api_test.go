@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,6 +191,25 @@ func TestSearchEventsEndpoint(t *testing.T) {
 		}
 		if len(resp.Events) != 3 {
 			t.Errorf("expected 3 events returned, got %d", len(resp.Events))
+		}
+	})
+
+	t.Run("geo filters are checked", func(t *testing.T) {
+		for _, body := range []string{`{"country":"vn"}`, `{"country":"VNM"}`, `{"attack_type":"nope"}`, `{"asn":-1}`} {
+			req := httptest.NewRequest(http.MethodPost, "/v1/events:search", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			serve(server, rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("%s: %d", body, rec.Code)
+			}
+		}
+		for _, body := range []string{`{"country":"VN"}`, `{"country":"INTERNAL","asn":7552,"attack_type":"sqli"}`} {
+			req := httptest.NewRequest(http.MethodPost, "/v1/events:search", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			serve(server, rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+			}
 		}
 	})
 

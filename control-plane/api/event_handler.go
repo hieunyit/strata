@@ -6,6 +6,7 @@ import (
 	"github.com/strata/strata/control-plane/rulecat"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/strata/strata/control-plane/auth"
@@ -153,6 +154,15 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	switch {
+	case req.Country != "" && req.Country != "INTERNAL" && !isCountryCode(req.Country):
+		writeError(w, http.StatusBadRequest, "country: an ISO 3166 alpha-2 code or INTERNAL", "")
+		return
+	case req.AttackType != "" && !slices.Contains(ingest.AttackTypes, req.AttackType):
+		writeError(w, http.StatusBadRequest, "attack_type: unknown", "")
+		return
+	}
+
 	pageSize := req.PageSize
 	if pageSize <= 0 {
 		pageSize = 50
@@ -176,6 +186,9 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		RuleID:     req.RuleID,
 		NodeID:     req.NodeID,
 		HTTPMethod: req.HTTPMethod,
+		CountryISO: req.Country,
+		ASN:        req.ASN,
+		AttackType: req.AttackType,
 		Limit:      pageSize,
 		Offset:     offset,
 	}

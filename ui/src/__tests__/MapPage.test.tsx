@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { StaticAuthProvider } from '../context/AuthContext';
-import { MapPage, applyDelta, logShade } from '../pages/MapPage';
-import { apiClient, GeoCount, GeoFilters } from '../api/client';
+import { MapPage, applyDelta, logShade, eventsRequest } from '../pages/MapPage';
+import { apiClient, Event, GeoCount, GeoFilters } from '../api/client';
 import { SseParser, SseEvent } from '../lib/sse';
 import { parseRoute } from '../router';
 import i18n from '../i18n';
@@ -11,6 +11,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(apiClient, 'getVersion').mockResolvedValue({ version: 'test', commit: '', api_version: 'v1' });
   vi.spyOn(apiClient, 'listPolicies').mockResolvedValue([{ id: 'example-api', name: 'example-api' }]);
+  vi.spyOn(apiClient, 'searchEvents').mockResolvedValue({ events: [], total_matched: 0 });
   void i18n.changeLanguage('en');
 });
 
@@ -177,5 +178,43 @@ describe('map page (W18-F-01)', () => {
     expect(screen.getByTestId('map-live')).toBeDisabled();
     expect(screen.getByTestId('map-status')).toHaveTextContent('No live mode for 30 days');
     expect(watch).not.toHaveBeenCalled();
+  });
+});
+
+describe('map events (W19-F-01)', () => {
+  it('lists the events behind the panels with the same filters, a row opens the decision trace', async () => {
+    mockStats();
+    vi.spyOn(apiClient, 'watchGeo').mockImplementation(async () => {});
+    const search = vi.spyOn(apiClient, 'searchEvents').mockResolvedValue({
+      events: [{ block_id: 'STR-AAAA-BBBB-CCCC-DDDD', timestamp: '2026-10-19T10:00:00Z', action: 'block', matched_rules: [942100], client_ip: '198.51.100.7', policy_id: 'example-api' } as Event],
+      total_matched: 41,
+      next_page_token: 'p2',
+    });
+    render(<StaticAuthProvider roles={['viewer']}><MapPage route={{ page: 'map', query: { range: '7d' } }} /></StaticAuthProvider>);
+    const panel = await screen.findByTestId('map-events');
+    await within(panel).findByText('STR-AAAA-BBBB-CCCC-DDDD');
+    expect(search.mock.calls[0][0]).toMatchObject({ page_size: 20 });
+    expect(search.mock.calls[0][0].country).toBeUndefined();
+
+    // a country picked on the page narrows the table too
+    search.mockClear();
+    fireEvent.click(within(await screen.findByTestId('map-countries')).getByText('Vietnam'));
+    await waitFor(() => expect(search).toHaveBeenCalled());
+    expect(search.mock.calls[0][0]).toMatchObject({ country: 'VN', page_size: 20 });
+    expect(search.mock.calls[0][0].page_token).toBeUndefined();
+
+    // the next page, then a row opens the event
+    search.mockClear();
+    fireEvent.click(within(panel).getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(search).toHaveBeenCalled());
+    expect(search.mock.calls[0][0]).toMatchObject({ country: 'VN', page_token: 'p2' });
+    fireEvent.click(within(panel).getByTestId('event-row'));
+    expect(window.location.hash).toBe('#/events/STR-AAAA-BBBB-CCCC-DDDD');
+  });
+
+  it('builds the search from the map filters', () => {
+    const r = eventsRequest('24h', { policy_id: 'example-api', action: 'block', country: 'VN', asn: '7552', attack_type: 'sqli' }, 'tok');
+    expect(r).toMatchObject({ policy_id: 'example-api', action: 'block', country: 'VN', asn: 7552, attack_type: 'sqli', page_size: 20, page_token: 'tok' });
+    expect(new Date(r.to!).getTime() - new Date(r.from!).getTime()).toBe(24 * 3600 * 1000);
   });
 });
