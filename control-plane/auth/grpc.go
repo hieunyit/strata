@@ -48,7 +48,15 @@ func UnaryInterceptor(a Authenticator, m MethodPermissions) grpc.UnaryServerInte
 		if err != nil {
 			return nil, err
 		}
-		return h(ctx, req)
+		p := FromContext(ctx)
+		if !p.ScopedRPC(info.FullMethod, req, m[info.FullMethod]) {
+			return nil, status.Error(codes.PermissionDenied, "resource outside assigned scope")
+		}
+		out, err := h(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return p.FilterRPC(info.FullMethod, out), nil
 	}
 }
 
@@ -58,6 +66,9 @@ func StreamInterceptor(a Authenticator, m MethodPermissions) grpc.StreamServerIn
 		ctx, err := m.authorize(ss.Context(), a, info.FullMethod)
 		if err != nil {
 			return err
+		}
+		if FromContext(ctx).Access != nil {
+			return status.Error(codes.PermissionDenied, "stream outside assigned scope")
 		}
 		return h(srv, &principalStream{ServerStream: ss, ctx: ctx})
 	}

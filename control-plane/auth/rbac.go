@@ -21,6 +21,8 @@ var Roles = []Role{RoleViewer, RoleOperator, RoleApprover, RoleAdmin}
 type Permission string
 
 const (
+	PermApplicationsRead    Permission = "applications:read"
+	PermApplicationsWrite   Permission = "applications:write"
 	PermVersionRead         Permission = "version:read"
 	PermEventsRead          Permission = "events:read"
 	PermEventsReadSensitive Permission = "events:read_sensitive" // full client IPs and input snippets
@@ -46,12 +48,12 @@ const (
 
 var (
 	viewerPerms = []Permission{
-		PermVersionRead, PermEventsRead, PermPoliciesRead, PermNodesRead,
+		PermVersionRead, PermEventsRead, PermPoliciesRead, PermNodesRead, PermApplicationsRead,
 	}
 	matrix = map[Role][]Permission{
 		RoleViewer: viewerPerms,
 		RoleOperator: append(append([]Permission{}, viewerPerms...),
-			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesDeploy, PermExceptionsWrite, PermRulesDisable),
+			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesDeploy, PermExceptionsWrite, PermRulesDisable, PermApplicationsWrite),
 		// The approver reviews what an operator drafted; it does not draft
 		// or deploy itself.
 		RoleApprover: append(append([]Permission{}, viewerPerms...),
@@ -60,7 +62,7 @@ var (
 			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesApprove, PermPoliciesDeploy,
 			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite,
 			PermServiceAccountsRead, PermServiceAccountsWrite,
-			PermAuditRead, PermRulesDisable, PermReplayConfigure),
+			PermAuditRead, PermRulesDisable, PermReplayConfigure, PermApplicationsWrite),
 	}
 )
 
