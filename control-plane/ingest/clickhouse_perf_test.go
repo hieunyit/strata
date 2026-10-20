@@ -229,3 +229,87 @@ func TestClickHouseTTL(t *testing.T) {
 		t.Errorf("EnsureTTL with the same TTL altered the table again (%d -> %d mutations)", before, after)
 	}
 }
+
+// W20-G2-01: the statistics the Overview and the map read, on the same
+// fixture: 24 hours under 1 s, 30 days under 3 s (the slowest of 5 runs).
+func TestClickHouseStatsPerf(t *testing.T) {
+	s := perfStore(t, "events")
+	ctx := context.Background()
+	if _, err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureGeoAggregates(ctx, 13); err != nil {
+		t.Fatal(err)
+	}
+	// the rollup's first run (every stored event), then one with nothing new
+	t0 := time.Now()
+	hours, err := s.RollupStats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("statistics rollup: %d hours in %s", hours, time.Since(t0).Round(time.Millisecond))
+	t0 = time.Now()
+	if _, err := s.RollupStats(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("statistics rollup, nothing new: %s", time.Since(t0).Round(time.Millisecond))
+	if done, err := s.GeoBackfillDone(ctx); err != nil {
+		t.Fatal(err)
+	} else if !done {
+		if err := s.BackfillGeoAggregates(ctx, time.Now().Add(-31*24*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now().UTC()
+	limits := map[time.Duration]time.Duration{24 * time.Hour: time.Second, 7 * 24 * time.Hour: 3 * time.Second, 30 * 24 * time.Hour: 3 * time.Second}
+	for _, w := range []time.Duration{24 * time.Hour, 7 * 24 * time.Hour, 30 * 24 * time.Hour} {
+		cases := []struct {
+			name string
+			run  func() error
+		}{
+			{"overview", func() error {
+				_, err := s.Overview(ctx, OverviewFilter{From: now.Add(-w), To: now, Step: StepFor(w)})
+				return err
+			}},
+			{"overview, one policy", func() error {
+				_, err := s.Overview(ctx, OverviewFilter{From: now.Add(-w), To: now, Step: StepFor(w), PolicyID: "example-web"})
+				return err
+			}},
+			{"overview with clients", func() error {
+				_, err := s.Overview(ctx, OverviewFilter{From: now.Add(-w), To: now, Step: StepFor(w), Clients: true})
+				return err
+			}},
+			{"geo ASNs", func() error {
+				_, err := s.GeoByASN(ctx, GeoFilter{From: now.Add(-w), To: now, Limit: 10})
+				return err
+			}},
+			{"geo cells", func() error {
+				_, err := s.GeoByCell(ctx, GeoFilter{From: now.Add(-w), To: now, Limit: 20})
+				return err
+			}},
+			{"geo countries", func() error {
+				_, err := s.GeoByCountry(ctx, GeoFilter{From: now.Add(-w), To: now, Limit: 20})
+				return err
+			}},
+			{"geo timeline", func() error {
+				_, err := s.GeoTimeline(ctx, GeoFilter{From: now.Add(-w), To: now}, StepFor(w))
+				return err
+			}},
+		}
+		for _, c := range cases {
+			var d timings
+			for range 5 {
+				t0 := time.Now()
+				if err := c.run(); err != nil {
+					t.Fatalf("%s %s: %v", c.name, w, err)
+				}
+				d = append(d, time.Since(t0))
+			}
+			worst := d.pct(1)
+			t.Logf("%-22s %4dh  p50 %8s  max %8s  (target %s)", c.name, int(w.Hours()), d.pct(0.5).Round(time.Millisecond), worst.Round(time.Millisecond), limits[w])
+			if worst > limits[w] {
+				t.Errorf("%s over %s: %s, target %s", c.name, w, worst, limits[w])
+			}
+		}
+	}
+}

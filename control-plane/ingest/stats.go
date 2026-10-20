@@ -136,6 +136,11 @@ type Overview struct {
 	// Inspection: per policy, the requests of the window and the share not
 	// fully inspected (RV-N-01), from the nodes' counters.
 	Inspection []PolicyInspection `json:"inspection"`
+	// Approximate (W20-G2-01): from the hourly rollup: the window is whole
+	// hours (From rounded down, To up), distinct clients a sketch (about
+	// 1%), top clients the heaviest of each hour, and the numbers lag the
+	// events by at most the rollup's interval. Counts of events are exact.
+	Approximate bool `json:"approximate,omitempty"`
 }
 
 // StatsStore is implemented by the event stores that aggregate.
@@ -314,6 +319,19 @@ func (m *MockEventStore) Overview(_ context.Context, f OverviewFilter) (*Overvie
 // Overview reads logical events, including before background merges finish.
 // FINAL collapses retries left by a crash between ClickHouse and PG commits.
 func (s *ClickHouseStore) Overview(ctx context.Context, f OverviewFilter) (*Overview, error) {
+	if err := f.Normalize(); err != nil {
+		return nil, err
+	}
+	// W20-G2-01: from the hourly rollup once it covers the events
+	if ready, err := s.StatsReady(ctx); err == nil && ready {
+		return s.overviewRolled(ctx, f)
+	}
+	return s.overviewRaw(ctx, f)
+}
+
+// overviewRaw is Overview from the events table: exact, slow over long
+// windows (before the rollup's first run).
+func (s *ClickHouseStore) overviewRaw(ctx context.Context, f OverviewFilter) (*Overview, error) {
 	if err := f.Normalize(); err != nil {
 		return nil, err
 	}

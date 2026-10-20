@@ -38,6 +38,7 @@ var chMigrations = []chMigration{
 	{4, "GeoIP aggregate tables and their views", func(s *ClickHouseStore, ctx context.Context) error {
 		return s.EnsureGeoAggregates(ctx, 0)
 	}},
+	{5, "hourly statistics rollup (W20-G2-01) and the received_at index of events", (*ClickHouseStore).EnsureStatsRollup},
 }
 
 // LatestCHMigration is the schema version this build brings.
@@ -132,7 +133,10 @@ func (s *ClickHouseStore) Configure(ctx context.Context, ttlDays, geoMonths int)
 	if err := s.EnsurePolicyRequests(ctx, ttlDays); err != nil {
 		return err
 	}
-	return s.EnsureGeoAggregates(ctx, geoMonths)
+	if err := s.EnsureGeoAggregates(ctx, geoMonths); err != nil {
+		return err
+	}
+	return s.EnsureStatsTTL(ctx, geoMonths)
 }
 
 // Migrated reports whether Migrate succeeded in this process: until then

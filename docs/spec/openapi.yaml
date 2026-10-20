@@ -1774,6 +1774,9 @@ components:
       type: object
       required: [from, to, step_seconds, totals, series, top_rules, top_routes, inspection]
       properties:
+        approximate:
+          type: boolean
+          description: "W20-G2-01: served by the hourly rollup: from/to are whole hours, distinct clients a sketch (~1%), top clients the heaviest of each hour, and the numbers lag the events by at most the rollup's interval; counts of events are exact"
         from:
           type: string
           format: date-time

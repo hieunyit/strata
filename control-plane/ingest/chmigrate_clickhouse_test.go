@@ -41,13 +41,13 @@ func TestMigrateClickHouse(t *testing.T) {
 		t.Fatal("migrated before Migrate")
 	}
 	applied, err := ch.Migrate(ctx)
-	if err != nil || !slices.Equal(applied, []uint32{1, 2, 3, 4}) || !ch.Migrated() {
+	if err != nil || !slices.Equal(applied, []uint32{1, 2, 3, 4, 5}) || !ch.Migrated() {
 		t.Fatalf("first run: %v %v", applied, err)
 	}
 	if err := ch.Configure(ctx, 30, 13); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"events", "node_seq", "policy_requests", GeoMinuteTable, GeoGridTable} {
+	for _, table := range []string{"events", "node_seq", "policy_requests", GeoMinuteTable, GeoGridTable, StatsHourTable, StatsRulesTable, StatsRoutesTable, StatsClientsTable, StatsGeoTable} {
 		var n uint64
 		if err := ch.conn.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = currentDatabase() AND name = ?", table).Scan(&n); err != nil || n != 1 {
 			t.Errorf("table %s: %d %v", table, n, err)

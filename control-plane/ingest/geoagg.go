@@ -244,17 +244,53 @@ type GeoCount struct {
 // GeoByCountry ranks countries (empty and INTERNAL included: the caller
 // decides how to show them), most events first.
 func (s *ClickHouseStore) GeoByCountry(ctx context.Context, f GeoFilter) ([]GeoCount, error) {
+	if s.geoRolledFor(ctx, f) {
+		return s.geoRankRolled(ctx, f, "country_iso", "''")
+	}
 	return s.geoRank(ctx, f, GeoMinuteTable, "minute", time.Minute, "country_iso", "''")
 }
 
 // GeoByASN ranks autonomous systems (ASN 0: unknown), most events first.
 func (s *ClickHouseStore) GeoByASN(ctx context.Context, f GeoFilter) ([]GeoCount, error) {
+	if s.geoRolledFor(ctx, f) {
+		return s.geoRankRolled(ctx, f, "toString(asn)", "any(as_org)")
+	}
 	return s.geoRank(ctx, f, GeoMinuteTable, "minute", time.Minute, "toString(asn)", "any(as_org)")
 }
 
 // GeoByAttackType ranks attack types (AttackTypes), most events first.
 func (s *ClickHouseStore) GeoByAttackType(ctx context.Context, f GeoFilter) ([]GeoCount, error) {
+	if s.geoRolledFor(ctx, f) {
+		return s.geoRankRolled(ctx, f, "attack_type", "''")
+	}
 	return s.geoRank(ctx, f, GeoMinuteTable, "minute", time.Minute, "attack_type", "''")
+}
+
+// geoRankRolled is geoRank on the hourly rollup (W20-G2-01): exact counts
+// of distinct events, whole hours.
+func (s *ClickHouseStore) geoRankRolled(ctx context.Context, f GeoFilter, key, label string) ([]GeoCount, error) {
+	where, args := f.where("hour", time.Hour)
+	q := fmt.Sprintf(`SELECT k, any(l), sum(n), sum(b), argMax(attack_type, n)
+		FROM (
+			SELECT %s AS k, %s AS l, attack_type, sum(events) AS n, sumIf(events, action = 'block') AS b
+			FROM %s FINAL WHERE %s
+			GROUP BY k, attack_type
+		)
+		GROUP BY k ORDER BY sum(n) DESC, k LIMIT %d`, key, label, StatsGeoTable, where, f.limit())
+	rows, err := s.conn.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("GeoIP rollup: %w", err)
+	}
+	defer rows.Close()
+	var out []GeoCount
+	for rows.Next() {
+		var c GeoCount
+		if err := rows.Scan(&c.Key, &c.Label, &c.Events, &c.Blocked, &c.TopAttack); err != nil {
+			return nil, fmt.Errorf("GeoIP rollup: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // GeoByCell gives the geohash cells (precision 4, about 20-40 km) with
@@ -409,6 +445,14 @@ func (s *ClickHouseStore) GeoTimeline(ctx context.Context, f GeoFilter, step tim
 			uniqCombined64MergeIf(events, action = 'error'),
 			uniqCombined64MergeIf(events, action NOT IN ('block', 'shadow'))
 		FROM %s WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), GeoMinuteTable, where)
+	// W20-G2-01: hourly steps over long windows from the rollup
+	if step%time.Hour == 0 && s.geoRolledFor(ctx, f) {
+		where, args = f.where("hour", time.Hour)
+		q = fmt.Sprintf(`SELECT toStartOfInterval(hour, INTERVAL %d SECOND) AS b,
+				sumIf(events, action = 'block'), sumIf(events, action = 'shadow'),
+				sumIf(events, action = 'error'), sumIf(events, action NOT IN ('block', 'shadow'))
+			FROM %s FINAL WHERE %s GROUP BY b ORDER BY b`, int64(step/time.Second), StatsGeoTable, where)
+	}
 	got := map[int64]GeoBucket{}
 	rows, err := s.conn.Query(ctx, q, args...)
 	if err != nil {
