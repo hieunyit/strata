@@ -51,6 +51,9 @@ Ngày: 20/10/2026. Người làm: Claude Code (strata-59). Kế hoạch: `docs/p
 - Control plane: `gofmt`, `go vet`, `go test -race` toàn bộ với PostgreSQL và ClickHouse thật
   (`TestMigrateClickHouse` và mọi test ClickHouse sẵn có pass), golangci-lint 0 issues; e2e vet
   và lint.
+- `make e2e-go`: một lần hỏng `TestLosslessRestartUnderLoad` (mất 1/2000 datagram giữa hai lần
+  agent khởi động lại; test chỉ chạm agent, spool và `SaveEvents`, không đổi ở A08), chạy lại
+  riêng 3 lần đều pass; mọi test khác pass. Ghi nhận là test chập chờn.
 - UI: `tsc`, vitest 27 file 170 test + test quét HTML thô (59), `npm run build`; `index.html` chỉ
   nạp script ngoài.
 - Lab (20/10, control plane bản này, UI nhúng từ `ui/dist`):
