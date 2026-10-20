@@ -14,14 +14,14 @@ func (s *Store) GetBundle(ctx context.Context, version uint64) (Bundle, error) {
 	if version == 0 || version > math.MaxInt64 {
 		return Bundle{}, ErrNotFound
 	}
-	return scanSourceBundle(s.pool.QueryRow(ctx, `SELECT version,sha256,object_key,size_bytes,contents,created_by,created_at,input_digest FROM bundles WHERE version=$1`, int64(version)))
+	return scanSourceBundle(s.pool.QueryRow(ctx, `SELECT version,sha256,object_key,size_bytes,contents,created_by,created_at,input_digest,rules_digest FROM bundles WHERE version=$1`, int64(version)))
 }
 
 func scanSourceBundle(row pgx.Row) (Bundle, error) {
 	var b Bundle
 	var version int64
 	var contents []byte
-	err := row.Scan(&version, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest)
+	err := row.Scan(&version, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest, &b.RulesDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Bundle{}, ErrNotFound
 	}

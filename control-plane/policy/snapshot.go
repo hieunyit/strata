@@ -32,9 +32,13 @@ type snapshotManifest struct {
 type Prepared struct {
 	manifest snapshotManifest
 	Digest   string
-	compiler Compiler
-	policies []Named
-	dir      string
+	// RulesDigest commits the compiler and rule inputs alone, not the
+	// policies, staged rules or identity key (CP-FIX-01): the deploy gate
+	// tells a rule change from a policy change by it.
+	RulesDigest string
+	compiler    Compiler
+	policies    []Named
+	dir         string
 }
 
 func (p *Prepared) Close() { _ = os.RemoveAll(p.dir) }
@@ -196,11 +200,30 @@ func (c *Compiler) Prepare(ctx context.Context, policies []Named) (prepared *Pre
 		p.compiler.IdentityKey = func(context.Context) ([]byte, error) { return append([]byte(nil), key...), nil }
 	}
 	p.manifest = m
+	if p.RulesDigest, err = rulesDigest(m); err != nil {
+		return nil, err
+	}
 	p.Digest, err = snapshotDigest(m)
 	if err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// rulesDigest hashes the parts of a manifest that change every policy's
+// verdicts: the compiler binary and the rule files with their formats.
+func rulesDigest(m snapshotManifest) (string, error) {
+	raw, err := json.Marshal(struct {
+		Format      int
+		Compiler    string
+		Rules       []string
+		RuleFormats []string
+	}{m.Format, m.Compiler, m.Rules, m.RuleFormats})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func snapshotDigest(m snapshotManifest) (string, error) {

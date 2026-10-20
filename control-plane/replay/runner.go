@@ -32,7 +32,9 @@ import (
 type Report struct {
 	// Inputs identifies the snapshotted compiler inputs; hashes identify artifacts
 	// actually passed to compare, without recording secrets or sample content.
-	InputDigest    string   `json:"input_digest,omitempty"`
+	InputDigest string `json:"input_digest,omitempty"`
+	// RulesDigest: the compiler and rule inputs alone (CP-FIX-01).
+	RulesDigest    string   `json:"rules_digest,omitempty"`
 	DraftSHA256    string   `json:"draft_sha256,omitempty"`
 	BaselineSHA256 string   `json:"baseline_sha256,omitempty"`
 	ReplaySHA256   string   `json:"replay_sha256,omitempty"`
@@ -321,7 +323,7 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 		}
 		defer snapshot.Close()
 		buildBaseline = snapshot.ReplayBuildPolicies
-		rep.InputDigest = snapshot.Digest
+		rep.InputDigest, rep.RulesDigest = snapshot.Digest, snapshot.RulesDigest
 		data, err = snapshot.ReplayBuild(ctx, seed)
 	} else {
 		data, err = r.Build(ctx, seed, draft)

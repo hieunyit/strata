@@ -38,7 +38,8 @@ func TestApprovalBindsReplayInPostgres(t *testing.T) {
 		}
 		return op
 	}
-	good := Report{InputDigest: digest([]byte("inputs")), DraftSHA256: digest([]byte("draft")), BaselineSHA256: digest([]byte("synthetic baseline")), Corpus: &Route{Samples: 10}}
+	rules := digest([]byte("rules"))
+	good := Report{InputDigest: digest([]byte("inputs")), RulesDigest: rules, DraftSHA256: digest([]byte("draft")), BaselineSHA256: digest([]byte("synthetic baseline")), Corpus: &Route{Samples: 10}}
 	old := queue(good)
 	approval := store.Audit{Actor: "reviewer", Subject: "reviewer", Action: "approve", Resource: "policies/example-api", ReplayOperation: "missing"}
 	if _, err := s.DecidePolicyVersion(ctx, "example-api", 1, true, "ok", approval); err == nil {
@@ -49,28 +50,36 @@ func TestApprovalBindsReplayInPostgres(t *testing.T) {
 	if err != nil || v.ApprovedReplayID != old.ID {
 		t.Fatalf("approval: %+v %v", v, err)
 	}
-	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest); err != nil {
+	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest, rules); err != nil {
 		t.Fatal(err)
 	}
 	newer := good
-	newer.InputDigest = digest([]byte("changed rules"))
+	newer.InputDigest, newer.RulesDigest = digest([]byte("changed inputs")), digest([]byte("changed rules"))
 	queue(newer)
 	// New DONE results cannot replace the report the reviewer approved.
-	if err := (Gate{Store: store.New(pool)}).Check(ctx, map[string]int{"example-api": 1}, newer.InputDigest); err == nil {
+	if err := (Gate{Store: store.New(pool)}).Check(ctx, map[string]int{"example-api": 1}, newer.InputDigest, newer.RulesDigest); err == nil {
 		t.Fatal("unapproved replay replaced approved proof")
 	}
-	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest); err != nil {
+	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest, rules); err != nil {
 		t.Fatal("old bound proof lost", err)
 	}
-	b, err := s.RecordBundle(ctx, store.Bundle{InputDigest: good.InputDigest, Version: 1, SHA256: make([]byte, 32), SizeBytes: 1, ObjectKey: "bundle-1", Contents: map[string]int{"example-api": 1}}, author)
+	b, err := s.RecordBundle(ctx, store.Bundle{InputDigest: good.InputDigest, RulesDigest: rules, Version: 1, SHA256: make([]byte, 32), SizeBytes: 1, ObjectKey: "bundle-1", Contents: map[string]int{"example-api": 1}}, author)
 	if err != nil {
 		t.Fatal(err)
 	}
 	read, err := s.LatestBundle(ctx)
-	if err != nil || read.InputDigest != b.InputDigest {
+	if err != nil || read.InputDigest != b.InputDigest || read.RulesDigest != rules {
 		t.Fatalf("bundle provenance lost: %+v %v", read, err)
 	}
-	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest); err == nil {
-		t.Fatal("changed baseline accepted")
+	if got, err := s.GetBundle(ctx, 1); err != nil || got.RulesDigest != rules {
+		t.Fatalf("bundle rules digest: %+v %v", got, err)
+	}
+	// CP-FIX-01: in force already under the same rules: nothing to check
+	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, digest([]byte("other policies changed")), rules); err != nil {
+		t.Fatal("unchanged policy refused", err)
+	}
+	// the rules changed: the policy needs a replay with the new rules
+	if err := (Gate{Store: s}).Check(ctx, map[string]int{"example-api": 1}, good.InputDigest, digest([]byte("changed rules"))); err == nil {
+		t.Fatal("rule change accepted without a replay")
 	}
 }
