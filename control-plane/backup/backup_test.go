@@ -105,6 +105,36 @@ func TestRoundTrip(t *testing.T) {
 	if c, _ := Conflicts(filepath.Join(staged, "x"), got, nd, no); len(c) != 1 || !strings.HasSuffix(c[0], "config.yaml") {
 		t.Fatalf("conflicts: %v", c)
 	}
+	// the machine's connection secrets stay; missing, the backup's are installed
+	write(t, filepath.Join(d, "secrets/postgres-dsn"), "postgres://old", 0o600)
+	var buf2 bytes.Buffer
+	m2, err := Create(t.Context(), Source{DataDir: d, Dump: dump}, pass, &buf2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2 := filepath.Join(staged, "s2")
+	if _, err := Extract(bytes.NewReader(buf2.Bytes()), pass, s2); err != nil {
+		t.Fatal(err)
+	}
+	here := filepath.Join(t.TempDir(), "data")
+	write(t, filepath.Join(here, "secrets/postgres-dsn"), "postgres://this-machine", 0o600)
+	if c, err := Conflicts(s2, m2, here, ""); err != nil || len(c) != 0 {
+		t.Fatalf("machine secret as a conflict: %v %v", c, err)
+	}
+	if err := Install(s2, m2, here, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(here, "secrets/postgres-dsn")); string(got) != "postgres://this-machine" {
+		t.Fatalf("machine secret replaced: %q", got)
+	}
+	fresh := filepath.Join(t.TempDir(), "data")
+	if err := Install(s2, m2, fresh, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(fresh, "secrets/postgres-dsn")); string(got) != "postgres://old" {
+		t.Fatalf("missing machine secret not installed: %q", got)
+	}
+
 	// objects in the archive need a place
 	if _, err := Conflicts(filepath.Join(staged, "x"), got, nd, ""); err == nil {
 		t.Fatal("artifacts without a directory")

@@ -1,0 +1,41 @@
+# Overlay: sign-in with Keycloak next to the local accounts (CP-A06/A09).
+#   STRATA_COMPACT_OVERLAY=deploy/compact/compose.keycloak.yaml deploy/compact/install.sh ...
+# then add to config.yaml (strata-data volume) and restart the control
+# plane, no rebuild (README › Keycloak):
+#   auth:
+#     oidc:
+#       issuer: ${STRATA_IDP_URL}/realms/strata
+#       discovery_url: http://keycloak:8080/realms/strata
+#       audience: strata-api
+# Keycloak runs in development mode with its own storage in a volume: put
+# it behind TLS (KC_HOSTNAME https) before users outside this machine sign in.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?run deploy/compact/install.sh}
+      # the issuer the browser sees; the control plane reads the metadata
+      # inside the compose network (KC_HOSTNAME_BACKCHANNEL_DYNAMIC)
+      KC_HOSTNAME: ${STRATA_IDP_URL:-http://127.0.0.1:8180}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # substituted into strata-realm.json on import: where the UI is
+      STRATA_UI_URL: ${STRATA_UI_URL:-http://127.0.0.1:8080}
+    ports: ["${STRATA_IDP_BIND:-127.0.0.1}:${STRATA_IDP_PORT:-8180}:8080"]
+    volumes:
+      - ./keycloak/strata-realm.json:/opt/keycloak/data/import/strata-realm.json:ro
+      - keycloak:/opt/keycloak/data/h2
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      retries: 30
+    mem_limit: ${KEYCLOAK_MEM_LIMIT:-1g}
+    # optional CPU pinning, e.g. STRATA_CPUSET=2-5
+    cpuset: "${STRATA_CPUSET:-}"
+
+volumes:
+  keycloak:

@@ -406,9 +406,11 @@ có.
 | Nâng cấp PostgreSQL major trong compose làm mất dữ liệu (volume khác định dạng) | Ghim phiên bản; hướng dẫn `pg_dump`/`pg_restore` khi nâng major; không nâng tự động |
 | Đầy đĩa do ClickHouse (TTL chưa kịp chạy) làm PostgreSQL cùng đĩa ngừng ghi | Khuyến nghị volume riêng; cảnh báo dung lượng ở B05 |
 
-*Trạng thái 20/10:* phần backup/restore xong (`control-plane/backup`, `cmd/server/backupcmd.go`,
-migration 0028, báo cáo `docs/reports/cp-a09.md`); đóng gói (compose Compact, overlay Keycloak,
-diễn tập restore vào lab sạch) làm tiếp trong PR thứ hai. Khác kế hoạch: không có trạng thái
+*Trạng thái 20/10:* làm xong (báo cáo `docs/reports/cp-a09.md`): backup/restore
+(`control-plane/backup`, migration 0028, PR #288); đóng gói `deploy/compact` (image, compose 3
+dịch vụ, overlay Keycloak, hướng dẫn) và diễn tập restore vào bản cài sạch
+(`tests/e2e/compact-drill.sh`) pass. Overlay MinIO/Vault/giám sát không làm (Compact không cần;
+lab là mẫu đầy đủ). Khác kế hoạch: không có trạng thái
 `BUILDING` (deploy chạy tuần tự dưới khóa, chỉ ghi bản ghi khi bundle đã xong), nên restore hủy
 rollout đang chạy và đánh FAILED replay đang chạy thay vào đó.
 
