@@ -7,6 +7,230 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/applications:
+    get:
+      operationId: listApplications
+      responses:
+        '200':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationList'
+        '400': &id001
+          description: Invalid request.
+        '401': &id002
+          description: Authentication required.
+        '403': &id003
+          description: Permission denied.
+        '404': &id004
+          description: Resource not visible.
+        '409': &id005
+          description: Stale etag or conflicting request_id.
+        '503': &id006
+          description: Data source unavailable.
+      parameters:
+      - name: after
+        in: query
+        schema:
+          type: string
+    post:
+      operationId: createApplication
+      responses:
+        '201':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResult'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id007
+              type: object
+              required:
+              - application
+              properties:
+                application:
+                  $ref: '#/components/schemas/Application'
+                request_id:
+                  type: string
+                  maxLength: 128
+  /v1/applications/{id}:
+    get:
+      operationId: getApplication
+      responses:
+        '200':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResult'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: updateApplication
+      responses:
+        '200':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResult'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id007
+    delete:
+      operationId: deleteApplication
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+  /v1/applications/{id}/overview:
+    get:
+      operationId: applicationOverview
+      responses:
+        '200':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewResponse'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: false
+        schema:
+          type: string
+  /v1/application-role-bindings:
+    get:
+      operationId: listApplicationBindings
+      responses:
+        '200':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationBindings'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+    post:
+      operationId: createApplicationBinding
+      responses:
+        '201':
+          description: Scoped result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationBindingResult'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - binding
+              properties:
+                binding:
+                  $ref: '#/components/schemas/ApplicationBinding'
+  /v1/application-role-bindings/{id}:
+    delete:
+      operationId: deleteApplicationBinding
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted. Subject remains explicitly scoped after last binding
+            removal.
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id005
+        '503': *id006
   /v1/audit:
     get:
       operationId: listAudit
@@ -1794,6 +2018,7 @@ components:
       type: object
       required: [from, to, step_seconds, totals, series, top_rules, top_routes, inspection]
       properties:
+        telemetry_scope: {type: string, enum: [events_only], description: Route-scoped request counters are unavailable; zero requests must not be interpreted as measured traffic.}
         engine:
           $ref: '#/components/schemas/EngineLatency'
         approximate:
@@ -1892,6 +2117,13 @@ components:
       - roles
       - local
       properties:
+        scoped: {type: boolean}
+        sensitive: {type: boolean}
+        policy_permissions:
+          type: object
+          additionalProperties:
+            type: array
+            items: {type: string}
         username:
           type: string
         roles:
@@ -2026,6 +2258,138 @@ components:
         reason:
           type: string
           description: Machine-readable cause. EVENTS_UNAVAILABLE (HTTP 503) means the event store (ClickHouse) did not answer; clients show the data source as unavailable, never an empty result (CP-A08).
+    Application:
+      type: object
+      required:
+      - id
+      - name
+      - owner
+      - etag
+      - environments
+      - routes
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        owner:
+          type: string
+        etag:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        environments:
+          type: array
+          maxItems: 32
+          items:
+            $ref: '#/components/schemas/ApplicationEnvironment'
+        routes:
+          type: array
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/ApplicationRoute'
+    ApplicationEnvironment:
+      type: object
+      required:
+      - id
+      - name
+      - group_id
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        group_id:
+          type: string
+    ApplicationRoute:
+      type: object
+      required:
+      - id
+      - environment_id
+      - host
+      - path_prefix
+      - policy_id
+      - schema_id
+      properties:
+        id:
+          type: string
+        environment_id:
+          type: string
+        host:
+          type: string
+        path_prefix:
+          type: string
+        policy_id:
+          type: string
+        schema_id:
+          type: string
+    ApplicationResult:
+      type: object
+      required:
+      - application
+      properties:
+        application:
+          $ref: '#/components/schemas/Application'
+    ApplicationList:
+      type: object
+      required:
+      - applications
+      - next_cursor
+      properties:
+        applications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Application'
+        next_cursor:
+          type: string
+    ApplicationBinding:
+      type: object
+      required:
+      - id
+      - subject
+      - role
+      - application_id
+      - environment_id
+      properties:
+        id:
+          type: integer
+        subject:
+          type: string
+        role:
+          type: string
+          enum:
+          - viewer
+          - operator
+          - approver
+          - admin
+        application_id:
+          type: string
+          nullable: true
+        environment_id:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+    ApplicationBindings:
+      type: object
+      required:
+      - bindings
+      properties:
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationBinding'
+    ApplicationBindingResult:
+      type: object
+      required:
+      - binding
+      properties:
+        binding:
+          $ref: '#/components/schemas/ApplicationBinding'
   securitySchemes:
     bearerAuth:
       type: http
