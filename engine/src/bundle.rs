@@ -63,8 +63,11 @@ pub mod kind {
     /// CRS paranoia levels of the policies with bit 6 of byte 62
     /// (W17-S-01, `crate::paranoia`).
     pub const PARANOIA: u32 = 13;
+    /// Removals of the exclusion rules (rule flag bit 3) and the policies
+    /// that run them (W17-S-01, `crate::rule_exclusions`).
+    pub const EXCLUSIONS: u32 = 14;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 13;
+    pub const KNOWN: u32 = 14;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

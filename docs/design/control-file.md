@@ -52,7 +52,7 @@ Ba loại ghi, cùng seqlock, nối tiếp nhau trong agent: **đổi bundle** c
 | bội số 4.096 | thư mục section: `u32` số section, `u32` 0, rồi mỗi mục `u32` kind, `u32` 0, `u64` offset, `u64` độ dài; sau đó từng section ở offset bội số 4.096, tăng dần, không chồng lấn |
 | cuối − 64 | chữ ký Ed25519 trên toàn bộ byte phía trước |
 
-Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch), 8 `HYPERSCAN_BLOCK` (bản block mode của section 7, tùy chọn, #27), 9 `PRIVACY` (cài đặt privacy của policy, P-01 §1), 10 `EXCEPTIONS` (exception có scope chính xác và hạn dùng, bắt buộc bit 4/byte 62 ở mỗi policy liên quan), 11 `STAGING` (overlay log-only từng managed request rule, bắt buộc bit 5/byte 62), 12 `GOOD_BOTS` (dải IP crawler, W18-R-02), 13 `PARANOIA` (mức paranoia CRS của policy, bắt buộc bit 6/byte 62, W17-S-01). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit 2 = gói signature (RV-S-01: compiler đặt cho rule có `metadata.source` là `sigma`, `et-open`, `crawler-user-agents`), bit khác phải = 0. Rule gói signature trong policy `signatures: shadow` vẫn chạy và được báo (Event ID `EVT-`, action `log`), nhưng điểm của chúng tính riêng và không bao giờ chặn; `off` bỏ qua chúng; `enforce` coi như rule thường. Libstrata trước RV-S-01 từ chối bundle có bit 2: nâng module trước. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Tương tự, libstrata trước W11-R-01 từ chối bundle có canary khác 0 (byte dự phòng khác 0): nâng module trên mọi node trước khi deploy policy có `canary_percent`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
+Kind của section (kind lạ bị bỏ qua nhưng vẫn kiểm biên): 1 `RULES`, 2 `CONDITIONS`, 3 `TARGETS`, 4 `LISTS`, 5 `STRINGS`, 6 `BLOCK_PAGE` (template HTML mặc định + support contact), 7 `HYPERSCAN` (database regex tiền biên dịch), 8 `HYPERSCAN_BLOCK` (bản block mode của section 7, tùy chọn, #27), 9 `PRIVACY` (cài đặt privacy của policy, P-01 §1), 10 `EXCEPTIONS` (exception có scope chính xác và hạn dùng, bắt buộc bit 4/byte 62 ở mỗi policy liên quan), 11 `STAGING` (overlay log-only từng managed request rule, bắt buộc bit 5/byte 62), 12 `GOOD_BOTS` (dải IP crawler, W18-R-02), 13 `PARANOIA` (mức paranoia CRS của policy, bắt buộc bit 6/byte 62, W17-S-01), 14 `EXCLUSIONS` (phần gỡ của exclusion rule và policy chạy chúng, bắt buộc với rule có bit 3, W17-S-01). Layout byte từng bản ghi nằm ở đầu `engine/src/rules.rs`. Byte cờ của bản ghi `RULES`: bit 0 = điều kiện OR, bit 1 = `block_alone` (W08-R-02, trước đó dự phòng), bit 2 = gói signature (RV-S-01: compiler đặt cho rule có `metadata.source` là `sigma`, `et-open`, `crawler-user-agents`), bit 3 = exclusion rule (W17-S-01: ID tới 9.999.999, điểm 0, không bit nào khác), bit khác phải = 0. Rule gói signature trong policy `signatures: shadow` vẫn chạy và được báo (Event ID `EVT-`, action `log`), nhưng điểm của chúng tính riêng và không bao giờ chặn; `off` bỏ qua chúng; `enforce` coi như rule thường. Libstrata trước RV-S-01 từ chối bundle có bit 2: nâng module trước. Libstrata trước W08 từ chối bundle có bit 1, nên **nâng module trên mọi node trước** khi deploy bundle có rule `block_alone`. Tương tự, libstrata trước W11-R-01 từ chối bundle có canary khác 0 (byte dự phòng khác 0): nâng module trên mọi node trước khi deploy policy có `canary_percent`. Rollout tự dừng ở node đầu tiên còn bản cũ (FAILED "bad bundle layout"), các node khác giữ bundle đang chạy; mã của layer, stage, variable, transformation, operator theo đúng thứ tự enum trong `docs/spec/ir.schema.json`. Bundle do `strata-compile` tạo (`engine/compiler`).
 
 **W17-R-01, operator SSTI:** `detect_ssti` được nối cuối danh mục operator ở mã 18;
 18 mã cũ (0–17) giữ nguyên. Operator không có `value`, hỗ trợ transform/negate như
@@ -94,6 +94,26 @@ trên mức shadow cao nhất của mọi policy. Biến mã 30 `basename`: ph�
 `path` sau dấu `/` cuối, như `REQUEST_BASENAME`. Transform mã 17
 `escape_seq_decode`: giải mã escape ANSI C (`\n`, `\xHH`, `\0OO`…) như `t:escapeSeqDecode`
 của Coraza v3.8.1. Engine cũ từ chối bit 6, biến 30 và transform 17: nâng module trước.
+
+**W17-S-01, exclusion rule và section 14 `EXCLUSIONS` (plugin CRS: WordPress, Drupal…):**
+rule có `exclude` trong IR là exclusion rule (bit 3 của cờ bản ghi), như
+`ctl:ruleRemoveById` / `ctl:ruleRemoveTargetById` của plugin CRS. Ở mỗi stage, các
+exclusion rule mà policy chạy được đánh giá trước mọi rule khác của stage đó; rule nào
+khớp thì phần gỡ của nó áp dụng cho phần còn lại của request (stage đó và các stage
+sau): gỡ cả rule (rule không chạy) hoặc gỡ một target của rule (rule không thấy giá trị
+của biến đó, hoặc của đúng một key; key `request_headers` so không phân biệt hoa thường
+ASCII, key khác so chính xác). Exclusion rule không bao giờ tính điểm hay báo. Điều kiện
+của nó nằm trong database Hyperscan như rule thường. Policy chọn plugin bằng
+`crs_plugins`; compiler bỏ exclusion rule của plugin không policy nào chạy, và từ chối
+plugin không có rule. Codec `SXC1` (little-endian): magic, `u32` số rule, số phần gỡ,
+số cặp bật, độ dài vùng key; rồi `(rule_id u32, removal_first u32, removal_count u32)`
+tăng dần theo rule ID, phần gỡ liên tiếp từ 0, mỗi rule ≥ 1; rồi mỗi phần gỡ
+`(lo u32, hi u32, var u8, key_mode u8, 0 u16, key_off u32, key_len u32)` với `lo ≤ hi`,
+`var` 255 = cả rule (key_mode 0), còn lại là mã target, key_mode 0 mọi key, 1 chính xác,
+2 bỏ qua hoa thường ASCII, key 1–256 byte khi key_mode ≠ 0; rồi cặp
+`(policy_index u32, rule_id u32)` tăng dần; rồi vùng key. Tập rule ID của section phải
+khớp chính xác các bản ghi có bit 3, sai thì từ chối. Engine cũ từ chối bit 3: nâng module
+trước.
 
 **W17-R-01, operator CMDi:** `detect_cmdi` nối tiếp ở mã 19, cùng quy tắc như
 `detect_ssti` (không `value`, transform/negate như `detect_sqli`, engine cũ từ chối

@@ -187,6 +187,62 @@ fn condition(c: &Value) -> Result<CondDef> {
     })
 }
 
+/// The removals of an exclusion rule (W17-S-01, IR `exclude`); None for a
+/// detection rule. A key of request_headers or request_headers_names is
+/// compared ignoring ASCII case, others exactly.
+fn exclusion(r: &Value) -> Result<Option<libstrata::rule_exclusions::RuleExclusion>> {
+    use libstrata::rule_exclusions::{KeyMode, Removal, RuleExclusion, WHOLE_RULE};
+    let Some(list) = r["exclude"].as_array() else {
+        return Ok(None);
+    };
+    let mut removals = vec![];
+    for e in list {
+        let (var, key_mode, key) = match e.get("target") {
+            None => (WHOLE_RULE, KeyMode::Any, vec![]),
+            Some(t) => {
+                let var = coded(VARS, s(t, "var"))?;
+                match t["key"].as_str() {
+                    None => (var, KeyMode::Any, vec![]),
+                    Some(k)
+                        if matches!(s(t, "var"), "request_headers" | "request_headers_names") =>
+                    {
+                        (var, KeyMode::Caseless, k.as_bytes().to_vec())
+                    }
+                    Some(k) => (var, KeyMode::Exact, k.as_bytes().to_vec()),
+                }
+            }
+        };
+        let ids = e["rules"].as_array().into_iter().flatten().map(|v| {
+            let id = v.as_u64().unwrap_or(0) as u32;
+            (id, id)
+        });
+        let ranges = e["rule_ranges"].as_array().into_iter().flatten().map(|v| {
+            (
+                v[0].as_u64().unwrap_or(0) as u32,
+                v[1].as_u64().unwrap_or(0) as u32,
+            )
+        });
+        for (lo, hi) in ids.chain(ranges) {
+            if lo > hi {
+                return Err(format!("exclude: range {lo}-{hi}"));
+            }
+            removals.push(Removal {
+                lo,
+                hi,
+                var,
+                key_mode,
+                key: key.clone(),
+            });
+        }
+    }
+    removals.sort();
+    removals.dedup();
+    Ok(Some(RuleExclusion {
+        plugin: s(&r["metadata"], "plugin").to_string(),
+        removals,
+    }))
+}
+
 /// Rules of one IR document, after schema validation.
 pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
     check(IR_SCHEMA, doc, "rule IR")?;
@@ -224,6 +280,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 // absent means score (see ir.schema.json action_mode)
                 block_alone: r["action_mode"].as_str() == Some("block_alone"),
                 signature: libstrata::rules::signature_source(s(&r["metadata"], "source")),
+                exclusion: exclusion(r).map_err(|e| format!("rule {id}: {e}"))?,
                 conditions: conds
                     .iter()
                     .map(condition)
@@ -260,6 +317,9 @@ pub struct Policies {
     /// CRS paranoia levels other than (1, 1) (W17-S-01: `crs_paranoia`,
     /// `crs_paranoia_shadow`)
     pub paranoia: Vec<libstrata::paranoia::Entry>,
+    /// CRS plugins each policy runs (W17-S-01, `crs_plugins`): (policy
+    /// index, plugin name)
+    pub plugins: Vec<(u32, String)>,
     /// the installation's identity key, for policies with `identity: hmac`
     /// (strata-compile --identity-key; the control plane keeps it)
     pub identity_key: Option<[u8; libstrata::privacy::KEY_LEN]>,
@@ -325,6 +385,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut policies = vec![];
     let mut privacy = vec![];
     let mut paranoia = vec![];
+    let mut plugins = vec![];
     let mut exceptions = vec![];
     let mut staging = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
@@ -439,6 +500,23 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 levels,
             });
         }
+        // W17-S-01: the CRS plugins (rule exclusions) the policy runs
+        let mut seen = BTreeSet::new();
+        for v in p["crs_plugins"].as_array().into_iter().flatten() {
+            let plugin = v.as_str().unwrap_or_default();
+            if plugin.is_empty()
+                || plugin.len() > 32
+                || !plugin
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                || !seen.insert(plugin)
+            {
+                return Err(format!(
+                    "policy {name:?}: invalid or duplicate crs_plugins entry {v}"
+                ));
+            }
+            plugins.push((policies.len() as u32, plugin.to_string()));
+        }
         let pv = &p["privacy"];
         let strings = |k: &str| -> Vec<String> {
             pv[k]
@@ -535,6 +613,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         exceptions,
         staging,
         paranoia,
+        plugins,
         identity_key: None,
         good_bots: vec![],
     })
@@ -1003,13 +1082,25 @@ fn compile_unsigned_with(
         .map(|e| e.levels.shadow)
         .max()
         .unwrap_or(1);
+    // W17-S-01: exclusion rules of a plugin no policy runs are left out
+    // too; a plugin a policy names must exist
+    let wanted: BTreeSet<&str> = policies.plugins.iter().map(|(_, p)| p.as_str()).collect();
+    let present: BTreeSet<&str> = rules
+        .iter()
+        .filter_map(|r| r.exclusion.as_ref().map(|x| x.plugin.as_str()))
+        .collect();
+    if let Some(missing) = wanted.difference(&present).next() {
+        return Err(format!("crs_plugins: no rules of plugin {missing:?}"));
+    }
+    let keep = |r: &RuleDef| {
+        r.paranoia <= highest
+            && r.exclusion
+                .as_ref()
+                .is_none_or(|x| wanted.contains(x.plugin.as_str()))
+    };
     let kept: Vec<RuleDef>;
-    let rules = if rules.iter().any(|r| r.paranoia > highest) {
-        kept = rules
-            .iter()
-            .filter(|r| r.paranoia <= highest)
-            .cloned()
-            .collect();
+    let rules = if rules.iter().any(|r| !keep(r)) {
+        kept = rules.iter().filter(|r| keep(r)).cloned().collect();
         &kept[..]
     } else {
         rules
@@ -1074,6 +1165,31 @@ fn compile_unsigned_with(
         .map_err(|e| format!("policy paranoia: {}", e.message()))?;
     if !paranoia.is_empty() {
         sections.push((libstrata::bundle::kind::PARANOIA, paranoia));
+    }
+    let defs: Vec<libstrata::rule_exclusions::Def> = rules
+        .iter()
+        .filter_map(|r| {
+            let x = r.exclusion.as_ref()?;
+            Some(libstrata::rule_exclusions::Def {
+                rule_id: r.id,
+                removals: x.removals.clone(),
+                policies: policies
+                    .plugins
+                    .iter()
+                    .filter(|(_, p)| *p == x.plugin)
+                    .map(|(i, _)| *i)
+                    .collect(),
+            })
+        })
+        .collect();
+    let exclusions = libstrata::rule_exclusions::encode(
+        &defs,
+        policies.policies.len() as u32,
+        rules::VARS.len(),
+    )
+    .map_err(|e| format!("rule exclusions: {}", e.message()))?;
+    if !exclusions.is_empty() {
+        sections.push((libstrata::bundle::kind::EXCLUSIONS, exclusions));
     }
     let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
     if !good_bots.is_empty() {

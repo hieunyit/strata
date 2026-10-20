@@ -25,6 +25,7 @@ pub fn image_with_kind(ids: &[u32], flagged: bool, layer: &str, stage: &str) -> 
         any: false,
         block_alone,
         signature: false,
+        exclusion: None,
         conditions: vec![CondDef {
             targets: vec![TargetDef {
                 var: code(rules::VARS, "request_headers").unwrap(),
