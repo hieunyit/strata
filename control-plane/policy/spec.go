@@ -38,6 +38,28 @@ type Spec struct {
 	// FailOnFindings: "pass" (default) or "block": the CPU budget runs out
 	// on a request that already has findings, block fails closed (#98).
 	FailOnFindings string `json:"fail_on_findings,omitempty"`
+	// CRSParanoia: CRS paranoia level enforced, 1..4; 0 = 1 (W17-S-01).
+	CRSParanoia int `json:"crs_paranoia,omitempty"`
+	// CRSParanoiaShadow: CRS paranoia level run and reported without
+	// blocking, CRSParanoia..4; 0 = the enforced level.
+	CRSParanoiaShadow int `json:"crs_paranoia_shadow,omitempty"`
+}
+
+// ParanoiaLevels of the spec, defaults applied: (enforced, shadow).
+func (s Spec) ParanoiaLevels() (int, int) {
+	enforce := max(s.CRSParanoia, 1)
+	return enforce, max(s.CRSParanoiaShadow, enforce)
+}
+
+// Normalize stores default values as absent, so an unchanged policy keeps
+// its JSON (and its replay digest). Call it on a valid spec.
+func (s *Spec) Normalize() {
+	if s.CRSParanoia == 1 {
+		s.CRSParanoia = 0
+	}
+	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow == enforce {
+		s.CRSParanoiaShadow = 0
+	}
 }
 
 // CanaryBasisPoints of the spec's canary (0: none).
@@ -112,6 +134,12 @@ func (s Spec) Validate() error {
 	case "", "pass", "block":
 	default:
 		return fmt.Errorf("fail_on_findings must be pass or block, got %q", s.FailOnFindings)
+	}
+	if s.CRSParanoia < 0 || s.CRSParanoia > 4 {
+		return fmt.Errorf("crs_paranoia must be 1..4, got %d", s.CRSParanoia)
+	}
+	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow != 0 && (s.CRSParanoiaShadow < enforce || s.CRSParanoiaShadow > 4) {
+		return fmt.Errorf("crs_paranoia_shadow must be crs_paranoia (%d)..4, got %d", enforce, s.CRSParanoiaShadow)
 	}
 	if s.MaxArgs < 0 || s.MaxArgs > 1020 {
 		return fmt.Errorf("max_args must be 1..1020, got %d", s.MaxArgs)

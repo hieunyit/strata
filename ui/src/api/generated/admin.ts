@@ -625,6 +625,22 @@ export interface components {
        */
       exceptions?: components["schemas"]["v1PolicyException"][];
       auto_staging?: components["schemas"]["v1RuleAutoStaging"];
+      /**
+       * Format: int64
+       * @description W17-S-01: CRS paranoia level enforced, 1 to 4; 0 = 1. CRS rules up to
+       * it block as usual.
+       */
+      crs_paranoia?: number;
+      /**
+       * Format: int64
+       * @description CRS paranoia level run in shadow, from crs_paranoia to 4; 0 = the
+       * enforced level. Rules above the enforced level up to this one are
+       * reported (Event ID, action log) but never block or add to the blocking
+       * score. Modules from before the setting refuse bundles where either is
+       * above 1: upgrade them first. A bundle with PL2 rules is larger (about
+       * 29 MB with the signature pack, above Vault transit's request limit).
+       */
+      crs_paranoia_shadow?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;

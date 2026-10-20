@@ -61,7 +61,8 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
-		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()]}
+		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()],
+		CRSParanoia: int(pb.GetCrsParanoia()), CRSParanoiaShadow: int(pb.GetCrsParanoiaShadow())}
 	for _, e := range pb.GetExceptions() {
 		if e == nil {
 			return nil, status.Error(codes.InvalidArgument, "nil policy exception")
@@ -83,6 +84,7 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 	if err := s.Validate(); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec: "+err.Error())
 	}
+	s.Normalize()
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "spec")
@@ -94,7 +96,8 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
-		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings]}
+		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings],
+		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow)}
 	for _, e := range s.Exceptions {
 		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
 	}
