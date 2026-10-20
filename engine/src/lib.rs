@@ -30,6 +30,7 @@ pub mod privacy;
 pub mod rule_exclusions;
 pub mod rulecost;
 pub mod rules;
+pub mod scope;
 pub mod staging;
 pub mod transform;
 pub mod tx;

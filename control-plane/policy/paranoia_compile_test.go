@@ -2,6 +2,7 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -80,5 +81,41 @@ func TestCompilerCarriesPlugins(t *testing.T) {
 	}
 	if _, err = c.Build(t.Context(), 3, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", CRSPlugins: []string{"drupal"}}}}); err == nil {
 		t.Fatal("a plugin without rules compiled")
+	}
+}
+
+// W19-G2-01: a policy's geo rules reach the bundle as rules scoped to it
+// (section SCOPE) with the networks they name (section GEO).
+func TestCompilerCarriesGeoRules(t *testing.T) {
+	bin := os.Getenv("STRATA_COMPILE")
+	if bin == "" {
+		t.Skip("STRATA_COMPILE not set")
+	}
+	dir := t.TempDir()
+	key := filepath.Join(dir, "seed")
+	if err := os.WriteFile(key, bytes.Repeat([]byte{7}, 32), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := &Compiler{Binary: bin, KeyFile: key, Timeout: time.Minute}
+	c.Geo = func(_ context.Context, cs []string, as []uint32) ([]byte, error) {
+		return []byte(`{"countries":{"VN":["198.51.100.0/25"]},"asns":{"64500":["203.0.113.0/24"]}}`), nil
+	}
+	b, err := c.Build(t.Context(), 1, []Named{
+		{Name: "example-a", Spec: Spec{Mode: "enforce", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "block"}}}},
+		{Name: "example-b", Spec: Spec{Mode: "enforce", GeoRules: []GeoRule{{ID: 190001, ASNs: []uint32{64500}, Not: true, Action: "log"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte("SGE1")) || !bytes.Contains(b, []byte("SSC1")) {
+		t.Fatal("bundle without sections GEO and SCOPE")
+	}
+	// the same id in two policies fails the build
+	_, err = c.Build(t.Context(), 2, []Named{
+		{Name: "example-a", Spec: Spec{Mode: "enforce", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "block"}}}},
+		{Name: "example-b", Spec: Spec{Mode: "enforce", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "log"}}}},
+	})
+	if err == nil {
+		t.Fatal("duplicate geo rule id compiled")
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -47,6 +48,46 @@ type Spec struct {
 	// CRSPlugins: the CRS plugins (rule exclusions) the policy runs,
 	// sorted (W17-S-01, policies.schema.json crs_plugins).
 	CRSPlugins []string `json:"crs_plugins,omitempty"`
+	// GeoRules: the policy's own rules on the country and ASN of the
+	// client address (W19-G2-01, policies.schema.json geo_rules).
+	GeoRules []GeoRule `json:"geo_rules,omitempty"`
+}
+
+// GeoRule is one geo rule of a policy (W19-G2-01).
+type GeoRule struct {
+	// ID: GeoRuleIDMin..GeoRuleIDMax, unique across policies (the control
+	// plane assigns it).
+	ID        uint32   `json:"id"`
+	Countries []string `json:"countries,omitempty"`
+	ASNs      []uint32 `json:"asns,omitempty"`
+	// Not: the addresses outside the countries and ASNs (local excepted).
+	Not bool `json:"not,omitempty"`
+	// Action: block or log.
+	Action string `json:"action"`
+}
+
+// Geo rule ids and limits (the compiler's POLICY_RULE_IDS, MAX_GEO_RULES).
+const (
+	GeoRuleIDMin = 190000
+	GeoRuleIDMax = 199999
+	MaxGeoRules  = 16
+)
+
+var countryPattern = regexp.MustCompile(`^[A-Z]{2}$`)
+
+// GeoKeys are the countries and ASNs the specs' geo rules name, sorted.
+func GeoKeys(specs ...Spec) ([]string, []uint32) {
+	var cs []string
+	var as []uint32
+	for _, s := range specs {
+		for _, g := range s.GeoRules {
+			cs = append(cs, g.Countries...)
+			as = append(as, g.ASNs...)
+		}
+	}
+	slices.Sort(cs)
+	slices.Sort(as)
+	return slices.Compact(cs), slices.Compact(as)
 }
 
 // ParanoiaLevels of the spec, defaults applied: (enforced, shadow).
@@ -63,6 +104,20 @@ func (s *Spec) Normalize() {
 	}
 	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow == enforce {
 		s.CRSParanoiaShadow = 0
+	}
+	for i := range s.GeoRules {
+		g := &s.GeoRules[i]
+		g.Countries = slices.Sorted(slices.Values(g.Countries))
+		g.ASNs = slices.Sorted(slices.Values(g.ASNs))
+		if len(g.Countries) == 0 {
+			g.Countries = nil
+		}
+		if len(g.ASNs) == 0 {
+			g.ASNs = nil
+		}
+	}
+	if len(s.GeoRules) == 0 {
+		s.GeoRules = nil
 	}
 	if len(s.CRSPlugins) == 0 {
 		s.CRSPlugins = nil
@@ -153,6 +208,41 @@ func (s Spec) Validate() error {
 	}
 	if enforce, _ := s.ParanoiaLevels(); s.CRSParanoiaShadow != 0 && (s.CRSParanoiaShadow < enforce || s.CRSParanoiaShadow > 4) {
 		return fmt.Errorf("crs_paranoia_shadow must be crs_paranoia (%d)..4, got %d", enforce, s.CRSParanoiaShadow)
+	}
+	if len(s.GeoRules) > MaxGeoRules {
+		return fmt.Errorf("geo_rules: at most %d", MaxGeoRules)
+	}
+	geoIDs := map[uint32]bool{}
+	for _, g := range s.GeoRules {
+		if g.ID < GeoRuleIDMin || g.ID > GeoRuleIDMax || geoIDs[g.ID] {
+			return fmt.Errorf("geo_rules: id %d is not %d..%d or is listed twice", g.ID, GeoRuleIDMin, GeoRuleIDMax)
+		}
+		geoIDs[g.ID] = true
+		if len(g.Countries) == 0 && len(g.ASNs) == 0 {
+			return fmt.Errorf("geo_rules: rule %d names no country and no ASN", g.ID)
+		}
+		if len(g.Countries) > 300 || len(g.ASNs) > 1000 {
+			return fmt.Errorf("geo_rules: rule %d: at most 300 countries and 1000 ASNs", g.ID)
+		}
+		seen := map[string]bool{}
+		for _, c := range g.Countries {
+			if !countryPattern.MatchString(c) || seen[c] {
+				return fmt.Errorf("geo_rules: rule %d: country %q is not an ISO code (VN) or is listed twice", g.ID, c)
+			}
+			seen[c] = true
+		}
+		seenASN := map[uint32]bool{}
+		for _, a := range g.ASNs {
+			if a == 0 || seenASN[a] {
+				return fmt.Errorf("geo_rules: rule %d: ASN %d is 0 or listed twice", g.ID, a)
+			}
+			seenASN[a] = true
+		}
+		switch g.Action {
+		case "block", "log":
+		default:
+			return fmt.Errorf("geo_rules: rule %d: action must be block or log, got %q", g.ID, g.Action)
+		}
 	}
 	if len(s.CRSPlugins) > 16 {
 		return errors.New("crs_plugins: at most 16")

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/strata/strata/control-plane/rulecat"
@@ -405,6 +406,12 @@ func main() {
 				}
 			}
 			d := newDeployer(pg, pool, objects, signer, *signingKey, pub, *rulesFlag, *blockPage, *supportContact, *compilerBin, *costBudget)
+			// W19-G2-01: the networks of the countries and ASNs geo rules
+			// name, from the loaded GeoIP databases (before the replay
+			// builder copies the compiler)
+			if geoIP != nil {
+				d.Builder.(*policy.Compiler).Geo = geoNetworks(geoIP)
+			}
 			d.Publish = rollouts.Start
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
@@ -952,4 +959,17 @@ func configCommand(args []string) int {
 	}
 	fmt.Fprintln(os.Stderr, err)
 	return 1
+}
+
+// geoNetworks: for the compiler, the networks of countries and ASNs from
+// the enricher's current GeoIP databases, as strata-compile --geo reads
+// them (W19-R-01).
+func geoNetworks(e *ingest.GeoIPEnricher) func(context.Context, []string, []uint32) ([]byte, error) {
+	return func(ctx context.Context, countries []string, asns []uint32) ([]byte, error) {
+		n, err := e.Networks(ctx, countries, asns)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(n)
+	}
 }

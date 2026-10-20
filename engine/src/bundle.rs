@@ -70,8 +70,11 @@ pub mod kind {
     /// `crate::geo`). Optional: engines before it skip the section, and
     /// refuse rules on geo_country / geo_asn (unknown targets).
     pub const GEO: u32 = 15;
+    /// The policies each policy-scoped rule (rule flag bit 4) runs for,
+    /// and its mode (W19-G2-01, `crate::scope`).
+    pub const SCOPE: u32 = 16;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 15;
+    pub const KNOWN: u32 = 16;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

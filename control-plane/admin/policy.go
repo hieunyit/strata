@@ -55,8 +55,71 @@ var (
 	failOfPB = map[adminv1.PolicySpec_FailOnFindings]string{adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED: "", adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS: "pass", adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK: "block"}
 )
 
-// specOf converts and validates a spec from the API.
-func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
+var (
+	geoActionOf = map[adminv1.PolicyGeoRule_Action]string{adminv1.PolicyGeoRule_ACTION_BLOCK: "block", adminv1.PolicyGeoRule_ACTION_LOG: "log"}
+	geoActionTo = map[string]adminv1.PolicyGeoRule_Action{"block": adminv1.PolicyGeoRule_ACTION_BLOCK, "log": adminv1.PolicyGeoRule_ACTION_LOG}
+)
+
+// assignGeoIDs gives each new geo rule (id 0) of the spec of policy id the
+// lowest geo rule id no version of another policy uses, and refuses an id
+// another policy uses (W19-G2-01). Two concurrent edits may still take the
+// same id: the deploy then fails on the duplicate rule id.
+func (p *policyAdmin) assignGeoIDs(ctx context.Context, id string) func(*policy.Spec) error {
+	return func(s *policy.Spec) error {
+		if len(s.GeoRules) == 0 {
+			return nil
+		}
+		ps, err := p.store.ListPolicies(ctx)
+		if err != nil {
+			return internal("list policies", err)
+		}
+		taken := map[uint32]string{}
+		for _, other := range ps {
+			if other.ID == id {
+				continue
+			}
+			vs, err := p.store.ListPolicyVersions(ctx, other.ID)
+			if err != nil {
+				return internal("list versions", err)
+			}
+			for _, v := range vs {
+				var spec policy.Spec
+				_ = json.Unmarshal(v.Spec, &spec)
+				for _, g := range spec.GeoRules {
+					taken[g.ID] = other.ID
+				}
+			}
+		}
+		for _, g := range s.GeoRules {
+			if g.ID == 0 {
+				continue
+			}
+			if by, ok := taken[g.ID]; ok {
+				return status.Errorf(codes.InvalidArgument, "policy.spec: geo rule id %d is policy %s's", g.ID, by)
+			}
+			taken[g.ID] = id
+		}
+		next := uint32(policy.GeoRuleIDMin)
+		for i := range s.GeoRules {
+			if s.GeoRules[i].ID != 0 {
+				continue
+			}
+			for taken[next] != "" && next <= policy.GeoRuleIDMax {
+				next++
+			}
+			if next > policy.GeoRuleIDMax {
+				return status.Error(codes.ResourceExhausted, "no free geo rule id")
+			}
+			s.GeoRules[i].ID = next
+			taken[next] = id
+		}
+		return nil
+	}
+}
+
+// specOf converts and validates a spec from the API; assign, if given,
+// completes it first (geo rule ids).
+func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.RawMessage, error) {
 	if pb == nil {
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
@@ -64,6 +127,18 @@ func specOf(pb *adminv1.PolicySpec) (json.RawMessage, error) {
 		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()],
 		CRSParanoia: int(pb.GetCrsParanoia()), CRSParanoiaShadow: int(pb.GetCrsParanoiaShadow()),
 		CRSPlugins: append([]string(nil), pb.GetCrsPlugins()...)}
+	for _, g := range pb.GetGeoRules() {
+		if g == nil {
+			return nil, status.Error(codes.InvalidArgument, "nil geo rule")
+		}
+		s.GeoRules = append(s.GeoRules, policy.GeoRule{ID: g.GetId(), Countries: append([]string(nil), g.GetCountries()...),
+			ASNs: append([]uint32(nil), g.GetAsns()...), Not: g.GetNot(), Action: geoActionOf[g.GetAction()]})
+	}
+	for _, f := range assign {
+		if err := f(&s); err != nil {
+			return nil, err
+		}
+	}
 	for _, e := range pb.GetExceptions() {
 		if e == nil {
 			return nil, status.Error(codes.InvalidArgument, "nil policy exception")
@@ -100,6 +175,10 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings],
 		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow),
 		CrsPlugins: append([]string(nil), s.CRSPlugins...)}
+	for _, g := range s.GeoRules {
+		out.GeoRules = append(out.GeoRules, &adminv1.PolicyGeoRule{Id: g.ID, Countries: append([]string(nil), g.Countries...),
+			Asns: append([]uint32(nil), g.ASNs...), Not: g.Not, Action: geoActionTo[g.Action]})
+	}
 	for _, e := range s.Exceptions {
 		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
 	}
@@ -171,7 +250,7 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	if !policy.ValidName(in.GetName()) {
 		return nil, status.Error(codes.InvalidArgument, "policy.name must match [a-z0-9._-]{1,55} and not be only dots")
 	}
-	spec, err := specOf(in.GetSpec())
+	spec, err := specOf(in.GetSpec(), p.assignGeoIDs(ctx, in.GetId()))
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +278,7 @@ func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolic
 			return nil, status.Error(codes.InvalidArgument, "policy.name cannot change")
 		}
 	}
-	spec, err := specOf(in.GetSpec())
+	spec, err := specOf(in.GetSpec(), p.assignGeoIDs(ctx, in.GetId()))
 	if err != nil {
 		return nil, err
 	}

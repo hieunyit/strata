@@ -51,6 +51,10 @@ type Compiler struct {
 	// goodbots.ForCompiler): nil data without a stored list; an error
 	// fails the build rather than drop the ranges silently.
 	GoodBots func(context.Context) ([]byte, error)
+	// Geo gives the networks of countries and ASNs (W19-R-01,
+	// ingest.GeoIPEnricher.Networks as JSON), asked only when a policy has
+	// geo rules; nil: such policies fail to build.
+	Geo func(ctx context.Context, countries []string, asns []uint32) ([]byte, error)
 }
 
 // DefaultCostBudget: CRS 4.25 PL1 as imported costs about 15 000 units
@@ -124,13 +128,14 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		Paranoia    int         `json:"crs_paranoia,omitempty"`
 		ParaShadow  int         `json:"crs_paranoia_shadow,omitempty"`
 		Plugins     []string    `json:"crs_plugins,omitempty"`
+		GeoRules    []GeoRule   `json:"geo_rules,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
 		items = append(items, item{StagedRules: staged[p.Name], Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
 			Canary: p.Spec.CanaryPercent, MaxArgs: p.Spec.MaxArgs, FailOn: p.Spec.FailOnFindings,
-			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow, Plugins: p.Spec.CRSPlugins})
+			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow, Plugins: p.Spec.CRSPlugins, GeoRules: p.Spec.GeoRules})
 	}
 	doc["policies"] = items
 	if c.BlockPage != "" {
@@ -189,6 +194,25 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 			}
 			args = append(args, "--good-bots", f)
 		}
+	}
+	// W19-G2-01: the networks of the countries and ASNs geo rules name
+	specs := make([]Spec, 0, len(policies))
+	for _, p := range policies {
+		specs = append(specs, p.Spec)
+	}
+	if countries, asns := GeoKeys(specs...); len(countries)+len(asns) > 0 {
+		if c.Geo == nil {
+			return nil, errors.New("policy: geo rules need a GeoIP database (-geoip-city / -geoip-asn or STRATA_GEOIP_*_URL)")
+		}
+		networks, err := c.Geo(ctx, countries, asns)
+		if err != nil {
+			return nil, fmt.Errorf("policy: geo networks: %w", err)
+		}
+		f := filepath.Join(dir, "geo.json")
+		if err := os.WriteFile(f, networks, 0o600); err != nil {
+			return nil, err
+		}
+		args = append(args, "--geo", f)
 	}
 	bin := c.Binary
 	if bin == "" {

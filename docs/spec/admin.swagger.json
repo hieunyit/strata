@@ -1303,6 +1303,15 @@
         }
       }
     },
+    "PolicyGeoRuleAction": {
+      "type": "string",
+      "enum": [
+        "ACTION_UNSPECIFIED",
+        "ACTION_BLOCK",
+        "ACTION_LOG"
+      ],
+      "default": "ACTION_UNSPECIFIED"
+    },
     "PolicyServiceApprovePolicyBody": {
       "type": "object",
       "properties": {
@@ -2077,6 +2086,36 @@
         }
       }
     },
+    "v1PolicyGeoRule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "countries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "ISO 3166-1 alpha-2, e.g. VN"
+        },
+        "asns": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "not": {
+          "type": "boolean"
+        },
+        "action": {
+          "$ref": "#/definitions/PolicyGeoRuleAction"
+        }
+      },
+      "description": "A geo rule (W19-G2-01): an address in one of the countries or ASNs\nmatches; with not, an address outside all of them (local addresses\nexcepted). BLOCK blocks the request on the rule alone; LOG reports it\nwith an Event ID and never blocks."
+    },
     "v1PolicySpec": {
       "type": "object",
       "properties": {
@@ -2139,6 +2178,14 @@
             "type": "string"
           },
           "description": "W17-S-01: CRS plugins (rule exclusions for an application) the policy\nruns, e.g. wordpress, nextcloud: on the application's known paths and\nfields they take listed CRS rules or targets away. Each must have rules\nin the deployed rule set (rules/crs-plugins). Modules from before the\nsetting refuse bundles with plugins: upgrade them first."
+        },
+        "geo_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyGeoRule"
+          },
+          "description": "W19-G2-01: the policy's own rules on the country and ASN of the client\naddress, run for this policy only; at most 16. Send id 0 for a new\nrule: the control plane assigns a free id (190000-199999, unique across\npolicies). The deploy needs a GeoIP database (City for countries, ASN\nfor ASNs): the bundle carries the networks of the countries and ASNs\nnamed. Modules from before the setting refuse bundles with them."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

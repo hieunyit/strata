@@ -39,7 +39,7 @@ pub const BODY_ENCODED: u32 = 100_023;
 fn alone(rule: u32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
         signature: false,
-        paranoia_shadow: false,
+        report_only: false,
         rule,
         score: 0,
         block_alone: true,
@@ -52,7 +52,7 @@ fn alone(rule: u32, field: &str, snippet: &[u8]) -> Violation {
 fn scored(rule: u32, score: i32, field: &str, snippet: &[u8]) -> Violation {
     Violation {
         signature: false,
-        paranoia_shadow: false,
+        report_only: false,
         rule,
         score,
         block_alone: false,
