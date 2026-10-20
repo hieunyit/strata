@@ -214,10 +214,8 @@ func runRestore(in, dir, objects, passFile, dsnFile, restoreBin string, yes, ove
 			return errors.New("not confirmed")
 		}
 	}
-	// an empty schema: tables of a newer migration must not survive
-	if _, err := pool.Exec(ctx, "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public"); err != nil {
-		return fmt.Errorf("emptying the database: %w", err)
-	}
+	// Reset and restore belong to one transaction: failed SQL must not
+	// leave the original metadata erased.
 	if err := (backup.PG{DSN: dsn, RestoreBin: restoreBin}).Restore(ctx, filepath.Join(staged, backup.DumpName)); err != nil {
 		return err
 	}

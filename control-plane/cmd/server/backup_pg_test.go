@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/strata/strata/control-plane/backup"
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/store"
 )
@@ -173,5 +174,72 @@ func TestBackupRestoreInPostgres(t *testing.T) {
 	pool.Reset()
 	if err := pool.QueryRow(ctx, "SELECT version FROM bundle_version_floor").Scan(&floor); err != nil || floor != 6 {
 		t.Fatalf("floor after a second restore: %d %v", floor, err)
+	}
+}
+
+// A failed restore must leave the existing metadata intact, including
+// when a dump is valid but one of its SQL statements fails.
+func TestRestoreFailurePreservesDatabase(t *testing.T) {
+	dsn := ownDatabase(t)
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	latest, _ := db.Latest()
+	if err := db.Migrate(ctx, pool, latest); err != nil {
+		t.Fatal(err)
+	}
+	st := store.New(pool)
+	record(t, st, 10)
+	dir := t.TempDir()
+	dsnFile := filepath.Join(t.TempDir(), "dsn")
+	passFile := filepath.Join(t.TempDir(), "pass")
+	if err := os.WriteFile(dsnFile, []byte(dsn), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(passFile, []byte("restore regression passphrase"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(t.TempDir(), "backup.age")
+	if err := runBackup(archive, dir, "", passFile, dsnFile, "pg_dump"); err != nil {
+		t.Fatal(err)
+	}
+	record(t, st, 11)
+	// Missing pg_restore is a common upgrade/packaging failure. It must
+	// not destroy data before the executable even starts.
+	if err := runRestore(archive, dir, filepath.Join(dir, "objects"), passFile, dsnFile,
+		filepath.Join(t.TempDir(), "missing-pg-restore"), true, true); err == nil {
+		t.Fatal("missing executable accepted")
+	}
+	pool.Reset()
+	var highest int64
+	if err := pool.QueryRow(ctx, "SELECT max(version) FROM bundles").Scan(&highest); err != nil || highest != 11 {
+		t.Fatalf("failed restore destroyed metadata: max version %d, error %v", highest, err)
+	}
+	// Fail during SQL execution, after the schema reset would have run:
+	// keep an unrelated schema that conflicts with the dump's CREATE TABLE.
+	if _, err := pool.Exec(ctx, "CREATE SCHEMA restore_conflict; CREATE TABLE restore_conflict.marker (id int)"); err != nil {
+		t.Fatal(err)
+	}
+	dump := filepath.Join(t.TempDir(), "conflict.dump")
+	f, err := os.Create(dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = (backup.PG{DSN: dsn}).Dump(ctx, f)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := (backup.PG{DSN: dsn}).Restore(ctx, dump); err == nil {
+		t.Fatal("conflicting schema accepted")
+	}
+	pool.Reset()
+	if err := pool.QueryRow(ctx, "SELECT max(version) FROM bundles").Scan(&highest); err != nil || highest != 11 {
+		t.Fatalf("SQL restore error destroyed metadata: max version %d, error %v", highest, err)
 	}
 }

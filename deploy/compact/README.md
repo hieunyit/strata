@@ -98,6 +98,14 @@ tài liệu của ClickHouse.
    được giữ.
 4. Khởi động lại control plane.
 
+Reset schema và nạp dump nằm trong cùng transaction; thiếu công cụ PostgreSQL hoặc SQL lỗi
+không xóa metadata cũ. Restore cần cả `pg_restore` và `psql` (đã có trong image Compact),
+cùng dung lượng tạm cho bản SQL được xuất từ dump. Khôi phục file, migration sau restore và
+database không phải một transaction chung: giữ control plane dừng nếu bước sau báo lỗi.
+
+Sau crash, control plane chờ lease PostgreSQL cũ hết hạn (mặc định khoảng 30 giây).
+Không giành sớm dựa vào hostname/PID của container. Dừng sạch vẫn nhả lease ngay.
+
 Sau restore:
 
 - Số bundle kế tiếp lớn hơn mọi bundle node đang chạy.
