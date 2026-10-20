@@ -208,12 +208,12 @@ export const MapPage: React.FC<{ route: Route }> = ({ route }) => {
         const res = await apiClient.searchEvents(eventsRequest(range, filters, tokens[page] || undefined));
         setEvents({ list: res.events ?? [], total: res.total_matched ?? 0, next: res.next_page_token || undefined });
       } catch (e) {
-        setEvents({ list: [], total: 0, error: e instanceof Error ? e.message : String(e) });
+        setEvents({ list: [], total: 0, error: isEventsUnavailable(e) ? t('errors.eventsUnavailable') : e instanceof Error ? e.message : String(e) });
       } finally {
         setEventsLoading(false);
       }
     },
-    [range, filters],
+    [range, filters, t],
   );
   useEffect(() => {
     setEventPage(0);
