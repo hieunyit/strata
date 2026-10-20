@@ -46,6 +46,8 @@ http:
       get: /v1/groups/{group_id}/replaySampling
     - selector: strata.admin.v1.PolicyService.ListPolicies
       get: /v1/policies
+    - selector: strata.admin.v1.PolicyService.ListPolicyTemplates
+      get: /v1/policyTemplates
     - selector: strata.admin.v1.PolicyService.GetPolicy
       get: /v1/policies/{policy_id}
     - selector: strata.admin.v1.PolicyService.CreatePolicy

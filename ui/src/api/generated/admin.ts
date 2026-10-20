@@ -156,6 +156,13 @@ export interface paths {
      */
     post: operations["PolicyService_SubmitPolicy"];
   };
+  "/v1/policyTemplates": {
+    /**
+     * REST: GET /v1/policyTemplates. The templates a new policy can start
+     * from (W20-S-01).
+     */
+    get: operations["PolicyService_ListPolicyTemplates"];
+  };
   "/v1/rollouts": {
     /** REST: GET /v1/rollouts */
     get: operations["RolloutService_ListRollouts"];
@@ -466,6 +473,9 @@ export interface components {
     v1ListPoliciesResponse: {
       policies?: components["schemas"]["v1Policy"][];
     };
+    v1ListPolicyTemplatesResponse: {
+      templates?: components["schemas"]["v1PolicyTemplate"][];
+    };
     v1ListPolicyVersionsResponse: {
       versions?: components["schemas"]["v1PolicyVersion"][];
     };
@@ -678,6 +688,20 @@ export interface components {
        * named. Modules from before the setting refuse bundles with them.
        */
       geo_rules?: components["schemas"]["v1PolicyGeoRule"][];
+      template?: components["schemas"]["v1PolicyTemplateRef"];
+    };
+    v1PolicyTemplate: {
+      name?: string;
+      /** Format: int32 */
+      version?: number;
+      description?: string;
+      spec?: components["schemas"]["v1PolicySpec"];
+    };
+    /** @description The template a policy started from (W20-S-01); informative. */
+    v1PolicyTemplateRef: {
+      name?: string;
+      /** Format: int32 */
+      version?: number;
     };
     v1PolicyVersion: {
       policy_id?: string;
@@ -1277,6 +1301,17 @@ export interface operations {
   };
   /** REST: POST /v1/policies */
   PolicyService_CreatePolicy: {
+    parameters: {
+      query?: {
+        /**
+         * @description W20-S-01: start from this template (ListPolicyTemplates): its spec,
+         * with the fields policy.spec sets on top. The policy records the
+         * template's name and version, then is on its own: a later template
+         * change does not reach it.
+         */
+        template?: string;
+      };
+    };
     /** @description id, name, spec */
     requestBody: {
       content: {
@@ -1592,6 +1627,26 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["v1SubmitPolicyResponse"];
+        };
+      };
+      /** @description An unexpected error response. */
+      default: {
+        content: {
+          "application/json": components["schemas"]["rpcStatus"];
+        };
+      };
+    };
+  };
+  /**
+   * REST: GET /v1/policyTemplates. The templates a new policy can start
+   * from (W20-S-01).
+   */
+  PolicyService_ListPolicyTemplates: {
+    responses: {
+      /** @description A successful response. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["v1ListPolicyTemplatesResponse"];
         };
       };
       /** @description An unexpected error response. */

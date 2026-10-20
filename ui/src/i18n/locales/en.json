@@ -288,7 +288,17 @@
       "OVERSIZE_PASS": "Pass",
       "OVERSIZE_UNSPECIFIED": "Pass"
     },
-    "compare": "Compare versions"
+    "compare": "Compare versions",
+    "new": {
+      "open": "New policy",
+      "title": "New policy from a template",
+      "id": "Id (API resource name)",
+      "name": "Name (in the bundle and in NGINX)",
+      "template": "Template",
+      "note": "The template's settings are copied into the first version, a draft: review, replay and approve it before deploying. The policy keeps the template's name and version for reference; a later change to the template does not reach it.",
+      "create": "Create draft",
+      "exists": "A policy with this id or name exists"
+    }
   },
   "fleet": {
     "title": "Fleet",

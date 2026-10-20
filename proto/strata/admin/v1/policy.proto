@@ -15,6 +15,9 @@ import "strata/admin/v1/operation.proto";
 service PolicyService {
   // REST: GET /v1/policies
   rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+  // REST: GET /v1/policyTemplates. The templates a new policy can start
+  // from (W20-S-01).
+  rpc ListPolicyTemplates(ListPolicyTemplatesRequest) returns (ListPolicyTemplatesResponse);
   // REST: GET /v1/policies/{policy_id}
   rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
   // REST: POST /v1/policies
@@ -123,6 +126,9 @@ message PolicySpec {
   // for ASNs): the bundle carries the networks of the countries and ASNs
   // named. Modules from before the setting refuse bundles with them.
   repeated PolicyGeoRule geo_rules = 14;
+  // W20-S-01: the template the policy started from, if any (set when the
+  // policy is created from one; kept as it is by later versions).
+  PolicyTemplateRef template = 15;
 }
 
 // A geo rule (W19-G2-01): an address in one of the countries or ASNs
@@ -255,6 +261,30 @@ message GetPolicyResponse {
 
 message CreatePolicyRequest {
   Policy policy = 1; // id, name, spec
+  // W20-S-01: start from this template (ListPolicyTemplates): its spec,
+  // with the fields policy.spec sets on top. The policy records the
+  // template's name and version, then is on its own: a later template
+  // change does not reach it.
+  string template = 2;
+}
+
+message ListPolicyTemplatesRequest {}
+
+message PolicyTemplate {
+  string name = 1;
+  int32 version = 2;
+  string description = 3;
+  PolicySpec spec = 4;
+}
+
+message ListPolicyTemplatesResponse {
+  repeated PolicyTemplate templates = 1;
+}
+
+// The template a policy started from (W20-S-01); informative.
+message PolicyTemplateRef {
+  string name = 1;
+  int32 version = 2;
 }
 
 message CreatePolicyResponse {

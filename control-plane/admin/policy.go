@@ -117,6 +117,36 @@ func (p *policyAdmin) assignGeoIDs(ctx context.Context, id string) func(*policy.
 	}
 }
 
+// fromTemplate starts a new policy's spec from template name (W20-S-01),
+// the request's fields on top; no template, no change.
+func fromTemplate(name string) func(*policy.Spec) error {
+	return func(s *policy.Spec) error {
+		if name == "" {
+			return nil
+		}
+		t, err := policy.FromTemplate(name, *s)
+		if err != nil {
+			return status.Error(codes.InvalidArgument, "template: "+err.Error())
+		}
+		*s = t
+		return nil
+	}
+}
+
+// ListPolicyTemplates lists the templates a policy can start from.
+func (p *policyAdmin) ListPolicyTemplates(context.Context, *adminv1.ListPolicyTemplatesRequest) (*adminv1.ListPolicyTemplatesResponse, error) {
+	out := &adminv1.ListPolicyTemplatesResponse{}
+	for _, name := range policy.TemplateNames() {
+		t := policy.Templates[name]
+		raw, err := json.Marshal(t.Spec)
+		if err != nil {
+			return nil, internal("template", err)
+		}
+		out.Templates = append(out.Templates, &adminv1.PolicyTemplate{Name: t.Name, Version: int32(t.Version), Description: t.Description, Spec: specPB(raw)})
+	}
+	return out, nil
+}
+
 // specOf converts and validates a spec from the API; assign, if given,
 // completes it first (geo rule ids).
 func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.RawMessage, error) {
@@ -133,6 +163,9 @@ func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.Ra
 		}
 		s.GeoRules = append(s.GeoRules, policy.GeoRule{ID: g.GetId(), Countries: append([]string(nil), g.GetCountries()...),
 			ASNs: append([]uint32(nil), g.GetAsns()...), Not: g.GetNot(), Action: geoActionOf[g.GetAction()]})
+	}
+	if t := pb.GetTemplate(); t != nil {
+		s.Template = &policy.TemplateRef{Name: t.GetName(), Version: int(t.GetVersion())}
 	}
 	for _, f := range assign {
 		if err := f(&s); err != nil {
@@ -175,6 +208,9 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings],
 		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow),
 		CrsPlugins: append([]string(nil), s.CRSPlugins...)}
+	if t := s.Template; t != nil {
+		out.Template = &adminv1.PolicyTemplateRef{Name: t.Name, Version: int32(t.Version)}
+	}
 	for _, g := range s.GeoRules {
 		out.GeoRules = append(out.GeoRules, &adminv1.PolicyGeoRule{Id: g.ID, Countries: append([]string(nil), g.Countries...),
 			Asns: append([]uint32(nil), g.ASNs...), Not: g.Not, Action: geoActionTo[g.Action]})
@@ -250,7 +286,11 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	if !policy.ValidName(in.GetName()) {
 		return nil, status.Error(codes.InvalidArgument, "policy.name must match [a-z0-9._-]{1,55} and not be only dots")
 	}
-	spec, err := specOf(in.GetSpec(), p.assignGeoIDs(ctx, in.GetId()))
+	pbSpec := in.GetSpec()
+	if pbSpec == nil && req.GetTemplate() != "" {
+		pbSpec = &adminv1.PolicySpec{}
+	}
+	spec, err := specOf(pbSpec, fromTemplate(req.GetTemplate()), p.assignGeoIDs(ctx, in.GetId()))
 	if err != nil {
 		return nil, err
 	}

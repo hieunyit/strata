@@ -41,6 +41,7 @@ var Permissions = auth.MethodPermissions{
 	adminv1.FleetAdminService_SetReplaySampling_FullMethodName:     auth.PermReplayConfigure,
 	adminv1.FleetAdminService_GetReplaySampling_FullMethodName:     auth.PermNodesRead,
 	adminv1.PolicyService_ListPolicies_FullMethodName:              auth.PermPoliciesRead,
+	adminv1.PolicyService_ListPolicyTemplates_FullMethodName:       auth.PermPoliciesRead,
 	adminv1.PolicyService_GetPolicy_FullMethodName:                 auth.PermPoliciesRead,
 	adminv1.PolicyService_CreatePolicy_FullMethodName:              auth.PermPoliciesWrite,
 	adminv1.PolicyService_UpdatePolicy_FullMethodName:              auth.PermPoliciesWrite,

@@ -516,6 +516,13 @@
             "schema": {
               "$ref": "#/definitions/v1Policy"
             }
+          },
+          {
+            "name": "template",
+            "description": "W20-S-01: start from this template (ListPolicyTemplates): its spec,\nwith the fields policy.spec sets on top. The policy records the\ntemplate's name and version, then is on its own: a later template\nchange does not reach it.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -937,6 +944,29 @@
             }
           }
         ],
+        "tags": [
+          "PolicyService"
+        ]
+      }
+    },
+    "/v1/policyTemplates": {
+      "get": {
+        "summary": "REST: GET /v1/policyTemplates. The templates a new policy can start\nfrom (W20-S-01).",
+        "operationId": "PolicyService_ListPolicyTemplates",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPolicyTemplatesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
         "tags": [
           "PolicyService"
         ]
@@ -1820,6 +1850,18 @@
         }
       }
     },
+    "v1ListPolicyTemplatesResponse": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyTemplate"
+          }
+        }
+      }
+    },
     "v1ListPolicyVersionsResponse": {
       "type": "object",
       "properties": {
@@ -2186,9 +2228,44 @@
             "$ref": "#/definitions/v1PolicyGeoRule"
           },
           "description": "W19-G2-01: the policy's own rules on the country and ASN of the client\naddress, run for this policy only; at most 16. Send id 0 for a new\nrule: the control plane assigns a free id (190000-199999, unique across\npolicies). The deploy needs a GeoIP database (City for countries, ASN\nfor ASNs): the bundle carries the networks of the countries and ASNs\nnamed. Modules from before the setting refuse bundles with them."
+        },
+        "template": {
+          "$ref": "#/definitions/v1PolicyTemplateRef",
+          "description": "W20-S-01: the template the policy started from, if any (set when the\npolicy is created from one; kept as it is by later versions)."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."
+    },
+    "v1PolicyTemplate": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/definitions/v1PolicySpec"
+        }
+      }
+    },
+    "v1PolicyTemplateRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "The template a policy started from (W20-S-01); informative."
     },
     "v1PolicyVersion": {
       "type": "object",

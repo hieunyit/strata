@@ -18,6 +18,7 @@ export type ReplayReport = admin['schemas']['v1ReplayReport'];
 export type ReplayComparison = admin['schemas']['v1ReplayComparison'];
 export type ReplayExample = admin['schemas']['v1ReplayExample'];
 export type PolicySpec = admin['schemas']['v1PolicySpec'];
+export type PolicyTemplate = admin['schemas']['v1PolicyTemplate'];
 export type Group = admin['schemas']['v1Group'];
 export type FleetNode = admin['schemas']['v1Node'];
 export type Rollout = admin['schemas']['v1Rollout'];
@@ -341,6 +342,19 @@ export const apiClient = {
   async listPolicies(signal?: AbortSignal): Promise<Policy[]> {
     const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET', signal }, 'Failed to list policies');
     return r.policies ?? [];
+  },
+
+  /** GET /v1/policyTemplates: the templates a new policy can start from (W20-S-01) */
+  async listPolicyTemplates(): Promise<PolicyTemplate[]> {
+    const r = await call<admin['schemas']['v1ListPolicyTemplatesResponse']>('/policyTemplates', { method: 'GET' }, 'Failed to list the policy templates');
+    return r.templates ?? [];
+  },
+
+  /** POST /v1/policies?template=: a new policy, from a template or not (its first version is a DRAFT) */
+  async createPolicy(id: string, name: string, template: string, spec?: PolicySpec): Promise<Policy> {
+    const q = template ? `?template=${encodeURIComponent(template)}` : '';
+    const r = await call<admin['schemas']['v1CreatePolicyResponse']>(`/policies${q}`, json('POST', { id, name, spec: spec ?? {} }), 'Failed to create the policy');
+    return r.policy ?? {};
   },
 
   /** PATCH /v1/policies/{id}: a new version (DRAFT) from the etag it was read with; 409 when stale */

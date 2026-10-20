@@ -283,7 +283,17 @@
       "OVERSIZE_PASS": "Cho qua",
       "OVERSIZE_UNSPECIFIED": "Cho qua"
     },
-    "compare": "So sánh phiên bản"
+    "compare": "So sánh phiên bản",
+    "new": {
+      "open": "Policy mới",
+      "title": "Policy mới từ template",
+      "id": "Id (tên tài nguyên API)",
+      "name": "Tên (trong bundle và NGINX)",
+      "template": "Template",
+      "note": "Cấu hình của template được chép vào phiên bản đầu tiên (bản nháp): xem, replay và duyệt trước khi deploy. Policy giữ tên và phiên bản template để tham khảo; template thay đổi sau đó không ảnh hưởng tới policy.",
+      "create": "Tạo bản nháp",
+      "exists": "Đã có policy cùng id hoặc tên"
+    }
   },
   "fleet": {
     "title": "Fleet",
