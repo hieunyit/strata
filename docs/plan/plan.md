@@ -2,6 +2,8 @@
 
 Oct 10, 2026 · @hieuny
 
+> **Ưu tiên từ 19/10/2026 (PO):** kế hoạch Compact và quản trị vận hành, `docs/plan/compact-ops-plan.md` (nhiệm vụ `CP-*`, bảng trạng thái ở `AGENTS.md` §0), làm trước giai đoạn B của lộ trình dưới đây. Trạng thái thực các tuần 14–21: `docs/reports/w17-w21-integration.md`, `docs/reports/remediation-tracker.md`.
+
 ## Tổng quan & nhân sự
 
 Kế hoạch nối tiếp tuần 1–2 (khung module, ABI, PoC Hyperscan + mmap) và đi qua 3 giai đoạn: **A** tới shadow (tuần 3–10), **B** tới enforce 100% (tuần 11–16), **C** hoàn thiện v1 (tuần 17–22). Mỗi tuần ghi việc theo luồng, đầu ra kiểm chứng được, và khối việc giao cho Claude Code.
