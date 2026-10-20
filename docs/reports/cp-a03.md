@@ -50,4 +50,21 @@ Cổng kiểm đầy đủ và lab: mục 5.
 
 ## 5. Cổng kiểm và lab
 
-Điền khi chạy xong.
+Cổng kiểm cục bộ (nhân 6–10, image Go 1.26.9, PostgreSQL thật):
+
+- `make test-go`: mã thoát 0, golangci-lint 0 issues.
+- `make e2e-go`: lượt đầu hỏng `TestMigrationsUpDownOnEmptyDatabase` (danh sách bảng thiếu
+  `control_plane_lease`), đã sửa. `TestControlPlaneProcessRestartWithRealNginx` (SIGKILL control
+  plane rồi chạy lại cùng cấu hình) PASS: bản mới giành lại lease ngay vì tiến trình cũ đã chết
+  trên cùng máy.
+
+Lab (20/10, dựng từ đầu nhánh CP-A02, gồm CP-A03; sau đó lùi migration 0027 và dựng lại từ main):
+
+| Bước | Kết quả |
+| --- | --- |
+| `GET /readyz` | `{"components":{"clickhouse":"ok","lease":"held","postgres":"ok"},"ready":true}` |
+| `docker restart` control plane | Sẵn sàng lại sau 2,8 s; dừng sạch nhả lease, bản mới giữ với fencing 2 |
+| Control plane thứ hai cùng database (`compose run`) | Chờ lease hết hạn trong khi bản đang chạy vẫn gia hạn, dừng sau 43 s với thông báo nêu holder, mã thoát 1 |
+| Duyệt lại 29 policy (bundle đang chạy chưa có `rules_digest`, CP-FIX-01) | Xong |
+| `lab-chain.sh`, `smoke.sh`, `runbook-drill.sh lab` | PASS cả ba |
+| Lab dựng lại từ main | smoke PASS |
