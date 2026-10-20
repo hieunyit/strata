@@ -174,6 +174,17 @@ func (d *StagingDeployer) Stage(ctx context.Context, sourceVersion uint64, polic
 		if !ready {
 			return ErrStagingNotEligible
 		}
+		requirements, err := bundlefmt.Requirements(data, d.PubKey)
+		if err != nil {
+			return err
+		}
+		if check, ok := d.Store.(interface {
+			CheckCapabilities(context.Context, []string) error
+		}); ok {
+			if err := check.CheckCapabilities(ctx, requirements); err != nil {
+				return err
+			}
+		}
 		sum = sha256.Sum256(data)
 		key := ObjectKey(next)
 		if err = d.Objects.Put(ctx, key, data, hex.EncodeToString(sum[:])); err != nil {
@@ -189,7 +200,7 @@ func (d *StagingDeployer) Stage(ctx context.Context, sourceVersion uint64, polic
 			return err
 		}
 		requestSum := sha256.Sum256(request)
-		out, err = d.Store.RecordStagingBundle(ctx, source, store.Bundle{Version: next, InputDigest: prepared.Digest, RulesDigest: prepared.RulesDigest, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: source.Contents},
+		out, err = d.Store.RecordStagingBundle(ctx, source, store.Bundle{RequiredCapabilities: requirements, Version: next, InputDigest: prepared.Digest, RulesDigest: prepared.RulesDigest, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: source.Contents},
 			store.StagingAction{ID: hex.EncodeToString(requestSum[:]), PolicyID: policyID, PolicyVersion: version, RuleID: rule, Matches: evidence.Matches, Reports: evidence.Reports, WindowFrom: from, WindowTo: now},
 			store.Audit{Actor: "rule-health", Channel: "system", Action: "rule-staging:record", Resource: fmt.Sprintf("policies/%s/versions/%d/rules/%d", policyID, version, rule)})
 		return err

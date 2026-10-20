@@ -352,7 +352,8 @@ func (s *Store) DeployablePolicies(ctx context.Context) ([]Policy, error) {
 
 // Bundle is a row of bundles.
 type Bundle struct {
-	InputDigest string `json:"input_digest,omitempty"`
+	RequiredCapabilities []string `json:"required_capabilities"`
+	InputDigest          string   `json:"input_digest,omitempty"`
 	// RulesDigest commits the compiler and rule inputs alone (CP-FIX-01);
 	// "" for bundles recorded before it.
 	RulesDigest string `json:"rules_digest,omitempty"`
@@ -459,9 +460,13 @@ func recordBundle(ctx context.Context, tx pgx.Tx, b Bundle, a Audit, ordinary bo
 }
 
 func recordBundleJSON(ctx context.Context, tx pgx.Tx, b Bundle, a Audit, contents []byte, ordinary bool) (Bundle, error) {
-	if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents, input_digest, rules_digest)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at`,
-		int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents, b.InputDigest, b.RulesDigest).Scan(&b.CreatedAt); err != nil {
+	requirements, err := json.Marshal(b.RequiredCapabilities)
+	if err != nil {
+		return Bundle{}, err
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO bundles (version, sha256, object_key, size_bytes, created_by, contents, input_digest, rules_digest, required_capabilities)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at`,
+		int64(b.Version), b.SHA256, b.ObjectKey, b.SizeBytes, a.Actor, contents, b.InputDigest, b.RulesDigest, requirements).Scan(&b.CreatedAt); err != nil {
 		return Bundle{}, fmt.Errorf("store: record bundle: %w", err)
 	}
 	b.CreatedBy = a.Actor
@@ -483,8 +488,8 @@ func (s *Store) LatestBundle(ctx context.Context) (Bundle, error) {
 	var b Bundle
 	var contents []byte
 	var v int64
-	err := s.pool.QueryRow(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest, rules_digest
-		FROM bundles ORDER BY version DESC LIMIT 1`).Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest, &b.RulesDigest)
+	err := s.pool.QueryRow(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest, rules_digest, required_capabilities
+		FROM bundles ORDER BY version DESC LIMIT 1`).Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest, &b.RulesDigest, &b.RequiredCapabilities)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Bundle{}, ErrNotFound
 	}
@@ -498,7 +503,7 @@ func (s *Store) LatestBundle(ctx context.Context) (Bundle, error) {
 
 // ListBundles returns the newest bundles first.
 func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
-	rows, err := s.pool.Query(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest, rules_digest
+	rows, err := s.pool.Query(ctx, `SELECT version, sha256, object_key, size_bytes, contents, created_by, created_at, input_digest, rules_digest, required_capabilities
 		FROM bundles ORDER BY version DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: list bundles: %w", err)
@@ -507,7 +512,7 @@ func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
 		var b Bundle
 		var v int64
 		var contents []byte
-		err := r.Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest, &b.RulesDigest)
+		err := r.Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &contents, &b.CreatedBy, &b.CreatedAt, &b.InputDigest, &b.RulesDigest, &b.RequiredCapabilities)
 		b.Version = uint64(v)
 		_ = json.Unmarshal(contents, &b.Contents)
 		return b, err

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -75,4 +76,37 @@ func CertificateStatus(expiry *time.Time, now time.Time) string {
 		return "expiring"
 	}
 	return "healthy"
+}
+
+// ErrIncompatible is returned before any desired version or rollout is changed.
+var ErrIncompatible = errors.New("store: incompatible nodes")
+
+// CheckCapabilities is a preflight; CreateRollout rechecks transactionally.
+func (s *Store) CheckCapabilities(ctx context.Context, required []string) error {
+	if len(required) == 0 {
+		return nil
+	}
+	nodes, err := s.ListNodes(ctx)
+	if err != nil {
+		return err
+	}
+	missing := []string{}
+	for _, n := range nodes {
+		if n.RevokedAt != nil {
+			continue
+		}
+		have := map[string]bool{}
+		for _, c := range n.Inventory.Capabilities {
+			have[c] = true
+		}
+		for _, c := range required {
+			if !have[c] {
+				missing = append(missing, n.ID+":"+c)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s", ErrIncompatible, strings.Join(missing, ", "))
+	}
+	return nil
 }

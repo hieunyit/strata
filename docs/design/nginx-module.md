@@ -1043,16 +1043,19 @@ Bảng dưới ghi nhận từng điểm của bản review, đánh giá và tha
 | Circuit breaker cấp node | Tốt, nhưng nếu tính cả vượt budget thì kẻ tấn công tự mở được | Đưa vào với phiên bản đã điều chỉnh |
 | Emergency bypass header | Không khuyến nghị: thực chất là backdoor | Không làm; dùng `ForceShadow` và exception debug |
 
-### CP-B02 · Inventory Fleet
+### CP-B02 · Inventory và kiểm tương thích
 
-NodeInfo trong Hello/heartbeat có agent version, OS/architecture, ABI và capability; agent
-cũ có thể không báo. Input telemetry được giới hạn và không được dùng để cấp quyền.
-PostgreSQL giữ inventory và thời điểm nhận (migration 0030); Fleet API/UI có desired/actual,
-drift và chứng chỉ unknown/expired/expiring/healthy (ngưỡng 7 ngày). Kiểm tương thích và
-manifest module là phần tiếp theo của CP-B02.
-
+Fleet Hello/Heartbeat mang NodeInfo với agent version, OS/architecture, ABI và danh sách
+capability; input không được tin để cấp quyền. PostgreSQL giữ inventory và thời điểm nhận,
+Fleet API/UI hiển thị desired/actual, drift và hạn chứng chỉ (sắp hết hạn trong 7 ngày).
 Agent nhận `--module-manifest` (mặc định `/etc/strata/module-manifest.json` của gói module),
 kiểm SHA-256 binary và đối chiếu module version/ABI từ metrics trước khi báo capability.
 Thiếu manifest hoặc runtime không khớp nghĩa là chưa biết. Nâng module cần reload NGINX và
-restart agent; manifest không chứng minh mọi worker đã bỏ binary cũ. Manifest tối đa 16 KiB,
-module regular file tối đa 64 MiB và không quá 64 capability.
+restart agent; manifest không phải bằng chứng rằng mọi worker đã bỏ binary cũ.
+
+Requirements lấy từ section directory và policy metadata của bundle đã xác minh chữ ký,
+lưu cùng bundle trong PostgreSQL, không đổi định dạng v1. Deploy/staging kiểm trước khi ghi;
+rollout kiểm lại trước khi thay desired hoặc hủy rollout cũ; node thiếu capability không được
+tải bundle qua FetchBundle, kể cả khi enroll/kết nối sau rollout. Inventory không thay kiểm
+chữ ký/layout của engine. Bundle cũ chưa có requirements giữ đường tương thích cũ; không suy
+ra capability cho agent cũ.

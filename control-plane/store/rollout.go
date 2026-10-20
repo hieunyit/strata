@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -109,6 +110,9 @@ func (s *Store) CreateRollout(ctx context.Context, version uint64, nodes []strin
 }
 
 func createRolloutTx(ctx context.Context, tx pgx.Tx, version uint64, nodes []string, plan []float64, soak time.Duration, a Audit) (Rollout, []string, error) {
+	if err := compatibleNodes(ctx, tx, version, nodes); err != nil {
+		return Rollout{}, nil, err
+	}
 	waves := WavePlan(len(nodes), plan)
 	raw, _ := json.Marshal(waves)
 	var r Rollout
@@ -349,11 +353,12 @@ func (s *Store) EnrolledNodes(ctx context.Context) ([]string, error) {
 
 // DesiredBundle returns the bundle a node should run, or ErrNotFound.
 func (s *Store) DesiredBundle(ctx context.Context, node string) (Bundle, error) {
+	var i Inventory
 	var b Bundle
 	var v int64
-	err := s.pool.QueryRow(ctx, `SELECT b.version, b.sha256, b.object_key, b.size_bytes FROM nodes n
+	err := s.pool.QueryRow(ctx, `SELECT b.version, b.sha256, b.object_key, b.size_bytes, b.required_capabilities, n.inventory FROM nodes n
 		JOIN bundles b ON b.version = n.desired_bundle_version WHERE n.id = $1 AND n.revoked_at IS NULL`, node).
-		Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes)
+		Scan(&v, &b.SHA256, &b.ObjectKey, &b.SizeBytes, &b.RequiredCapabilities, &i)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Bundle{}, ErrNotFound
 	}
@@ -361,5 +366,53 @@ func (s *Store) DesiredBundle(ctx context.Context, node string) (Bundle, error) 
 		return Bundle{}, fmt.Errorf("store: desired bundle: %w", err)
 	}
 	b.Version = uint64(v)
+	have := map[string]bool{}
+	for _, c := range i.Capabilities {
+		have[c] = true
+	}
+	for _, c := range b.RequiredCapabilities {
+		if !have[c] {
+			return Bundle{}, fmt.Errorf("%w: %s:%s", ErrIncompatible, node, c)
+		}
+	}
 	return b, nil
+}
+
+func compatibleNodes(ctx context.Context, tx pgx.Tx, version uint64, nodes []string) error {
+	var required []string
+	if err := tx.QueryRow(ctx, "SELECT required_capabilities FROM bundles WHERE version = $1", int64(version)).Scan(&required); err != nil {
+		return fmt.Errorf("store: bundle requirements: %w", err)
+	}
+	if len(required) == 0 {
+		return nil
+	}
+	rows, err := tx.Query(ctx, "SELECT id, inventory FROM nodes WHERE id = ANY($1) ORDER BY id FOR SHARE", nodes)
+	if err != nil {
+		return fmt.Errorf("store: compatibility: %w", err)
+	}
+	defer rows.Close()
+	missing := []string{}
+	for rows.Next() {
+		var id string
+		var i Inventory
+		if err := rows.Scan(&id, &i); err != nil {
+			return err
+		}
+		have := map[string]bool{}
+		for _, c := range i.Capabilities {
+			have[c] = true
+		}
+		for _, c := range required {
+			if !have[c] {
+				missing = append(missing, id+":"+c)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s", ErrIncompatible, strings.Join(missing, ", "))
+	}
+	return nil
 }
