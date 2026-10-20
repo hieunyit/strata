@@ -193,7 +193,12 @@ func TestStagingLedgerBoundsAndMigration(t *testing.T) {
 	if err := db.Migrate(ctx, p, 20); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Migrate(ctx, p, 21); err != nil {
+	// up again through 21 to the latest, which the store's queries need
+	latestVersion, err := db.Latest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrate(ctx, p, latestVersion); err != nil {
 		t.Fatal(err)
 	}
 	// Existing approved bundle preserved; no staging inferred by migration.

@@ -30,7 +30,9 @@ type Builder interface {
 type Deployer struct {
 	// VerifyReplay checks the exact approved operations against prepared inputs.
 	// When set, builders without snapshot support cannot deploy.
-	VerifyReplay func(context.Context, map[string]int, string) error
+	// The last two arguments are the input digest and the rules digest of
+	// the prepared bundle (CP-FIX-01).
+	VerifyReplay func(context.Context, map[string]int, string, string) error
 
 	Store   Store
 	Builder Builder
@@ -89,7 +91,7 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			contents[p.ID] = p.CurrentVersion
 		}
 		var data []byte
-		inputDigest := ""
+		inputDigest, rules := "", ""
 		if d.VerifyReplay != nil {
 			compiler, ok := d.Builder.(interface {
 				Prepare(context.Context, []Named) (*Prepared, error)
@@ -102,8 +104,8 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 				return e
 			}
 			defer prepared.Close()
-			inputDigest = prepared.Digest
-			if err := d.VerifyReplay(ctx, contents, inputDigest); err != nil {
+			inputDigest, rules = prepared.Digest, prepared.RulesDigest
+			if err := d.VerifyReplay(ctx, contents, inputDigest, rules); err != nil {
 				return err
 			}
 			data, err = prepared.Build(ctx, next)
@@ -126,7 +128,7 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			return err
 		}
 		out, err = d.Store.RecordBundle(ctx, store.Bundle{
-			InputDigest: inputDigest, Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
+			InputDigest: inputDigest, RulesDigest: rules, Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
 		}, a)
 		return err
 	})

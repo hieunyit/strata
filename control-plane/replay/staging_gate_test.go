@@ -70,7 +70,7 @@ func TestStagingGateUsesApprovedRootWithoutWeakeningDeploy(t *testing.T) {
 				t.Fatalf("allowed=%v err=%v", err == nil, err)
 			}
 			if tc.want {
-				if err = gate.Check(t.Context(), source.Contents, source.InputDigest); err == nil {
+				if err = gate.Check(t.Context(), source.Contents, source.InputDigest, digest([]byte("rules"))); err == nil {
 					t.Fatal("ordinary gate accepted old baseline/proof")
 				}
 			}

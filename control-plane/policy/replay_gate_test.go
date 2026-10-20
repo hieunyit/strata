@@ -44,16 +44,16 @@ cp "$fixture" "$out"
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest := prepared.Digest
+	digest, rulesDigest := prepared.Digest, prepared.RulesDigest
 	prepared.Close()
 	ps := []store.Policy{{ID: "api", Name: "example-api", CurrentVersion: 1, Spec: json.RawMessage(`{"mode":"enforce"}`)}}
 	for _, allowed := range []bool{false, true} {
 		st := &fakeStore{policies: ps}
 		obj := &fakeObjects{puts: map[string][]byte{}}
 		checked := false
-		d := &Deployer{Store: st, Builder: compiler, Objects: obj, PubKey: pub, VerifyReplay: func(_ context.Context, contents map[string]int, got string) error {
+		d := &Deployer{Store: st, Builder: compiler, Objects: obj, PubKey: pub, VerifyReplay: func(_ context.Context, contents map[string]int, got, gotRules string) error {
 			checked = true
-			if got != digest || contents["api"] != 1 {
+			if got != digest || gotRules != rulesDigest || len(gotRules) != 64 || contents["api"] != 1 {
 				t.Fatal("gate got different inputs")
 			}
 			if !allowed {
@@ -71,7 +71,7 @@ cp "$fixture" "$out"
 			if !errors.As(err, &mismatch) || len(obj.puts) != 0 || len(st.bundles) != 0 {
 				t.Fatalf("rejected deploy published: %v", err)
 			}
-		} else if err != nil || dep.Bundle.InputDigest != digest || len(obj.puts) != 1 {
+		} else if err != nil || dep.Bundle.InputDigest != digest || dep.Bundle.RulesDigest != rulesDigest || len(obj.puts) != 1 {
 			t.Fatalf("snapshot deploy: %+v %v", dep, err)
 		}
 	}
