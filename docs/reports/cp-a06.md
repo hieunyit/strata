@@ -44,3 +44,12 @@ Ngày: 20/10/2026. Người làm: Claude Code (strata-59). Kế hoạch: `docs/p
 
 Không build lại ở bước nào. Gate Go: `go test -race` toàn bộ control-plane với PostgreSQL thật,
 golangci-lint 0 issues; shellcheck sạch.
+
+## 4. Phát hiện ngoài phạm vi
+
+Gate sau rebase một lần hỏng `TestInitAndRecoverInPostgres`; chạy riêng và chạy toàn bộ
+control-plane tuần tự (`go test -p 1 ./...`) đều pass. Nguyên nhân: các package có test PostgreSQL
+(`store`, `cmd/server`, ...) dùng chung một database `STRATA_TEST_POSTGRES_DSN` và chạy song song
+(`go test ./...` mặc định), nên một package migrate xuống 0 lúc dọn trong khi package khác đang
+dùng schema. Lỗi có từ trước A06. Hướng sửa: mỗi package test PostgreSQL tạo database riêng (như
+`TestBackupRestoreInPostgres` đã làm), hoặc chạy `-p 1` khi có DSN.
