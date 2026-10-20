@@ -97,7 +97,7 @@ func main() {
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
-	localAuth := flag.Bool("local-auth", false, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC")
+	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
@@ -107,8 +107,15 @@ func main() {
 	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the object store (-s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
 	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the object store (-s3-*) and activated")
 	configPath := flag.String("config", os.Getenv("STRATA_CONFIG"), "YAML configuration file (CP-A02); flags given here override it. Also: strata-control-plane config validate|show -config <file>")
-	if len(os.Args) > 1 && os.Args[1] == "config" {
-		os.Exit(configCommand(os.Args[2:]))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "config":
+			os.Exit(configCommand(os.Args[2:]))
+		case "init":
+			os.Exit(initCommand(os.Args[2:]))
+		case "admin":
+			os.Exit(adminCommand(os.Args[2:]))
+		}
 	}
 	flag.Parse()
 	if *configPath != "" {
@@ -118,9 +125,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("[FATAL] %v", err)
 		}
-		if _, err := file.Apply(flag.CommandLine, explicit); err != nil {
+		src, err := file.Apply(flag.CommandLine, explicit)
+		if err != nil {
 			log.Fatalf("[FATAL] %v", err)
 		}
+		configSources = src
 		log.Printf("[INFO] configuration from %s (flags given on the command line override it)", *configPath)
 	}
 	mx := metrics.New(version, commit)
@@ -221,6 +230,14 @@ func main() {
 		store = chStore
 	}
 
+	// local accounts are the default (CP-A05); without PostgreSQL they
+	// cannot work: off, unless asked for explicitly (then an error below)
+	localSet := false
+	flag.Visit(func(f *flag.Flag) { localSet = localSet || f.Name == "local-auth" })
+	if *localAuth && pool == nil && !localSet && !configSets("local-auth") {
+		log.Println("[WARN] no PostgreSQL: local accounts are off")
+		*localAuth = false
+	}
 	if *oidcIssuer == "" && !*localAuth {
 		log.Fatal("[FATAL] no way to sign in: set -oidc-issuer, -local-auth, or both")
 	}
@@ -873,6 +890,13 @@ func readiness(pool *pgxpool.Pool, keeper *leaseKeeper, events ingest.EventStore
 		return out, ready
 	}
 }
+
+// configSources: where each flag's value came from, when a configuration
+// file was given.
+var configSources map[string]config.Source
+
+// configSets reports whether the configuration file set flag name.
+func configSets(name string) bool { return configSources[name] == config.FromFile }
 
 // configCommand runs "config validate" or "config show [--effective]" on a
 // configuration file (-config, or STRATA_CONFIG): it decodes the file,
