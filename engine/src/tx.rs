@@ -69,6 +69,18 @@ pub(crate) struct MatchEntry {
     pub snippet: Vec<u8>,
 }
 
+/// A rule's match with the value it matched on, transformed and not
+/// masked (at most `event::MASK_WINDOW` bytes): for tools that measure
+/// rules on samples (W20-R-01), never in an event.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MatchValue {
+    pub rule: u32,
+    pub field: String,
+    pub value: Vec<u8>,
+    /// reported only (a paranoia level in shadow, a scoped rule in log)
+    pub report_only: bool,
+}
+
 #[derive(Debug)]
 pub struct Tx {
     engine: Option<Arc<Engine>>,
@@ -149,6 +161,9 @@ pub struct Tx {
     layer_scores: [i32; 6],
     protocol_score: i32,
     matches: Vec<MatchEntry>,
+    /// the values of the matches as the rule saw them, when kept
+    /// (`keep_match_values`, replay tools only)
+    match_values: Option<Vec<MatchValue>>,
     budget: Option<crate::budget::TxBudget>,
     degraded: bool,
     /// signature pack of the policy (RV-S-01); in shadow its rules keep
@@ -332,6 +347,7 @@ impl Tx {
             layer_scores: [0; 6],
             protocol_score: 0,
             matches: Vec::new(),
+            match_values: None,
             budget: None,
             degraded: flags & TXF_DEGRADED != 0,
             signatures: crate::bundle::Signatures::Shadow,
@@ -585,6 +601,18 @@ impl Tx {
         self.elapsed_ns / 1000
     }
 
+    /// Keeps the value of every later match (`match_values`). Off by
+    /// default: the values are not masked, so only offline tools on
+    /// anonymized samples turn it on.
+    pub fn keep_match_values(&mut self) {
+        self.match_values.get_or_insert_with(Vec::new);
+    }
+
+    /// The matches kept since `keep_match_values`, in order.
+    pub fn match_values(&self) -> &[MatchValue] {
+        self.match_values.as_deref().unwrap_or(&[])
+    }
+
     /// Whether this request has already matched a blocking or logging rule.
     pub fn is_matched(&self) -> bool {
         self.matched
@@ -647,6 +675,16 @@ impl Tx {
     fn add(&mut self, mut v: Violation) {
         if self.rules[..self.n_rules].contains(&v.rule) || self.is_disabled(v.rule) {
             return;
+        }
+        if let Some(kept) = &mut self.match_values
+            && !kept.iter().any(|m| m.rule == v.rule)
+        {
+            kept.push(MatchValue {
+                rule: v.rule,
+                field: v.field.clone(),
+                value: v.snippet[..v.snippet.len().min(crate::event::MASK_WINDOW)].to_vec(),
+                report_only: v.report_only,
+            });
         }
         if v.rule == protocol::BODY_UNPARSED
             && (self.body_skipped

@@ -7,6 +7,7 @@ Never packed into a bundle; see NOTICE for origins and licenses.
 | --- | --- | --- |
 | `attack/<type>.jsonl` | attack payloads: `{payload, attack_type, source, license}`; `source` is `repo@commit:path:line` | `strata-rules corpus fetch` from the pinned commits in `sources.yaml` |
 | `benign/synthetic.jsonl` | 2,000 ordinary API and web requests (names with apostrophes, SQL and HTML words in prose, dotted paths, JSON) | `strata-rules corpus benign --seed 1` |
+| `fp/semantic/<detector>-benign.txt` | benign values that look like SQL or markup, one per line (`#` comments): false positives of the semantic detectors | written by hand (W20-R-01); `strata-replay semantic --values` |
 | `crs-ftw/<group>.jsonl` | the go-ftw tests of CRS 4.25.2: `{rule, test, expect: match/no_match, request}` | `make crs-ftw`; tests that could not be converted: `docs/crs-ftw-unconverted.md` |
 
 Requests use the same fields as the tests of rule files (`method`, `uri`,

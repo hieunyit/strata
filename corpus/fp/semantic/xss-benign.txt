@@ -1,0 +1,40 @@
+# Benign values that look like markup (W20-R-01): comparisons, angle brackets in prose, entities
+# Comparison operators and numeric thresholds
+kích thước < 5MB
+giá trị > 100
+a < b and c > d
+5 < 10
+100 > 50
+5 < 10 && 10 > 2
+width > 100
+height < 200
+x <= y
+p >= q
+< 5 min
+> 1 hour
+<= 24 hours
+>= 100 items
+
+# Text formatting and arrows
+-> arrow next
+<- arrow prev
+<< previous page
+>> next page
+A -> B -> C
+
+# Plain text attributes and safe descriptions
+title="hello world"
+alt="product picture"
+class="btn btn-primary"
+id="main-content"
+width="100%" height="auto"
+name="username" placeholder="Enter your email"
+
+# Safe HTML formatting tags
+<b>bold text</b>
+<i>italic note</i>
+<p>paragraph description</p>
+<span>inline badge</span>
+<br/>
+<em>important notice</em>
+<strong>warning</strong>

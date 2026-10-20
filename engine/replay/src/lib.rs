@@ -30,6 +30,9 @@ use parquet::record::Field;
 use parquet::schema::types::Type;
 use serde::Serialize;
 
+pub mod corpus;
+pub mod semantic;
+
 /// Sample format this crate reads and writes.
 pub const FORMAT: &str = "1";
 pub const META_FORMAT: &str = "strata.replay.format";
@@ -261,6 +264,16 @@ fn action_name(a: u32, error: bool) -> &'static str {
 /// name).
 pub fn evaluate(engine: &Arc<Engine>, s: &Sample, policy: Option<&str>) -> Outcome {
     let mut t = Tx::new(Some(engine.clone()), s.node_id.as_bytes(), 0);
+    run_tx(&mut t, s, policy);
+    let v = t.verdict();
+    Outcome {
+        action: action_name(v.action, v.error != libstrata::verdict::OK),
+        rules: v.rules[..v.n_rules as usize].to_vec(),
+    }
+}
+
+/// Feeds one sample to a transaction, as the connector would.
+fn run_tx(t: &mut Tx, s: &Sample, policy: Option<&str>) {
     t.set_client_addr(s.client.as_bytes());
     t.set_policy(policy.unwrap_or(&s.policy).as_bytes());
     t.request_line(
@@ -278,11 +291,6 @@ pub fn evaluate(engine: &Arc<Engine>, s: &Sample, policy: Option<&str>) -> Outco
         .collect();
     t.request_headers(&h);
     t.request_body_chunk(&s.body, true);
-    let v = t.verdict();
-    Outcome {
-        action: action_name(v.action, v.error != libstrata::verdict::OK),
-        rules: v.rules[..v.n_rules as usize].to_vec(),
-    }
 }
 
 /// Counts of one route (policy).
