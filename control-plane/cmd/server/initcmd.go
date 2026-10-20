@@ -93,7 +93,7 @@ func initCommand(args []string) int {
 	pwFile := fs.String("admin-password-file", "", "File holding the first admin's password; without it, asked on the terminal")
 	dsnFile := fs.String("dsn-file", "", "File holding the PostgreSQL DSN (default: STRATA_POSTGRES_DSN, then <data-dir>/secrets/postgres-dsn); kept in the data directory")
 	ch := fs.String("clickhouse", "clickhouse:9000", "ClickHouse address written in config.yaml")
-	s3 := fs.String("s3-endpoint", "", "Object store written in config.yaml (until filesystem storage, CP-A07)")
+	s3 := fs.String("s3-endpoint", "", "Object store written in config.yaml; empty: artifacts in <dir>/objects (CP-A07)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

@@ -50,8 +50,13 @@ func TestInitAndRecoverInPostgres(t *testing.T) {
 		}
 	}
 	// the written config loads (secrets are files of mode 600)
-	if _, err := config.Load(filepath.Join(dir, setup.ConfigFile)); err != nil {
+	cfg, err := config.Load(filepath.Join(dir, setup.ConfigFile))
+	if err != nil {
 		t.Fatal(err)
+	}
+	// no -s3-endpoint: artifacts in the data directory (CP-A07)
+	if p := cfg.Bundles.Storage.Local.Path; p == nil || *p != filepath.Join(dir, setup.ObjectsDir) || cfg.Bundles.Storage.S3.Endpoint != nil {
+		t.Fatalf("storage: local %v, s3 %v", p, cfg.Bundles.Storage.S3.Endpoint)
 	}
 	svc, err := localauth.NewService(localauth.NewStore(pool), time.Hour)
 	if err != nil {

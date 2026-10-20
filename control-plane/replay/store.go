@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -99,11 +100,19 @@ func (s *Store) Put(ctx context.Context, keyID string, recs []Record) (string, e
 		return "", err
 	}
 	sum := sha256.Sum256(buf.Bytes())
-	key := Key(p, n, recs[0].TsMs, s.seq.Add(1))
-	if err := s.Objects.Put(ctx, key, buf.Bytes(), hex.EncodeToString(sum[:])); err != nil {
-		return "", fmt.Errorf("replay: store %s: %w", key, err)
+	// the sequence starts again with the process: a key a previous run
+	// took (immutable on a filesystem store, CP-A07) moves to the next
+	for try := 0; ; try++ {
+		key := Key(p, n, recs[0].TsMs, s.seq.Add(1))
+		err := s.Objects.Put(ctx, key, buf.Bytes(), hex.EncodeToString(sum[:]))
+		if errors.Is(err, policy.ErrObjectExists) && try < 16 {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("replay: store %s: %w", key, err)
+		}
+		return key, nil
 	}
-	return key, nil
 }
 
 // nodePattern: node ids go into object keys.

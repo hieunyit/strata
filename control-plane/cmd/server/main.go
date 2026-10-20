@@ -71,7 +71,7 @@ func main() {
 	nodeCAKey := flag.String("node-ca-key", "", "Key of -node-ca-cert")
 	trustBundle := flag.String("fleet-trust-bundle", "", "CA bundle enrolled agents trust for FleetService (default: -tls-ca)")
 	bundlePub := flag.String("bundle-pubkey", "", "Public key that verifies bundle signatures, sent to enrolled agents")
-	signingKey := flag.String("bundle-signing-key", "", "Ed25519 seed that signs bundles, with -bundle-signer=file (lab, development); deploys need a signer, -bundle-pubkey and -s3-*")
+	signingKey := flag.String("bundle-signing-key", "", "Ed25519 seed that signs bundles, with -bundle-signer=file (lab, development); deploys need a signer, -bundle-pubkey and -objects-dir or -s3-*")
 	signerKind := flag.String("bundle-signer", "file", "Who signs bundles: file (-bundle-signing-key) or vault (Vault transit; the key never leaves Vault; token from -vault-token-file or VAULT_TOKEN)")
 	vaultAddr := flag.String("vault-addr", os.Getenv("VAULT_ADDR"), "Vault address, with -bundle-signer=vault")
 	vaultMount := flag.String("vault-transit-mount", "transit", "Vault transit mount")
@@ -86,11 +86,15 @@ func main() {
 	s3Endpoint := flag.String("s3-endpoint", "", "Object store host:port for bundles; keys from STRATA_S3_ACCESS_KEY, STRATA_S3_SECRET_KEY")
 	s3Bucket := flag.String("s3-bucket", "strata-bundles", "Bucket for bundles")
 	s3Secure := flag.Bool("s3-secure", true, "Use HTTPS for the object store")
+	objectsDir := flag.String("objects-dir", "", "Directory for bundles, replay samples, GeoIP databases and crawler ranges, in place of an object store (CP-A07); excludes -s3-endpoint")
+	keepBundles := flag.Int("objects-keep-bundles", 10, "With -objects-dir: the newest bundles kept besides those nodes run or should run and those of running rollouts; older ones are removed")
+	sampleDays := flag.Int("objects-sample-days", 7, "With -objects-dir: days of replay samples kept (an object store uses its lifecycle rule)")
+	pruneEvery := flag.Duration("objects-prune-interval", time.Hour, "With -objects-dir: how often old bundles and replay samples are removed; 0: never")
 	singleCP := flag.Bool("single-control-plane", true, "Hold the control plane lease in PostgreSQL: one control plane serves at a time (the Fleet state lives in this process); a second one waits for the lease to expire, then gives up")
 	leaseTTL := flag.Duration("lease-ttl", 30*time.Second, "Lifetime of the control plane lease; renewed every third of it")
 	replayApproved := flag.Bool("replay-sampling-approved", false,
 		"Allow sampling real traffic for replay (W12-N-01); only once the sample format (docs/spec/replay-sample.md) passed legal review")
-	replayBin := flag.String("replay", "", "strata-replay binary: each new policy version is replayed against the bundle in force on the policy's traffic samples and -replay-corpus (W13-G2-01); empty: no replay. Needs deploys (signer, -bundle-pubkey, -s3-*)")
+	replayBin := flag.String("replay", "", "strata-replay binary: each new policy version is replayed against the bundle in force on the policy's traffic samples and -replay-corpus (W13-G2-01); empty: no replay. Needs deploys (signer, -bundle-pubkey, -objects-dir or -s3-*)")
 	replayCorpus := flag.String("replay-corpus", "", "Sample file of the benign and attack corpus (strata-replay gen) replayed with every draft")
 	replayThreads := flag.Int("replay-threads", 2, "Threads of one replay")
 	replayTimeout := flag.Duration("replay-timeout", 10*time.Minute, "Longest replay")
@@ -104,8 +108,8 @@ func main() {
 	corsOrigins := flag.String("cors-origins", "http://localhost:5173,http://127.0.0.1:5173", "Comma-separated origins allowed to call the REST API from a browser")
 	geoIPCity := flag.String("geoip-city", "", "Operator-provided GeoIP2/GeoLite2 City .mmdb file (optional)")
 	geoIPASN := flag.String("geoip-asn", "", "Operator-provided GeoLite2/GeoIP2 ASN .mmdb file (optional)")
-	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the object store (-s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
-	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the object store (-s3-*) and activated")
+	goodBotsEvery := flag.Duration("good-bots-interval", 0, "How often the crawlers' published IP ranges (Google, Bing, Apple) are fetched and stored in the artifact store (-objects-dir or -s3-*); bundles built afterwards carry the latest (rule 500001). 0: never (the default: no outbound request unless asked)")
+	geoIPEvery := flag.Duration("geoip-update-interval", 7*24*time.Hour, "With STRATA_GEOIP_CITY_URL and/or STRATA_GEOIP_ASN_URL: how often the GeoIP databases are downloaded, checked, stored in the artifact store (-objects-dir or -s3-*) and activated")
 	configPath := flag.String("config", os.Getenv("STRATA_CONFIG"), "YAML configuration file (CP-A02); flags given here override it. Also: strata-control-plane config validate|show -config <file>")
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -348,7 +352,27 @@ func main() {
 		log.Fatalf("[FATAL] -bundle-signer must be file or vault")
 	}
 	deps := admin.Deps{Presence: presence}
-	var objects *policy.S3
+	if *objectsDir != "" && *s3Endpoint != "" {
+		log.Fatal("[FATAL] -objects-dir and -s3-endpoint exclude each other: artifacts live in one place")
+	}
+	// the artifact store, opened once when something needs it
+	var objectStore policy.ObjectStore
+	openObjects := func() policy.ObjectStore {
+		switch {
+		case objectStore != nil:
+		case *objectsDir != "":
+			dirStore, err := policy.NewFS(*objectsDir, policy.DefaultMutableKeys)
+			if err != nil {
+				log.Fatalf("[FATAL] -objects-dir: %v", err)
+			}
+			objectStore = dirStore
+		case *s3Endpoint != "":
+			objectStore = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
+				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		}
+		return objectStore
+	}
+	var objects policy.ObjectStore
 	var stagingWriter *policy.StagingDeployer
 	var rollouts *fleet.Rollouts
 	var canary *fleet.CanaryMonitor
@@ -369,9 +393,10 @@ func main() {
 		canary = fleet.NewCanaryMonitor(pg, commands, fleet.CanaryOptions{})
 		deps.CanaryTrips = pg
 		go canary.Run(ctx)
-		if *s3Endpoint != "" {
-			objects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
-				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+		objects = openObjects()
+		if *objectsDir != "" && *pruneEvery > 0 {
+			pruner := &policy.Pruner{Store: pg, Objects: objects, KeepBundles: *keepBundles, SampleDays: *sampleDays}
+			go pruner.Run(ctx, *pruneEvery)
 		}
 		if signer != nil || *signingKey != "" {
 			if k := os.Getenv("STRATA_IDENTITY_HMAC_KEY"); k != "" {
@@ -400,7 +425,7 @@ func main() {
 				log.Printf("[INFO] Replay of drafts: %s, corpus %q", *replayBin, *replayCorpus)
 			}
 		} else if *replayBin != "" {
-			log.Fatal("[FATAL] -replay needs deploys (-bundle-signing-key or -bundle-signer=vault, -bundle-pubkey, -s3-endpoint)")
+			log.Fatal("[FATAL] -replay needs deploys (-bundle-signing-key or -bundle-signer=vault, -bundle-pubkey, -objects-dir or -s3-endpoint)")
 		}
 	}
 	adm, err := admin.New(ctx, verifier, admin.BuildInfo{Version: version, Commit: commit}, deps, adminOpts...)
@@ -509,28 +534,23 @@ func main() {
 
 	var goodBots *goodbots.Updater
 	if *goodBotsEvery > 0 {
-		if *s3Endpoint == "" {
-			log.Fatal("[FATAL] -good-bots-interval stores each version in the object store: set -s3-endpoint")
-		}
-		gbObjects := objects
+		gbObjects := openObjects()
 		if gbObjects == nil {
-			gbObjects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
-				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+			log.Fatal("[FATAL] -good-bots-interval stores each version in the artifact store: set -objects-dir or -s3-endpoint")
 		}
 		goodBots = &goodbots.Updater{Objects: gbObjects, IsNotFound: policy.IsObjectNotFound}
 		go goodBots.Run(ctx, *goodBotsEvery)
 	}
 	var geoUpdater *ingest.GeoIPUpdater
 	if geoUpdates {
-		if *s3Endpoint == "" {
-			log.Fatal("[FATAL] GeoIP updates keep each version in the object store: set -s3-endpoint")
-		}
-		geoObjects := objects
+		geoObjects := openObjects()
 		if geoObjects == nil {
-			geoObjects = connectS3(ctx, policy.S3Config{Endpoint: *s3Endpoint, Bucket: *s3Bucket, Secure: *s3Secure,
-				AccessKey: os.Getenv("STRATA_S3_ACCESS_KEY"), SecretKey: os.Getenv("STRATA_S3_SECRET_KEY")})
+			log.Fatal("[FATAL] GeoIP updates keep each version in the artifact store: set -objects-dir or -s3-endpoint")
 		}
 		geoUpdater = &ingest.GeoIPUpdater{CityURL: geoURLs[0], ASNURL: geoURLs[1], Objects: geoObjects, Enricher: geoIP}
+		if *objectsDir != "" {
+			geoUpdater.PruneOld = policy.PruneGeoIP(geoObjects)
+		}
 		go geoUpdater.Run(ctx, *geoIPEvery)
 	}
 
@@ -665,9 +685,9 @@ func connectS3(ctx context.Context, cfg policy.S3Config) *policy.S3 {
 }
 
 // newDeployer wires the compiler, the signing key and the object store.
-func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer policy.Signer, key string, pub []byte, rules, blockPage, contact, bin string, budget uint64) *policy.Deployer {
+func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects policy.ObjectStore, signer policy.Signer, key string, pub []byte, rules, blockPage, contact, bin string, budget uint64) *policy.Deployer {
 	if len(pub) == 0 || objects == nil {
-		log.Fatal("[FATAL] deploys need the bundle public key (-bundle-pubkey or Vault) and -s3-endpoint")
+		log.Fatal("[FATAL] deploys need the bundle public key (-bundle-pubkey or Vault) and -objects-dir or -s3-endpoint")
 	}
 	var ruleFiles []string
 	for _, r := range strings.Split(rules, ",") {
@@ -691,7 +711,7 @@ func newDeployer(pg *store.Store, pool *pgxpool.Pool, objects *policy.S3, signer
 
 // bundleInForce returns the newest bundle, the one a replay compares a
 // draft with (W13-G2-01), once it verifies with pub.
-func bundleInForce(pg *store.Store, objects *policy.S3, pub []byte) func(context.Context) ([]byte, uint64, error) {
+func bundleInForce(pg *store.Store, objects policy.ObjectStore, pub []byte) func(context.Context) ([]byte, uint64, error) {
 	return func(ctx context.Context) ([]byte, uint64, error) {
 		b, err := pg.LatestBundle(ctx)
 		if err != nil {

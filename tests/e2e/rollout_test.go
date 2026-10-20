@@ -82,7 +82,7 @@ func (r *pausedBundleReader) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// platform is a control plane with everything: PostgreSQL, MinIO, fleet
+// platform is a control plane with everything: PostgreSQL, artifacts, fleet
 // with enrollment and bundle distribution, rollouts, the admin REST API.
 type platform struct {
 	*fleetEnv
@@ -100,8 +100,7 @@ func startPlatform(t *testing.T) *platform {
 		t.Fatal(err)
 	}
 	st := store.New(pool)
-	endpoint, _ := startMinIO(t)
-	objects, err := policy.NewS3(ctx, policy.S3Config{Endpoint: endpoint, Bucket: "strata-bundles", AccessKey: "strata", SecretKey: "strata-e2e-secret"})
+	objects, err := artifactStore(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}

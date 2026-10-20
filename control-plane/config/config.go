@@ -115,6 +115,13 @@ type File struct {
 		CostBudget      *uint64  `yaml:"cost_budget" flag:"cost-budget"`
 		IdentityKeyFile *string  `yaml:"identity_key_file" env:"STRATA_IDENTITY_HMAC_KEY"`
 		Storage         struct {
+			// Local: a directory in place of an object store (CP-A07)
+			Local struct {
+				Path          *string   `yaml:"path" flag:"objects-dir"`
+				KeepBundles   *int      `yaml:"keep_bundles" flag:"objects-keep-bundles"`
+				SampleDays    *int      `yaml:"sample_days" flag:"objects-sample-days"`
+				PruneInterval *Duration `yaml:"prune_interval" flag:"objects-prune-interval"`
+			} `yaml:"local"`
 			S3 struct {
 				Endpoint      *string `yaml:"endpoint" flag:"s3-endpoint"`
 				Bucket        *string `yaml:"bucket" flag:"s3-bucket"`
@@ -354,7 +361,7 @@ func (f *File) resolvePaths(base string) error {
 		"server.fleet.tls_ca", "server.fleet.tls_cert", "server.fleet.tls_key", "server.fleet.node_ca_cert",
 		"server.fleet.node_ca_key", "server.fleet.trust_bundle", "server.admin.tls_cert", "server.admin.tls_key",
 		"database.dsn_file", "auth.local.admin_password_file", "events.clickhouse.password_file",
-		"bundles.rules", "bundles.block_page", "bundles.identity_key_file", "bundles.storage.s3.access_key_file",
+		"bundles.rules", "bundles.block_page", "bundles.identity_key_file", "bundles.storage.local.path", "bundles.storage.s3.access_key_file",
 		"bundles.storage.s3.secret_key_file", "bundles.signer.key_file", "bundles.signer.public_key",
 		"bundles.signer.vault.token_file", "replay.corpus", "geoip.city", "geoip.asn",
 	} {
@@ -394,6 +401,9 @@ func (f *File) check() error {
 	}
 	if f.Events.InMemory != nil && *f.Events.InMemory && f.Events.ClickHouse.Address != nil {
 		return errors.New("config: events.in_memory and events.clickhouse.address exclude each other")
+	}
+	if f.Bundles.Storage.Local.Path != nil && f.Bundles.Storage.S3.Endpoint != nil {
+		return errors.New("config: bundles.storage.local and bundles.storage.s3 exclude each other")
 	}
 	return nil
 }

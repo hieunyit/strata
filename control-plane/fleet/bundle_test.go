@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	fleetv1 "github.com/strata/strata/agent/gen/strata/fleet/v1"
+	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -51,12 +52,27 @@ func fetch(t *testing.T, cl fleetv1.FleetServiceClient, version, offset uint64) 
 }
 
 func TestFetchBundleChunksResumeAndRefusals(t *testing.T) {
+	payload := bytes.Repeat([]byte("strata-bundle-"), 200_000) // 2.8 MB: three chunks
+	dir, err := policy.NewFS(t.TempDir(), policy.DefaultMutableKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { dir.Close() })
+	if err := dir.Put(t.Context(), "bundles/7", payload, ""); err != nil {
+		t.Fatal(err)
+	}
+	// in memory, and in a directory (CP-A07)
+	for name, objects := range map[string]BundleObjects{"memory": memObjects{"bundles/7": payload}, "filesystem": dir} {
+		t.Run(name, func(t *testing.T) { fetchBundleChunks(t, objects, payload) })
+	}
+}
+
+func fetchBundleChunks(t *testing.T, objects BundleObjects, payload []byte) {
 	p := newPKI(t)
 	reg := newMemRegistry()
-	payload := bytes.Repeat([]byte("strata-bundle-"), 200_000) // 2.8 MB: three chunks
 	sum := sha256.Sum256(payload)
 	reg.desired["node-a"] = store.Bundle{Version: 7, SHA256: sum[:], ObjectKey: "bundles/7", SizeBytes: int64(len(payload))}
-	srv := NewServer(Config{Ingest: nopIngest{}, Registry: reg, Objects: memObjects{"bundles/7": payload}})
+	srv := NewServer(Config{Ingest: nopIngest{}, Registry: reg, Objects: objects})
 	addr := serveServer(t, p, srv)
 	cert := p.nodeCert(t, "node-a")
 	reg.nodes["node-a"] = store.Node{ID: "node-a", CertSerial: leafSerial(t, cert)}

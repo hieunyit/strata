@@ -380,6 +380,42 @@ func TestStoreInMinIO(t *testing.T) {
 	t.Logf("stored and read back %s (%d bytes)", key, len(data))
 }
 
+// CP-A07: samples in a directory, listed by day as the runner does; a
+// restarted collector (its sequence back at 1) does not lose a file to a
+// key the previous run took.
+func TestStoreOnFilesystem(t *testing.T) {
+	obj, err := policy.NewFS(t.TempDir(), policy.DefaultMutableKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { obj.Close() })
+	ctx := context.Background()
+	a := anon(t)
+	recs := []Record{a.Anonymize(vectorRequests()[0]), a.Anonymize(vectorRequests()[1])}
+	first, err := (&Store{Objects: obj}).Put(ctx, a.KeyID, recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := &Store{Objects: obj}
+	second, err := restarted.Put(ctx, a.KeyID, recs[:1])
+	if err != nil || second == first {
+		t.Fatalf("after a restart: %s %v", second, err)
+	}
+	objs, err := obj.List(ctx, "replay/v1/example-api/2026/10/14/")
+	if err != nil || len(objs) != 2 || objs[0].Key != first || objs[1].Key != second {
+		t.Fatalf("list: %+v %v", objs, err)
+	}
+	for _, o := range objs {
+		data, err := obj.Get(ctx, o.Key)
+		if err != nil || int64(len(data)) != o.Size {
+			t.Fatalf("%s: %v", o.Key, err)
+		}
+		if keyID, _, err := ReadParquet(data); err != nil || keyID != a.KeyID {
+			t.Fatalf("%s: %q %v", o.Key, keyID, err)
+		}
+	}
+}
+
 // #75: vectors with a policy's privacy settings, for libstrata's writer
 // too (engine/tests/anon_vectors.rs); go test ./replay -run
 // TestPrivacyVectors -update writes them.

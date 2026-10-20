@@ -32,8 +32,7 @@ func TestFourEyes(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := store.New(pool)
-	endpoint, _ := startMinIO(t)
-	objects, err := policy.NewS3(ctx, policy.S3Config{Endpoint: endpoint, Bucket: "strata-bundles", AccessKey: "strata", SecretKey: "strata-e2e-secret"})
+	objects, err := artifactStore(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}

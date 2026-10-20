@@ -314,6 +314,11 @@ làm, theo quyền tự quyết PO giao).
 **Nghiệm thu**: deploy, rollout, tải tiếp bundle bị ngắt, rollback, replay chạy với
 filesystem, không MinIO, không Vault; bundle ký sai bị node từ chối.
 
+*Trạng thái 20/10:* làm xong, báo cáo `docs/reports/cp-a07.md`. Hai điều chỉnh khi làm: manifest
+GeoIP theo phiên bản và file `goodbots/<version>.json` ghi đè được như con trỏ (chứa thời điểm
+tải, một phiên bản tải lại sau phiên bản khác sẽ ghi lại); deploy gặp số bản đã có file mà chưa
+có bản ghi thì nhảy qua thay vì kẹt (không ghi đè, giữ bất biến).
+
 **Lỗi và lỗ hổng có thể phát sinh**
 
 | Rủi ro | Giảm thiểu |

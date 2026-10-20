@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/strata/strata/control-plane/policy"
 )
 
 var errMissing = errors.New("missing")
@@ -223,5 +225,39 @@ func TestRealFeeds(t *testing.T) {
 		if len(l.Crawlers[f.Name]) == 0 {
 			t.Errorf("%s: no prefix", f.Name)
 		}
+	}
+}
+
+// CP-A07: with artifacts in a directory, the ranges of a version seen
+// again after another one (A, B, A) are stored again and become latest.
+func TestUpdateWithFilesystemObjects(t *testing.T) {
+	srv, routes := feeds(t, map[string]string{"/google.json": google})
+	objects, err := policy.NewFS(t.TempDir(), policy.DefaultMutableKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { objects.Close() })
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	u := &Updater{Objects: objects, IsNotFound: policy.IsObjectNotFound, Now: func() time.Time { return now },
+		Feeds: []Feed{{"googlebot", srv.URL + "/google.json"}}}
+	if l, err := Latest(t.Context(), objects, policy.IsObjectNotFound); err != nil || l != nil {
+		t.Fatalf("nothing stored yet: %+v %v", l, err)
+	}
+	a, changed, err := u.Update(t.Context())
+	if err != nil || !changed {
+		t.Fatalf("A: %v %v", changed, err)
+	}
+	routes.Store("/google.json", `{"prefixes": [{"ipv4Prefix": "66.249.64.0/27"}]}`)
+	now = now.Add(time.Hour)
+	if b, changed, err := u.Update(t.Context()); err != nil || !changed || b == a {
+		t.Fatalf("B: %v %v", changed, err)
+	}
+	routes.Store("/google.json", google)
+	now = now.Add(time.Hour)
+	if again, changed, err := u.Update(t.Context()); err != nil || !changed || again != a {
+		t.Fatalf("A again: %q %v %v", again, changed, err)
+	}
+	if l, err := Latest(t.Context(), objects, policy.IsObjectNotFound); err != nil || l.Version != a || !l.UpdatedAt.Equal(now) {
+		t.Fatalf("latest: %+v %v", l, err)
 	}
 }

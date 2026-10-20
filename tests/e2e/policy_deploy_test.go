@@ -63,6 +63,22 @@ func startMinIO(t *testing.T) (endpoint string, client *minio.Client) {
 	}
 }
 
+// artifactStore is where the control plane keeps artifacts in a test: a
+// directory, as the Compact edition does (CP-A07), or MinIO with
+// STRATA_E2E_OBJECTS=s3. TestPolicyEditAndDeploy always uses MinIO.
+func artifactStore(ctx context.Context, t *testing.T) (policy.ObjectStore, error) {
+	t.Helper()
+	if os.Getenv("STRATA_E2E_OBJECTS") == "s3" {
+		endpoint, _ := startMinIO(t)
+		return policy.NewS3(ctx, policy.S3Config{Endpoint: endpoint, Bucket: "strata-bundles", AccessKey: "strata", SecretKey: "strata-e2e-secret"})
+	}
+	f, err := policy.NewFS(filepath.Join(t.TempDir(), "objects"), policy.DefaultMutableKeys)
+	if err == nil {
+		t.Cleanup(func() { f.Close() })
+	}
+	return f, err
+}
+
 func buildFakeCompiler(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "fakecompile")

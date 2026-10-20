@@ -41,7 +41,7 @@ type automaticPlatform struct {
 	events   *ingest.ClickHouseStore
 	runner   *replay.Runner
 	compiler *policy.Compiler
-	objects  *policy.S3
+	objects  policy.ObjectStore
 	rollouts *fleet.Rollouts
 	deployer *policy.Deployer
 }
@@ -73,8 +73,7 @@ func startAutomaticPlatform(t *testing.T, compilerBin, replayBin string) *automa
 	if err = events.EnsureColumns(ctx); err != nil {
 		t.Fatal(err)
 	}
-	endpoint, _ := startMinIO(t)
-	objects, err := policy.NewS3(ctx, policy.S3Config{Endpoint: endpoint, Bucket: "strata-bundles", AccessKey: "strata", SecretKey: "strata-e2e-secret"})
+	objects, err := artifactStore(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}

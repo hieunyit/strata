@@ -94,7 +94,7 @@ func TestExampleLoadsAndApplies(t *testing.T) {
 		"local-session-ttl":    "8h0m0s",
 		"rules":                "/opt/strata/rules.yaml",
 		"rollout-waves":        "1,10%,100%",
-		"s3-secure":            "false",
+		"objects-dir":          "/var/lib/strata/objects",
 		"single-control-plane": "true",
 		"events-ttl-days":      "30",
 		"in-memory":            "default-in-memory", // not in the file
@@ -123,6 +123,7 @@ func TestRefusals(t *testing.T) {
 		"bad signer":    "version: 1\nbundles:\n  signer:\n    type: kms\n",
 		"vault and key": "version: 1\nbundles:\n  signer:\n    type: vault\n    key_file: k\n",
 		"memory and ch": "version: 1\nevents:\n  in_memory: true\n  clickhouse:\n    address: ch:9000\n",
+		"local and s3":  "version: 1\nbundles:\n  storage:\n    local:\n      path: /srv/objects\n    s3:\n      endpoint: minio:9000\n",
 		"secret inline": "version: 1\ndatabase:\n  dsn: postgres://user:pw@db/strata\n",
 	} {
 		p := write(t, dir, strings.ReplaceAll(name, " ", "-")+".yaml", body, 0o600)

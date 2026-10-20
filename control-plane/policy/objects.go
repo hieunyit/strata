@@ -102,6 +102,14 @@ func (s *S3) Open(ctx context.Context, key string, offset int64) (io.ReadCloser,
 	return obj, nil
 }
 
+// Delete removes an object; a missing one is no error.
+func (s *S3) Delete(ctx context.Context, key string) error {
+	if err := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("policy: delete %s: %w", key, err)
+	}
+	return nil
+}
+
 // ObjectInfo is one entry of List.
 type ObjectInfo struct {
 	Key  string
