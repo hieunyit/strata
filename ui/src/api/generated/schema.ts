@@ -564,6 +564,12 @@ export interface components {
       rule_id?: number;
       node_id?: string;
       http_method?: string;
+      /** @description W19-F-01: ISO 3166 alpha-2 code of a verified location, or INTERNAL (as GET /v1/stats/geo counts it) */
+      country?: string;
+      /** @description W19-F-01: ASN of a verified location */
+      asn?: number;
+      /** @description W19-F-01: attack type from the rules matched (sqli, xss, rce, lfi, rfi, injection_other, scanner, ...; as GET /v1/stats/geo) */
+      attack_type?: string;
       /** @default 50 */
       page_size?: number;
       page_token?: string;

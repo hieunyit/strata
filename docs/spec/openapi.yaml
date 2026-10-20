@@ -1600,6 +1600,15 @@ components:
           type: string
         http_method:
           type: string
+        country:
+          type: string
+          description: "W19-F-01: ISO 3166 alpha-2 code of a verified location, or INTERNAL (as GET /v1/stats/geo counts it)"
+        asn:
+          type: integer
+          description: "W19-F-01: ASN of a verified location"
+        attack_type:
+          type: string
+          description: "W19-F-01: attack type from the rules matched (sqli, xss, rce, lfi, rfi, injection_other, scanner, ...; as GET /v1/stats/geo)"
         page_size:
           type: integer
           default: 50

@@ -27,6 +27,11 @@ type SearchFilter struct {
 	RuleID     uint32
 	NodeID     string
 	HTTPMethod string
+	// W19-F-01: the map's filters, as the geo aggregates count them
+	// (geoCountrySQL, verified locations only; AttackTypeSQL)
+	CountryISO string
+	ASN        uint32
+	AttackType string
 	Limit      int
 	Offset     int
 }
@@ -407,6 +412,18 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 		whereClauses = append(whereClauses, "http_method = ?")
 		args = append(args, filter.HTTPMethod)
 	}
+	if filter.CountryISO != "" {
+		whereClauses = append(whereClauses, geoCountrySQL+" = ?")
+		args = append(args, filter.CountryISO)
+	}
+	if filter.ASN != 0 {
+		whereClauses = append(whereClauses, "asn = ? AND geoip_version != ''")
+		args = append(args, filter.ASN)
+	}
+	if filter.AttackType != "" {
+		whereClauses = append(whereClauses, AttackTypeSQL+" = ?")
+		args = append(args, filter.AttackType)
+	}
 
 	limit := filter.Limit
 	if limit <= 0 {
@@ -657,6 +674,12 @@ func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) 
 			continue
 		}
 		if filter.NodeID != "" && e.NodeID != filter.NodeID {
+			continue
+		}
+		if filter.CountryISO != "" && (e.CountryISO != filter.CountryISO || e.GeoIPVersion == "" && e.CountryISO != "INTERNAL") {
+			continue
+		}
+		if filter.ASN != 0 && (e.ASN != filter.ASN || e.GeoIPVersion == "") {
 			continue
 		}
 		if filter.RuleID > 0 {

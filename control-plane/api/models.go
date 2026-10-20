@@ -35,8 +35,12 @@ type SearchEventsRequest struct {
 	RuleID     uint32    `json:"rule_id,omitempty"`
 	NodeID     string    `json:"node_id,omitempty"`
 	HTTPMethod string    `json:"http_method,omitempty"`
-	PageSize   int       `json:"page_size,omitempty"`
-	PageToken  string    `json:"page_token,omitempty"`
+	// W19-F-01: the map's filters (as GET /v1/stats/geo reads them)
+	Country    string `json:"country,omitempty"`
+	ASN        uint32 `json:"asn,omitempty"`
+	AttackType string `json:"attack_type,omitempty"`
+	PageSize   int    `json:"page_size,omitempty"`
+	PageToken  string `json:"page_token,omitempty"`
 }
 
 // SearchEventsResponse contains the list of matched events and pagination information.
