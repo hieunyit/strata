@@ -236,6 +236,11 @@ export interface components {
       rate_percent?: number;
       rotate_key?: boolean;
     };
+    /**
+     * @default ACTION_UNSPECIFIED
+     * @enum {string}
+     */
+    PolicyGeoRuleAction: "ACTION_UNSPECIFIED" | "ACTION_BLOCK" | "ACTION_LOG";
     PolicyServiceApprovePolicyBody: {
       /**
        * required
@@ -587,6 +592,21 @@ export interface components {
       source_block_id?: string;
     };
     /**
+     * @description A geo rule (W19-G2-01): an address in one of the countries or ASNs
+     * matches; with not, an address outside all of them (local addresses
+     * excepted). BLOCK blocks the request on the rule alone; LOG reports it
+     * with an Event ID and never blocks.
+     */
+    v1PolicyGeoRule: {
+      /** Format: int64 */
+      id?: number;
+      /** ISO 3166-1 alpha-2, e.g. VN */
+      countries?: string[];
+      asns?: number[];
+      not?: boolean;
+      action?: components["schemas"]["PolicyGeoRuleAction"];
+    };
+    /**
      * @description PolicySpec is what the bundle carries for the policy
      * (docs/spec/policies.schema.json).
      */
@@ -649,6 +669,15 @@ export interface components {
        * setting refuse bundles with plugins: upgrade them first.
        */
       crs_plugins?: string[];
+      /**
+       * @description W19-G2-01: the policy's own rules on the country and ASN of the client
+       * address, run for this policy only; at most 16. Send id 0 for a new
+       * rule: the control plane assigns a free id (190000-199999, unique across
+       * policies). The deploy needs a GeoIP database (City for countries, ASN
+       * for ASNs): the bundle carries the networks of the countries and ASNs
+       * named. Modules from before the setting refuse bundles with them.
+       */
+      geo_rules?: components["schemas"]["v1PolicyGeoRule"][];
     };
     v1PolicyVersion: {
       policy_id?: string;

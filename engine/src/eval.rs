@@ -378,6 +378,9 @@ pub struct Request<'a> {
     pub good_bots: &'a crate::goodbots::GoodBots,
     /// networks of the countries and ASNs rules name (W19-R-01)
     pub geo: &'a crate::geo::Geo,
+    /// the policy-scoped rules of the policy, as (rule ID, mode) by
+    /// increasing ID (W19-G2-01)
+    pub scoped: &'a [(u32, crate::scope::Mode)],
     /// the policy's CRS paranoia levels (W17-S-01)
     pub paranoia: crate::paranoia::Levels,
     pub headers: &'a [(&'a [u8], &'a [u8])],
@@ -2362,7 +2365,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
-            paranoia_shadow: false,
+            report_only: false,
             layer: "protocol",
             field: "ARGS".to_string(),
             snippet: Vec::new(),
@@ -2376,7 +2379,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
-            paranoia_shadow: false,
+            report_only: false,
             layer: "protocol",
             field: "REQUEST_BODY".to_string(),
             snippet: Vec::new(),
@@ -2390,7 +2393,7 @@ pub fn evaluate_with_budget(
             score: 0,
             block_alone: false,
             signature: false,
-            paranoia_shadow: false,
+            report_only: false,
             layer: "protocol",
             field: "REQUEST_HEADERS:Content-Encoding".to_string(),
             snippet: Vec::new(),
@@ -2518,6 +2521,15 @@ pub fn evaluate_with_budget(
         let i = i as usize;
         let Some(r) = tables.rule(i) else { continue };
         let role = req.paranoia.role(r.paranoia);
+        // W19-G2-01: a scoped rule runs for its policies only, in its mode
+        let scope = if r.scoped {
+            match req.scoped.binary_search_by_key(&r.id, |&(id, _)| id) {
+                Ok(k) => Some(req.scoped[k].1),
+                Err(_) => continue,
+            }
+        } else {
+            None
+        };
         if r.stage != stage
             || r.exclusion
             || role == crate::paranoia::Role::Skip
@@ -2580,7 +2592,8 @@ pub fn evaluate_with_budget(
                 score: r.score,
                 block_alone: r.block_alone,
                 signature: r.signature,
-                paranoia_shadow: role == crate::paranoia::Role::Shadow,
+                report_only: role == crate::paranoia::Role::Shadow
+                    || scope == Some(crate::scope::Mode::Log),
                 layer: layer_name,
                 field,
                 snippet,

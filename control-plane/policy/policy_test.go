@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -45,7 +46,9 @@ func TestSpecValidate(t *testing.T) {
 		// W17-S-01: CRS paranoia levels
 		{Mode: "enforce", CRSParanoia: 1}, {Mode: "enforce", CRSParanoia: 4}, {Mode: "enforce", CRSParanoiaShadow: 2},
 		{Mode: "enforce", CRSParanoia: 2, CRSParanoiaShadow: 2}, {Mode: "shadow", CRSParanoia: 2, CRSParanoiaShadow: 4},
-		{Mode: "shadow", CRSPlugins: []string{"wordpress", "nextcloud"}}}
+		{Mode: "shadow", CRSPlugins: []string{"wordpress", "nextcloud"}},
+		// W19-G2-01: geo rules
+		{Mode: "enforce", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "block"}, {ID: 199999, ASNs: []uint32{64500}, Not: true, Action: "log"}}}}
 	for _, s := range good {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
@@ -68,7 +71,15 @@ func TestSpecValidate(t *testing.T) {
 		{Mode: "enforce", CRSParanoiaShadow: -1}, {Mode: "enforce", CRSParanoia: 3, CRSParanoiaShadow: 2},
 		{Mode: "shadow", CRSPlugins: []string{"WordPress"}}, {Mode: "shadow", CRSPlugins: []string{"wordpress", "wordpress"}},
 		{Mode: "shadow", CRSPlugins: []string{""}}, {Mode: "shadow", CRSPlugins: []string{"../x"}},
-		{Mode: "shadow", CRSPlugins: make([]string, 17)}}
+		{Mode: "shadow", CRSPlugins: make([]string, 17)},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 189999, Countries: []string{"VN"}, Action: "block"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "block"}, {ID: 190000, Countries: []string{"US"}, Action: "log"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Action: "block"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"vn"}, Action: "block"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN", "VN"}, Action: "block"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, ASNs: []uint32{0}, Action: "block"}}},
+		{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, Action: "deny"}}},
+		{Mode: "shadow", GeoRules: make([]GeoRule, 17)}}
 	for _, s := range bad {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%+v accepted", s)
@@ -105,6 +116,16 @@ func TestSpecParanoiaNormalize(t *testing.T) {
 	s.Normalize()
 	if s.CRSPlugins != nil {
 		t.Errorf("empty plugins %v", s.CRSPlugins)
+	}
+	// geo rule lists are sorted; their keys, across specs
+	g := Spec{Mode: "shadow", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN", "CN"}, ASNs: []uint32{9, 3}, Action: "log"}}}
+	g.Normalize()
+	if !reflect.DeepEqual(g.GeoRules[0].Countries, []string{"CN", "VN"}) || !reflect.DeepEqual(g.GeoRules[0].ASNs, []uint32{3, 9}) {
+		t.Errorf("geo rule %+v", g.GeoRules[0])
+	}
+	cs, as := GeoKeys(g, Spec{GeoRules: []GeoRule{{Countries: []string{"VN", "US"}, ASNs: []uint32{3}}}})
+	if !reflect.DeepEqual(cs, []string{"CN", "US", "VN"}) || !reflect.DeepEqual(as, []uint32{3, 9}) {
+		t.Errorf("keys %v %v", cs, as)
 	}
 	// the default stays out of the stored JSON
 	raw, _ := json.Marshal(Spec{Mode: "shadow"})
@@ -235,6 +256,26 @@ done
 		if !strings.Contains(string(args), want) {
 			t.Errorf("args %q lack %q", args, want)
 		}
+	}
+	// W19-G2-01: geo rules need the networks; they go in --geo
+	geoSpec := []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", GeoRules: []GeoRule{{ID: 190000, Countries: []string{"VN"}, ASNs: []uint32{64500}, Action: "block"}}}}}
+	if _, err := c.Build(context.Background(), 8, geoSpec); err == nil || !strings.Contains(err.Error(), "GeoIP database") {
+		t.Errorf("geo rules without networks: %v", err)
+	}
+	var asked []string
+	c.Geo = func(_ context.Context, cs []string, as []uint32) ([]byte, error) {
+		asked = append(cs, fmt.Sprint(as))
+		return []byte(`{"countries":{"VN":[]}}`), nil
+	}
+	if _, err := c.Build(context.Background(), 8, geoSpec); err != nil {
+		t.Fatal(err)
+	}
+	if args, _ := os.ReadFile(argsFile); !strings.Contains(string(args), "--geo ") || !reflect.DeepEqual(asked, []string{"VN", "[64500]"}) {
+		t.Errorf("geo args %q asked %v", args, asked)
+	}
+	c.Geo = nil
+	if _, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", CRSParanoia: 2, CRSParanoiaShadow: 3, CRSPlugins: []string{"wordpress"}, Exceptions: []Exception{exampleException()}}}}); err != nil {
+		t.Fatal(err)
 	}
 	pol, _ := os.ReadFile(filepath.Join(dir, "policies.json"))
 	var doc struct {

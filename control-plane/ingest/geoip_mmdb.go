@@ -35,6 +35,8 @@ type GeoIPReader interface {
 type MMDBReader struct {
 	city, asn *maxminddb.Reader
 	version   string
+	// networks of countries and ASNs already listed (W19-R-01)
+	networks networksCache
 }
 
 func NewMMDBReader(ctx context.Context, cityFile, asnFile string) (*MMDBReader, error) {

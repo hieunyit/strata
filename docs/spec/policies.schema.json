@@ -92,6 +92,22 @@
             "description": "W17-S-01: CRS paranoia level run in shadow, at least crs_paranoia (its value by default): CRS rules above crs_paranoia up to it run and are reported (Event ID EVT-, false positive table), but their score is kept apart and they never block, like the signature pack in shadow. Try a higher level this way before raising crs_paranoia. Rules above every policy's level are left out of the bundle.",
             "type": "integer", "minimum": 1, "maximum": 4
           },
+          "geo_rules": {
+            "description": "W19-G2-01: the policy's own rules on the country and ASN of the client address (W19-R-01), each run for this policy only. A rule matches an address in one of its countries or ASNs; with not, an address outside all of them (local addresses excepted). block: the request is blocked on the rule alone; log: it is reported with an Event ID and never blocks. ids are 190000-199999, unique across all policies (the control plane assigns them). Engines from before the setting refuse a bundle with them: upgrade the module on every node first.",
+            "type": "array", "maxItems": 16,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["id", "action"],
+              "properties": {
+                "id": { "type": "integer", "minimum": 190000, "maximum": 199999 },
+                "countries": { "type": "array", "uniqueItems": true, "maxItems": 300, "items": { "type": "string", "pattern": "^[A-Z]{2}$" } },
+                "asns": { "type": "array", "uniqueItems": true, "maxItems": 1000, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } },
+                "not": { "type": "boolean" },
+                "action": { "enum": ["block", "log"] }
+              },
+              "anyOf": [{ "required": ["countries"] }, { "required": ["asns"] }]
+            }
+          },
           "crs_plugins": {
             "description": "W17-S-01: CRS plugins (rule exclusions for an application: wordpress, drupal, nextcloud, phpmyadmin, phpbb, xenforo, dokuwiki, cpanel) the policy runs: on that application's known paths and fields, they take listed CRS rules or targets away so its normal traffic does not match. Each name must have rules in the bundle's rule set. Engines from before the setting refuse a bundle with them: upgrade the module on every node first.",
             "type": "array", "uniqueItems": true, "maxItems": 16,

@@ -281,6 +281,7 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
                 block_alone: r["action_mode"].as_str() == Some("block_alone"),
                 signature: libstrata::rules::signature_source(s(&r["metadata"], "source")),
                 exclusion: exclusion(r).map_err(|e| format!("rule {id}: {e}"))?,
+                scoped: false,
                 conditions: conds
                     .iter()
                     .map(condition)
@@ -330,6 +331,112 @@ pub struct Policies {
     /// the control plane's GeoIP databases); only those rules name go into
     /// section GEO
     pub geo: Vec<libstrata::geo::Entry>,
+    /// rules of the policies themselves (W19-G2-01, `geo_rules`), each
+    /// scoped to its policy (section SCOPE)
+    pub scoped_rules: Vec<RuleDef>,
+    pub scope: Vec<libstrata::scope::Entry>,
+}
+
+/// IDs of the rules policies define (W19-G2-01, `geo_rules`).
+pub const POLICY_RULE_IDS: std::ops::RangeInclusive<u32> = 190_000..=199_999;
+/// Most geo rules one policy has.
+pub const MAX_GEO_RULES: usize = 16;
+
+/// The rule a policy's geo rule (W19-G2-01) compiles to: countries and
+/// ASNs of the client address (W19-R-01); with `not`, the addresses
+/// outside them, local addresses excepted. Block: blocks on its own.
+fn geo_rule(policy: &str, g: &Value) -> Result<(RuleDef, libstrata::scope::Mode)> {
+    let id = g["id"].as_u64().unwrap_or(0);
+    if !POLICY_RULE_IDS.contains(&(id as u32)) || id > u32::MAX as u64 {
+        return Err(format!(
+            "policy {policy:?}: geo rule id {id} is not {}..{}",
+            POLICY_RULE_IDS.start(),
+            POLICY_RULE_IDS.end()
+        ));
+    }
+    let id = id as u32;
+    let list = |k: &str| -> Result<Vec<Vec<u8>>> {
+        let mut out: Vec<Vec<u8>> = vec![];
+        for v in g[k].as_array().into_iter().flatten() {
+            let s = match v {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => return Err(format!("policy {policy:?}: geo rule {id}: {k}: {v}")),
+            };
+            let kind = if k == "countries" {
+                libstrata::geo::Kind::Country
+            } else {
+                libstrata::geo::Kind::Asn
+            };
+            if !libstrata::geo::valid_key(kind, &s) || out.iter().any(|o| o == s.as_bytes()) {
+                return Err(format!(
+                    "policy {policy:?}: geo rule {id}: {k}: {s:?} is invalid or repeated"
+                ));
+            }
+            out.push(s.into_bytes());
+        }
+        Ok(out)
+    };
+    let (countries, asns) = (list("countries")?, list("asns")?);
+    if countries.is_empty() && asns.is_empty() {
+        return Err(format!(
+            "policy {policy:?}: geo rule {id}: no country and no ASN"
+        ));
+    }
+    let not = g["not"].as_bool().unwrap_or(false);
+    let mode = match g["action"].as_str() {
+        Some("block") => libstrata::scope::Mode::Enforce,
+        Some("log") => libstrata::scope::Mode::Log,
+        a => {
+            return Err(format!(
+                "policy {policy:?}: geo rule {id}: action {a:?} is not block or log"
+            ));
+        }
+    };
+    let cond = |var: &str, mut values: Vec<Vec<u8>>| -> Result<CondDef> {
+        if not {
+            values.push(b"private".to_vec());
+        }
+        Ok(CondDef {
+            targets: vec![rules::TargetDef {
+                var: coded(rules::VARS, var)?,
+                key: None,
+                exclude: vec![],
+                count: false,
+            }],
+            transforms: vec![],
+            op: coded(rules::OPERATORS, "pm")?,
+            negate: not,
+            multi_match: false,
+            value: rules::Value::List(values),
+        })
+    };
+    let mut conditions = vec![];
+    if !countries.is_empty() {
+        conditions.push(cond("geo_country", countries)?);
+    }
+    if !asns.is_empty() {
+        conditions.push(cond("geo_asn", asns)?);
+    }
+    Ok((
+        RuleDef {
+            id,
+            name: format!("geo rule {id} of policy {policy}"),
+            layer: coded(LAYERS, "pre")?,
+            stage: coded(STAGES, "request_headers")?,
+            severity: coded(SEVERITIES, "critical")?,
+            score: 100,
+            paranoia: 0,
+            // in: one list is enough; not: outside every list
+            any: !not,
+            block_alone: true,
+            signature: false,
+            exclusion: None,
+            scoped: true,
+            conditions,
+        },
+        mode,
+    ))
 }
 
 /// Reads the networks the control plane extracts from its GeoIP databases
@@ -469,6 +576,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut privacy = vec![];
     let mut paranoia = vec![];
     let mut plugins = vec![];
+    let mut scoped_rules = vec![];
+    let mut scope = vec![];
     let mut exceptions = vec![];
     let mut staging = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
@@ -582,6 +691,22 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 policy_index: policies.len() as u32,
                 levels,
             });
+        }
+        // W19-G2-01: the policy's own geo rules, scoped to it
+        let geo_rules = p["geo_rules"].as_array().map_or(&[][..], |v| &v[..]);
+        if geo_rules.len() > MAX_GEO_RULES {
+            return Err(format!(
+                "policy {name:?}: more than {MAX_GEO_RULES} geo rules"
+            ));
+        }
+        for g in geo_rules {
+            let (rule, mode) = geo_rule(&name, g)?;
+            scope.push(libstrata::scope::Entry {
+                policy_index: policies.len() as u32,
+                rule_id: rule.id,
+                mode,
+            });
+            scoped_rules.push(rule);
         }
         // W17-S-01: the CRS plugins (rule exclusions) the policy runs
         let mut seen = BTreeSet::new();
@@ -697,6 +822,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         staging,
         paranoia,
         plugins,
+        scoped_rules,
+        scope,
         identity_key: None,
         good_bots: vec![],
         geo: vec![],
@@ -1151,6 +1278,24 @@ fn compile_unsigned_with(
     lower: bool,
     opts: Options,
 ) -> Result<(Vec<u8>, Vec<RuleCost>)> {
+    // W19-G2-01: the policies' own rules join the rule set
+    let with_scoped: Vec<RuleDef>;
+    let rules = if policies.scoped_rules.is_empty() {
+        rules
+    } else {
+        with_scoped = rules
+            .iter()
+            .chain(&policies.scoped_rules)
+            .cloned()
+            .collect();
+        &with_scoped[..]
+    };
+    if rules
+        .iter()
+        .any(|r| r.scoped && !POLICY_RULE_IDS.contains(&r.id))
+    {
+        return Err("a scoped rule outside the policy rule ids".into());
+    }
     let mut ids = BTreeSet::new();
     for r in rules {
         if !ids.insert(r.id) {
@@ -1289,6 +1434,11 @@ fn compile_unsigned_with(
     let geo = libstrata::geo::encode(&geo).map_err(|e| format!("geo: {e}"))?;
     if !geo.is_empty() {
         sections.push((libstrata::bundle::kind::GEO, geo));
+    }
+    let scope = libstrata::scope::encode(&policies.scope, policies.policies.len() as u32)
+        .map_err(|e| format!("rule scope: {}", e.message()))?;
+    if !scope.is_empty() {
+        sections.push((libstrata::bundle::kind::SCOPE, scope));
     }
     let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
     if !good_bots.is_empty() {

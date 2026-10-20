@@ -11,7 +11,10 @@
 //!                   bundles from before them keep their meaning; bit 3:
 //!                   exclusion rule (W17-S-01, `crate::rule_exclusions`):
 //!                   ID up to 9,999,999, score 0, no other flag, its
-//!                   removals in section EXCLUSIONS)
+//!                   removals in section EXCLUSIONS); bit 4:
+//!                   policy-scoped rule (W19-G2-01, `crate::scope`): runs
+//!                   only for the policies section SCOPE lists, never an
+//!                   exclusion rule)
 //!                   | score i32 | cond_first u32
 //!                   | cond_count u32 | name_off u32 | name_len u32
 //!                   | paranoia u8 | reserved [u8; 3]
@@ -268,6 +271,9 @@ pub struct RuleDef {
     /// exclusion rule (W17-S-01): when it matches, its removals (section
     /// EXCLUSIONS) apply; it never scores or reports
     pub exclusion: Option<crate::rule_exclusions::RuleExclusion>,
+    /// policy-scoped (W19-G2-01): runs only for the policies of section
+    /// SCOPE
+    pub scoped: bool,
     pub conditions: Vec<CondDef>,
 }
 
@@ -322,7 +328,8 @@ pub fn encode(rules: &[RuleDef], page: Option<&BlockPage>) -> Vec<(u32, Vec<u8>)
         let flags = u8::from(r.any)
             | (u8::from(r.block_alone) << 1)
             | (u8::from(r.signature) << 2)
-            | (u8::from(r.exclusion.is_some()) << 3);
+            | (u8::from(r.exclusion.is_some()) << 3)
+            | (u8::from(r.scoped) << 4);
         rt.extend_from_slice(&[r.layer, r.stage, r.severity, flags]);
         rt.extend_from_slice(&r.score.to_le_bytes());
         put_u32(&mut rt, cond_i);
@@ -640,6 +647,7 @@ pub struct RuleView<'a> {
     pub block_alone: bool,
     pub signature: bool,
     pub exclusion: bool,
+    pub scoped: bool,
     pub cond_first: u32,
     pub cond_count: u32,
 }
@@ -712,8 +720,8 @@ impl<'a> Tables<'a> {
                 || r[4] as usize >= LAYERS.len()
                 || r[5] as usize >= STAGES.len()
                 || r[6] as usize >= SEVERITIES.len()
-                || r[7] & !0b1111 != 0
-                || (exclusion && (r[7] & 0b110 != 0 || i32_at(r, 8) != 0))
+                || r[7] & !0b1_1111 != 0
+                || (exclusion && (r[7] & 0b1_0110 != 0 || i32_at(r, 8) != 0))
                 || !in_range(u32_at(r, 12), u32_at(r, 16), n_conds)
                 || !str_ok(u32_at(r, 20), u32_at(r, 24), strings)
                 || r[28] > 4
@@ -884,6 +892,7 @@ impl<'a> Tables<'a> {
             block_alone: r[7] & 2 != 0,
             signature: r[7] & 4 != 0,
             exclusion: r[7] & 8 != 0,
+            scoped: r[7] & 16 != 0,
             score: i32_at(r, 8),
             cond_first: u32_at(r, 12),
             cond_count: u32_at(r, 16),
@@ -919,6 +928,7 @@ mod tests {
                 block_alone: false,
                 signature: false,
                 exclusion: None,
+                scoped: false,
                 conditions: vec![CondDef {
                     targets: vec![
                         TargetDef {
@@ -956,6 +966,7 @@ mod tests {
                 block_alone: true,
                 signature: false,
                 exclusion: None,
+                scoped: false,
                 conditions: vec![
                     CondDef {
                         targets: vec![TargetDef {
@@ -1091,7 +1102,7 @@ mod tests {
             (kind::CONDITIONS, 8 + 24, 9, "bad condition record"), // target_count
             (kind::RULES, 8 + 4, 9, "bad rule record"),         // layer
             (kind::RULES, 8 + 7, 0xff, "bad rule record"),      // flags byte (bits 0-3 only)
-            (kind::RULES, 8 + 7, 0x10, "bad rule record"),      // flag bit 4
+            (kind::RULES, 8 + 7, 0x20, "bad rule record"),      // flag bit 5
             (kind::RULES, 8 + 7, 0x08, "bad rule record"),      // exclusion with a score
             (kind::RULES, 8 + 16, 7, "bad rule record"),        // cond_count
             (kind::TARGETS, 8, 77, "bad target record"),        // var
@@ -1129,6 +1140,19 @@ mod tests {
         };
         // an exclusion rule may use the plugins' 7-digit ids, never scores
         assert!(check(9_507_100, 0, false, &exclusion).is_ok());
+        // a scoped rule (bit 4) is never an exclusion rule
+        let mut both = sample();
+        both[0].id = 9_507_100;
+        both[0].score = 0;
+        both[0].exclusion = exclusion.clone();
+        both[0].scoped = true;
+        assert_eq!(
+            validate(&bundle_of(&encode(&both, None))),
+            Err(Error::BadLayout("bad rule record"))
+        );
+        let mut scoped = sample();
+        scoped[0].scoped = true;
+        assert!(validate(&bundle_of(&encode(&scoped, None))).is_ok());
         let t = encode(&sample(), None);
         assert!(validate(&bundle_of(&t)).is_ok());
         for (id, score, block_alone, x) in [

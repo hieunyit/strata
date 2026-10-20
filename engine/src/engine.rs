@@ -47,6 +47,8 @@ pub struct Engine {
     exclusions: crate::rule_exclusions::Exclusions,
     /// networks of the countries and ASNs rules name (section GEO, W19-R-01)
     geo: crate::geo::Geo,
+    /// per policy index: its policy-scoped rules (section SCOPE, W19-G2-01)
+    scoped: Vec<Vec<(u32, crate::scope::Mode)>>,
     exclusion_rules: Vec<Vec<(u32, u32)>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
@@ -185,6 +187,16 @@ impl Engine {
             .map_err(|e| (E_BUNDLE, e.message()))?;
         let geo = crate::geo::parse(info.section(bytes, bundle::kind::GEO))
             .map_err(|e| (E_BUNDLE, e.message()))?;
+        let mut scoped_ids: Vec<u32> = (0..tables.n_rules())
+            .filter_map(|i| tables.rule(i).filter(|r| r.scoped).map(|r| r.id))
+            .collect();
+        scoped_ids.sort_unstable();
+        let scoped = crate::scope::parse(
+            info.section(bytes, bundle::kind::SCOPE),
+            info.n_policies,
+            &scoped_ids,
+        )
+        .map_err(|e| (E_BUNDLE, e.message()))?;
         let paranoid: Vec<u32> = bundle::policies(bytes, &info)
             .filter(|p| p.paranoia)
             .map(|p| p.index)
@@ -308,6 +320,7 @@ impl Engine {
             exclusions,
             exclusion_rules,
             geo,
+            scoped,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -346,6 +359,12 @@ impl Engine {
         self.exclusion_rules
             .get(index as usize)
             .map_or(&[], |v| &v[..])
+    }
+
+    /// The policy-scoped rules of the policy at `index`, as (rule ID, mode)
+    /// by increasing ID (W19-G2-01).
+    pub fn scoped(&self, index: u32) -> &[(u32, crate::scope::Mode)] {
+        self.scoped.get(index as usize).map_or(&[], |v| &v[..])
     }
 
     /// Networks of the countries and ASNs the bundle's rules name (W19-R-01).
