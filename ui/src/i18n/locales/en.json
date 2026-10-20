@@ -512,7 +512,22 @@
     },
     "pluginsOther": "Also set (not in this list): {{list}}",
     "pluginsNote": "On the application's known paths and fields, a plugin takes listed CRS rules or targets away so its normal traffic does not match; only for policies in front of that application. The deployed rule set must contain the plugin (rules/crs-plugins). Nodes must run a module that supports the setting.",
-    "paranoiaNote": "Higher levels catch more attacks and raise false positives: about 9% of benign requests match at level 2. Rules above the enforced level up to the shadow level are only reported, never block. Try a level in shadow and review its false positives before enforcing it. Nodes must run a module that supports the setting."
+    "paranoiaNote": "Higher levels catch more attacks and raise false positives: about 9% of benign requests match at level 2. Rules above the enforced level up to the shadow level are only reported, never block. Try a level in shadow and review its false positives before enforcing it. Nodes must run a module that supports the setting.",
+    "geo": {
+      "title": "Geo rules (country and ASN of the client)",
+      "new": "new",
+      "action": "Action",
+      "block": "Block",
+      "log": "Log only",
+      "not": "Every address outside them",
+      "remove": "Remove the rule",
+      "countries": "Countries: VN, US",
+      "asns": "ASNs: 7552, 15169",
+      "bad": "Not a country code or ASN: {{list}}",
+      "empty": "Name at least one country or ASN",
+      "add": "Add a geo rule",
+      "note": "A rule blocks (or logs) the client addresses in its countries or ASNs, or with \"outside\" every other address except local ones. It runs for this policy only, after replay, approval and deploy. The control plane needs a GeoIP database (City for countries, ASN for ASNs); the bundle carries only the networks named."
+    }
   },
   "diff": {
     "title": "Compare versions of {{name}}",
@@ -540,7 +555,8 @@
       "crs_paranoia": "CRS paranoia level enforced",
       "crs_paranoia_shadow": "CRS paranoia level in shadow",
       "crs_plugins": "CRS plugins",
-      "advanced": "Exceptions, privacy and limits"
+      "advanced": "Exceptions, privacy and limits",
+      "geo_rules": "Geo rules"
     }
   },
   "stagingNotices": {
@@ -799,6 +815,18 @@
       "protocol": "Protocol",
       "custom": "Custom rule",
       "other": "Other"
+    },
+    "geoAction": {
+      "open": "Create a rule for {{target}}",
+      "title": "Geo rule for {{target}}",
+      "policy": "Policy",
+      "create": "Create draft",
+      "note": "Adds a geo rule to the policy as a new draft version; it is enforced only after replay, approval and deploy.",
+      "exists": "{{policy}} already has a rule for {{target}}.",
+      "saved": "Draft version {{version}} of {{policy}} with a rule for {{target}}.",
+      "failed": "Could not create the rule: {{error}}",
+      "noPolicy": "The policy no longer exists",
+      "review": "Review in Policies"
     }
   }
 }

@@ -87,5 +87,36 @@ For comparison, the whole Country + ASN databases are about 18 MB.
   of free ids (skipping other policies' ids from any version, keeping
   the policy's own), and refusals.
 
-Not in this PR: the geo rule editor and the "Create geo/ASN block rule"
-action from the map (W19-F-01).
+## UI (W19-F-01 part 2)
+
+- **Policy editor.** A "Geo rules" block where each rule has:
+  - countries and ASNs typed as lists (`VN, US`; `7552, AS15169`), with
+    bad entries flagged;
+  - block or log only;
+  - "every address outside them";
+  - remove, and add a new rule (at most 16).
+  A new rule shows "new" until saved, when the control plane gives it an
+  id. Save is disabled while a rule names nothing. Geo rules stay out of
+  the YAML view, whose parser reads only a flat shape, and are kept when
+  the YAML is edited. The version diff shows them as one line per rule
+  in the General block, for example `190001 block outside VN, AS7552`.
+- **Map.** With a country or ASN filter set (not `INTERNAL`), operators
+  and admins see "Create a rule for <country / ASN>". It picks a policy
+  (the policy filter by default) and block or log, then saves a new draft
+  version of that policy with the rule. That version is enforced only
+  after replay, approval and deploy. The policy is read again just before
+  saving, for a fresh etag. If the policy already has a rule of that
+  action for the target, nothing is saved. A conflict (someone saved in
+  between) is reported.
+- **Tests.** `ui/src/__tests__/PolicyGeo.test.tsx` covers:
+  - the helpers (parsing, normalizing, summaries, adding a rule once,
+    the 16-rule limit);
+  - the YAML view and the diff;
+  - the editor: an existing id is kept, a rule is added, a bad token is
+    flagged, save is blocked while empty, and the payload is saved;
+  - the map action: hidden for viewers, a block draft for a country, a
+    log rule for an ASN, an existing rule, and a 409 conflict.
+
+Combined with #285 (the map's events table and the events search
+filters), this gives the plan's demo: from the map to an approved and
+deployed ASN block rule.

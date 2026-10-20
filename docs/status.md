@@ -40,7 +40,7 @@ Bảng này được kiểm lại trong mỗi lần review tuần. Một dòng c
 | gRPC protection | 3 | **Thiết kế** | `nginx-module.md`, mục "Traffic gRPC qua NGINX"; module chưa tách message gRPC |
 | Brute force | 3 | **Thiết kế** | Chưa có rate limit nào (RV-R-03, tuần 14) |
 | Bot signatures + fingerprint | 3 | **Một phần** | 1.454 rule User-Agent từ crawler-user-agents (`rules/bots`). [JA4 TLS](reports/rv-n-02.md): `$strata_ja4`, target rule `tls_ja4`, field sự kiện `ja4` (RV-N-02); fingerprint HTTP/2 không làm được trên NGINX; JA4 làm key rate limit chờ RV-R-03. Chưa có challenge (RV-R-04), [xác minh bot tốt](reports/w18-r-02.md): biến `bot_claim`/`bot_verified`, rule 500001 trong gói core (W18-R-02, W18-S-01), [dải IP do control plane tải hằng ngày](reports/w18-g2-02.md) (W18-G2-02, `-good-bots-interval`, mặc định tắt) |
-| Geolocation, IP intelligence | 3 | **Một phần** | Rule chặn/ghi log theo quốc gia và ASN của client, riêng từng policy (`geo_rules` trên API), bundle chỉ mang dải IP của quốc gia/ASN được nhắc ([W19](reports/w19-geo.md)); trình sửa trên UI và nút từ bản đồ: W19-F-01. IP intelligence: chưa có |
+| Geolocation, IP intelligence | 3 | **Một phần** | Rule chặn/ghi log theo quốc gia và ASN của client, riêng từng policy (`geo_rules` trên API), bundle chỉ mang dải IP của quốc gia/ASN được nhắc ([W19](reports/w19-geo.md)); trình sửa rule geo trong policy và nút "Tạo rule" từ bản đồ (bản nháp, qua replay và duyệt). IP intelligence: chưa có |
 | Threat campaigns | 3 | **Thiết kế** | Rule ET Open có CVE nhưng không có feed chiến dịch |
 
 ## 2. Nền tảng

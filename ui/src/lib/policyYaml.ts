@@ -5,6 +5,7 @@
 // two levels deep, scalars, and string lists (flow [a, b] or block "- a").
 // Anything else is an error with its line, never guessed.
 import type { components } from '../api/generated/admin';
+import { normalizeGeoRule } from './geoRules';
 
 export type PolicySpec = components['schemas']['v1PolicySpec'];
 type Mode = NonNullable<PolicySpec['mode']>;
@@ -254,6 +255,9 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
   delete out.crs_paranoia;
   delete out.crs_paranoia_shadow;
   delete out.crs_plugins;
+  delete out.geo_rules;
+  // W19-G2-01: geo rules as the API stores them (edited in the form only)
+  if (spec.geo_rules?.length) out.geo_rules = spec.geo_rules.map(normalizeGeoRule);
   const plugins = [...new Set(spec.crs_plugins ?? [])].sort();
   if (plugins.length) out.crs_plugins = plugins;
   // stored as the API stores them: level 1 and a shadow level equal to
@@ -286,7 +290,7 @@ export function mergeYamlSpec(base: PolicySpec, editable: PolicySpec): PolicySpe
 
 export function advancedSpec(spec: PolicySpec): Record<string, unknown> {
   const out: Record<string, unknown> = { ...spec };
-  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow', 'crs_plugins']) delete out[key];
+  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow', 'crs_plugins', 'geo_rules']) delete out[key];
   // Zero/empty values emitted by protojson are equivalent to an absent default.
   for (const [key, value] of Object.entries(out)) {
     if (value === 0 || value === null || value === '' || (Array.isArray(value) && !value.length)
