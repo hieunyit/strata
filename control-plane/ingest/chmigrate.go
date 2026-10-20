@@ -39,6 +39,7 @@ var chMigrations = []chMigration{
 		return s.EnsureGeoAggregates(ctx, 0)
 	}},
 	{5, "hourly statistics rollup (W20-G2-01) and the received_at index of events", (*ClickHouseStore).EnsureStatsRollup},
+	{6, "engine_time table (W20-F-01)", (*ClickHouseStore).EnsureEngineTime},
 }
 
 // LatestCHMigration is the schema version this build brings.

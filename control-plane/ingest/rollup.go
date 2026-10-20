@@ -303,6 +303,12 @@ func (s *ClickHouseStore) overviewRolled(ctx context.Context, f OverviewFilter) 
 	if o.Inspection, err = s.policyInspection(ctx, f); err != nil {
 		return nil, fmt.Errorf("overview inspection: %w", err)
 	}
+	if o.Engine, err = s.engineLatency(ctx, from, to); err != nil {
+		return nil, fmt.Errorf("overview engine time: %w", err)
+	}
+	if o.Totals.Requests, err = s.requestsCounted(ctx, from, to, f.PolicyID); err != nil {
+		return nil, fmt.Errorf("overview requests: %w", err)
+	}
 	return o, nil
 }
 

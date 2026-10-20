@@ -31,6 +31,12 @@ async function load(range: RangeKey, policy: string): Promise<Data> {
 
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
+// An engine time bound in microseconds: "≤ 50 µs", "≤ 2 ms", "> 10 ms" (-1).
+export function engineBound(us: number, t: (k: string, o?: Record<string, unknown>) => string): string {
+  if (us < 0) return t('overview.engine.over');
+  return us >= 1000 ? t('overview.engine.ms', { n: us / 1000 }) : t('overview.engine.us', { n: us });
+}
+
 // A horizontal bar split in the verdict colors, scaled to the list's top.
 const SplitBar: React.FC<{ block: number; shadow: number; error?: number; total: number; max: number }> = ({ block, shadow, error = 0, total, max }) => {
   const w = (n: number) => `${max > 0 ? (n / max) * 100 : 0}%`;
@@ -152,7 +158,13 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       <ErrorBanner message={unavailable ? t('errors.eventsUnavailable') : error && t('common.refreshError', { error })} testId="overview-error" />
 
       <section className="panel mb-5" aria-label={t('overview.totals')}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 px-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 px-5">
+          <Kpi
+            testId="kpi-requests"
+            label={t('overview.kpi.requests')}
+            value={!o || !totals?.requests ? '—' : formatCount(totals.requests, locale)}
+            note={totals?.requests ? t('overview.kpi.blockRate', { pct: pct(totals.block, totals.requests) }) : t('overview.kpi.noCounters')}
+          />
           <Kpi testId="kpi-events" label={t('overview.kpi.events')} value={!o ? '—' : formatCount(totals?.events, locale)} note={t(`overview.kpi.window.${range}`)} />
           <Kpi
             testId="kpi-blocked"
@@ -286,6 +298,26 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
           )}
         </section>
 
+        <section className="panel" data-testid="engine-time">
+          <SectionTitle aside={t('overview.engine.note')}>{t('overview.engine.title')}</SectionTitle>
+          {o?.engine ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-5 py-4">
+              {(['p50_us', 'p95_us', 'p99_us'] as const).map((k) => (
+                <div key={k} data-testid={`engine-${k}`}>
+                  <div className="text-xs text-muted">{t(`overview.engine.${k}`)}</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums">{engineBound(o.engine![k], t)}</div>
+                </div>
+              ))}
+              <div data-testid="engine-mean">
+                <div className="text-xs text-muted">{t('overview.engine.mean')}</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums">{t('overview.engine.meanValue', { n: Math.round(o.engine.mean_us) })}</div>
+                <div className="text-xs text-muted">{t('overview.engine.requests', { count: o.engine.requests })}</div>
+              </div>
+            </div>
+          ) : (
+            <Empty testId="engine-empty">{loading ? t('common.loading') : t('overview.engine.empty')}</Empty>
+          )}
+        </section>
         <section className="panel" data-testid="inspection">
           <SectionTitle aside={t('overview.inspection.note')}>{t('overview.inspection.title')}</SectionTitle>
           {o && o.inspection.length > 0 ? (

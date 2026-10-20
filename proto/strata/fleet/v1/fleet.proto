@@ -104,6 +104,12 @@ message NodeCounters {
   // than RV-N-01.
   repeated strata.event.v1.PolicyCount policies = 8;
   uint64 agent_started_ms = 9;
+  // W20-F-01: engine time of the inspected requests, summed over the
+  // workers since metrics_created_ms: per bucket (not cumulative), upper
+  // bounds 50, 100, 200, 500 us, 1, 2, 5, 10 ms, then +Inf; and the total.
+  // Absent with an agent before W20-F-01.
+  repeated uint64 engine_time = 10;
+  uint64 engine_ns = 11;
 }
 
 // Counters of one canary group (docs/design/control-file.md, metrics file

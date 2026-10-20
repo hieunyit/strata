@@ -83,6 +83,40 @@ describe('overview page (W10-F-01)', () => {
     expect(new Date(p.to).getTime() - new Date(p.from).getTime()).toBe(24 * 3_600_000);
   });
 
+  // W20-F-01: requests from the nodes' counters, the block rate over them,
+  // and the engine time of the window
+  it('shows requests, the block rate and the engine time', async () => {
+    vi.spyOn(apiClient, 'getOverview').mockResolvedValue({
+      ...overview,
+      totals: { ...overview.totals, requests: 3000 },
+      engine: { requests: 1000, mean_us: 84.6, p50_us: 50, p95_us: 2000, p99_us: -1 },
+    });
+    fleet();
+    render(<StaticAuthProvider roles={['viewer']}><OverviewPage route={{ page: 'overview' }} /></StaticAuthProvider>);
+    await screen.findAllByTestId('top-rule');
+    expect(screen.getByTestId('kpi-requests')).toHaveTextContent('3,000');
+    expect(screen.getByTestId('kpi-requests')).toHaveTextContent('1% blocked');
+    expect(screen.getByTestId('engine-p50_us')).toHaveTextContent('≤ 50 µs');
+    expect(screen.getByTestId('engine-p95_us')).toHaveTextContent('≤ 2 ms');
+    expect(screen.getByTestId('engine-p99_us')).toHaveTextContent('> 10 ms');
+    expect(screen.getByTestId('engine-mean')).toHaveTextContent('85 µs');
+    expect(screen.getByTestId('engine-mean')).not.toHaveTextContent('≤');
+    expect(screen.getByTestId('engine-mean')).toHaveTextContent('1000 requests timed');
+    // pause stops the refresh
+    fireEvent.click(screen.getByTestId('overview-live'));
+    expect(screen.getByTestId('overview-live')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('says when the nodes send no counters or engine time', async () => {
+    vi.spyOn(apiClient, 'getOverview').mockResolvedValue(overview);
+    fleet();
+    render(<StaticAuthProvider roles={['viewer']}><OverviewPage route={{ page: 'overview' }} /></StaticAuthProvider>);
+    await screen.findAllByTestId('top-rule');
+    expect(screen.getByTestId('kpi-requests')).toHaveTextContent('—');
+    expect(screen.getByTestId('kpi-requests')).toHaveTextContent('node counters unavailable');
+    expect(screen.getByTestId('engine-empty')).toBeInTheDocument();
+  });
+
   it('switches to 7 and 30 days, and filters by policy', async () => {
     const get = vi.spyOn(apiClient, 'getOverview').mockResolvedValue(overview);
     fleet();

@@ -15,6 +15,8 @@ import (
 // ingest.ClickHouseStore, or the in-memory store.
 type PolicyRequestsSink interface {
 	SavePolicyRequests(ctx context.Context, rows []ingest.PolicyRequests) error
+	// W20-F-01: the engine time of each node over each interval
+	SaveEngineTime(ctx context.Context, rows []ingest.EngineTime) error
 }
 
 // MaxPendingPolicyRows bounds what waits for the store (it is failing):
@@ -37,11 +39,20 @@ type PolicyRequestsRecorder struct {
 	last    map[string]nodePolicies
 	pending []ingest.PolicyRequests
 	dropped uint64
+	// W20-F-01: per node, the engine time sums of its last heartbeat
+	lastEngine    map[string]nodeEngine
+	pendingEngine []ingest.EngineTime
+}
+
+type nodeEngine struct {
+	created uint64
+	buckets []uint64
+	nanos   uint64
 }
 
 // NewPolicyRequestsRecorder writes to sink; call Run.
 func NewPolicyRequestsRecorder(sink PolicyRequestsSink) *PolicyRequestsRecorder {
-	return &PolicyRequestsRecorder{Sink: sink, Interval: 10 * time.Second, last: map[string]nodePolicies{}}
+	return &PolicyRequestsRecorder{Sink: sink, Interval: 10 * time.Second, last: map[string]nodePolicies{}, lastEngine: map[string]nodeEngine{}}
 }
 
 // Observe takes a heartbeat's counters. The first heartbeat of a node this
@@ -49,6 +60,7 @@ func NewPolicyRequestsRecorder(sink PolicyRequestsSink) *PolicyRequestsRecorder 
 // unknown); after an agent restart (another agent_started_ms) the sums are
 // new.
 func (r *PolicyRequestsRecorder) Observe(node string, nc *fleetv1.NodeCounters, at time.Time) {
+	r.observeEngine(node, nc, at)
 	ps := nc.GetPolicies()
 	if len(ps) == 0 {
 		return // a module or an agent before RV-N-01
@@ -99,15 +111,25 @@ func sub(a, b uint64) uint64 {
 func (r *PolicyRequestsRecorder) Forget(node string) {
 	r.mu.Lock()
 	delete(r.last, node)
+	delete(r.lastEngine, node)
 	r.mu.Unlock()
 }
 
 // Flush writes what is pending; on an error the rows stay for the next try.
 func (r *PolicyRequestsRecorder) Flush(ctx context.Context) error {
 	r.mu.Lock()
-	rows := r.pending
-	r.pending = nil
+	rows, engine := r.pending, r.pendingEngine
+	r.pending, r.pendingEngine = nil, nil
 	r.mu.Unlock()
+	if len(engine) > 0 {
+		if err := r.Sink.SaveEngineTime(ctx, engine); err != nil {
+			r.mu.Lock()
+			r.pendingEngine = append(engine, r.pendingEngine...)
+			r.pending = append(rows, r.pending...)
+			r.mu.Unlock()
+			return err
+		}
+	}
 	if len(rows) == 0 {
 		return nil
 	}
@@ -138,5 +160,47 @@ func (r *PolicyRequestsRecorder) Run(ctx context.Context) {
 				log.Printf("[WARN] fleet: policy requests: %v", err)
 			}
 		}
+	}
+}
+
+// observeEngine turns the engine time sums of a heartbeat (since NGINX
+// made its metrics file, metrics_created_ms) into the increase since the
+// node's previous one (W20-F-01). A reload starts the sums again.
+func (r *PolicyRequestsRecorder) observeEngine(node string, nc *fleetv1.NodeCounters, at time.Time) {
+	b := nc.GetEngineTime()
+	if len(b) == 0 {
+		return // an agent before W20-F-01
+	}
+	cur := nodeEngine{created: nc.GetMetricsCreatedMs(), buckets: append([]uint64(nil), b...), nanos: nc.GetEngineNs()}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lastEngine == nil {
+		r.lastEngine = map[string]nodeEngine{}
+	}
+	prev, seen := r.lastEngine[node]
+	r.lastEngine[node] = cur
+	if !seen {
+		return
+	}
+	row := ingest.EngineTime{Time: at.UTC(), NodeID: node, Buckets: cur.buckets, Nanos: cur.nanos}
+	if prev.created == cur.created && len(prev.buckets) == len(cur.buckets) {
+		d := make([]uint64, len(cur.buckets))
+		var n uint64
+		for i := range d {
+			if cur.buckets[i] < prev.buckets[i] {
+				return // sums went down without a reload: wait for the next one
+			}
+			d[i] = cur.buckets[i] - prev.buckets[i]
+			n += d[i]
+		}
+		if n == 0 {
+			return
+		}
+		row.Buckets, row.Nanos = d, sub(cur.nanos, prev.nanos)
+	}
+	r.pendingEngine = append(r.pendingEngine, row)
+	if over := len(r.pendingEngine) - MaxPendingPolicyRows; over > 0 {
+		r.pendingEngine = append(r.pendingEngine[:0], r.pendingEngine[over:]...)
+		r.dropped += uint64(over)
 	}
 }
