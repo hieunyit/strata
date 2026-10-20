@@ -1,0 +1,76 @@
+# Strata Compact (CP-A09): three services. The control plane serves the Web
+# UI and the API on one port (CP-A08) and Fleet (mTLS) on another; its
+# artifacts, keys, PKI and configuration live in the strata-data volume.
+# Install, upgrade, backup: deploy/compact/README.md. Overlay for sign-in
+# with Keycloak: compose.keycloak.yaml.
+name: strata-compact
+
+services:
+  postgres:
+    # pinned: a new major version cannot read this volume (README › Nâng cấp)
+    image: postgres:17.11
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: strata
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run deploy/compact/install.sh}
+      POSTGRES_DB: strata
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "strata", "-d", "strata"]
+      interval: 5s
+      retries: 30
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8.33
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: strata
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run deploy/compact/install.sh}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+    volumes:
+      # its own volume: events filling it must not stop PostgreSQL
+      - clickhouse:/var/lib/clickhouse
+      - ./clickhouse/compact.xml:/etc/clickhouse-server/config.d/compact.xml:ro
+      - ./clickhouse/compact-users.xml:/etc/clickhouse-server/users.d/compact-users.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      retries: 30
+    mem_limit: ${CLICKHOUSE_MEM_LIMIT:-3g}
+
+  control-plane:
+    image: strata-control-plane:${STRATA_VERSION:-compact}
+    restart: unless-stopped
+    # the installing user (install.sh): backups and passphrase files stay
+    # theirs, readable by no one else
+    user: "${STRATA_UID:-1001}:${STRATA_GID:-1001}"
+    read_only: true
+    # the compiler runs a snapshot of itself from /tmp (M5)
+    tmpfs: ["/tmp:exec,mode=1777"]
+    command:
+      - -config=/var/lib/strata/config.yaml
+      - -clickhouse-user=strata
+      - -rules=/opt/strata/rules/core.rules.json
+      - -block-page=/opt/strata/block.html
+      - -replay=/usr/local/bin/strata-replay
+      - -replay-corpus=/opt/strata/replay-corpus.parquet
+    volumes:
+      - strata-data:/var/lib/strata
+      - ${STRATA_BACKUP_DIR:-./backups}:/var/backups/strata
+    ports:
+      # UI and API: put a TLS proxy in front, or keep it on loopback
+      - "${STRATA_HTTP_BIND:-127.0.0.1}:${STRATA_HTTP_PORT:-8080}:8080"
+      # Fleet (mTLS): where the nodes' agents connect
+      - "${STRATA_FLEET_BIND:-0.0.0.0}:${STRATA_FLEET_PORT:-8443}:8443"
+    depends_on:
+      postgres: { condition: service_healthy }
+      # not ClickHouse: the control plane runs without it, events degraded (CP-A08)
+    mem_limit: ${STRATA_MEM_LIMIT:-2g}
+
+volumes:
+  postgres:
+  clickhouse:
+  strata-data:

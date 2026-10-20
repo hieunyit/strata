@@ -322,6 +322,30 @@ func containsDump(m Manifest) bool {
 	return false
 }
 
+// MachineSecrets are the connection secrets of the machine restored to:
+// a restore keeps them when the target has them (the database and
+// ClickHouse it runs with are this machine's, like the DSN the restore
+// itself uses), and installs the backup's only where they are missing.
+var MachineSecrets = []string{DataPrefix + "secrets/postgres-dsn", DataPrefix + "secrets/clickhouse-password"}
+
+func machineSecret(name string) bool {
+	for _, s := range MachineSecrets {
+		if name == s {
+			return true
+		}
+	}
+	return false
+}
+
+// keep: an existing machine secret stays as it is.
+func keep(name, dst string) bool {
+	if !machineSecret(name) {
+		return false
+	}
+	_, err := os.Lstat(dst)
+	return err == nil
+}
+
 // target maps an archive path to where it is restored; "" for the dump.
 func target(name, dataDir, objectsDir string) (string, error) {
 	switch {
@@ -346,7 +370,7 @@ func Conflicts(staged string, m Manifest, dataDir, objectsDir string) ([]string,
 		if err != nil {
 			return nil, err
 		}
-		if dst == "" {
+		if dst == "" || keep(f.Path, dst) {
 			continue
 		}
 		have, err := os.ReadFile(dst)
@@ -374,7 +398,7 @@ func Install(staged string, m Manifest, dataDir, objectsDir string) error {
 		if err != nil {
 			return err
 		}
-		if dst == "" {
+		if dst == "" || keep(f.Path, dst) {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(staged, filepath.FromSlash(f.Path)))
