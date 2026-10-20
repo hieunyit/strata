@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { describe, it, expect } from 'vitest';
 
 // CP-A08: event data (URI, headers, snippets) is attacker-controlled. React
