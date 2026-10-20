@@ -113,12 +113,12 @@ func ranges(universe, members []int) [][2]int {
 // target; ok is false for one Strata has no variable for (TX...).
 func pluginTarget(t string) (map[string]any, bool) {
 	name, key, keyed := strings.Cut(t, ":")
-	switch {
-	case name == "XML":
+	switch name {
+	case "XML":
 		return map[string]any{"var": "xml"}, true
-	case name == "REQUEST_COOKIES_NAMES" || name == "REQUEST_HEADERS_NAMES":
+	case "REQUEST_COOKIES_NAMES", "REQUEST_HEADERS_NAMES":
 		return map[string]any{"var": vars[name]}, !keyed
-	case name == "RESPONSE_BODY":
+	case "RESPONSE_BODY":
 		return map[string]any{"var": "response_body"}, !keyed
 	}
 	v, ok := vars[name]
