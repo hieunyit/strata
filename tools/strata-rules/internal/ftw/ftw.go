@@ -60,6 +60,9 @@ type Result struct {
 	Test
 	Status Status
 	Reason string
+	// with a plugin (RunPlugin): the test passes only with it, or fails
+	// without it too (the plugin is not the cause)
+	NeedsPlugin, FailsWithout bool
 }
 
 // Group totals.
@@ -141,6 +144,17 @@ func ParanoiaLevels(inventory string) (map[int]int, error) {
 // Run runs tests against the rules under rulesDir. pl maps rule ids to
 // paranoia levels; tests of rules above maxPL are not run.
 func Run(tools runner.Tools, rulesDir string, tests []Test, pl map[int]int, maxPL int) ([]Result, error) {
+	return RunPlugin(tools, rulesDir, tests, pl, maxPL, "", nil)
+}
+
+// RunPlugin is Run with a CRS plugin (W17-S-01): each rule is compiled
+// with the plugin's exclusion rules (pluginDoc, IR JSON) and the test
+// policy runs the plugin; each test is also run without it, to tell the
+// tests the plugin makes pass.
+func RunPlugin(tools runner.Tools, rulesDir string, tests []Test, pl map[int]int, maxPL int, plugin string, pluginDoc []byte) ([]Result, error) {
+	if plugin != "" {
+		tools.Plugins = []string{plugin}
+	}
 	// the test policy runs the rules up to maxPL (W17-S-01)
 	tools.Paranoia = maxPL
 	caps, err := tools.Capabilities()
@@ -191,7 +205,7 @@ func Run(tools runner.Tools, rulesDir string, tests []Test, pl map[int]int, maxP
 		go func() {
 			defer wg.Done()
 			for id := range work {
-				if err := runRule(tools, byID[id], byRule[id], results); err != nil {
+				if err := runRule(tools, byID[id], byRule[id], results, pluginDoc); err != nil {
 					mu.Lock()
 					if ferr == nil {
 						ferr = fmt.Errorf("rule %d: %w", id, err)
@@ -222,12 +236,16 @@ func blockedByProtocol(rules []uint32) bool {
 
 // runRule compiles one rule and fills the results of its tests (each
 // index is written by this rule only).
-func runRule(tools runner.Tools, rule map[string]any, idx []int, results []Result) error {
+func runRule(tools runner.Tools, rule map[string]any, idx []int, results []Result, pluginDoc []byte) error {
 	doc, err := ruletest.IRDoc("crs-ftw", []map[string]any{rule})
 	if err != nil {
 		return err
 	}
-	b, err := tools.Build([][]byte{doc})
+	docs := [][]byte{doc}
+	if pluginDoc != nil {
+		docs = append(docs, pluginDoc)
+	}
+	b, err := tools.Build(docs)
 	if err != nil {
 		return err
 	}
@@ -241,6 +259,19 @@ func runRule(tools runner.Tools, rule map[string]any, idx []int, results []Resul
 		return err
 	}
 	id := uint32(results[idx[0]].Rule)
+	if pluginDoc != nil {
+		without, err := tools.EvalPolicy(b, reqs, runner.PolicyWithout)
+		if err != nil {
+			return err
+		}
+		for k, i := range idx {
+			passes := func(v runner.Verdict) bool {
+				return v.Error == 0 && v.Matched(id) == (results[i].Expect == "match")
+			}
+			results[i].NeedsPlugin = passes(vs[k]) && !passes(without[k])
+			results[i].FailsWithout = !passes(vs[k]) && !passes(without[k])
+		}
+	}
 	for k, i := range idx {
 		v := vs[k]
 		matched := v.Matched(id)
@@ -373,7 +404,23 @@ func Markdown(w io.Writer, results []Result, maxPL int) {
 	if len(failed) > 0 {
 		fmt.Fprintf(w, "\n### Failed tests\n\n| Test | Expect | Why | Description |\n| --- | --- | --- | --- |\n")
 		for _, r := range failed {
+			if r.FailsWithout {
+				r.Reason += " (also without the plugin)"
+			}
 			fmt.Fprintf(w, "| %s | %s | %s | %s |\n", r.Name, r.Expect, r.Reason, strings.ReplaceAll(r.Desc, "|", "\\|"))
 		}
 	}
+}
+
+// PluginSummary heads the results of a plugin's tests (W17-S-01): how
+// many pass only because of the plugin.
+func PluginSummary(w io.Writer, plugin string, results []Result) {
+	t := Total(results)
+	needs := 0
+	for _, r := range results {
+		if r.NeedsPlugin {
+			needs++
+		}
+	}
+	fmt.Fprintf(w, "## CRS plugin %s\n\n%d of its %d go-ftw expectations pass (%.1f%%); %d of them pass only with the plugin (they fail with the same rules and no crs_plugins). An expectation of a rule Strata does not import counts as failed.\n\n", plugin, t.Passed, t.Tests, t.Rate(), needs)
 }

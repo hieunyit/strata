@@ -21,12 +21,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/strata/strata/tools/strata-rules/internal/corpus"
 	"github.com/strata/strata/tools/strata-rules/internal/fpreport"
@@ -330,7 +333,27 @@ func ftwCmd() {
 	testsDir := fs.String("tests", "", "test requests (default <repo>/corpus/crs-ftw)")
 	rulesDir := fs.String("rules", "", "rules the tests are for (default <repo>/rules/crs)")
 	inventory := fs.String("inventory", "", "rule paranoia levels (default <repo>/docs/crs-inventory.csv; none: every rule is level 1)")
+	plugin := fs.String("plugin", "", "a CRS plugin (W17-S-01): run its tests (group <plugin> of --tests) with each rule compiled with the plugin's exclusion rules")
+	pluginRules := fs.String("plugin-rules", "", "the plugin's IR (default <repo>/rules/crs-plugins/<plugin>.yaml)")
+	maxPluginFails := fs.Int("max-plugin-fails", -1, "with --plugin: fail when more tests than this fail because of the plugin (they pass without it); -1: not checked")
 	_ = fs.Parse(os.Args[2:])
+	var pluginDoc []byte
+	if *plugin != "" {
+		if *pluginRules == "" {
+			*pluginRules = filepath.Join(*repo, "rules", "crs-plugins", *plugin+".yaml")
+		}
+		raw, err := os.ReadFile(*pluginRules)
+		if err != nil {
+			die(err)
+		}
+		var doc map[string]any
+		if err := yaml.Unmarshal(raw, &doc); err != nil {
+			die(fmt.Errorf("%s: %w", *pluginRules, err))
+		}
+		if pluginDoc, err = json.Marshal(doc); err != nil {
+			die(err)
+		}
+	}
 	crs := *testsDir == ""
 	if crs {
 		*testsDir = filepath.Join(*repo, "corpus", "crs-ftw")
@@ -368,15 +391,39 @@ func ftwCmd() {
 			die(err)
 		}
 	}
-	results, err := ftw.Run(tools, *rulesDir, tests, pl, *maxPL)
+	if *plugin != "" {
+		kept := tests[:0]
+		for _, t := range tests {
+			if t.Group == *plugin {
+				kept = append(kept, t)
+			}
+		}
+		tests = kept
+	}
+	results, err := ftw.RunPlugin(tools, *rulesDir, tests, pl, *maxPL, *plugin, pluginDoc)
 	if err != nil {
 		die(err)
+	}
+	if *plugin != "" {
+		ftw.PluginSummary(os.Stdout, *plugin, results)
 	}
 	ftw.Markdown(os.Stdout, results, *maxPL)
 	low := false
 	for _, g := range ftw.Groups(results) {
 		if *minRate > 0 && g.Tests > 0 && g.Rate() < *minRate {
 			fmt.Fprintf(os.Stderr, "strata-rules ftw: %s passes %.1f%%, under %.0f%%\n", g.Name, g.Rate(), *minRate)
+			low = true
+		}
+	}
+	if *plugin != "" && *maxPluginFails >= 0 {
+		n := 0
+		for _, r := range results {
+			if r.Status == ftw.Fail && !r.FailsWithout {
+				n++
+			}
+		}
+		if n > *maxPluginFails {
+			fmt.Fprintf(os.Stderr, "strata-rules ftw: %d tests of plugin %s fail because of it (they pass without it)\n", n, *plugin)
 			low = true
 		}
 	}

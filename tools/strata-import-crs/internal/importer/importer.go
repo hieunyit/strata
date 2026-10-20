@@ -519,6 +519,12 @@ func dataFile(p string) ([]string, error) {
 // skips still run: its single condition, negated. nil when that cannot be
 // said exactly (a chain, a target with several values).
 func skipGate(r seclang.Rule, dataDir string) map[string]any {
+	return negateGate(r, dataDir, singleValued)
+}
+
+// negateGate: the negation of a one-link rule whose targets each have
+// exactly one value (`single`), nil when it cannot be said exactly.
+func negateGate(r seclang.Rule, dataDir string, single map[string]bool) map[string]any {
 	if r.Directive != "SecRule" || len(r.Chain) != 1 {
 		return nil
 	}
@@ -528,7 +534,7 @@ func skipGate(r seclang.Rule, dataDir string) map[string]any {
 		return nil
 	}
 	for _, t := range c["targets"].([]map[string]any) {
-		if !singleValued[t["var"].(string)] || t["count"] != nil || t["key"] != nil {
+		if !single[t["var"].(string)] || t["count"] != nil || t["key"] != nil {
 			return nil
 		}
 	}

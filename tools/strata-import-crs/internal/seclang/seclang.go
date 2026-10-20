@@ -23,6 +23,8 @@ type Link struct {
 	Argument   string   // operator argument as written
 	Transforms []string // t:none, t:urlDecodeUni, ... in order
 	Actions    []string // action names other than t:, in order (id, phase, block, setvar...)
+	Ctls       []string // values of the ctl: actions, in order (ruleRemoveById=920100...)
+	Setvars    []string // values of the setvar: actions, in order
 }
 
 // Rule is one SecRule or SecAction with an id, its chain folded in.
@@ -36,6 +38,7 @@ type Rule struct {
 	Msg       string
 	Tags      []string
 	Skip      int    // skip:N, the number of rules skipped when the rule matches
+	SkipAfter string // skipAfter:MARKER: the rules up to SecMarker MARKER are skipped when it matches
 	Chain     []Link // len >= 1 for SecRule; [0] for SecAction holds its actions
 }
 
@@ -169,6 +172,12 @@ func readLink(vars parser.IVariablesContext, op parser.IOperatorContext, acts pa
 			continue
 		}
 		l.Actions = append(l.Actions, actionName(a))
+		switch actionName(a) {
+		case "ctl":
+			l.Ctls = append(l.Ctls, actionValue(a))
+		case "setvar":
+			l.Setvars = append(l.Setvars, actionValue(a))
+		}
 	}
 	return l
 }
@@ -229,6 +238,8 @@ func fillMeta(r *Rule, acts parser.IActionsContext) {
 			r.Tags = append(r.Tags, actionValue(a))
 		case "skip":
 			r.Skip, _ = strconv.Atoi(actionValue(a))
+		case "skipAfter":
+			r.SkipAfter = actionValue(a)
 		}
 	}
 }
