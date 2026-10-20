@@ -695,11 +695,19 @@ type Node struct {
 	BundleVersion uint64 `protobuf:"varint,6,opt,name=bundle_version,json=bundleVersion,proto3" json:"bundle_version,omitempty"`
 	BundleState   string `protobuf:"bytes,7,opt,name=bundle_state,json=bundleState,proto3" json:"bundle_state,omitempty"` // NONE, VERIFIED, ACTIVE, FAILED
 	// A stream is open, or a heartbeat came within the last 30 seconds.
-	Online         bool                   `protobuf:"varint,8,opt,name=online,proto3" json:"online,omitempty"`
-	LastSeenTime   *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_seen_time,json=lastSeenTime,proto3" json:"last_seen_time,omitempty"`
-	CertExpireTime *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=cert_expire_time,json=certExpireTime,proto3" json:"cert_expire_time,omitempty"`
-	Revoked        bool                   `protobuf:"varint,11,opt,name=revoked,proto3" json:"revoked,omitempty"`
-	CreateTime     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	Online               bool                   `protobuf:"varint,8,opt,name=online,proto3" json:"online,omitempty"`
+	LastSeenTime         *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_seen_time,json=lastSeenTime,proto3" json:"last_seen_time,omitempty"`
+	CertExpireTime       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=cert_expire_time,json=certExpireTime,proto3" json:"cert_expire_time,omitempty"`
+	Revoked              bool                   `protobuf:"varint,11,opt,name=revoked,proto3" json:"revoked,omitempty"`
+	CreateTime           *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	AgentVersion         string                 `protobuf:"bytes,13,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	OperatingSystem      string                 `protobuf:"bytes,14,opt,name=operating_system,json=operatingSystem,proto3" json:"operating_system,omitempty"`
+	AbiVersion           uint32                 `protobuf:"varint,15,opt,name=abi_version,json=abiVersion,proto3" json:"abi_version,omitempty"`
+	Capabilities         []string               `protobuf:"bytes,16,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	DesiredBundleVersion uint64                 `protobuf:"varint,17,opt,name=desired_bundle_version,json=desiredBundleVersion,proto3" json:"desired_bundle_version,omitempty"`
+	BundleDrift          bool                   `protobuf:"varint,18,opt,name=bundle_drift,json=bundleDrift,proto3" json:"bundle_drift,omitempty"`
+	CertificateStatus    string                 `protobuf:"bytes,19,opt,name=certificate_status,json=certificateStatus,proto3" json:"certificate_status,omitempty"` // unknown, expired, expiring, healthy
+	InventoryTime        *timestamppb.Timestamp `protobuf:"bytes,20,opt,name=inventory_time,json=inventoryTime,proto3" json:"inventory_time,omitempty"`
 }
 
 func (x *Node) Reset() {
@@ -814,6 +822,62 @@ func (x *Node) GetRevoked() bool {
 func (x *Node) GetCreateTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreateTime
+	}
+	return nil
+}
+
+func (x *Node) GetAgentVersion() string {
+	if x != nil {
+		return x.AgentVersion
+	}
+	return ""
+}
+
+func (x *Node) GetOperatingSystem() string {
+	if x != nil {
+		return x.OperatingSystem
+	}
+	return ""
+}
+
+func (x *Node) GetAbiVersion() uint32 {
+	if x != nil {
+		return x.AbiVersion
+	}
+	return 0
+}
+
+func (x *Node) GetCapabilities() []string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *Node) GetDesiredBundleVersion() uint64 {
+	if x != nil {
+		return x.DesiredBundleVersion
+	}
+	return 0
+}
+
+func (x *Node) GetBundleDrift() bool {
+	if x != nil {
+		return x.BundleDrift
+	}
+	return false
+}
+
+func (x *Node) GetCertificateStatus() string {
+	if x != nil {
+		return x.CertificateStatus
+	}
+	return ""
+}
+
+func (x *Node) GetInventoryTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.InventoryTime
 	}
 	return nil
 }
@@ -2140,7 +2204,7 @@ var file_strata_admin_v1_fleet_proto_rawDesc = []byte{
 	0x3b, 0x0a, 0x0b, 0x65, 0x78, 0x70, 0x69, 0x72, 0x65, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x04,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72,
 	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70,
-	0x52, 0x0a, 0x65, 0x78, 0x70, 0x69, 0x72, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x22, 0xda, 0x03, 0x0a,
+	0x52, 0x0a, 0x65, 0x78, 0x70, 0x69, 0x72, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x22, 0xba, 0x06, 0x0a,
 	0x04, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x19, 0x0a, 0x08, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x69,
 	0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x64,
@@ -2170,7 +2234,29 @@ var file_strata_admin_v1_fleet_proto_rawDesc = []byte{
 	0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x0c, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
 	0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0a, 0x63,
-	0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x22, 0x12, 0x0a, 0x10, 0x4c, 0x69, 0x73,
+	0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x23, 0x0a, 0x0d, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x0c, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x29,
+	0x0a, 0x10, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x73, 0x79, 0x73, 0x74,
+	0x65, 0x6d, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0f, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x69, 0x6e, 0x67, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x12, 0x1f, 0x0a, 0x0b, 0x61, 0x62, 0x69,
+	0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0a,
+	0x61, 0x62, 0x69, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x22, 0x0a, 0x0c, 0x63, 0x61,
+	0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73, 0x18, 0x10, 0x20, 0x03, 0x28, 0x09,
+	0x52, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73, 0x12, 0x34,
+	0x0a, 0x16, 0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x64, 0x5f, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65,
+	0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x11, 0x20, 0x01, 0x28, 0x04, 0x52, 0x14,
+	0x64, 0x65, 0x73, 0x69, 0x72, 0x65, 0x64, 0x42, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72,
+	0x73, 0x69, 0x6f, 0x6e, 0x12, 0x21, 0x0a, 0x0c, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x5f, 0x64,
+	0x72, 0x69, 0x66, 0x74, 0x18, 0x12, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x62, 0x75, 0x6e, 0x64,
+	0x6c, 0x65, 0x44, 0x72, 0x69, 0x66, 0x74, 0x12, 0x2d, 0x0a, 0x12, 0x63, 0x65, 0x72, 0x74, 0x69,
+	0x66, 0x69, 0x63, 0x61, 0x74, 0x65, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x13, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x11, 0x63, 0x65, 0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x65,
+	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x41, 0x0a, 0x0e, 0x69, 0x6e, 0x76, 0x65, 0x6e, 0x74,
+	0x6f, 0x72, 0x79, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x14, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a,
+	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
+	0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0d, 0x69, 0x6e, 0x76, 0x65,
+	0x6e, 0x74, 0x6f, 0x72, 0x79, 0x54, 0x69, 0x6d, 0x65, 0x22, 0x12, 0x0a, 0x10, 0x4c, 0x69, 0x73,
 	0x74, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x40, 0x0a,
 	0x11, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
 	0x73, 0x65, 0x12, 0x2b, 0x0a, 0x05, 0x6e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
@@ -2483,56 +2569,57 @@ var file_strata_admin_v1_fleet_proto_depIdxs = []int32{
 	35, // 9: strata.admin.v1.Node.last_seen_time:type_name -> google.protobuf.Timestamp
 	35, // 10: strata.admin.v1.Node.cert_expire_time:type_name -> google.protobuf.Timestamp
 	35, // 11: strata.admin.v1.Node.create_time:type_name -> google.protobuf.Timestamp
-	12, // 12: strata.admin.v1.ListNodesResponse.nodes:type_name -> strata.admin.v1.Node
-	12, // 13: strata.admin.v1.RevokeNodeResponse.node:type_name -> strata.admin.v1.Node
-	35, // 14: strata.admin.v1.NodeCommand.create_time:type_name -> google.protobuf.Timestamp
-	35, // 15: strata.admin.v1.NodeCommand.expire_time:type_name -> google.protobuf.Timestamp
-	35, // 16: strata.admin.v1.NodeCommand.update_time:type_name -> google.protobuf.Timestamp
-	24, // 17: strata.admin.v1.EmergencyDisableRuleResponse.rule:type_name -> strata.admin.v1.DisabledRule
-	17, // 18: strata.admin.v1.EmergencyDisableRuleResponse.commands:type_name -> strata.admin.v1.NodeCommand
-	17, // 19: strata.admin.v1.EnableRuleResponse.commands:type_name -> strata.admin.v1.NodeCommand
-	24, // 20: strata.admin.v1.ListDisabledRulesResponse.rules:type_name -> strata.admin.v1.DisabledRule
-	35, // 21: strata.admin.v1.DisabledRule.create_time:type_name -> google.protobuf.Timestamp
-	17, // 22: strata.admin.v1.ForceShadowResponse.commands:type_name -> strata.admin.v1.NodeCommand
-	17, // 23: strata.admin.v1.ClearForceShadowResponse.commands:type_name -> strata.admin.v1.NodeCommand
-	17, // 24: strata.admin.v1.CollectDiagnosticsResponse.command:type_name -> strata.admin.v1.NodeCommand
-	17, // 25: strata.admin.v1.ListCommandsResponse.commands:type_name -> strata.admin.v1.NodeCommand
-	17, // 26: strata.admin.v1.GetCommandResponse.command:type_name -> strata.admin.v1.NodeCommand
-	6,  // 27: strata.admin.v1.FleetAdminService.ListGroups:input_type -> strata.admin.v1.ListGroupsRequest
-	8,  // 28: strata.admin.v1.FleetAdminService.CreateGroup:input_type -> strata.admin.v1.CreateGroupRequest
-	10, // 29: strata.admin.v1.FleetAdminService.CreateEnrollmentToken:input_type -> strata.admin.v1.CreateEnrollmentTokenRequest
-	13, // 30: strata.admin.v1.FleetAdminService.ListNodes:input_type -> strata.admin.v1.ListNodesRequest
-	15, // 31: strata.admin.v1.FleetAdminService.RevokeNode:input_type -> strata.admin.v1.RevokeNodeRequest
-	25, // 32: strata.admin.v1.FleetAdminService.ForceShadow:input_type -> strata.admin.v1.ForceShadowRequest
-	27, // 33: strata.admin.v1.FleetAdminService.ClearForceShadow:input_type -> strata.admin.v1.ClearForceShadowRequest
-	29, // 34: strata.admin.v1.FleetAdminService.CollectDiagnostics:input_type -> strata.admin.v1.CollectDiagnosticsRequest
-	31, // 35: strata.admin.v1.FleetAdminService.ListCommands:input_type -> strata.admin.v1.ListCommandsRequest
-	33, // 36: strata.admin.v1.FleetAdminService.GetCommand:input_type -> strata.admin.v1.GetCommandRequest
-	18, // 37: strata.admin.v1.FleetAdminService.EmergencyDisableRule:input_type -> strata.admin.v1.EmergencyDisableRuleRequest
-	20, // 38: strata.admin.v1.FleetAdminService.EnableRule:input_type -> strata.admin.v1.EnableRuleRequest
-	22, // 39: strata.admin.v1.FleetAdminService.ListDisabledRules:input_type -> strata.admin.v1.ListDisabledRulesRequest
-	1,  // 40: strata.admin.v1.FleetAdminService.SetReplaySampling:input_type -> strata.admin.v1.SetReplaySamplingRequest
-	3,  // 41: strata.admin.v1.FleetAdminService.GetReplaySampling:input_type -> strata.admin.v1.GetReplaySamplingRequest
-	7,  // 42: strata.admin.v1.FleetAdminService.ListGroups:output_type -> strata.admin.v1.ListGroupsResponse
-	9,  // 43: strata.admin.v1.FleetAdminService.CreateGroup:output_type -> strata.admin.v1.CreateGroupResponse
-	11, // 44: strata.admin.v1.FleetAdminService.CreateEnrollmentToken:output_type -> strata.admin.v1.CreateEnrollmentTokenResponse
-	14, // 45: strata.admin.v1.FleetAdminService.ListNodes:output_type -> strata.admin.v1.ListNodesResponse
-	16, // 46: strata.admin.v1.FleetAdminService.RevokeNode:output_type -> strata.admin.v1.RevokeNodeResponse
-	26, // 47: strata.admin.v1.FleetAdminService.ForceShadow:output_type -> strata.admin.v1.ForceShadowResponse
-	28, // 48: strata.admin.v1.FleetAdminService.ClearForceShadow:output_type -> strata.admin.v1.ClearForceShadowResponse
-	30, // 49: strata.admin.v1.FleetAdminService.CollectDiagnostics:output_type -> strata.admin.v1.CollectDiagnosticsResponse
-	32, // 50: strata.admin.v1.FleetAdminService.ListCommands:output_type -> strata.admin.v1.ListCommandsResponse
-	34, // 51: strata.admin.v1.FleetAdminService.GetCommand:output_type -> strata.admin.v1.GetCommandResponse
-	19, // 52: strata.admin.v1.FleetAdminService.EmergencyDisableRule:output_type -> strata.admin.v1.EmergencyDisableRuleResponse
-	21, // 53: strata.admin.v1.FleetAdminService.EnableRule:output_type -> strata.admin.v1.EnableRuleResponse
-	23, // 54: strata.admin.v1.FleetAdminService.ListDisabledRules:output_type -> strata.admin.v1.ListDisabledRulesResponse
-	2,  // 55: strata.admin.v1.FleetAdminService.SetReplaySampling:output_type -> strata.admin.v1.SetReplaySamplingResponse
-	4,  // 56: strata.admin.v1.FleetAdminService.GetReplaySampling:output_type -> strata.admin.v1.GetReplaySamplingResponse
-	42, // [42:57] is the sub-list for method output_type
-	27, // [27:42] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	35, // 12: strata.admin.v1.Node.inventory_time:type_name -> google.protobuf.Timestamp
+	12, // 13: strata.admin.v1.ListNodesResponse.nodes:type_name -> strata.admin.v1.Node
+	12, // 14: strata.admin.v1.RevokeNodeResponse.node:type_name -> strata.admin.v1.Node
+	35, // 15: strata.admin.v1.NodeCommand.create_time:type_name -> google.protobuf.Timestamp
+	35, // 16: strata.admin.v1.NodeCommand.expire_time:type_name -> google.protobuf.Timestamp
+	35, // 17: strata.admin.v1.NodeCommand.update_time:type_name -> google.protobuf.Timestamp
+	24, // 18: strata.admin.v1.EmergencyDisableRuleResponse.rule:type_name -> strata.admin.v1.DisabledRule
+	17, // 19: strata.admin.v1.EmergencyDisableRuleResponse.commands:type_name -> strata.admin.v1.NodeCommand
+	17, // 20: strata.admin.v1.EnableRuleResponse.commands:type_name -> strata.admin.v1.NodeCommand
+	24, // 21: strata.admin.v1.ListDisabledRulesResponse.rules:type_name -> strata.admin.v1.DisabledRule
+	35, // 22: strata.admin.v1.DisabledRule.create_time:type_name -> google.protobuf.Timestamp
+	17, // 23: strata.admin.v1.ForceShadowResponse.commands:type_name -> strata.admin.v1.NodeCommand
+	17, // 24: strata.admin.v1.ClearForceShadowResponse.commands:type_name -> strata.admin.v1.NodeCommand
+	17, // 25: strata.admin.v1.CollectDiagnosticsResponse.command:type_name -> strata.admin.v1.NodeCommand
+	17, // 26: strata.admin.v1.ListCommandsResponse.commands:type_name -> strata.admin.v1.NodeCommand
+	17, // 27: strata.admin.v1.GetCommandResponse.command:type_name -> strata.admin.v1.NodeCommand
+	6,  // 28: strata.admin.v1.FleetAdminService.ListGroups:input_type -> strata.admin.v1.ListGroupsRequest
+	8,  // 29: strata.admin.v1.FleetAdminService.CreateGroup:input_type -> strata.admin.v1.CreateGroupRequest
+	10, // 30: strata.admin.v1.FleetAdminService.CreateEnrollmentToken:input_type -> strata.admin.v1.CreateEnrollmentTokenRequest
+	13, // 31: strata.admin.v1.FleetAdminService.ListNodes:input_type -> strata.admin.v1.ListNodesRequest
+	15, // 32: strata.admin.v1.FleetAdminService.RevokeNode:input_type -> strata.admin.v1.RevokeNodeRequest
+	25, // 33: strata.admin.v1.FleetAdminService.ForceShadow:input_type -> strata.admin.v1.ForceShadowRequest
+	27, // 34: strata.admin.v1.FleetAdminService.ClearForceShadow:input_type -> strata.admin.v1.ClearForceShadowRequest
+	29, // 35: strata.admin.v1.FleetAdminService.CollectDiagnostics:input_type -> strata.admin.v1.CollectDiagnosticsRequest
+	31, // 36: strata.admin.v1.FleetAdminService.ListCommands:input_type -> strata.admin.v1.ListCommandsRequest
+	33, // 37: strata.admin.v1.FleetAdminService.GetCommand:input_type -> strata.admin.v1.GetCommandRequest
+	18, // 38: strata.admin.v1.FleetAdminService.EmergencyDisableRule:input_type -> strata.admin.v1.EmergencyDisableRuleRequest
+	20, // 39: strata.admin.v1.FleetAdminService.EnableRule:input_type -> strata.admin.v1.EnableRuleRequest
+	22, // 40: strata.admin.v1.FleetAdminService.ListDisabledRules:input_type -> strata.admin.v1.ListDisabledRulesRequest
+	1,  // 41: strata.admin.v1.FleetAdminService.SetReplaySampling:input_type -> strata.admin.v1.SetReplaySamplingRequest
+	3,  // 42: strata.admin.v1.FleetAdminService.GetReplaySampling:input_type -> strata.admin.v1.GetReplaySamplingRequest
+	7,  // 43: strata.admin.v1.FleetAdminService.ListGroups:output_type -> strata.admin.v1.ListGroupsResponse
+	9,  // 44: strata.admin.v1.FleetAdminService.CreateGroup:output_type -> strata.admin.v1.CreateGroupResponse
+	11, // 45: strata.admin.v1.FleetAdminService.CreateEnrollmentToken:output_type -> strata.admin.v1.CreateEnrollmentTokenResponse
+	14, // 46: strata.admin.v1.FleetAdminService.ListNodes:output_type -> strata.admin.v1.ListNodesResponse
+	16, // 47: strata.admin.v1.FleetAdminService.RevokeNode:output_type -> strata.admin.v1.RevokeNodeResponse
+	26, // 48: strata.admin.v1.FleetAdminService.ForceShadow:output_type -> strata.admin.v1.ForceShadowResponse
+	28, // 49: strata.admin.v1.FleetAdminService.ClearForceShadow:output_type -> strata.admin.v1.ClearForceShadowResponse
+	30, // 50: strata.admin.v1.FleetAdminService.CollectDiagnostics:output_type -> strata.admin.v1.CollectDiagnosticsResponse
+	32, // 51: strata.admin.v1.FleetAdminService.ListCommands:output_type -> strata.admin.v1.ListCommandsResponse
+	34, // 52: strata.admin.v1.FleetAdminService.GetCommand:output_type -> strata.admin.v1.GetCommandResponse
+	19, // 53: strata.admin.v1.FleetAdminService.EmergencyDisableRule:output_type -> strata.admin.v1.EmergencyDisableRuleResponse
+	21, // 54: strata.admin.v1.FleetAdminService.EnableRule:output_type -> strata.admin.v1.EnableRuleResponse
+	23, // 55: strata.admin.v1.FleetAdminService.ListDisabledRules:output_type -> strata.admin.v1.ListDisabledRulesResponse
+	2,  // 56: strata.admin.v1.FleetAdminService.SetReplaySampling:output_type -> strata.admin.v1.SetReplaySamplingResponse
+	4,  // 57: strata.admin.v1.FleetAdminService.GetReplaySampling:output_type -> strata.admin.v1.GetReplaySamplingResponse
+	43, // [43:58] is the sub-list for method output_type
+	28, // [28:43] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_strata_admin_v1_fleet_proto_init() }

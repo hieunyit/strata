@@ -1930,6 +1930,37 @@
         "create_time": {
           "type": "string",
           "format": "date-time"
+        },
+        "agent_version": {
+          "type": "string"
+        },
+        "operating_system": {
+          "type": "string"
+        },
+        "abi_version": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "desired_bundle_version": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "bundle_drift": {
+          "type": "boolean"
+        },
+        "certificate_status": {
+          "type": "string",
+          "title": "unknown, expired, expiring, healthy"
+        },
+        "inventory_time": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

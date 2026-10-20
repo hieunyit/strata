@@ -365,6 +365,19 @@
       "title": "Rollout {{id}}, bundle v{{version}}",
       "wave": "wave {{current}} of {{total}}",
       "waveN": "Wave {{n}}"
+    },
+    "inventory": {
+      "agent": "Agent",
+      "capabilities": "Capabilities",
+      "unknown": "Unknown",
+      "desired": "Desired v{{version}}",
+      "drift": "Not active on desired version",
+      "certificate": {
+        "unknown": "Certificate status unknown",
+        "expired": "Expired",
+        "expiring": "Expires within 7 days",
+        "healthy": "Valid"
+      }
     }
   },
   "common": {

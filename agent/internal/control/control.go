@@ -225,7 +225,8 @@ func (c *Controller) stream(ctx context.Context) error {
 				slog.Info("connector versions changed; reconnecting to report them", "versions", now)
 				return nil
 			}
-			hb := &fleetv1.Heartbeat{ActiveBundleVersion: c.opts.BundleVersion()}
+			node, _ := c.node()
+			hb := &fleetv1.Heartbeat{ActiveBundleVersion: c.opts.BundleVersion(), Node: node}
 			if c.opts.Counters != nil {
 				hb.Counters = c.opts.Counters()
 			}

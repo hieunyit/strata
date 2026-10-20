@@ -51,6 +51,9 @@ message NodeInfo {
   string agent_version = 2;
   Connector connector = 3;
   map<string, string> labels = 4;
+  string operating_system = 5; // agent runtime OS/architecture
+  repeated string capabilities = 6; // verified module manifest; absent means unknown
+
 }
 
 message Connector {
@@ -78,6 +81,8 @@ message Heartbeat {
   uint64 active_bundle_version = 1;
   repeated WorkerState workers = 2; // phiên bản engine từng worker
   NodeCounters counters = 3; // request, block, fail mode, dropped events
+  NodeInfo node = 4; // refreshed inventory, old agents may omit it
+
 }
 
 message WorkerState {

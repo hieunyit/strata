@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -196,7 +197,7 @@ func New(cfg Config) (*Agent, error) {
 			// Calls on the old connections would be refused as superseded.
 			slog.Info("closing connections made with the old certificate", "conns", conns.closeAll())
 		},
-		Node: &fleetv1.NodeInfo{Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
+		Node: &fleetv1.NodeInfo{OperatingSystem: runtime.GOOS + "/" + runtime.GOARCH, Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
 			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents,

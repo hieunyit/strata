@@ -359,6 +359,19 @@
       "title": "Rollout {{id}}, bundle v{{version}}",
       "wave": "đợt {{current}}/{{total}}",
       "waveN": "Đợt {{n}}"
+    },
+    "inventory": {
+      "agent": "Agent",
+      "capabilities": "Năng lực",
+      "unknown": "Chưa biết",
+      "desired": "Mong muốn v{{version}}",
+      "drift": "Chưa chạy đúng phiên bản",
+      "certificate": {
+        "unknown": "Chưa có trạng thái chứng chỉ",
+        "expired": "Đã hết hạn",
+        "expiring": "Hết hạn trong 7 ngày",
+        "healthy": "Còn hạn"
+      }
     }
   },
   "common": {

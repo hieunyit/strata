@@ -501,6 +501,18 @@ export interface components {
       revoked?: boolean;
       /** Format: date-time */
       create_time?: string;
+      agent_version?: string;
+      operating_system?: string;
+      /** Format: int64 */
+      abi_version?: number;
+      capabilities?: string[];
+      /** Format: uint64 */
+      desired_bundle_version?: string;
+      bundle_drift?: boolean;
+      /** unknown, expired, expiring, healthy */
+      certificate_status?: string;
+      /** Format: date-time */
+      inventory_time?: string;
     };
     /** @description NodeCommand is a command sent to one node and its result. */
     v1NodeCommand: {
