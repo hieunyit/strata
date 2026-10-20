@@ -83,7 +83,7 @@ func (s *Store) Put(ctx context.Context, keyID string, recs []Record) (string, e
 		return "", fmt.Errorf("replay: no samples")
 	}
 	p, n := recs[0].Policy, recs[0].NodeID
-	if p == "" || !policy.NamePattern.MatchString(p) {
+	if p == "" || !policy.ValidName(p) {
 		return "", fmt.Errorf("replay: bad policy name %q", p)
 	}
 	if !nodePattern.MatchString(n) {

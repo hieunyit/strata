@@ -36,7 +36,7 @@ func (s *Service) Evaluate(ctx context.Context, spec policy.Spec, rule uint32, n
 	if err := spec.Validate(); err != nil {
 		return out, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
-	if rule == 0 || bundle == 0 || !policy.NamePattern.MatchString(name) || now.IsZero() {
+	if rule == 0 || bundle == 0 || !policy.ValidName(name) || now.IsZero() {
 		return out, ErrInvalid
 	}
 	a := spec.AutoStaging

@@ -163,8 +163,8 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	if !policy.IDPattern.MatchString(in.GetId()) {
 		return nil, status.Error(codes.InvalidArgument, "policy.id must match [a-z0-9][a-z0-9-]{0,62}")
 	}
-	if !policy.NamePattern.MatchString(in.GetName()) {
-		return nil, status.Error(codes.InvalidArgument, "policy.name must match [a-z0-9._-]{1,55}")
+	if !policy.ValidName(in.GetName()) {
+		return nil, status.Error(codes.InvalidArgument, "policy.name must match [a-z0-9._-]{1,55} and not be only dots")
 	}
 	spec, err := specOf(in.GetSpec())
 	if err != nil {

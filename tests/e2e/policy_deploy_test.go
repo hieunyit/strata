@@ -134,6 +134,10 @@ func TestPolicyEditAndDeploy(t *testing.T) {
 	if c := e.call(t, "operator", http.MethodPost, "/v1/policies", `{"id":"x","name":"x","spec":{"mode":"MODE_UNSPECIFIED"}}`, nil); c != http.StatusBadRequest {
 		t.Fatalf("spec without a mode: %d", c)
 	}
+	// CP-SEC-02: names go into object keys and paths
+	if c := e.call(t, "operator", http.MethodPost, "/v1/policies", `{"id":"dots","name":"..","spec":{"mode":"MODE_SHADOW"}}`, nil); c != http.StatusBadRequest {
+		t.Fatalf("policy named ..: %d", c)
+	}
 
 	patch := func(etag, mode string) (int, pol) {
 		var out pol

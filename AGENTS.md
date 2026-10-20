@@ -20,8 +20,9 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 
 | Mã | Nhiệm vụ | Công cụ | Cần trước | Trạng thái |
 | --- | --- | --- | --- | --- |
-| CP-SEC-01 | Namespace subject OIDC (`oidc:<issuer>:<sub>`), từ chối `sub` dạng `local:`, chuyển các cột `*_subject` cũ | Claude Code (strata-59) | — | ⏳ |
-| CP-SEC-02 | Tên policy không chỉ gồm dấu chấm; kiểm khóa object từng đoạn | Claude Code (strata-59) | — | ⏳ |
+| CP-SEC-01 | Namespace subject OIDC (`oidc:<sub>`), từ chối token không có `sub`, chuyển các cột `*_subject` cũ | Claude Code (strata-59) | — | ✅ PR #270 (migration 0026; `audit_log` giữ nguyên) |
+| CP-FIX-01 | Chốt replay lúc deploy chỉ kiểm cái thay đổi (`rules_digest`); lab `/tmp` cho chạy compiler (#271) | Claude Code (strata-59) | — | ✅ PR #271, #273 (migration 0025; lab: duyệt lại 27 policy rồi `lab-chain`, smoke, drill PASS). Môi trường nâng cấp lên bản này: lần deploy đầu cần duyệt lại mọi policy một lần |
+| CP-SEC-02 | Tên policy không chỉ gồm dấu chấm (`policy.ValidName`); kiểm khóa object từng đoạn làm ở CP-A07 | Claude Code (strata-59) | — | ✅ PR này |
 | CP-A01 | Kiểm kê dữ liệu, bất biến, trạng thái RAM; đo nền | Claude Code (strata-59) | — | ⏳ |
 | CP-A02 | Một file cấu hình YAML, `config validate`, `config show --effective` | Claude Code (strata-59) | CP-A01 | ⏳ |
 | CP-A03 | Gia cố PostgreSQL: deploy không giữ lock khi build, lease một control plane, phục hồi operation | Claude Code (strata-59) | CP-A01 | ⏳ |
