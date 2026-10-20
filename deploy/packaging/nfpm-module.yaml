@@ -38,6 +38,14 @@ contents:
     dst: /usr/lib64/nginx/modules/ngx_http_strata_module.so
     packager: rpm
     file_info: { mode: 0644 }
+  - src: ${MODULE_MANIFEST_DEB}
+    dst: /etc/strata/module-manifest.json
+    packager: deb
+    file_info: { mode: 0644 }
+  - src: ${MODULE_MANIFEST_RPM}
+    dst: /etc/strata/module-manifest.json
+    packager: rpm
+    file_info: { mode: 0644 }
   - src: deploy/packaging/files/strata-module.conf
     dst: /usr/share/nginx-module-strata/strata.conf.example
     file_info: { mode: 0644 }

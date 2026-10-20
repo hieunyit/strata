@@ -86,6 +86,7 @@ func newRunCmd() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
+	f.StringVar(&cfg.ModuleManifest, "module-manifest", "/etc/strata/module-manifest.json", "module build manifest with SHA-256, runtime version, ABI and capabilities (unknown when omitted)")
 	// Common flags
 	f.StringVar(&cfg.EventSocket, "event-socket", "unix:/run/strata/events.sock", "event socket (strata_event_socket)")
 	f.StringVar(&cfg.ControlFile, "control-file", "/run/strata/control", "control file the NGINX workers read (strata_control_file)")

@@ -40,15 +40,16 @@ import (
 
 // Config of the event path.
 type Config struct {
-	EventSocket   string // strata_event_socket, without the unix: prefix
-	SpoolDir      string
-	SpoolMaxBytes int64  // default 2 GB
-	Server        string // control plane host:port
-	ServerName    string // TLS name of the control plane; default: host of Server
-	CAFile        string // CA the agent trusts for the control plane
-	CertFile      string // client certificate (mTLS)
-	KeyFile       string
-	NodeID        string
+	ModuleManifest string
+	EventSocket    string // strata_event_socket, without the unix: prefix
+	SpoolDir       string
+	SpoolMaxBytes  int64  // default 2 GB
+	Server         string // control plane host:port
+	ServerName     string // TLS name of the control plane; default: host of Server
+	CAFile         string // CA the agent trusts for the control plane
+	CertFile       string // client certificate (mTLS)
+	KeyFile        string
+	NodeID         string
 	// IdentityDir, when set, replaces CAFile, CertFile, KeyFile and NodeID
 	// with the enrolled identity, renewed in time.
 	IdentityDir string
@@ -105,6 +106,14 @@ type Agent struct {
 
 // New opens the spool, binds the event socket and prepares the client.
 func New(cfg Config) (*Agent, error) {
+	var manifest *control.ModuleManifest
+	if cfg.ModuleManifest != "" {
+		var err error
+		manifest, err = control.ReadModuleManifest(cfg.ModuleManifest)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
 	var id *identity.Identity
 	if cfg.IdentityDir != "" {
 		var err error
@@ -191,8 +200,9 @@ func New(cfg Config) (*Agent, error) {
 		}
 	}
 	copts := control.Options{
-		Identity:  id,
-		OnCommand: a.command,
+		Capabilities: manifest.For,
+		Identity:     id,
+		OnCommand:    a.command,
 		OnRenewed: func() {
 			// Calls on the old connections would be refused as superseded.
 			slog.Info("closing connections made with the old certificate", "conns", conns.closeAll())
