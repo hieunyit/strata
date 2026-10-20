@@ -11,7 +11,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 )
 
-// Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN): migration 0025
+// Against a real PostgreSQL (STRATA_TEST_POSTGRES_DSN): migration 0026
 // (CP-SEC-01) moves the stored OIDC subjects into the "oidc:" namespace,
 // leaves local accounts and service accounts as they are, keeps the
 // four-eyes CHECK satisfied, and goes back down.
@@ -27,7 +27,7 @@ func TestOIDCSubjectNamespaceMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if err := db.Migrate(ctx, pool, 24); err != nil {
+	if err := db.Migrate(ctx, pool, 25); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Migrate(context.Background(), pool, 0) })
@@ -43,7 +43,7 @@ func TestOIDCSubjectNamespaceMigration(t *testing.T) {
 		INSERT INTO machine_requests (subject, request_id, digest, receipt) VALUES ('bob-uuid', 'r1', decode(repeat('00', 32), 'hex'), '{}'), ('local:carol', 'r2', decode(repeat('00', 32), 'hex'), '{}')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Migrate(ctx, pool, 25); err != nil {
+	if err := db.Migrate(ctx, pool, 26); err != nil {
 		t.Fatalf("up: %v", err)
 	}
 	read := func(q string) []string {
@@ -92,13 +92,13 @@ func TestOIDCSubjectNamespaceMigration(t *testing.T) {
 		t.Fatal("self approval accepted after the migration")
 	}
 
-	if err := db.Migrate(ctx, pool, 24); err != nil {
+	if err := db.Migrate(ctx, pool, 25); err != nil {
 		t.Fatalf("down: %v", err)
 	}
 	eq("created after down", read(`SELECT created_subject FROM policy_versions ORDER BY version`), "alice-uuid", "sa:ci", "dave-uuid")
 	eq("machine requests after down", read(`SELECT subject FROM machine_requests ORDER BY request_id`), "bob-uuid", "local:carol")
 	// up again in the same session (temporary functions are replaced)
-	if err := db.Migrate(ctx, pool, 25); err != nil {
+	if err := db.Migrate(ctx, pool, 26); err != nil {
 		t.Fatalf("up again: %v", err)
 	}
 }
