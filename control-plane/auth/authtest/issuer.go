@@ -66,6 +66,11 @@ type Claims struct {
 	Subject  string
 	Expiry   time.Time
 	Roles    []string
+	// IssuedAt default a minute ago; NotBefore none unless set
+	IssuedAt  time.Time
+	NotBefore time.Time
+	// Extra claims, set after the defaults (e.g. a realm_access of another shape)
+	Extra map[string]any
 }
 
 // Token signs an access token. Roles go to realm_access.roles, as
@@ -84,13 +89,22 @@ func (is *Issuer) Token(t testing.TB, c Claims) string {
 	if c.Expiry.IsZero() {
 		c.Expiry = time.Now().Add(5 * time.Minute)
 	}
+	if c.IssuedAt.IsZero() {
+		c.IssuedAt = time.Now().Add(-time.Minute)
+	}
 	std := jwt.Claims{
 		Issuer: c.Issuer, Subject: c.Subject, Audience: jwt.Audience{c.Audience},
-		Expiry: jwt.NewNumericDate(c.Expiry), IssuedAt: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+		Expiry: jwt.NewNumericDate(c.Expiry), IssuedAt: jwt.NewNumericDate(c.IssuedAt),
+	}
+	if !c.NotBefore.IsZero() {
+		std.NotBefore = jwt.NewNumericDate(c.NotBefore)
 	}
 	extra := map[string]any{
 		"preferred_username": c.Subject,
 		"realm_access":       map[string]any{"roles": c.Roles},
+	}
+	for k, v := range c.Extra {
+		extra[k] = v
 	}
 	raw, err := jwt.Signed(is.signer).Claims(std).Claims(extra).Serialize()
 	if err != nil {
