@@ -18,7 +18,8 @@
     "audit": "Audit",
     "map": "Map",
     "applications": "Applications",
-    "releases": "Releases"
+    "releases": "Releases",
+    "health": "System health"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -965,5 +966,101 @@
     "precondition": "Deployment precondition: {{details}}",
     "capabilities": "Required node capabilities",
     "baseCapabilities": "Base bundle features"
+  },
+  "health": {
+    "title": "System health",
+    "subtitle": "Measured zero, missing sources and stale observations are shown separately.",
+    "source": "Source",
+    "state": "State",
+    "value": "Value",
+    "observed": "Last observation",
+    "action": "Next action",
+    "missing": "No observation",
+    "checkSource": "Check source availability and telemetry.",
+    "unavailable": "Health source unavailable. Cached observations may be stale.",
+    "snapshot": "Snapshot",
+    "countersNote": "Counters use the labeled window or reset boundary; a historical drop does not establish ongoing loss. Remote volume free space is unknown without a direct source.",
+    "truncated": "Only the first 1000 nodes are included.",
+    "scope": {
+      "global": "Global scope",
+      "applications": "Assigned applications; whole-node traffic counters withheld"
+    },
+    "states": {
+      "healthy": "Healthy",
+      "degraded": "Attention needed",
+      "unknown": "Unknown",
+      "stale": "Stale",
+      "unavailable": "Unavailable"
+    },
+    "units": {
+      "count": "",
+      "bytes": "bytes",
+      "seconds": "s",
+      "requests_15m": "/ 15m",
+      "events_15m": "/ 15m",
+      "actual/desired": ""
+    },
+    "sources": {
+      "postgres": "PostgreSQL",
+      "lease": "Control plane lease",
+      "clickhouse": "ClickHouse",
+      "artifact_disk": "Artifact disk free",
+      "postgres_disk": "PostgreSQL volume free",
+      "clickhouse_disk": "ClickHouse volume free",
+      "ingest_queue": "Ingest queue",
+      "invalid_events": "Invalid events since process start",
+      "ingest_lag": "Largest observed delivery lag (last 5m, events up to 24h old)",
+      "event_clock_skew": "Future event timestamps",
+      "requests": "Observed requests (15m)",
+      "not_inspected": "Requests not fully inspected (15m)",
+      "body_skipped": "Skipped body (15m)",
+      "breaker": "Circuit breaker (15m)",
+      "shadow_events": "Shadow events (15m)",
+      "fleet": "Fleet source",
+      "failed_operations": "Failed operations (24h)",
+      "heartbeat": "Node heartbeat",
+      "bundle_drift": "Bundle actual / desired",
+      "certificate": "Fleet certificate",
+      "fail_open": "Fail-open since worker metrics reset",
+      "dropped_events": "Dropped events since counters reset",
+      "spool_bytes": "Spool bytes",
+      "spool_pending": "Spool pending batches",
+      "spool_dropped": "Spool drops since agent start",
+      "spool_capacity": "Spool capacity"
+    },
+    "advice": {
+      "postgres": "Check connectivity and schema migration.",
+      "lease": "Check the single control plane and lease renewal.",
+      "clickhouse": "Restore ClickHouse delivery; inspect the ingest queue.",
+      "artifact_disk": "Check the corresponding volume and retention.",
+      "postgres_disk": "Check the corresponding volume and retention.",
+      "clickhouse_disk": "Check the corresponding volume and retention.",
+      "ingest_queue": "Restore ClickHouse delivery; inspect the ingest queue.",
+      "invalid_events": "Inspect this source and its observation time.",
+      "ingest_lag": "Restore ClickHouse delivery; inspect the ingest queue.",
+      "event_clock_skew": "Inspect this source and its observation time.",
+      "requests": "Check worker metrics, request limits and inspection failures.",
+      "not_inspected": "Check worker metrics, request limits and inspection failures.",
+      "body_skipped": "Check worker metrics, request limits and inspection failures.",
+      "breaker": "Check worker metrics, request limits and inspection failures.",
+      "shadow_events": "Inspect this source and its observation time.",
+      "fleet": "Inspect this source and its observation time.",
+      "failed_operations": "Inspect failed operations and replay evidence.",
+      "heartbeat": "Check agent service and mTLS connectivity.",
+      "bundle_drift": "Inspect rollout errors and ACTIVE acknowledgments.",
+      "certificate": "Check certificate renewal before expiry.",
+      "fail_open": "Check worker metrics, request limits and inspection failures.",
+      "dropped_events": "Restore event delivery and check spool capacity.",
+      "spool_bytes": "Restore event delivery and check spool capacity.",
+      "spool_pending": "Restore event delivery and check spool capacity.",
+      "spool_dropped": "Restore event delivery and check spool capacity.",
+      "spool_capacity": "Restore event delivery and check spool capacity."
+    },
+    "certificateValue": {
+      "healthy": "Valid",
+      "unknown": "Unknown",
+      "expired": "Expired",
+      "expiring": "Expiring soon"
+    }
   }
 }
