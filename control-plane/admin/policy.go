@@ -297,6 +297,8 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	}
 	created, err := p.store.CreatePolicy(ctx, store.Policy{ID: in.GetId(), Name: in.GetName(), Spec: spec}, audit(ctx, "policies/"+in.GetId()))
 	switch {
+	case errors.Is(err, store.ErrBroadException):
+		return nil, status.Error(codes.InvalidArgument, "new root-path exceptions are too broad")
 	case errors.Is(err, store.ErrExists):
 		return nil, status.Error(codes.AlreadyExists, "a policy with this id or name exists")
 	case err != nil:
@@ -325,6 +327,8 @@ func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolic
 	}
 	updated, err := p.store.UpdatePolicy(ctx, in.GetId(), in.GetEtag(), spec, audit(ctx, "policies/"+in.GetId()))
 	switch {
+	case errors.Is(err, store.ErrBroadException):
+		return nil, status.Error(codes.InvalidArgument, "new root-path exceptions are too broad")
 	case errors.Is(err, store.ErrEtagMismatch):
 		// grpc-gateway answers ABORTED with 409 Conflict.
 		return nil, status.Error(codes.Aborted, "the policy changed since it was read (etag mismatch); reload and edit again")
