@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReleasesPage } from './pages/ReleasesPage';
+import { SecurityPage } from './pages/SecurityPage';
 import { HealthPage } from './pages/HealthPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -59,6 +60,8 @@ export const AppContent: React.FC = () => {
     switch (route.page) {
       case 'releases':
         return scoped ? <ApplicationsPage/> : <ReleasesPage/>;
+      case 'security':
+        return <SecurityPage/>;
       case 'health':
         return <HealthPage/>;
       case 'applications':

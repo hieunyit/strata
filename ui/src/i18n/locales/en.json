@@ -19,7 +19,8 @@
     "map": "Map",
     "applications": "Applications",
     "releases": "Releases",
-    "health": "System health"
+    "health": "System health",
+    "security": "Account security"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -1062,5 +1063,35 @@
       "expired": "Expired",
       "expiring": "Expiring soon"
     }
+  },
+  "security": {
+    "title": "Account security",
+    "subtitle": "Manage your local sign-in protection and active sessions.",
+    "oidc": "Manage sign-in security at your identity provider.",
+    "mfa": "Two-step verification",
+    "loading": "Loading security settings…",
+    "enabled": "Two-step verification is enabled",
+    "disabled": "Two-step verification is disabled",
+    "remaining": "{{count}} recovery codes remaining",
+    "unavailable": "An administrator must configure secure MFA storage before enrollment.",
+    "revokeWarning": "Enabling MFA or changing recovery protection signs out your other sessions.",
+    "password": "Current password",
+    "begin": "Set up authenticator",
+    "enrollInstruction": "Add this secret to your authenticator, then enter its code. Keep the secret private.",
+    "expires": "Expires {{at}}",
+    "code": "Authenticator code",
+    "recoveryCode": "Recovery code",
+    "useRecovery": "Use a recovery code",
+    "confirm": "Confirm and enable",
+    "rotate": "Replace recovery codes",
+    "disable": "Disable two-step verification",
+    "saveCodes": "Save these recovery codes now. Each works once and they will not be shown again.",
+    "clearCodes": "I saved the codes — clear display",
+    "sessions": "Active sessions",
+    "current": "This session",
+    "other": "Other session",
+    "revoke": "Sign out session",
+    "failed": "Security action failed. Check your password, code and current settings, then try again.",
+    "mfaRequired": "Enter your authenticator code or an unused recovery code."
   }
 }

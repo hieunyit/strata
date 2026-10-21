@@ -19,7 +19,8 @@
     "map": "Bản đồ",
     "applications": "Ứng dụng",
     "releases": "Phát hành",
-    "health": "Sức khỏe hệ thống"
+    "health": "Sức khỏe hệ thống",
+    "security": "Bảo mật tài khoản"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -1056,5 +1057,35 @@
       "expired": "Hết hạn",
       "expiring": "Sắp hết hạn"
     }
+  },
+  "security": {
+    "title": "Bảo mật tài khoản",
+    "subtitle": "Quản lý bảo vệ đăng nhập cục bộ và các phiên đang hoạt động.",
+    "oidc": "Quản lý bảo mật đăng nhập tại nhà cung cấp danh tính của bạn.",
+    "mfa": "Xác minh hai bước",
+    "loading": "Đang tải cài đặt bảo mật…",
+    "enabled": "Đã bật xác minh hai bước",
+    "disabled": "Chưa bật xác minh hai bước",
+    "remaining": "Còn {{count}} mã khôi phục",
+    "unavailable": "Quản trị viên cần cấu hình kho MFA an toàn trước khi thiết lập.",
+    "revokeWarning": "Bật MFA hoặc thay đổi mã khôi phục sẽ đăng xuất các phiên khác của bạn.",
+    "password": "Mật khẩu hiện tại",
+    "begin": "Thiết lập ứng dụng xác thực",
+    "enrollInstruction": "Thêm khóa này vào ứng dụng xác thực rồi nhập mã ứng dụng tạo. Giữ kín khóa.",
+    "expires": "Hết hạn {{at}}",
+    "code": "Mã ứng dụng xác thực",
+    "recoveryCode": "Mã khôi phục",
+    "useRecovery": "Dùng mã khôi phục",
+    "confirm": "Xác nhận và bật",
+    "rotate": "Thay mã khôi phục",
+    "disable": "Tắt xác minh hai bước",
+    "saveCodes": "Lưu các mã khôi phục ngay. Mỗi mã chỉ dùng một lần và sẽ không hiển thị lại.",
+    "clearCodes": "Đã lưu mã — xóa khỏi màn hình",
+    "sessions": "Các phiên đang hoạt động",
+    "current": "Phiên hiện tại",
+    "other": "Phiên khác",
+    "revoke": "Đăng xuất phiên",
+    "failed": "Thao tác bảo mật thất bại. Kiểm tra mật khẩu, mã và cài đặt hiện tại rồi thử lại.",
+    "mfaRequired": "Nhập mã ứng dụng xác thực hoặc mã khôi phục chưa dùng."
   }
 }

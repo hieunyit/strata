@@ -29,6 +29,11 @@ export type OverviewBucket = components['schemas']['OverviewBucket'];
 export type RuleInfo = components['schemas']['RuleInfo'];
 export type AuthMethods = components['schemas']['AuthMethods'];
 export type LocalSession = components['schemas']['LocalSession'];
+export type MFAStatus = components['schemas']['MFAStatus'];
+export type MFAEnrollment = components['schemas']['MFAEnrollment'];
+export type MFACommand = components['schemas']['MFACommand'];
+export type MFARecovery = components['schemas']['MFARecovery'];
+export type OwnSession = components['schemas']['OwnSession'];
 export type Release = components['schemas']['Release'];
 export type ReleaseDetail = components['schemas']['ReleaseDetail'];
 export type HealthSnapshot = components['schemas']['HealthSnapshot'];
@@ -173,24 +178,35 @@ export async function fetchAuthMethods(fetchFn: typeof fetch = fetch): Promise<A
 
 // POST /v1/auth/login: no token, and a 401 here is a wrong password, not
 // an expired session.
-export async function localLogin(username: string, password: string): Promise<LocalSession> {
+export async function localLogin(username: string, password: string, code = '', recovery = false): Promise<LocalSession> {
+	const command: components['schemas']['LoginRequest'] = {username,password,code,recovery};
   const res = await fetch(`${API_BASE}/auth/login`, {
-    ...json('POST', { username, password }),
+    ...json('POST', command),
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   });
   if (!res.ok) {
     let msg = `Request failed with status ${res.status}`;
+    let reason: string | undefined;
     try {
-      msg = ((await res.json()) as ErrorResponse).error || msg;
+      const body = (await res.json()) as ErrorResponse;
+      msg = body.error || msg;
+      reason = body.reason;
     } catch {
       // keep the default
     }
-    throw new ApiError(msg, res.status);
+    throw new ApiError(msg, res.status,undefined,reason);
   }
   return res.json();
 }
 
 export const apiClient = {
+  localMfa(): Promise<MFAStatus> {return call('/auth/mfa',{method:'GET'},'MFA unavailable');},
+  beginMfa(command: MFACommand): Promise<MFAEnrollment> {return call('/auth/mfa:begin',json('POST',command),'MFA enrollment failed');},
+  confirmMfa(command: MFACommand): Promise<MFARecovery> {return call('/auth/mfa:confirm',json('POST',command),'MFA confirmation failed');},
+  disableMfa(command: MFACommand): Promise<MFARecovery> {return call('/auth/mfa:disable',json('POST',command),'MFA change failed');},
+  rotateMfaRecovery(command: MFACommand): Promise<MFARecovery> {return call('/auth/mfa:recovery',json('POST',command),'Recovery rotation failed');},
+  ownSessions(): Promise<{sessions:OwnSession[]}> {return call('/auth/sessions',{method:'GET'},'Sessions unavailable');},
+  revokeOwnSession(id:string,etag:string): Promise<void> {return call(`/auth/sessions/${encodeURIComponent(id)}:revoke`,json('POST',{etag} satisfies MFACommand),'Session revocation failed');},
   async markFalsePositive(blockId: string, command: MarkFalsePositiveRequest): Promise<MarkFalsePositiveResponse> {
     return call<MarkFalsePositiveResponse>(`/events/${encodeURIComponent(blockId)}:markFalsePositive`, json('POST', command), 'Failed to classify the event');
   },
