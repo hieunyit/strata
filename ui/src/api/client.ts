@@ -11,6 +11,13 @@ export type EventCase = components['schemas']['EventCase'];
 export type EvidenceExport = components['schemas']['EvidenceExport'];
 export type EventRuleRequest = components['schemas']['EventRuleRequest'];
 export type EventRuleDraft = components['schemas']['EventRuleDraft'];
+export type RuleCatalogEntry = components['schemas']['RuleCatalogEntry'];
+export type RuleCatalogPage = components['schemas']['RuleCatalogPage'];
+export type RuleCatalogDetail = components['schemas']['RuleCatalogDetail'];
+export type RuleCatalogSnapshot = components['schemas']['RuleCatalogSnapshot'];
+export type RuleCatalogDiff = components['schemas']['RuleCatalogDiff'];
+export type ExceptionInventoryPage = components['schemas']['ExceptionInventoryPage'];
+export type ExceptionLifecycleRequest = components['schemas']['ExceptionLifecycleRequest'];
 export type Event = components['schemas']['Event'];
 export type Violation = components['schemas']['Violation'];
 export type SearchEventsRequest = components['schemas']['SearchEventsRequest'];
@@ -205,7 +212,47 @@ export async function localLogin(username: string, password: string, code = '', 
   return res.json();
 }
 
+export type OperationalIncidentPage=components['schemas']['OperationalIncidentPage'];
+export type ReportScheduleReply=components['schemas']['ReportScheduleReply'];
+export type ApplicationReport=components['schemas']['ApplicationReport'];
+export type ReportScheduleRequest=components['schemas']['ReportScheduleRequest'];
+const operationQuery=(application:string,environment:string)=>new URLSearchParams({application_id:application,environment_id:environment}).toString();
+export type DiscoveryInventory=components['schemas']['DiscoveryInventory'];
+export type DiscoveryProposal=components['schemas']['DiscoveryProposal'];
+export type DiscoveryDocumentRequest=components['schemas']['DiscoveryDocumentRequest'];
+export type DiscoveryProposalRequest=components['schemas']['DiscoveryProposalRequest'];
+export type DiscoveryDraftRequest=components['schemas']['DiscoveryDraftRequest'];
 export const apiClient = {
+  apiDiscovery(application:string,environment:string):Promise<DiscoveryInventory>{return call(`/discovery?${operationQuery(application,environment)}`,{method:'GET'},'Discovery unavailable');},
+  saveDiscoveryDocument(request:DiscoveryDocumentRequest):Promise<components['schemas']['DiscoveryDocument']>{return call('/discovery/document',json('PUT',request),'Document unavailable');},
+  proposeDiscovery(request:components['schemas']['DiscoveryProposalRequest']):Promise<DiscoveryProposal>{return call('/discovery/proposals',json('POST',request),'Insufficient discovery evidence or stale baseline');},
+  draftDiscovery(request:DiscoveryDraftRequest):Promise<EventRuleDraft>{return call('/discovery/proposals:draft',json('POST',request),'Draft unavailable');},
+  downloadDiscovery(id:string,application:string,environment:string):Promise<Blob>{return call(`/discovery/proposals/${encodeURIComponent(id)}?${operationQuery(application,environment)}`,{method:'GET'},'Proposal unavailable',true);},
+  incidents(application:string,environment:string):Promise<OperationalIncidentPage>{return call(`/incidents?${operationQuery(application,environment)}`,{method:'GET'},'Incidents unavailable');},
+  acknowledgeIncident(request:components['schemas']['IncidentAcknowledgeRequest']):Promise<components['schemas']['OperationalIncident']>{return call('/incidents:acknowledge',json('POST',request),'Acknowledge failed');},
+  reportSchedule(application:string,environment:string):Promise<ReportScheduleReply>{return call(`/report-schedule?${operationQuery(application,environment)}`,{method:'GET'},'Schedule unavailable');},
+  saveReportSchedule(request:ReportScheduleRequest):Promise<ReportScheduleReply>{return call('/report-schedule',json('PUT',request),'Schedule unavailable');},
+  async applicationReports(application:string,environment:string):Promise<ApplicationReport[]>{return (await call<components['schemas']['ApplicationReportPage']>(`/application-reports?${operationQuery(application,environment)}`,{method:'GET'},'Reports unavailable')).reports;},
+  downloadApplicationReport(id:string,application:string,environment:string):Promise<Blob>{return call(`/application-reports/${encodeURIComponent(id)}?${operationQuery(application,environment)}`,{method:'GET'},'Report unavailable',true);},
+  ruleCatalog(filters: {source?: string; cve?: string; attack_type?: string; after?: string}): Promise<RuleCatalogPage> {
+    const q = new URLSearchParams();for(const [key,value] of Object.entries(filters)) if(value) q.set(key,value);
+    return call(`/rule-catalog?${q}`,{method:'GET'},'Rule catalog unavailable');
+  },
+  async catalogHistory(): Promise<RuleCatalogSnapshot[]> {
+    return (await call<components['schemas']['RuleCatalogHistory']>('/rule-catalogs',{method:'GET'},'Catalog history unavailable')).catalogs;
+  },
+  catalogDiff(from: string,to: string,after = ''): Promise<RuleCatalogDiff> {
+    return call(`/rule-catalogs:diff?${new URLSearchParams({from,to,after})}`,{method:'GET'},'Catalog comparison unavailable');
+  },
+  ruleCatalogDetail(id: number,application: string,environment: string): Promise<RuleCatalogDetail> {
+    return call(`/rule-catalog/${id}?${new URLSearchParams({application_id:application,environment_id:environment})}`,{method:'GET'},'Rule telemetry unavailable');
+  },
+  exceptions(application: string,environment: string,after = ''): Promise<ExceptionInventoryPage> {
+    return call(`/exceptions?${new URLSearchParams({application_id:application,environment_id:environment,after})}`,{method:'GET'},'Exception inventory unavailable');
+  },
+  exceptionLifecycle(action: 'revoke'|'cleanupExpired',request: ExceptionLifecycleRequest): Promise<EventRuleDraft> {
+    return call(`/exceptions:${action}`,json('POST',request),'Unable to create exception draft');
+  },
   savedSearches(application: string, environment: string, after = ''): Promise<components['schemas']['SavedSearchList']> {
     return call(`/saved-searches?${new URLSearchParams({application_id:application,environment_id:environment,after})}`,{method:'GET'},'Unable to load saved searches');
   },
