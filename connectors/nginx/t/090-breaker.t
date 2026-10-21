@@ -249,13 +249,15 @@ subtest "half-open without errors closes" => sub {
 };
 
 # ---------------------------------------------------------------------------
-# heavy payloads over the CPU budget never open the breaker (CRS rules:
-# 100 KB through them takes more than 1 ms)
+# heavy payloads over the CPU budget never open the breaker. The budget
+# grows by 0.5 ms per KB of body (#28), so heavy means many values for few
+# bytes: 1024 tiny fields (about 8 KB, 1 + 4 ms of budget) through the CRS
+# rules take much longer
 
 setup([ glob("$repo/rules/crs/*.yaml") ], "strata_breaker_threshold $threshold;");
 
 subtest "budget exceeded does not count" => sub {
-    my $heavy = "q=" . ("%26amp%3B%26lt%3B" x 6_200);
+    my $heavy = join("&", map { "a$_=%26amp%3B$_" } 0 .. 1023);
     my $b0 = metrics()->[C_BUDGET];
     is(req("/budget", $heavy)->{status}, 200, "fails open") for 1 .. 25;
     ok(metrics()->[C_BUDGET] - $b0 >= 20, "budget exceeded on the heavy requests");
