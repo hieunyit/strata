@@ -81,6 +81,12 @@ pub struct MatchValue {
     pub report_only: bool,
 }
 
+/// #28 (PO 16/10/2026): the CPU budget of a request grows by this much per
+/// KB of body inspected, up to BODY_BUDGET_CAP_NS in all; a budget set
+/// higher stays. A 64 KB body gets 10 + 32 = 42 ms with the default.
+pub const BODY_BUDGET_NS_PER_KB: u64 = 500_000;
+pub const BODY_BUDGET_CAP_NS: u64 = 100_000_000;
+
 #[derive(Debug)]
 pub struct Tx {
     engine: Option<Arc<Engine>>,
@@ -122,6 +128,8 @@ pub struct Tx {
     /// arguments were left out (rule 100021, #28)
     max_args: usize,
     args_left_out: bool,
+    /// #28: budget added per KB of body, and its cap
+    body_budget: (u64, u64),
     /// #98: the policy fails closed when the budget runs out on findings
     fail_on_findings: bool,
     /// W13-R-02: this transaction is sampled for the cost of each rule;
@@ -316,6 +324,7 @@ impl Tx {
             max_args: 0,
             fail_on_findings: false,
             args_left_out: false,
+            body_budget: (BODY_BUDGET_NS_PER_KB, BODY_BUDGET_CAP_NS),
             cost_sampled: !missing && crate::rulecost::should_sample(),
             costs: std::cell::RefCell::new(Vec::new()),
             body: Vec::new(),
@@ -377,6 +386,13 @@ impl Tx {
     /// The transaction is sampled for replay.
     pub fn sampled(&self) -> bool {
         self.sample.is_some()
+    }
+
+    /// How much the budget grows per KB of body inspected, and up to what
+    /// (#28; BODY_BUDGET_NS_PER_KB and BODY_BUDGET_CAP_NS by default). 0, 0:
+    /// a fixed budget.
+    pub fn set_body_budget(&mut self, ns_per_kb: u64, cap_ns: u64) {
+        self.body_budget = (ns_per_kb, cap_ns);
     }
 
     pub fn set_budget(&mut self, cpu_budget_us: u64) {
@@ -1028,12 +1044,14 @@ impl Tx {
                 self.budget.as_mut(),
                 &mut |v| found.push(v),
             );
-            if res.is_err() {
-                self.set_budget_exceeded();
-                return E_BUDGET;
-            }
+            // #28 (PO 16/10/2026): what was found before the budget ran
+            // out counts; enough to block, it blocks, fail mode open or not
             for v in found {
                 self.add(v);
+            }
+            if res.is_err() {
+                self.set_budget_exceeded();
+                return if self.matched { OK } else { E_BUDGET };
             }
             let ct = eval::content_type(headers);
             let proc = eval::body_processor(ct);
@@ -1112,12 +1130,12 @@ impl Tx {
             &mut |v| found.push(v),
         );
         drop(headers);
+        // #28: findings before the budget ran out count (see above)
+        for v in found {
+            self.add(v);
+        }
         if res.is_err() {
             self.set_budget_exceeded();
-        } else {
-            for v in found {
-                self.add(v);
-            }
         }
         self.body = Vec::new();
         // the headers stay for the event's context (moved, not copied)
@@ -1131,6 +1149,11 @@ impl Tx {
     pub fn request_body_chunk(&mut self, data: &[u8], last: bool) -> Rc {
         if let Err(rc) = self.check(Stage::Headers, Stage::BodyDone) {
             return rc;
+        }
+        // #28 (PO 16/10/2026): the budget grows with the body inspected
+        if let Some(b) = self.budget.as_mut() {
+            let (per_kb, cap) = self.body_budget;
+            b.extend((data.len() as u64).saturating_mul(per_kb) / 1024, cap);
         }
         if let Some(s) = self.sample.as_mut() {
             let room = SAMPLE_MAX_BODY.saturating_sub(s.body.len());
@@ -1952,6 +1975,22 @@ mod tests {
         let v = t.verdict();
         assert_eq!(rules(&v), [protocol::MATRIX_PARAMETER, STUB_RULE_ID]);
         assert_eq!(v.score, 120);
+    }
+
+    /// #28: 0.5 ms more per KB of body, up to 100 ms in all; a budget
+    /// set higher stays.
+    #[test]
+    fn the_budget_grows_with_the_body() {
+        let budget = |base_us: u64, body: usize| {
+            let mut t = with_policy(b"example-api", 0);
+            t.set_budget(base_us);
+            let _ = t.request_body_chunk(&vec![b'a'; body], true);
+            t.budget.as_ref().map_or(0, |b| b.budget_ns())
+        };
+        assert_eq!(budget(10_000, 64 * 1024), 42_000_000);
+        assert_eq!(budget(10_000, 1024 * 1024), 100_000_000, "capped");
+        assert_eq!(budget(10_000, 0), 10_000_000);
+        assert_eq!(budget(500_000, 64 * 1024), 500_000_000, "set higher");
     }
 
     fn with_policy(policy: &[u8], flags: u32) -> Tx {

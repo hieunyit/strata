@@ -987,9 +987,19 @@ struct Pass<'t> {
     /// conditions matched, as ranges of `hits`
     ranges: Vec<(u32, u32)>,
     hits: Vec<u32>,
+    /// #28: the budget ran out during the scans: the values not scanned
+    /// count as not inspected (no condition holds on them)
+    cut: bool,
 }
 
 const NOT_SCANNED: u32 = u32::MAX;
+
+/// #28 (PO 16/10/2026): when the budget runs out during the prefilter's
+/// scans, the rules it found candidates for get this long once to be
+/// confirmed on the values scanned. What they find counts (a block is a
+/// block, fail mode open or not); the request still counts as out of
+/// budget, not fully inspected.
+pub const GRACE_NS: u64 = 2_000_000;
 
 impl Pass<'_> {
     /// The conditions the prefilter found on `v` with `chain`, when it
@@ -1197,7 +1207,12 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
         }
     }
     if ctx.budget_exceeded {
-        return;
+        // #28: what was scanned stays; the rest is not inspected
+        ctx.pass.cut = true;
+        if !ctx.budget.as_mut().is_some_and(|b| b.grace(GRACE_NS)) {
+            return;
+        }
+        ctx.budget_exceeded = false;
     }
 
     // the gates of each group: what its values gave on its nodes
@@ -2036,6 +2051,11 @@ fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32
     if ctx.pass.get(v, chain).is_some() {
         return ctx.pass.get(v, chain).unwrap_or(&[]);
     }
+    // #28: past the budget, a value the prefilter did not scan is not
+    // scanned now (see GRACE_NS)
+    if ctx.pass.cut {
+        return &[];
+    }
     let key = make_scan_key(v, chain);
     if !ctx.scans.contains_key(&key) {
         let tv = match transform::apply_chain_with_budget(chain, v, ctx.budget.as_deref_mut()) {
@@ -2602,6 +2622,10 @@ pub fn evaluate_with_budget(
         if ctx.budget_exceeded {
             return Err(crate::budget::BudgetExceeded);
         }
+    }
+    // #28: confirmed what was scanned, but not everything was
+    if ctx.pass.cut {
+        return Err(crate::budget::BudgetExceeded);
     }
     Ok(())
 }
