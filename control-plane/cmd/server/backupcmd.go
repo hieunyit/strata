@@ -81,8 +81,15 @@ func runBackup(out, dir, objects, passFile, dsnFile, dumpBin string) (err error)
 	if err != nil {
 		return err
 	}
+	defer pool.Close()
+	defer func() {
+		receipt, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		if recordErr := store.New(pool).RecordBackupObservation(receipt, err == nil); recordErr != nil {
+			fmt.Fprintln(os.Stderr, "backup: operational status could not be recorded")
+		}
+	}()
 	migration, err := db.Version(ctx, pool)
-	pool.Close()
 	if err != nil {
 		return err
 	}

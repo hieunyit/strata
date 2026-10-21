@@ -157,6 +157,7 @@ func (s *Server) registerRoutes() {
 		registerApplications(v1, s.cfg.Applications, s.handler)
 		s.registerInvestigation(v1)
 		s.registerRuleInventory(v1)
+		s.registerOperations(v1)
 	}
 	if s.cfg.ServiceAccounts != nil {
 		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/strata/strata/control-plane/operations"
 	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/ruleinventory"
 	"log"
@@ -559,6 +560,10 @@ func main() {
 	}}
 	if local, ok := objects.(interface{ FreeBytes() (uint64, error) }); ok {
 		healthService.FreeBytes = local.FreeBytes
+	}
+	if pg != nil {
+		operational := &operations.Service{Store: pg, Health: healthService, Events: store, Outbound: outbound != nil}
+		go operational.Run(ctx)
 	}
 	var evidence *investigation.Worker
 	if pg != nil && objects != nil {
