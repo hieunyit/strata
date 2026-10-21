@@ -2156,6 +2156,39 @@ paths:
           description: Etag/request conflict
         '503':
           description: Source unavailable
+  /v1/discovery:
+    get:
+      operationId: getApiDiscovery
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryInventory'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
   /v1/discovery/observations:
     post:
       operationId: ingestApiObservations
@@ -2198,6 +2231,99 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DiscoveryDocument'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:
+    post:
+      operationId: createDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryProposalRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryProposal'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:draft:
+    post:
+      operationId: draftDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryDraftRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals/{id}:
+    get:
+      operationId: downloadDiscoveryDocument
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Minimal OpenAPI 3.0.3 operation index with x-strata-mode=documentation_only;
+                  path parameters, content types and observed body bounds only.
+                additionalProperties: true
         '400':
           description: Invalid, ineligible, excessive or insufficient observations
         '403':
