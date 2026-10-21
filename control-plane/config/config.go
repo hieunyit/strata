@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -179,6 +180,12 @@ type File struct {
 	GoodBots struct {
 		Interval *Duration `yaml:"interval" flag:"good-bots-interval"`
 	} `yaml:"good_bots"`
+	Notifications struct {
+		WebhookURL  *string `yaml:"webhook_url" flag:"notification-webhook"`
+		KeyFile     *string `yaml:"key_file" flag:"notification-webhook-key-file"`
+		AllowCIDRs  *string `yaml:"allow_cidrs" flag:"notification-webhook-allow-cidrs"`
+		AuditExport *bool   `yaml:"audit_export" flag:"audit-export-enabled"`
+	} `yaml:"notifications"`
 }
 
 // Load reads and decodes a configuration file; unknown keys, a missing or
@@ -379,7 +386,7 @@ func (f *File) resolvePaths(base string) error {
 		"database.dsn_file", "auth.local.admin_password_file", "auth.local.mfa_key_file", "events.clickhouse.password_file",
 		"bundles.rules", "bundles.block_page", "bundles.identity_key_file", "bundles.storage.local.path", "bundles.storage.s3.access_key_file",
 		"bundles.storage.s3.secret_key_file", "bundles.signer.key_file", "bundles.signer.public_key",
-		"bundles.signer.vault.token_file", "replay.corpus", "geoip.city", "geoip.asn",
+		"bundles.signer.vault.token_file", "replay.corpus", "geoip.city", "geoip.asn", "notifications.key_file",
 	} {
 		pathKeys[k] = true
 	}
@@ -409,6 +416,12 @@ func (f *File) resolvePaths(base string) error {
 
 // check refuses combinations the flags cannot express on their own.
 func (f *File) check() error {
+	if value := f.Notifications.WebhookURL; value != nil && *value != "" {
+		u, err := url.Parse(*value)
+		if err != nil || len(*value) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return errors.New("config: notifications.webhook_url must be HTTPS without credentials, query or fragment")
+		}
+	}
 	for _, v := range []*float64{f.Canary.BlockFactor, f.Canary.ErrorFactor, f.Canary.LatencyFactor} {
 		if v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || *v <= 1 || *v > 100) {
 			return errors.New("config: invalid canary factor")

@@ -117,6 +117,10 @@ func main() {
 	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
 	localMFAKey := flag.String("local-mfa-key-file", "", "Private file containing the independent 32-byte local MFA encryption key (hex)")
+	webhookURL := flag.String("notification-webhook", "", "Optional HTTPS receiver for signed diagnostic copies")
+	webhookKey := flag.String("notification-webhook-key-file", "", "Private file holding the 32-byte webhook signing key (hex)")
+	webhookAllow := flag.String("notification-webhook-allow-cidrs", "", "Explicit trusted private receiver CIDRs (comma separated)")
+	auditExport := flag.Bool("audit-export-enabled", false, "Copy new audit records to the configured webhook using a bounded durable queue")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
 	corsOrigins := flag.String("cors-origins", "", "Comma-separated origins allowed to call the REST API from another origin; empty: none (the UI is served on the API's origin, and npm run dev proxies /v1)")
@@ -224,6 +228,13 @@ func main() {
 	}
 
 	var store ingest.EventStore
+	outbound, err := startOutbound(ctx, pool, *webhookURL, *webhookKey, *webhookAllow, *auditExport)
+	if err != nil {
+		log.Fatalf("[FATAL] outbound delivery: %v", err)
+	}
+	if outbound != nil {
+		go outbound.Run(ctx)
+	}
 	if *inMemory {
 		log.Println("[INFO] Initializing in-memory EventStore")
 		memStore := ingest.NewMockEventStore()
