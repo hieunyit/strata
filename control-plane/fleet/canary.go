@@ -70,21 +70,37 @@ const (
 
 // CanaryOptions; zero values take the defaults.
 type CanaryOptions struct {
-	Window      time.Duration // 1 min
-	Interval    time.Duration // between two evaluations, 5 s
-	MinRequests uint64        // per group and window, 200
-	Learn       time.Duration // time constant of the block level, 1 h
-	Warmup      int           // evaluations learnt before blocks may trip, 12
-	BlockFactor float64       // 3
-	BlockFloor  float64       // 1%
-	PValue      float64       // Poisson tail a block count must be under, 1e-6 (#74)
-	SourceCap   uint64        // blocks of one client address counted per window, 3 (#74)
-	MaxSources  int           // addresses per group and interval, 4096; overflow suspends block-rate decisions and learning
-	Renew       time.Duration // 12 h
-	Hold        time.Duration // ForceShadow duration, 24 h (the most a command takes)
+	ErrorFactor   float64
+	ErrorDelta    float64
+	LatencyFactor float64
+	LatencyDelta  time.Duration
+	Window        time.Duration // 1 min
+	Interval      time.Duration // between two evaluations, 5 s
+	MinRequests   uint64        // per group and window, 200
+	Learn         time.Duration // time constant of the block level, 1 h
+	Warmup        int           // evaluations learnt before blocks may trip, 12
+	BlockFactor   float64       // 3
+	BlockFloor    float64       // 1%
+	PValue        float64       // Poisson tail a block count must be under, 1e-6 (#74)
+	SourceCap     uint64        // blocks of one client address counted per window, 3 (#74)
+	MaxSources    int           // addresses per group and interval, 4096; overflow suspends block-rate decisions and learning
+	Renew         time.Duration // 12 h
+	Hold          time.Duration // ForceShadow duration, 24 h (the most a command takes)
 }
 
 func (o CanaryOptions) withDefaults() CanaryOptions {
+	if o.ErrorFactor <= 0 {
+		o.ErrorFactor = 2
+	}
+	if o.ErrorDelta <= 0 {
+		o.ErrorDelta = .01
+	}
+	if o.LatencyFactor <= 0 {
+		o.LatencyFactor = 1.5
+	}
+	if o.LatencyDelta <= 0 {
+		o.LatencyDelta = 50 * time.Millisecond
+	}
 	def := func(d *time.Duration, v time.Duration) {
 		if *d <= 0 {
 			*d = v
@@ -416,9 +432,9 @@ func (m *CanaryMonitor) judge(st *groupState, c, s groupCounts, srcBlocked, srcW
 		"canary_p99_s": cp, "shadow_p99_s": sp, "canary_block": rate(c.blocked, c.req),
 		"canary_block_by_source": rate(srcBlocked, c.req), "block_p_value": pv, "would_block_ref": st.ref, "learnt": st.learnt}
 	switch {
-	case c5-s5 >= 0.01 && c5 >= 2*s5:
+	case c5-s5 >= m.o.ErrorDelta && c5 >= m.o.ErrorFactor*s5:
 		v.reason = Trip5xx
-	case cp >= 1.5*sp && cp-sp >= 0.050:
+	case cp >= m.o.LatencyFactor*sp && cp-sp >= m.o.LatencyDelta.Seconds():
 		v.reason = TripLatency
 	case !saturated && st.learnt >= m.o.Warmup && float64(srcBlocked) > m.o.BlockFactor*lambda && pv < m.o.PValue:
 		v.reason = TripBlockRate
@@ -597,4 +613,24 @@ func (m *CanaryMonitor) renew(ctx context.Context, t store.CanaryTrip, now time.
 		m.Kick.Kick()
 	}
 	return nil
+}
+
+func (o CanaryOptions) Validate() error {
+	for _, v := range []float64{o.BlockFactor, o.ErrorFactor, o.LatencyFactor} {
+		if math.IsNaN(v) || math.IsInf(v, 0) || v <= 1 || v > 100 {
+			return errors.New("canary factors must be greater than 1 and at most 100")
+		}
+	}
+	for _, v := range []float64{o.BlockFloor, o.ErrorDelta} {
+		if math.IsNaN(v) || math.IsInf(v, 0) || v < .0001 || v > 1 {
+			return errors.New("canary rate floors must be between 0.0001 and 1")
+		}
+	}
+	if o.MinRequests < 10 || o.MinRequests > 1000000 || o.LatencyDelta < time.Millisecond || o.LatencyDelta > 30*time.Second {
+		return errors.New("canary sample size or latency delta out of range")
+	}
+	return nil
+}
+func (o CanaryOptions) Thresholds() map[string]float64 {
+	return map[string]float64{"min_requests": float64(o.MinRequests), "block_factor": o.BlockFactor, "block_floor": o.BlockFloor, "error_factor": o.ErrorFactor, "error_delta": o.ErrorDelta, "latency_factor": o.LatencyFactor, "latency_delta_ms": float64(o.LatencyDelta / time.Millisecond)}
 }

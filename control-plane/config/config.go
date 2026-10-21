@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -154,6 +155,15 @@ type File struct {
 		SamplingApproved *bool     `yaml:"sampling_approved" flag:"replay-sampling-approved"`
 	} `yaml:"replay"`
 
+	Canary struct {
+		MinRequests   *uint64   `yaml:"min_requests" flag:"canary-min-requests"`
+		BlockFactor   *float64  `yaml:"block_factor" flag:"canary-block-factor"`
+		BlockFloor    *float64  `yaml:"block_floor" flag:"canary-block-floor"`
+		ErrorFactor   *float64  `yaml:"error_factor" flag:"canary-error-factor"`
+		ErrorDelta    *float64  `yaml:"error_delta" flag:"canary-error-delta"`
+		LatencyFactor *float64  `yaml:"latency_factor" flag:"canary-latency-factor"`
+		LatencyDelta  *Duration `yaml:"latency_delta" flag:"canary-latency-delta"`
+	} `yaml:"canary"`
 	Rollouts struct {
 		Waves []string  `yaml:"waves" flag:"rollout-waves"`
 		Soak  *Duration `yaml:"soak" flag:"rollout-soak"`
@@ -395,6 +405,23 @@ func (f *File) resolvePaths(base string) error {
 
 // check refuses combinations the flags cannot express on their own.
 func (f *File) check() error {
+	for _, v := range []*float64{f.Canary.BlockFactor, f.Canary.ErrorFactor, f.Canary.LatencyFactor} {
+		if v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || *v <= 1 || *v > 100) {
+			return errors.New("config: invalid canary factor")
+		}
+	}
+	for _, v := range []*float64{f.Canary.BlockFloor, f.Canary.ErrorDelta} {
+		if v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || *v < .0001 || *v > 1) {
+			return errors.New("config: invalid canary rate floor")
+		}
+	}
+	if v := f.Canary.MinRequests; v != nil && (*v < 10 || *v > 1000000) {
+		return errors.New("config: canary.min_requests out of range")
+	}
+	if v := f.Canary.LatencyDelta; v != nil && (v.Duration < time.Millisecond || v.Duration > 30*time.Second) {
+		return errors.New("config: canary.latency_delta out of range")
+	}
+
 	if t := f.Bundles.Signer.Type; t != nil && *t != "file" && *t != "vault" {
 		return fmt.Errorf("config: bundles.signer.type must be file or vault, got %q", *t)
 	}
