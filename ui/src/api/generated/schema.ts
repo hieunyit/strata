@@ -306,6 +306,12 @@ export interface paths {
     /** Revoke token with etag and immutable retry command */
     delete: operations["revokeServiceAccountToken"];
   };
+  "/v1/incidents": {
+    get: operations["listOperationalIncidents"];
+  };
+  "/v1/incidents:acknowledge": {
+    post: operations["acknowledgeOperationalIncident"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1353,6 +1359,55 @@ export interface components {
       checks: components["schemas"]["HealthCheck"][];
       nodes: components["schemas"]["HealthNode"][];
       truncated: boolean;
+    };
+    OperationalSignal: {
+      kind: string;
+      /** @enum {string} */
+      state: "healthy" | "degraded" | "unavailable" | "stale" | "unknown";
+      affected: number;
+    };
+    OperationalSummary: {
+      /** @enum {string} */
+      source: "operational_health_and_security_events";
+      /** Format: date-time */
+      observed_at: string;
+      signals: components["schemas"]["OperationalSignal"][];
+      security_events: number | null;
+      blocked_security_events: number | null;
+      /** @enum {string} */
+      event_status: "available" | "unavailable";
+      truncated: boolean;
+    };
+    OperationalIncident: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      kind: string;
+      /** @enum {string} */
+      state: "open" | "acknowledged" | "resolved";
+      /** @enum {string} */
+      signal_state: "healthy" | "degraded" | "unavailable" | "stale" | "unknown";
+      affected: number;
+      etag: string;
+      /** Format: date-time */
+      opened_at: string;
+      /** Format: date-time */
+      observed_at: string;
+      /** Format: date-time */
+      notified_at: string | null;
+      ack_subject: string;
+    };
+    OperationalIncidentPage: {
+      editable: boolean;
+      incidents: components["schemas"]["OperationalIncident"][];
+      limit: number;
+    };
+    IncidentAcknowledgeRequest: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      request_id: string;
     };
   };
   responses: {
@@ -3463,6 +3518,77 @@ export interface operations {
       409: components["responses"]["MachineConflict"];
       500: components["responses"]["MachineFailure"];
       503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  listOperationalIncidents: {
+    parameters: {
+      query?: {
+        application_id?: string;
+        environment_id?: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OperationalIncidentPage"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  acknowledgeOperationalIncident: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IncidentAcknowledgeRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OperationalIncident"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
     };
   };
 }

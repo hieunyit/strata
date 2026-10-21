@@ -1968,6 +1968,65 @@ paths:
       - {$ref: '#/components/parameters/MachineIfMatch'}
       - {$ref: '#/components/parameters/MachineRequestID'}
       - {$ref: '#/components/parameters/MachineTokenID'}
+  /v1/incidents:
+    get:
+      operationId: listOperationalIncidents
+      parameters:
+      - name: application_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncidentPage'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/incidents:acknowledge:
+    post:
+      operationId: acknowledgeOperationalIncident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentAcknowledgeRequest'
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncident'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
 components:
   parameters:
     MachineAccountID:
@@ -4076,6 +4135,152 @@ components:
             $ref: '#/components/schemas/HealthNode'
         truncated:
           type: boolean
+    OperationalSignal:
+      type: object
+      required:
+      - kind
+      - state
+      - affected
+      properties:
+        kind:
+          type: string
+        state:
+          type: string
+          enum:
+          - healthy
+          - degraded
+          - unavailable
+          - stale
+          - unknown
+        affected:
+          type: integer
+      additionalProperties: false
+    OperationalSummary:
+      type: object
+      required:
+      - source
+      - observed_at
+      - signals
+      - security_events
+      - blocked_security_events
+      - event_status
+      - truncated
+      properties:
+        source:
+          type: string
+          enum:
+          - operational_health_and_security_events
+        observed_at:
+          type: string
+          format: date-time
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationalSignal'
+        security_events:
+          type: integer
+          nullable: true
+        blocked_security_events:
+          type: integer
+          nullable: true
+        event_status:
+          type: string
+          enum:
+          - available
+          - unavailable
+        truncated:
+          type: boolean
+      additionalProperties: false
+    OperationalIncident:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - kind
+      - state
+      - signal_state
+      - affected
+      - etag
+      - opened_at
+      - observed_at
+      - notified_at
+      - ack_subject
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        kind:
+          type: string
+        state:
+          type: string
+          enum:
+          - open
+          - acknowledged
+          - resolved
+        signal_state:
+          type: string
+          enum:
+          - healthy
+          - degraded
+          - unavailable
+          - stale
+          - unknown
+        affected:
+          type: integer
+        etag:
+          type: string
+        opened_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        notified_at:
+          type: string
+          format: date-time
+          nullable: true
+        ack_subject:
+          type: string
+      additionalProperties: false
+    OperationalIncidentPage:
+      type: object
+      required:
+      - editable
+      - incidents
+      - limit
+      properties:
+        editable: {type: boolean}
+        incidents:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationalIncident'
+        limit:
+          type: integer
+      additionalProperties: false
+    IncidentAcknowledgeRequest:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - etag
+      - request_id
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        etag:
+          type: string
+        request_id:
+          type: string
+      additionalProperties: false
   securitySchemes:
     bearerAuth:
       type: http
