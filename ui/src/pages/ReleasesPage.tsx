@@ -1,16 +1,17 @@
 import React,{useState,useEffect,useRef} from 'react';
 import {useTranslation} from 'react-i18next';
-import {apiClient,ReleaseDetail,Operation} from '../api/client';
+import {apiClient,ApiError,ReleaseDetail,Operation} from '../api/client';
 import {useAuth} from '../context/AuthContext';
 import {usePolling} from '../usePolling';
 import {ReplaySummary} from '../components/policy/ReplaySummary';
 import {PageShell} from './PageShell';
 import {PageHeader,ErrorBanner} from '../components/ui';
 
+const precondition=(error:unknown)=>error instanceof ApiError&&error.code===412&&['NODES_INCOMPATIBLE','REPLAY_REQUIRED'].includes(error.reason??'')?error.message:undefined;
 const Detail:React.FC<{id:string;changed:()=>void;select:(id:string)=>void}>=({id,changed,select})=>{
  const {t}=useTranslation(),{roles}=useAuth();
  const data=usePolling(()=>apiClient.getRelease(id),3000);
- const [reviewed,setReviewed]=useState(false),[ack,setAck]=useState<string>(),[error,setError]=useState(false),[busy,setBusy]=useState(false);
+ const [reviewed,setReviewed]=useState(false),[ack,setAck]=useState<string>(),[error,setError]=useState(false),[busy,setBusy]=useState(false),[details,setDetails]=useState<string>();
  const [proofs,setProofs]=useState<Operation[]>([]),[proofError,setProofError]=useState(false);
  const lock=useRef(false),requestId=useRef(crypto.randomUUID());
  const release=data.data?.release;
@@ -24,18 +25,19 @@ const Detail:React.FC<{id:string;changed:()=>void;select:(id:string)=>void}>=({i
  if(!release)return <p role="status">{data.error?t('releases.unavailable'):t('common.loading')}</p>;
  const reviewer=roles.includes('admin')||roles.includes('approver'),writer=roles.includes('admin')||roles.includes('operator');
  const action=async(kind:'approve'|'reject'|'deploy')=>{
-  if(lock.current)return;lock.current=true;setBusy(true);setError(false);
-  try{await apiClient.actRelease(id,kind,{etag:release.etag,snapshot_hash:release.snapshot_hash,replay_ids:release.snapshot.replay_ids,...(ack===data.data?.current_baseline?{ack_baseline:ack}:{})});await data.refresh();changed();}catch{setError(true);}finally{lock.current=false;setBusy(false);}
+  if(lock.current)return;lock.current=true;setBusy(true);setError(false);setDetails(undefined);
+  try{await apiClient.actRelease(id,kind,{etag:release.etag,snapshot_hash:release.snapshot_hash,replay_ids:release.snapshot.replay_ids,...(ack===data.data?.current_baseline?{ack_baseline:ack}:{})});await data.refresh();changed();}catch(e){setError(true);setDetails(precondition(e));}finally{lock.current=false;setBusy(false);}
  };
- const rollback=async()=>{if(lock.current)return;lock.current=true;setBusy(true);try{const next=await apiClient.createRelease(requestId.current,id);changed();select(next.release.id);}catch{setError(true);}finally{lock.current=false;setBusy(false);}};
+ const rollback=async()=>{if(lock.current)return;lock.current=true;setBusy(true);try{const next=await apiClient.createRelease(requestId.current,id);changed();select(next.release.id);}catch(e){setError(true);setDetails(precondition(e));}finally{lock.current=false;setBusy(false);}};
  const detail=data.data as ReleaseDetail;
  return <section className="panel p-4 space-y-4" data-testid="release-detail">
- <ErrorBanner message={data.error||(error?t('releases.writeFailed'):undefined)}/>
+ <ErrorBanner message={data.error||(error?(details?t('releases.precondition',{details}):t('releases.writeFailed')):undefined)}/>
  <h2 className="break-all">{id} · {t(`releases.state.${release.state}`)}</h2>
  <p>{t('releases.workflow')}</p>
  <p>{t('releases.creator')}: {release.created_by} · {t('releases.reviewer')}: {release.approved_by||'—'}</p>
  <p className="break-all">{t('releases.hash')}: {release.snapshot_hash}</p>
  <p className="break-all">{t('releases.rules')}: {release.snapshot.bundle.rules_digest}</p>
+ <p className="break-all">{t('releases.capabilities')}: {(release.snapshot.bundle.required_capabilities??[]).join(', ')||t('releases.baseCapabilities')}</p>
  <p className="break-all">{t('releases.inputs')}: {release.snapshot.bundle.input_digest}</p>
  <p>{t('releases.baseline')}: {release.snapshot.baseline_bundle} → {detail.current_baseline}</p>
  <ul>{Object.entries(release.snapshot.bundle.contents).map(([policy,version])=><li key={policy}>{policy} · v{version}</li>)}</ul>
@@ -61,12 +63,12 @@ const Detail:React.FC<{id:string;changed:()=>void;select:(id:string)=>void}>=({i
 };
 export const ReleasesPage:React.FC=()=>{
  const {t}=useTranslation(),{roles}=useAuth();const [cursor,setCursor]=useState('');
- const releases=usePolling(()=>apiClient.listReleases(cursor),15000),[selected,setSelected]=useState(''),[error,setError]=useState(false),[busy,setBusy]=useState(false);
+ const releases=usePolling(()=>apiClient.listReleases(cursor),15000),[selected,setSelected]=useState(''),[error,setError]=useState(false),[busy,setBusy]=useState(false),[details,setDetails]=useState<string>();
  const requestId=useRef(crypto.randomUUID());
  useEffect(()=>{void releases.refresh();},[cursor,releases.refresh]);
- const create=async()=>{if(busy)return;setBusy(true);setError(false);try{const out=await apiClient.createRelease(requestId.current);requestId.current=crypto.randomUUID();await releases.refresh();setSelected(out.release.id);}catch{setError(true);}finally{setBusy(false);}};
+ const create=async()=>{if(busy)return;setBusy(true);setError(false);try{const out=await apiClient.createRelease(requestId.current);requestId.current=crypto.randomUUID();await releases.refresh();setSelected(out.release.id);}catch(e){setError(true);setDetails(precondition(e));}finally{setBusy(false);}};
  return <PageShell active="releases"><PageHeader title={t('releases.title')} description={t('releases.subtitle')} actions={(roles.includes('operator')||roles.includes('admin'))&&<button className="btn" disabled={busy} onClick={()=>void create()}>{t('releases.prepare')}</button>}/>
- <ErrorBanner message={releases.error||(error?t('releases.writeFailed'):undefined)}/>
+ <ErrorBanner message={releases.error||(error?(details?t('releases.precondition',{details}):t('releases.writeFailed')):undefined)}/>
  <div className="flex gap-4 mb-4"><a href="#/policies">{t('releases.editPolicies')}</a><a href="#/reviews">{t('releases.reviewPolicies')}</a></div>
  <div className="grid gap-4 lg:grid-cols-3"><section className="panel p-4 space-y-2">
  {releases.data?.releases.map(r=><button className="btn w-full text-left break-all" key={r.id} onClick={()=>setSelected(r.id)}>{r.id} · {t(`releases.state.${r.state}`)}</button>)}

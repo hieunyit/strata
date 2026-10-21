@@ -961,6 +961,9 @@
       "error_delta": "5xx rate increase",
       "latency_factor": "p99 factor",
       "latency_delta_ms": "p99 increase (ms)"
-    }
+    },
+    "precondition": "Deployment precondition: {{details}}",
+    "capabilities": "Required node capabilities",
+    "baseCapabilities": "Base bundle features"
   }
 }

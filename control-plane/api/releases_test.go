@@ -2,6 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/strata/strata/control-plane/auth"
@@ -56,4 +60,16 @@ type restrictedReleaseAuth struct{}
 
 func (restrictedReleaseAuth) Authenticate(context.Context, string) (*auth.Principal, error) {
 	return &auth.Principal{Subject: "local:scoped", Roles: []auth.Role{auth.RoleAdmin}, Access: &auth.Access{}}, nil
+}
+
+func TestReleasePreconditionPreservesActionableDetails(t *testing.T) {
+	rec := httptest.NewRecorder()
+	releaseError(rec, fmt.Errorf("%w: node-example:section.16", store.ErrIncompatible))
+	var failure ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != 412 || failure.Reason != "NODES_INCOMPATIBLE" || !strings.Contains(failure.Error, "node-example:section.16") {
+		t.Fatal("global release preflight lost missing-node details")
+	}
 }
