@@ -240,6 +240,89 @@ paths:
         required: true
         schema:
           type: string
+  /v1/evidence:
+    get:
+      operationId: listEvidence
+      parameters:
+        - {name: application_id, in: query, required: true, schema: {type: string}}
+        - {name: environment_id, in: query, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: At most 20 own exports, revalidated against current scope.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [exports]
+                properties:
+                  exports:
+                    type: array
+                    items: {$ref: '#/components/schemas/EvidenceExport'}
+    post:
+      operationId: createEvidence
+      responses:
+        '202':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceRequest'
+  /v1/evidence/{id}:
+    get:
+      operationId: getEvidence
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /v1/evidence/{id}/download:
+    get:
+      operationId: downloadEvidence
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private CSV, up to 10000 rows / 16 MiB, expires after 24 hours;
+            owner and complete original scope revalidated.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Expired or inaccessible export
+        '409':
+          description: Export incomplete
   /v1/auth/mfa:
     get:
       operationId: getLocalMFA
@@ -1887,6 +1970,79 @@ components:
       - etag
       - state
       - replay_url
+    EvidenceExport:
+      type: object
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        sensitive:
+          type: boolean
+        state:
+          type: string
+          enum:
+          - pending
+          - running
+          - done
+          - failed
+        etag:
+          type: string
+        row_count:
+          type: integer
+          maximum: 10000
+        truncated:
+          type: boolean
+        sha256:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - owner
+      - application_id
+      - environment_id
+      - sensitive
+      - state
+      - etag
+      - row_count
+      - truncated
+      - sha256
+      - created_at
+      - expires_at
+    EvidenceRequest:
+      type: object
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        sensitive:
+          type: boolean
+        filter:
+          $ref: '#/components/schemas/SearchEventsRequest'
+        request_id:
+          type: string
+      required:
+      - application_id
+      - environment_id
+      - filter
+      - request_id
+    EvidenceReply:
+      type: object
+      properties:
+        export:
+          $ref: '#/components/schemas/EvidenceExport'
+      required:
+      - export
     MFACommand:
       type: object
       properties:

@@ -26,6 +26,16 @@ export interface paths {
   "/v1/events/{block_id}:propose-rule": {
     post: operations["proposeEventRule"];
   };
+  "/v1/evidence": {
+    get: operations["listEvidence"];
+    post: operations["createEvidence"];
+  };
+  "/v1/evidence/{id}": {
+    get: operations["getEvidence"];
+  };
+  "/v1/evidence/{id}/download": {
+    get: operations["downloadEvidence"];
+  };
   "/v1/auth/mfa": {
     /** Read own local MFA status */
     get: operations["getLocalMFA"];
@@ -345,6 +355,33 @@ export interface components {
       /** @enum {string} */
       state: "DRAFT";
       replay_url: string;
+    };
+    EvidenceExport: {
+      id: string;
+      owner: string;
+      application_id: string;
+      environment_id: string;
+      sensitive: boolean;
+      /** @enum {string} */
+      state: "pending" | "running" | "done" | "failed";
+      etag: string;
+      row_count: number;
+      truncated: boolean;
+      sha256: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    EvidenceRequest: {
+      application_id: string;
+      environment_id: string;
+      sensitive?: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      request_id: string;
+    };
+    EvidenceReply: {
+      export: components["schemas"]["EvidenceExport"];
     };
     MFACommand: {
       password?: string;
@@ -1450,6 +1487,95 @@ export interface operations {
         content: never;
       };
       /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  listEvidence: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description At most 20 own exports, revalidated against current scope. */
+      200: {
+        content: {
+          "application/json": {
+            exports: components["schemas"]["EvidenceExport"][];
+          };
+        };
+      };
+    };
+  };
+  createEvidence: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EvidenceRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      202: {
+        content: {
+          "application/json": components["schemas"]["EvidenceReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getEvidence: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EvidenceReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  downloadEvidence: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Private CSV, up to 10000 rows / 16 MiB, expires after 24 hours; owner and complete original scope revalidated. */
+      200: {
+        content: {
+          "text/csv": string;
+        };
+      };
+      /** @description Expired or inaccessible export */
+      404: {
+        content: never;
+      };
+      /** @description Export incomplete */
       409: {
         content: never;
       };
