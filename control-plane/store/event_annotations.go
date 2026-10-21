@@ -56,7 +56,7 @@ func (s *Store) MarkEventFalsePositive(ctx context.Context, block, reason, etag 
 			return err
 		}
 		var before EventAnnotation
-		err := tx.QueryRow(ctx, `SELECT block_id,reason,marked_by,marked_subject,marked_at,etag FROM event_annotations WHERE block_id=$1`, block).Scan(&before.BlockID, &before.Reason, &before.MarkedBy, &before.MarkedSubject, &before.MarkedAt, &before.Etag)
+		err := tx.QueryRow(ctx, `SELECT block_id,reason,marked_by,marked_subject,marked_at,etag,case_only FROM event_annotations WHERE block_id=$1`, block).Scan(&before.BlockID, &before.Reason, &before.MarkedBy, &before.MarkedSubject, &before.MarkedAt, &before.Etag, &before.CaseOnly)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
@@ -75,7 +75,7 @@ func (s *Store) MarkEventFalsePositive(ctx context.Context, block, reason, etag 
 		}
 		result.MarkedAt = result.MarkedAt.UTC()
 		if a.RuleContext != nil {
-			if err := writeRuleAnnotationContext(ctx, tx, block, a.RuleContext, before.Etag == "", result.MarkedAt); err != nil {
+			if err := writeRuleAnnotationContext(ctx, tx, block, a.RuleContext, before.Etag == "" || before.CaseOnly, result.MarkedAt); err != nil {
 				return err
 			}
 		}

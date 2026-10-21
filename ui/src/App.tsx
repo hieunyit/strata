@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReleasesPage } from './pages/ReleasesPage';
 import { SecurityPage } from './pages/SecurityPage';
+import { DiscoveryPage } from './pages/DiscoveryPage';
+import { OperationsPage } from './pages/OperationsPage';
 import { HealthPage } from './pages/HealthPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -10,6 +12,8 @@ import { EventsPage } from './pages/EventsPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReviewsPage } from './pages/ReviewsPage';
+import { RulesPage } from './pages/RulesPage';
+import { ExceptionsPage } from './pages/ExceptionsPage';
 import { PoliciesPage } from './pages/PoliciesPage';
 import { FleetPage } from './pages/FleetPage';
 import { UsersPage } from './pages/UsersPage';
@@ -62,6 +66,10 @@ export const AppContent: React.FC = () => {
         return scoped ? <ApplicationsPage/> : <ReleasesPage/>;
       case 'security':
         return <SecurityPage/>;
+      case 'discovery':
+        return <DiscoveryPage/>;
+      case 'operations':
+        return <OperationsPage/>;
       case 'health':
         return <HealthPage/>;
       case 'applications':
@@ -74,6 +82,8 @@ export const AppContent: React.FC = () => {
         return <EventDetailPage key={route.blockId} blockId={route.blockId ?? ''} />;
       case 'reviews':
         return <ReviewsPage />;
+      case 'rules':return <RulesPage/>;
+      case 'exceptions':return <ExceptionsPage/>;
       case 'policies':
         return <PoliciesPage />;
       case 'fleet':

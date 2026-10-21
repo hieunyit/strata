@@ -81,3 +81,6 @@ supervisor nào giữ container chạy với một agent đã chết.
 `load_module` và `/etc/nginx/conf.d/strata.conf`, nếu không `nginx -t` sẽ lỗi. Dữ liệu
 trong `/var/lib/strata` được giữ lại. Thu hồi node trên control plane:
 `DELETE /v1/nodes/{id}`.
+
+Hướng dẫn mở rộng, gồm control plane và nghiệm thu node: [cẩm nang Compact](../operations/README.md),
+đặc biệt [triển khai NGINX/agent](../operations/03-nginx-nodes.md).
