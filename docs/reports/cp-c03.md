@@ -75,3 +75,21 @@ remains a dedicated authorized analytics field; identity/content follow P-01 wit
 masking. Audit copies are forward-only, not historical backfill or tamper-proof storage.
 Receivers must deduplicate retry IDs; exactly-once network delivery is not claimed. Queue
 status is in PostgreSQL; the alert UI belongs to C04. No full live fault matrix is claimed.
+
+Review/merge order (all open for review; no C merge is claimed):
+
+- [#321](https://github.com/hieunyit/strata/pull/321): `codex/cp-c03-privacy-filter`; base `main`.
+- [#322](https://github.com/hieunyit/strata/pull/322): `codex/cp-c03-privacy-manifest`; base `codex/cp-c03-privacy-filter`.
+- [#323](https://github.com/hieunyit/strata/pull/323): `codex/cp-c03-privacy-sinks`; base `codex/cp-c03-privacy-manifest`.
+- [#324](https://github.com/hieunyit/strata/pull/324): `codex/cp-c03-mfa-crypto`; base `codex/cp-c03-privacy-sinks`.
+- [#325](https://github.com/hieunyit/strata/pull/325): `codex/cp-c03-mfa-sessions`; base `codex/cp-c03-mfa-crypto`.
+- [#326](https://github.com/hieunyit/strata/pull/326): `codex/cp-c03-mfa-enrollment`; base `codex/cp-c03-mfa-sessions`.
+- [#327](https://github.com/hieunyit/strata/pull/327): `codex/cp-c03-mfa-api`; base `codex/cp-c03-mfa-enrollment`.
+- [#328](https://github.com/hieunyit/strata/pull/328): `codex/cp-c03-mfa-setup`; base `codex/cp-c03-mfa-api`.
+- [#329](https://github.com/hieunyit/strata/pull/329): `codex/cp-c03-webhook`; base `codex/cp-c03-mfa-setup`.
+- [#330](https://github.com/hieunyit/strata/pull/330): `codex/cp-c03-audit-outbox`; base `codex/cp-c03-webhook`.
+- [#331](https://github.com/hieunyit/strata/pull/331): `codex/cp-c03-outbound-config`; base `codex/cp-c03-audit-outbox`.
+- [#332](https://github.com/hieunyit/strata/pull/332): `codex/cp-c03-auth-contract`; base `codex/cp-c03-outbound-config`.
+- [#333](https://github.com/hieunyit/strata/pull/333): `codex/cp-c03-security-ui`; base `codex/cp-c03-auth-contract`.
+- [#334](https://github.com/hieunyit/strata/pull/334): `codex/cp-c03-replay-integrity`; base `codex/cp-c03-security-ui`.
+- [#335](https://github.com/hieunyit/strata/pull/335): `codex/cp-c03-docs`; base `codex/cp-c03-replay-integrity`.
