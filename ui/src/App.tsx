@@ -10,6 +10,8 @@ import { EventsPage } from './pages/EventsPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReviewsPage } from './pages/ReviewsPage';
+import { RulesPage } from './pages/RulesPage';
+import { ExceptionsPage } from './pages/ExceptionsPage';
 import { PoliciesPage } from './pages/PoliciesPage';
 import { FleetPage } from './pages/FleetPage';
 import { UsersPage } from './pages/UsersPage';
@@ -74,6 +76,8 @@ export const AppContent: React.FC = () => {
         return <EventDetailPage key={route.blockId} blockId={route.blockId ?? ''} />;
       case 'reviews':
         return <ReviewsPage />;
+      case 'rules':return <RulesPage/>;
+      case 'exceptions':return <ExceptionsPage/>;
       case 'policies':
         return <PoliciesPage />;
       case 'fleet':

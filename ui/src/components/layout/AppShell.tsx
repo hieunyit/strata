@@ -29,6 +29,8 @@ export const navItems: NavItem[] = [
   { page: 'map', icon: Globe2 },
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
+ {page:'rules',icon:ScrollText},
+ {page:'exceptions',icon:FileCog},
   { page: 'reviews', icon: GitPullRequest },
   { page:'releases',icon:GitPullRequest },
   { page: 'fleet', icon: Server },
