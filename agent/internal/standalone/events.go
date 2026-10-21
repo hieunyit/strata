@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/strata/strata/agent/pkg/privacy"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	eventv1 "github.com/strata/strata/agent/gen/strata/event/v1"
@@ -17,6 +18,7 @@ import (
 
 // EventExporter exports security events to JSON Lines files and/or Syslog.
 type EventExporter struct {
+	Privacy    func(uint64, string) (*privacy.Filter, error)
 	mu         sync.Mutex
 	file       *os.File
 	ownsFile   bool
@@ -98,6 +100,18 @@ func dialSyslog(addr string) (net.Conn, error) {
 
 // Export formats the event as JSON and writes to JSONL and/or Syslog.
 func (e *EventExporter) Export(ev *eventv1.Event) error {
+	var filter *privacy.Filter
+	if e.Privacy != nil {
+		var err error
+		filter, err = e.Privacy(ev.GetBundleVersion(), ev.GetPolicyId())
+		if err != nil {
+			e.mu.Lock()
+			e.dropped++
+			e.mu.Unlock()
+			return err
+		}
+	}
+	ev = filter.Event(ev)
 	data, err := e.jsonOpts.Marshal(ev)
 	if err != nil {
 		e.mu.Lock()

@@ -75,6 +75,7 @@ func New(cfg Config) (*Runner, error) {
 		_ = exporter.Close()
 		return nil, fmt.Errorf("standalone: init bundle watcher: %w", err)
 	}
+	exporter.Privacy = watcher.Privacy
 
 	sock, err := eventsock.Listen(cfg.EventSocket)
 	if err != nil {
