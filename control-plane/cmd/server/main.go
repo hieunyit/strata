@@ -630,6 +630,7 @@ func main() {
 		ingestSvc.GeoIP = geoIP
 		if pg != nil {
 			ingestSvc.Gate = pg
+			ingestSvc.Privacy = policy.PrivacyResolver{Store: pg, IdentityKey: policy.IdentityKeys{Env: os.Getenv("STRATA_IDENTITY_HMAC_KEY"), Pool: pool}.Key}.Filter
 		}
 		runtimeIngest.Store(ingestSvc)
 		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
@@ -644,6 +645,7 @@ func main() {
 			samples := replay.NewCollector(&replay.Store{Objects: objects})
 			if pg != nil {
 				samples.Authorize = pg.ReplaySampleScope
+				samples.Privacy = ingestSvc.Privacy
 			}
 			fcfg.Samples = samples
 			go samples.Run(ctx)

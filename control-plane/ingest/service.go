@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"github.com/strata/strata/agent/pkg/privacy"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ type BatchGate interface {
 
 // IngestService coordinates deduplication, schema validation, batching, and persistence.
 type IngestService struct {
+	Privacy func(context.Context, string, uint64) (*privacy.Filter, error)
 	// Gate must be configured before serving when PostgreSQL is available.
 	Gate BatchGate
 	// GeoIP must be configured before serving; readers may then be atomically reloaded.
@@ -121,6 +123,11 @@ func (s *IngestService) ProcessBatch(ctx context.Context, batch EventBatch) (*Ev
 
 func (s *IngestService) persistBatch(ctx context.Context, batch EventBatch) error {
 	now := time.Now().UTC()
+	type key struct {
+		name    string
+		version uint64
+	}
+	filters := map[key]*privacy.Filter{}
 	validEvents := make([]Event, 0, len(batch.Events))
 	for i := range batch.Events {
 		evt := &batch.Events[i]
@@ -133,8 +140,18 @@ func (s *IngestService) persistBatch(ctx context.Context, batch EventBatch) erro
 			continue
 		}
 		s.enrichGeoIP(evt)
+		k := key{evt.PolicyID, evt.PolicyVersion}
+		filter, found := filters[k]
+		if !found && s.Privacy != nil {
+			var err error
+			filter, err = s.Privacy(ctx, k.name, k.version)
+			if err != nil {
+				return fmt.Errorf("ingest: privacy settings unavailable: %w", err)
+			}
+			filters[k] = filter
+		}
 		s.eventsValid.Add(1)
-		validEvents = append(validEvents, *evt)
+		validEvents = append(validEvents, RedactEvent(*evt, filter))
 	}
 	if len(validEvents) > 0 {
 		if err := s.batcher.SubmitAndAwait(ctx, validEvents); err != nil {

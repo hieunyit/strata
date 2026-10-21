@@ -68,11 +68,13 @@ func maskIP(ip string) string {
 // sanitizeEvent masks the full client IP and the input snippets unless the
 // caller may read them (nginx-module.md › Giao diện quản trị: not for viewer).
 func sanitizeEvent(e ingest.Event, p *auth.Principal) ingest.Event {
+	e = ingest.RedactEvent(e, nil)
 	if p.Can(auth.PermEventsReadSensitive) {
 		return e
 	}
 
 	e.ClientIP = maskIP(e.ClientIP)
+	e.Identity = "[REDACTED]"
 	maskedViolations := make([]ingest.Violation, len(e.Violations))
 	for i, v := range e.Violations {
 		v.Snippet = "[REDACTED]"

@@ -2,6 +2,7 @@ package replay
 
 import (
 	"context"
+	"github.com/strata/strata/agent/pkg/privacy"
 	"google.golang.org/protobuf/proto"
 	"log"
 	"sync"
@@ -17,6 +18,7 @@ import (
 // MaxRows, or MaxAge after its first sample. Samples are best effort: those
 // not written yet are lost if the control plane stops.
 type Collector struct {
+	Privacy func(context.Context, string, uint64) (*privacy.Filter, error)
 	Store   *Store
 	MaxRows int           // 1000
 	MaxAge  time.Duration // 5 min
@@ -79,6 +81,34 @@ func (c *Collector) Add(ctx context.Context, node string, samples []*eventv1.Rep
 		return
 	}
 	now := time.Now()
+	// Resolve policy settings outside the buffer mutex. Missing settings drop
+	// best-effort samples rather than retaining unfiltered producer data.
+	prepared := map[*eventv1.ReplaySample]Record{}
+	if c.Privacy != nil {
+		bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		type privacyKey struct {
+			name    string
+			version uint64
+		}
+		filters := map[privacyKey]*privacy.Filter{}
+		for _, sample := range samples {
+			if sample == nil || proto.Size(sample) > 8192 || !policies[string(sample.GetPolicy())] || sample.GetAnonKeyId() != keyID {
+				continue
+			}
+			k := privacyKey{string(sample.GetPolicy()), sample.GetBundleVersion()}
+			filter, known := filters[k]
+			if !known {
+				var err error
+				filter, err = c.Privacy(bounded, k.name, k.version)
+				if err != nil {
+					continue
+				}
+				filters[k] = filter
+			}
+			prepared[sample] = privateRecord(RecordOf(node, sample), filter)
+		}
+	}
 	full := map[fileKey]bool{}
 	c.mu.Lock()
 	for _, s := range samples {
@@ -87,6 +117,12 @@ func (c *Collector) Add(ctx context.Context, node string, samples []*eventv1.Rep
 		cost := int64(2*size + 1024)
 		k := fileKey{string(s.GetPolicy()), node, s.GetAnonKeyId()}
 		p := c.files[k]
+		if c.Privacy != nil {
+			if _, ok := prepared[s]; !ok {
+				c.Dropped.Add(1)
+				continue
+			}
+		}
 		if s == nil || size > 8192 || k.keyID != keyID || !policies[k.policy] ||
 			cost > c.MaxBytes-c.bytes || cost > c.MaxNodeBytes-c.nodeBytes[node] ||
 			(p == nil && len(c.files) >= c.MaxFiles) || (p != nil && len(p.recs) >= c.MaxRows) {
@@ -97,7 +133,11 @@ func (c *Collector) Add(ctx context.Context, node string, samples []*eventv1.Rep
 			p = &pending{first: now}
 			c.files[k] = p
 		}
-		p.recs = append(p.recs, RecordOf(node, s))
+		record := RecordOf(node, s)
+		if c.Privacy != nil {
+			record = prepared[s]
+		}
+		p.recs = append(p.recs, record)
 		p.bytes += cost
 		c.bytes += cost
 		c.nodeBytes[node] += cost
