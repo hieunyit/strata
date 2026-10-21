@@ -4,6 +4,7 @@ import { Download, Pause, Play, RefreshCw } from 'lucide-react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, ErrorBanner } from '../components/ui';
 import { EventFilterBar, EventFilters, emptyFilters } from '../components/events/EventFilterBar';
+import { InvestigationSearchPanel } from '../components/events/InvestigationSearchPanel';
 import { EventsTable } from '../components/events/EventsTable';
 import { apiClient, Event, SearchEventsRequest, ApiError, isEventsUnavailable } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +41,8 @@ export function searchRequest(f: EventFilters): SearchEventsRequest {
 export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
   const { t } = useTranslation();
   const { maskIp } = useAuth();
+ const [savedId,setSavedId]=useState(route?.query?.saved);
+ useEffect(()=>{setSavedId(route?.query?.saved);setTokens(['']);setPageIndex(0);},[route?.query?.saved]);
   const [filters, setFilters] = useState<EventFilters>(() => filtersFromQuery(route?.query));
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
@@ -71,7 +74,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
       if (background) setRefreshing(true);
       else setLoading(true);
       try {
-        const res = await apiClient.searchEvents({ ...searchRequest(filters), page_token: tokens[pageIndex] || undefined });
+        const res = savedId ? await apiClient.searchSavedEvents(savedId,tokens[pageIndex]) : await apiClient.searchEvents({ ...searchRequest(filters), page_token: tokens[pageIndex] || undefined });
         setEvents(res.events || []);
         setTotal(res.total_matched || 0);
         setNext(res.next_page_token);
@@ -90,7 +93,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
         setRefreshing(false);
       }
     },
-    [filters, tokens, pageIndex, t],
+    [filters, tokens, pageIndex, t, savedId],
   );
 
   useEffect(() => {
@@ -100,12 +103,13 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
   // Only the first page follows new events; on later pages rows would
   // shift under the reader.
   useEffect(() => {
-    if (!live || pageIndex > 0) return;
+    if (!live || pageIndex > 0 || savedId) return;
     const id = setInterval(() => void fetchEvents(true), REFRESH_MS);
     return () => clearInterval(id);
-  }, [live, pageIndex, fetchEvents]);
+  }, [live, pageIndex, fetchEvents, savedId]);
 
   const apply = (f: EventFilters) => {
+ setSavedId(undefined);
     setFilters(f);
     setTokens(['']);
     setPageIndex(0);
@@ -138,6 +142,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
               className={`btn ${pageIndex > 0 ? 'border-dashed text-muted' : live ? 'text-ok' : ''}`}
               data-testid="auto-refresh-toggle-btn"
               onClick={() => setLive(!live)}
+ disabled={!!savedId}
               aria-pressed={!live}
               title={pageIndex > 0 ? t('events.pausedPageTooltip', 'Live updates paused on historical pages') : undefined}
             >
@@ -149,7 +154,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
               ) : (
                 <>
                   {live ? <Pause className="w-3.5 h-3.5 text-ok" /> : <Play className="w-3.5 h-3.5" />}
-                  <span>{live ? t('common.pause') : t('common.resume')}</span>
+                  <span>{savedId ? t('investigation.fixedWindow') : live ? t('common.pause') : t('common.resume')}</span>
                 </>
               )}
             </button>
@@ -166,6 +171,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
       />
       <ErrorBanner message={error} onClose={() => setError(null)} testId="error-banner" />
       <EventFilterBar initial={filters} onApply={apply} />
+ <InvestigationSearchPanel filter={searchRequest(filters)} savedId={savedId} />
 
       {pageIndex > 0 && (
         <div
@@ -181,7 +187,7 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
             className="btn text-xs py-1 h-7 font-medium text-accent hover:underline shrink-0"
             onClick={() => {
               setPageIndex(0);
-              updateRoute(filters, 0);
+              if (!savedId) updateRoute(filters, 0);
             }}
             data-testid="return-page-1-btn"
           >
@@ -202,13 +208,13 @@ export const EventsPage: React.FC<{ route?: Route }> = ({ route }) => {
           const nextIdx = pageIndex + 1;
           if (nextIdx >= tokens.length) setTokens([...tokens, next]);
           setPageIndex(nextIdx);
-          updateRoute(filters, nextIdx);
+          if (!savedId) updateRoute(filters, nextIdx);
         }}
         onPrevPage={() => {
           if (pageIndex > 0) {
             const prevIdx = pageIndex - 1;
             setPageIndex(prevIdx);
-            updateRoute(filters, prevIdx);
+            if (!savedId) updateRoute(filters, prevIdx);
           }
         }}
       />
