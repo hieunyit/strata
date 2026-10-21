@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/strata/strata/control-plane/db"
 	"github.com/strata/strata/control-plane/fleet"
 	"github.com/strata/strata/control-plane/goodbots"
+	systemhealth "github.com/strata/strata/control-plane/health"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
@@ -125,6 +127,8 @@ func main() {
 	configPath := flag.String("config", os.Getenv("STRATA_CONFIG"), "YAML configuration file (CP-A02); flags given here override it. Also: strata-control-plane config validate|show -config <file>")
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "doctor":
+			os.Exit(doctorCommand(os.Args[2:]))
 		case "config":
 			os.Exit(configCommand(os.Args[2:]))
 		case "init":
@@ -510,7 +514,18 @@ func main() {
 			}
 		}
 	}
-	srv := api.NewServer(api.ServerConfig{Applications: pg,
+	var runtimeIngest atomic.Pointer[ingest.IngestService]
+	healthService := &systemhealth.Service{Store: pg, Events: store, Ready: readiness(pool, keeper, store), Version: version, Ingest: func() *ingest.IngestStats {
+		if svc := runtimeIngest.Load(); svc != nil {
+			stats := svc.Stats()
+			return &stats
+		}
+		return nil
+	}}
+	if local, ok := objects.(interface{ FreeBytes() (uint64, error) }); ok {
+		healthService.FreeBytes = local.FreeBytes
+	}
+	srv := api.NewServer(api.ServerConfig{SystemHealth: healthService, Applications: pg,
 		ServiceAccounts: machineAccounts,
 		Annotations:     annotations,
 		Exceptions:      exceptions,
@@ -616,6 +631,7 @@ func main() {
 		if pg != nil {
 			ingestSvc.Gate = pg
 		}
+		runtimeIngest.Store(ingestSvc)
 		fcfg := fleet.Config{Ingest: ingestSvc, Presence: presence, Rollouts: rollouts, Canary: canary}
 		// requests per policy from the heartbeats (RV-N-01)
 		if sink, ok := store.(fleet.PolicyRequestsSink); ok {
