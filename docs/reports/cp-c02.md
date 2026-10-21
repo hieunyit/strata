@@ -62,3 +62,20 @@ Final checks: reconciliation **3.044s**, lint **0 issues**, final store **46.379
 and API **108.206s** passed. Browser run: **24 existing tests passed**; the two new
 fixtures initially omitted their constants, then the corrected isolated rerun passed
 **2/2 in 8.7s**. No existing test was removed or disabled.
+
+## Ordered review PRs
+
+- [rules: isolate rule costs and FP counts by application](https://github.com/hieunyit/strata/pull/352) · base `codex/cp-c01-docs`
+- [rules: index lifecycle provenance and full-content changes](https://github.com/hieunyit/strata/pull/353) · base `codex/cp-c02-telemetry-scope`
+- [store: retain bounded immutable catalog snapshots](https://github.com/hieunyit/strata/pull/354) · base `codex/cp-c02-metadata`
+- [store: persist fenced exception expiry maintenance](https://github.com/hieunyit/strata/pull/355) · base `codex/cp-c02-catalogs`
+- [rules: scope exception inventory and policy usage](https://github.com/hieunyit/strata/pull/356) · base `codex/cp-c02-maintenance-store`
+- [rules: draft expiry cleanup without publishing](https://github.com/hieunyit/strata/pull/357) · base `codex/cp-c02-inventory`
+- [api: expose catalog diff and reviewed exception actions](https://github.com/hieunyit/strata/pull/358) · base `codex/cp-c02-maintenance-worker`
+- [server: schedule catalog refresh and expiry cleanup](https://github.com/hieunyit/strata/pull/359) · base `codex/cp-c02-inventory-api`
+- [rules: sign rule digests and report same-ID edits](https://github.com/hieunyit/strata/pull/360) · base `codex/cp-c02-integration`
+- [api: define configured catalog and change contracts](https://github.com/hieunyit/strata/pull/361) · base `codex/cp-c02-release`
+- [api: define exception lifecycle contracts](https://github.com/hieunyit/strata/pull/362) · base `codex/cp-c02-catalog-contract`
+- [ui: add typed lifecycle clients and application selector](https://github.com/hieunyit/strata/pull/363) · base `codex/cp-c02-exception-contract`
+- [ui: review rule changes and exception expiry drafts](https://github.com/hieunyit/strata/pull/364) · base `codex/cp-c02-ui-client`
+- [docs: record Compact C02 verification and limits](https://github.com/hieunyit/strata/pull/365) · base `codex/cp-c02-pages`
