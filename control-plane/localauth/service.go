@@ -91,7 +91,9 @@ type Service struct {
 	ip    *ipLimiter
 	// dummy is verified when the user does not exist, so a login takes as
 	// long for an unknown user as for a wrong password.
-	dummy string
+	dummy  string
+	mfaKey []byte
+	now    func() time.Time
 }
 
 // NewService: sessions last ttl (no sliding renewal: signing in again is
@@ -104,7 +106,16 @@ func NewService(store *Store, ttl time.Duration) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{store: store, ttl: ttl, ip: newIPLimiter(IPAttempts, IPWindow), dummy: dummy}, nil
+	return &Service{store: store, ttl: ttl, ip: newIPLimiter(IPAttempts, IPWindow), dummy: dummy, now: time.Now}, nil
+}
+
+// ConfigureMFA is called once before serving; the key is independent of bundle signing.
+func (s *Service) ConfigureMFA(key []byte) error {
+	if len(key) != 32 {
+		return ErrMFAUnavailable
+	}
+	s.mfaKey = append([]byte(nil), key...)
+	return nil
 }
 
 func hashToken(t string) []byte {
@@ -114,6 +125,10 @@ func hashToken(t string) []byte {
 
 // Login checks the password and opens a session.
 func (s *Service) Login(ctx context.Context, username, password, clientIP, userAgent string) (*Session, error) {
+	return s.LoginMFA(ctx, username, password, "", false, clientIP, userAgent)
+}
+
+func (s *Service) LoginMFA(ctx context.Context, username, password, code string, recovery bool, clientIP, userAgent string) (*Session, error) {
 	if !s.ip.allow(clientIP, time.Now()) {
 		return nil, ErrThrottled
 	}
@@ -152,7 +167,7 @@ func (s *Service) Login(ctx context.Context, username, password, clientIP, userA
 	}
 	token := TokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
 	expires := time.Now().Add(s.ttl).UTC().Truncate(time.Second)
-	if err := s.store.startSession(ctx, name, hashToken(token), expires, clientIP, userAgent); err != nil {
+	if err := s.store.openSession(ctx, name, c.hash, hashToken(token), expires, clientIP, userAgent, s.mfaKey, code, recovery, s.now()); err != nil {
 		return nil, err
 	}
 	roles := c.roles
@@ -288,11 +303,14 @@ func newIPLimiter(n int, window time.Duration) *ipLimiter {
 func (l *ipLimiter) allow(ip string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.seen) > 10000 { // forget old windows rather than grow without bound
+	if len(l.seen) >= 10000 { // forget old windows rather than grow without bound
 		for k, w := range l.seen {
 			if now.Sub(w.start) >= l.window {
 				delete(l.seen, k)
 			}
+		}
+		if len(l.seen) >= 10000 && l.seen[ip] == nil {
+			return false
 		}
 	}
 	w := l.seen[ip]

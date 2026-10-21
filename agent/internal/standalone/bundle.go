@@ -16,6 +16,7 @@ import (
 
 	"github.com/strata/strata/agent/internal/bundles"
 	"github.com/strata/strata/agent/pkg/bundlefmt"
+	"github.com/strata/strata/agent/pkg/privacy"
 )
 
 // BundleWatcher monitors a local bundle file, directory, or URL and updates the control file.
@@ -34,6 +35,7 @@ type BundleWatcher struct {
 	activeVersion uint64
 	activeHash    [32]byte
 	activeFile    string
+	privacy       map[uint64]map[string]*privacy.Filter
 }
 
 // PolicyRequirement optionally pins the policy used by a standalone route.
@@ -130,13 +132,34 @@ func (w *BundleWatcher) SyncOnce(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("bundle verification failed: %w", err)
 	}
+	filters, err := bundlefmt.PrivacyFilters(data, w.pubKey)
+	if err != nil {
+		// Preserve the watcher's signature/header contract: the engine validates
+		// the full layout. Unreadable metadata never permits raw payload export.
+		filters = nil
+		slog.Warn("standalone: privacy metadata unavailable; event payloads will be fully masked")
+	}
 	sha := sha256.Sum256(data)
 	// Immutable content-addressed files prevent source replacement from changing
 	// bytes already named by the memory-mapped control file.
 	fileName = fmt.Sprintf(".strata-%x.sbn", sha)
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	cachePrivacy := func() {
+		if w.privacy == nil {
+			w.privacy = map[uint64]map[string]*privacy.Filter{}
+		}
+		w.privacy[header.Version] = filters
+		if len(w.privacy) > 4 {
+			oldest := header.Version
+			for v := range w.privacy {
+				oldest = min(oldest, v)
+			}
+			delete(w.privacy, oldest)
+		}
+	}
 	if w.activeVersion == header.Version && w.activeHash == sha && w.activeFile == fileName {
+		cachePrivacy()
 		return false, nil
 	}
 	if header.Version < w.activeVersion && header.Flags&bundlefmt.FlagRollback == 0 {
@@ -158,6 +181,7 @@ func (w *BundleWatcher) SyncOnce(ctx context.Context) (bool, error) {
 	w.activeVersion = header.Version
 	w.activeHash = sha
 	w.activeFile = fileName
+	cachePrivacy()
 
 	slog.Info("standalone: updated control file to bundle",
 		"version", header.Version,
