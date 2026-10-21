@@ -159,3 +159,9 @@ Sau restore:
 curl -s http://127.0.0.1:8080/readyz     # postgres/lease/clickhouse
 docker compose -f deploy/compact/compose.yaml --env-file deploy/compact/.state/env logs control-plane
 ```
+
+## Cẩm nang triển khai chi tiết
+
+Xem [bộ tài liệu vận hành](../../docs/operations/README.md) cho chuẩn bị máy chủ,
+HTTPS, cấu hình, node NGINX, quyền/SSO, phát hành, sao lưu và khôi phục. Bộ tài liệu
+ghi riêng trạng thái A/B trên main và phần C đang chờ merge tại thời điểm viết.
