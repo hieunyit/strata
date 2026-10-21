@@ -208,6 +208,10 @@ func New(cfg Config) (*Agent, error) {
 			slog.Info("closing connections made with the old certificate", "conns", conns.closeAll())
 		},
 		Node: &fleetv1.NodeInfo{OperatingSystem: runtime.GOOS + "/" + runtime.GOARCH, Hostname: host, AgentVersion: cfg.AgentVersion, Connector: &fleetv1.Connector{Type: "nginx"}},
+		Health: func() *fleetv1.AgentHealth {
+			st := sp.Stats()
+			return &fleetv1.AgentHealth{SpoolBytes: uint64(st.Bytes), PendingBatches: st.PendingBatches, DroppedEvents: st.DroppedEvents, SpoolLimitBytes: uint64(st.LimitBytes)}
+		},
 		Counters: func() *fleetv1.NodeCounters {
 			st := sp.Stats()
 			nc := &fleetv1.NodeCounters{DroppedEvents: st.DroppedEvents,
@@ -374,6 +378,7 @@ func clientTLS(cfg Config, id *identity.Identity) (credentials.TransportCredenti
 // blocks, fail open, and the canary groups the control plane compares
 // (W12-G2-01).
 func fillCounters(nc *fleetv1.NodeCounters, snap shmmetrics.Snapshot) {
+	nc.MetricsAvailable = len(snap.Workers) > 0
 	for _, w := range snap.Workers {
 		for _, n := range w.Requests {
 			nc.Requests += n

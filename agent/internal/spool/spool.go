@@ -64,6 +64,8 @@ type Record struct {
 
 // Stats is a snapshot of the spool counters.
 type Stats struct {
+	PendingBatches uint64
+	LimitBytes     int64
 	Bytes          int64
 	Segments       int
 	LastSeq        uint64
@@ -454,6 +456,13 @@ func (s *Spool) Stats() Stats {
 	defer s.mu.Unlock()
 	st := s.stats
 	st.Bytes = s.totalBytes()
+	st.LimitBytes = s.opts.MaxBytes
+	for _, g := range s.segs {
+		floor := max(s.acked, g.first-1)
+		if g.last > floor {
+			st.PendingBatches += g.last - floor
+		}
+	}
 	st.Segments = len(s.segs)
 	st.LastSeq = s.next - 1
 	st.AckedSeq = s.acked

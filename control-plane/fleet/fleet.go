@@ -445,6 +445,18 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 						return err
 					}
 				}
+				if writer, ok := s.cfg.Registry.(interface {
+					RecordNodeTelemetry(context.Context, string, store.NodeTelemetry, time.Time) error
+				}); ok {
+					counters := msg.Heartbeat.GetCounters()
+					telemetry := store.NodeTelemetry{MetricsAvailable: counters.GetMetricsAvailable(), Requests: counters.GetRequests(), Blocked: counters.GetBlocked(), FailOpen: counters.GetFailOpen(), DroppedEvents: counters.GetDroppedEvents(), AgentStartedMs: counters.GetAgentStartedMs(), MetricsCreatedMs: counters.GetMetricsCreatedMs()}
+					if h := msg.Heartbeat.GetHealth(); h != nil {
+						telemetry.Spool = &store.SpoolTelemetry{Bytes: h.GetSpoolBytes(), LimitBytes: h.GetSpoolLimitBytes(), PendingBatches: h.GetPendingBatches(), DroppedEvents: h.GetDroppedEvents()}
+					}
+					if err := writer.RecordNodeTelemetry(ctx, id, telemetry, s.cfg.Now()); err != nil {
+						return status.Error(codes.Unavailable, "could not record node health")
+					}
+				}
 				v := int64(msg.Heartbeat.GetActiveBundleVersion())
 				s.seen(ctx, id, "", "", "", &v)
 				if s.cfg.Canary != nil {

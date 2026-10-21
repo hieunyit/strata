@@ -249,6 +249,15 @@ func TestFleetEnrollConnectRevoke(t *testing.T) {
 	agent := run()
 	took := waitFor(t, "online", 30*time.Second, func() bool { return e.node(t, nodeID).Online })
 	t.Logf("online %s after start", took.Round(time.Millisecond))
+	// CP-B05: a real agent reports its spool through the authenticated heartbeat;
+	// missing worker metrics remain unavailable, rather than a fabricated zero.
+	waitFor(t, "persisted spool telemetry", 25*time.Second, func() bool {
+		nodes, _, err := e.st.HealthNodes(t.Context(), []string{nodeID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(nodes) == 1 && nodes[0].Telemetry != nil && nodes[0].Telemetry.Spool != nil && nodes[0].Telemetry.Spool.LimitBytes > 0 && !nodes[0].Telemetry.MetricsAvailable
+	})
 
 	// kill -9: no goodbye; offline within 30 s.
 	_ = agent.cmd.Process.Kill()

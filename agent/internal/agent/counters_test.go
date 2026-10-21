@@ -51,3 +51,15 @@ func TestFillCountersEngineTime(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingWorkerCountersStayUnavailable(t *testing.T) {
+	nc := &fleetv1.NodeCounters{}
+	fillCounters(nc, shmmetrics.Snapshot{})
+	if nc.MetricsAvailable {
+		t.Fatal("empty worker file reported as measured zero")
+	}
+	fillCounters(nc, shmmetrics.Snapshot{Workers: []shmmetrics.Worker{{PID: 1}}})
+	if !nc.MetricsAvailable {
+		t.Fatal("zero counters from a worker became unavailable")
+	}
+}
