@@ -910,7 +910,8 @@
     "addRoute": "Thêm tuyến",
     "remove": "Xóa",
     "policyChanges": "Cấu hình dự kiến và thay đổi policy gần đây",
-    "unknown": "Chưa biết"
+    "unknown": "Chưa biết",
+    "preserveAdmin": "Hãy giữ vai trò quản trị toàn hệ thống cho tài khoản của bạn, hoặc nhờ quản trị viên khác thay đổi phân quyền này."
   },
   "releases": {
     "title": "Phát hành",

@@ -42,6 +42,9 @@ func (s *Store) AddApplicationBinding(ctx context.Context, b ApplicationBinding,
 	}
 	digest := sha256.Sum256(command)
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := lockBindingChanges(ctx, tx); err != nil {
+			return err
+		}
 		if b.RequestID != "" {
 			if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,33))", audit.Subject+"/"+b.RequestID); err != nil {
 				return err
@@ -78,6 +81,9 @@ func (s *Store) AddApplicationBinding(ctx context.Context, b ApplicationBinding,
 		if err != nil {
 			return err
 		}
+		if err := bindingAuthority(ctx, tx); err != nil {
+			return err
+		}
 		audit.Resource = fmt.Sprintf("rolebindings/%d", b.ID)
 		audit.After = b
 		if err := writeAudit(ctx, tx, audit); err != nil {
@@ -98,12 +104,18 @@ func (s *Store) AddApplicationBinding(ctx context.Context, b ApplicationBinding,
 
 func (s *Store) DeleteApplicationBinding(ctx context.Context, id int64, audit Audit) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := lockBindingChanges(ctx, tx); err != nil {
+			return err
+		}
 		var b ApplicationBinding
 		err := tx.QueryRow(ctx, "DELETE FROM application_role_bindings WHERE id=$1 RETURNING id,subject,role,application_id,environment_id", id).Scan(&b.ID, &b.Subject, &b.Role, &b.ApplicationID, &b.EnvironmentID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
+			return err
+		}
+		if err := bindingAuthority(ctx, tx); err != nil {
 			return err
 		}
 		audit.Resource = fmt.Sprintf("rolebindings/%d", id)

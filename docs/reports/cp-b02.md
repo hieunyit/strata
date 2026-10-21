@@ -48,3 +48,7 @@ của engine vẫn là kiểm soát cuối; không dùng inventory để cấp q
 
 Không chạy benchmark hay build lại toàn bộ gói deb/rpm trong lượt này. Kiểm Go không thay thế
 nghiệm thu package và diễn tập nhiều node. B01/B04/B05 theo PR tiếp theo.
+
+Final integration correction: missing optional manifest classification must survive wrapped
+errors without ignoring a missing binary referenced by an existing manifest. The real agent
+startup regression and fix are recorded in `cp-b-integration-fixes.md`.

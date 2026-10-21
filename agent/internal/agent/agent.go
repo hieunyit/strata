@@ -110,7 +110,7 @@ func New(cfg Config) (*Agent, error) {
 	if cfg.ModuleManifest != "" {
 		var err error
 		manifest, err = control.ReadModuleManifest(cfg.ModuleManifest)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, control.ErrModuleManifestMissing) {
 			return nil, err
 		}
 	}

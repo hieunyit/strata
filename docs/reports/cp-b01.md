@@ -59,3 +59,7 @@ The API/contracts slices are about 400 handwritten lines; generated clients excl
 
 Self-review: error paths fail closed; input/body/list bounds explicit; writes have RBAC and
 atomic audit; no credentials logged; scope is Compact B01; local race/lint/UI gates above.
+
+Final integration correction: binding mutations additionally preserve the authenticated
+administrator's global authority and serialize authority revalidation, including two
+concurrent stale requests. See `cp-b-integration-fixes.md` and its fail-before/pass-after test.

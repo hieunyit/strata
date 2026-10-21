@@ -68,3 +68,30 @@ type applicationTokens struct{}
 func (applicationTokens) Authenticate(_ context.Context, raw string) (*auth.Principal, error) {
 	return &auth.Principal{Subject: "local:" + raw, Name: raw, Roles: []auth.Role{auth.RoleAdmin}}, nil
 }
+
+func TestBindingCannotRemoveCallersGlobalAuthority(t *testing.T) {
+	pool := localauthtest.Pool(t)
+	st := store.New(pool)
+	app, err := st.SaveApplication(t.Context(), store.Application{ID: "example-app", Name: "Example", Owner: "Owner"}, true, "create", store.Audit{Subject: "system:test", Actor: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := auth.ResolveAccess{Authenticator: applicationTokens{}, Resolve: st.ResolveApplicationAccess}
+	server := NewServer(ServerConfig{Auth: verifier, Applications: st}, ingest.NewMockEventStore())
+	code, body := machineRequest(server.Handler(), "POST", "/v1/application-role-bindings", map[string]any{"binding": store.ApplicationBinding{Subject: "local:admin", Role: "viewer", ApplicationID: &app.ID}}, nil)
+	var failure ErrorResponse
+	if err := json.Unmarshal(body, &failure); err != nil {
+		t.Fatal(err)
+	}
+	if code != 403 || failure.Reason != "ADMIN_AUTHORITY_REQUIRED" {
+		t.Fatalf("self restriction: %d %s", code, body)
+	}
+	code, body = machineRequest(server.Handler(), "GET", "/v1/auth/me", nil, nil)
+	var me Me
+	if err := json.Unmarshal(body, &me); err != nil {
+		t.Fatal(err)
+	}
+	if code != 200 || me.Scoped || len(me.Roles) != 1 || me.Roles[0] != "admin" {
+		t.Fatal("failed assignment changed administrator authority")
+	}
+}

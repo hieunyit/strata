@@ -916,7 +916,8 @@
     "addRoute": "Add route",
     "remove": "Remove",
     "policyChanges": "Linked policy intent and recent changes",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "preserveAdmin": "Keep a global administrator role for your account, or ask another global administrator to change this assignment."
   },
   "releases": {
     "title": "Releases",
