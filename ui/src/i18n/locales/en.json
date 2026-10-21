@@ -23,7 +23,8 @@
     "security": "Account security",
     "rules": "Rules & packs",
     "exceptions": "Exceptions",
-    "operations": "Alerts and reports"
+    "operations": "Alerts and reports",
+    "discovery": "API discovery"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -1256,5 +1257,43 @@
       "acknowledged": "Acknowledged",
       "resolved": "Resolved"
     }
+  },
+  "discovery": {
+    "title": "API discovery",
+    "help": "Compare a separate backend-observation feed with an OpenAPI operation index.",
+    "enforcementLimit": "Documentation proposals only. This runtime does not enforce OpenAPI. Drafts require replay and independent review; generating or downloading a proposal never enables blocking.",
+    "collection": "Collection status",
+    "enabled": "Collection enabled under the configured legal approval.",
+    "disabled": "Collection is disabled or approval has expired.",
+    "telemetryHelp": "Only configured trusted machine collectors can send dedicated backend 2xx observations. Security violation events are not used as full traffic. Raw queries, bodies and source addresses are not retained. Unknown path segments become parameters; this can merge distinct routes. Source diversity counts addresses, not independent people.",
+    "approvalExpiry": "Approval expires",
+    "threshold": "Proposal minimum: {{samples}} observations, {{sources}} sources within one UTC day, {{minutes}} minutes of evidence. Observations expire after {{days}} days.",
+    "baseline": "OpenAPI baseline",
+    "documentHelp": "Upload a bounded OpenAPI 3.0/3.1 operation index for the current environment. Only paths, methods, content types and observed body bounds are indexed. Other schema constraints and local references are not evaluated.",
+    "scopeChanged": "Application binding changed. Upload again to confirm the current scope.",
+    "operations": "{{count}} indexed operations",
+    "document": "OpenAPI document (JSON or YAML, 128 KiB maximum)",
+    "saveDocument": "Save baseline",
+    "endpoints": "Observed endpoints",
+    "empty": "No dedicated observations in this scope.",
+    "endpoint": "Endpoint",
+    "contentTypes": "Observed content types",
+    "samples": "Samples",
+    "sources": "Distinct sources",
+    "observedMax": "Observed maximum bytes",
+    "actions": "Actions",
+    "propose": "Propose changes",
+    "insufficient": "Insufficient qualified evidence.",
+    "proposals": "Immutable proposals and diff",
+    "proposed": "Proposed",
+    "stale": "Baseline changed; create a fresh proposal before drafting.",
+    "download": "Download OpenAPI proposal",
+    "createDraft": "Create draft and replay",
+    "error": "Action unavailable. Retry the same command, or refresh after a conflict. Insufficient evidence cannot create a proposal.",
+    "media": {
+      "none": "No content type",
+      "other": "Other content type"
+    },
+    "reviewDraft": "Review draft and replay"
   }
 }
