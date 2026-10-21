@@ -12,7 +12,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/strata/strata/control-plane/operations"
 	"github.com/strata/strata/control-plane/rulecat"
+	"github.com/strata/strata/control-plane/ruleinventory"
 	"log"
 	"net"
 	"net/http"
@@ -38,6 +40,7 @@ import (
 	"github.com/strata/strata/control-plane/goodbots"
 	systemhealth "github.com/strata/strata/control-plane/health"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/investigation"
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
@@ -117,6 +120,15 @@ func main() {
 	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
 	localMFAKey := flag.String("local-mfa-key-file", "", "Private file containing the independent 32-byte local MFA encryption key (hex)")
+	webhookURL := flag.String("notification-webhook", "", "Optional HTTPS receiver for signed diagnostic copies")
+	webhookKey := flag.String("notification-webhook-key-file", "", "Private file holding the 32-byte webhook signing key (hex)")
+	webhookAllow := flag.String("notification-webhook-allow-cidrs", "", "Explicit trusted private receiver CIDRs (comma separated)")
+	discoveryEnabled := flag.Bool("discovery-enabled", false, "Opt in to the legally approved trusted backend-observation feed")
+	discoveryApproval := flag.String("discovery-approval-reference", "", "Reference to the actual approved legal review")
+	discoveryExpires := flag.String("discovery-approval-expires", "", "Legal approval expiry (RFC3339)")
+	discoveryCollectors := flag.String("discovery-trusted-collectors", "", "Trusted sa: identities (comma separated); ordinary sessions cannot submit observations")
+	discoveryKey := flag.String("discovery-identity-key-file", "", "Private independent 32-byte discovery pseudonymization key (hex)")
+	auditExport := flag.Bool("audit-export-enabled", false, "Copy new audit records to the configured webhook using a bounded durable queue")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
 	corsOrigins := flag.String("cors-origins", "", "Comma-separated origins allowed to call the REST API from another origin; empty: none (the UI is served on the API's origin, and npm run dev proxies /v1)")
@@ -224,6 +236,13 @@ func main() {
 	}
 
 	var store ingest.EventStore
+	outbound, err := startOutbound(ctx, pool, *webhookURL, *webhookKey, *webhookAllow, *auditExport)
+	if err != nil {
+		log.Fatalf("[FATAL] outbound delivery: %v", err)
+	}
+	if outbound != nil {
+		go outbound.Run(ctx)
+	}
 	if *inMemory {
 		log.Println("[INFO] Initializing in-memory EventStore")
 		memStore := ingest.NewMockEventStore()
@@ -503,6 +522,16 @@ func main() {
 		log.Printf("[INFO] rule catalog: %d rules", catalog.Len())
 	}
 
+	var ruleInventory *ruleinventory.Catalog
+	if pg != nil {
+		ruleInventory = &ruleinventory.Catalog{Store: pg, Paths: strings.Split(*rulesFlag, ",")}
+		if err := ruleInventory.Refresh(ctx); err != nil {
+			log.Print("[WARN] configured rule catalog unavailable")
+		}
+		go ruleInventory.Run(ctx)
+		maintenance := &ruleinventory.Maintenance{Store: pg, ReplayKick: deps.ReplayKick}
+		go maintenance.Run(ctx)
+	}
 	var annotations api.EventAnnotationStore
 	var exceptions api.ExceptionPolicyStore
 	var health api.HealthReader
@@ -537,7 +566,28 @@ func main() {
 	if local, ok := objects.(interface{ FreeBytes() (uint64, error) }); ok {
 		healthService.FreeBytes = local.FreeBytes
 	}
-	srv := api.NewServer(api.ServerConfig{SystemHealth: healthService, Applications: pg,
+	if pg != nil {
+		operational := &operations.Service{Store: pg, Health: healthService, Events: store, Outbound: outbound != nil}
+		go operational.Run(ctx)
+	}
+	var evidence *investigation.Worker
+	if pg != nil && objects != nil {
+		evidence = &investigation.Worker{Store: pg, Events: store, Objects: objects}
+		go evidence.Run(ctx)
+	} else if pg != nil {
+		go investigation.RetainContent(ctx, pg)
+	}
+	discoveryGate, err := loadDiscoveryGate(*discoveryEnabled, *discoveryApproval, *discoveryExpires, *discoveryCollectors, *discoveryKey)
+	if err != nil {
+		log.Fatal("[FATAL] discovery configuration is invalid or private identity key is unavailable")
+	}
+	if discoveryGate.Enabled && pg == nil {
+		log.Fatal("[FATAL] discovery requires PostgreSQL")
+	}
+	if pg != nil {
+		go retainDiscovery(ctx, pg)
+	}
+	srv := api.NewServer(api.ServerConfig{Discovery: discoveryGate, RuleCatalog: ruleInventory, Evidence: evidence, SystemHealth: healthService, Applications: pg,
 		ServiceAccounts: machineAccounts,
 		Annotations:     annotations,
 		Exceptions:      exceptions,
