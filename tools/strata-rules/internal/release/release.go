@@ -30,17 +30,18 @@ import (
 // Manifest describes a built package; it is written to manifest.json and can
 // be passed back as the baseline of the next release for the changelog.
 type Manifest struct {
-	Version       string         `json:"version"`
-	Pack          string         `json:"pack,omitempty"` // core, signature; "": both
-	BundleVersion uint64         `json:"bundle_version"`
-	CreatedAt     string         `json:"created_at"`
-	Bundle        string         `json:"bundle"`
-	SHA256        string         `json:"sha256"`
-	Rules         int            `json:"rules"`
-	BySource      map[string]int `json:"by_source"`
-	ByLicense     map[string]int `json:"by_license"`
-	ByActionMode  map[string]int `json:"by_action_mode"`
-	RuleIDs       []int          `json:"rule_ids"`
+	RuleDigests   map[string]string `json:"rule_digests,omitempty"`
+	Version       string            `json:"version"`
+	Pack          string            `json:"pack,omitempty"` // core, signature; "": both
+	BundleVersion uint64            `json:"bundle_version"`
+	CreatedAt     string            `json:"created_at"`
+	Bundle        string            `json:"bundle"`
+	SHA256        string            `json:"sha256"`
+	Rules         int               `json:"rules"`
+	BySource      map[string]int    `json:"by_source"`
+	ByLicense     map[string]int    `json:"by_license"`
+	ByActionMode  map[string]int    `json:"by_action_mode"`
+	RuleIDs       []int             `json:"rule_ids"`
 	// sha256 of every other file of the package (public key, NOTICE,
 	// CHANGELOG.md): manifest.json.sig signs the manifest, so the whole
 	// package is covered, not only the bundle (W08 review)
@@ -176,10 +177,17 @@ func Build(o Options) (*Manifest, error) {
 		BySource:      map[string]int{},
 		ByLicense:     map[string]int{},
 		ByActionMode:  map[string]int{},
+		RuleDigests:   map[string]string{},
 	}
 	for _, r := range rules {
 		if id, ok := asInt(r["id"]); ok {
 			m.RuleIDs = append(m.RuleIDs, id)
+			raw, err := json.Marshal(r)
+			if err != nil {
+				return nil, fmt.Errorf("rule digest: %w", err)
+			}
+			sum := sha256.Sum256(raw)
+			m.RuleDigests[strconv.Itoa(id)] = hex.EncodeToString(sum[:])
 		}
 		meta, _ := r["metadata"].(map[string]any)
 		m.BySource[str(meta["source"])]++
@@ -335,6 +343,11 @@ func writeChangelog(path string, m *Manifest, baseline string) error {
 		added, removed := diffIDs(prev.RuleIDs, m.RuleIDs)
 		fmt.Fprintf(&b, "\n## Changes since %s\n\n- Added: %d rules %s\n- Removed: %d rules %s\n",
 			prev.Version, len(added), idList(added), len(removed), idList(removed))
+		changed, unknown := changedIDs(prev, m)
+		fmt.Fprintf(&b, "- Modified: %d rules %s\n", len(changed), idList(changed))
+		if unknown > 0 {
+			fmt.Fprintf(&b, "- Content comparison unavailable for %d retained rules (legacy manifest without per-rule digests).\n", unknown)
+		}
 	}
 	fmt.Fprintf(&b, "\nLicenses and sources: see NOTICE in this package.\n")
 	return os.WriteFile(path, []byte(b.String()), 0o644)
@@ -423,4 +436,28 @@ func asInt(v any) (int, bool) {
 func str(v any) string {
 	s, _ := v.(string)
 	return s
+}
+
+func changedIDs(before, after *Manifest) (changed []int, unknown int) {
+	present := map[int]bool{}
+	for _, id := range before.RuleIDs {
+		present[id] = true
+	}
+	for _, id := range after.RuleIDs {
+		if !present[id] {
+			continue
+		}
+		key := strconv.Itoa(id)
+		a, aOK := before.RuleDigests[key]
+		b, bOK := after.RuleDigests[key]
+		if !aOK || !bOK {
+			unknown++
+			continue
+		}
+		if a != b {
+			changed = append(changed, id)
+		}
+	}
+	sort.Ints(changed)
+	return
 }

@@ -30,3 +30,6 @@ deploy/lab/smoke.sh
 ```
 
 Cài một node thật: [`docs/runbook/install.md`](docs/runbook/install.md).
+
+Hướng dẫn đầy đủ: [Cài đặt, cấu hình và triển khai Compact](docs/operations/README.md)
+(PostgreSQL + ClickHouse, local auth mặc định, Keycloak tùy chọn; kèm backup/restore).
