@@ -20,7 +20,9 @@
     "applications": "Ứng dụng",
     "releases": "Phát hành",
     "health": "Sức khỏe hệ thống",
-    "security": "Bảo mật tài khoản"
+    "security": "Bảo mật tài khoản",
+    "rules": "Rule & gói rule",
+    "exceptions": "Exception"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -1135,5 +1137,79 @@
     "exportHistory": "Lần xuất gần đây",
     "fixedWindow": "Khoảng thời gian đã lưu",
     "update": "Cập nhật bộ lọc đã lưu"
+  },
+  "lifecycle": {
+    "rulesTitle": "Rule và gói rule",
+    "catalogHelp": "Metadata rule đang cấu hình và lịch sử gói. Snapshot này không xác nhận gói đang chạy tại từng proxy.",
+    "source": "Nguồn",
+    "attack": "Loại tấn công",
+    "rule": "Rule",
+    "version": "Phiên bản",
+    "owner": "Chủ sở hữu",
+    "review": "Hạn rà soát",
+    "unknown": "Chưa rõ",
+    "firstPage": "Trang đầu",
+    "applicationUsage": "Ứng dụng và chi phí rule",
+    "usageHelp": "Chọn phạm vi rồi chọn rule. Danh sách là policy có thể dùng rule trong cấu hình. Số node dựa trên báo cáo kích hoạt policy; chưa đo kích hoạt từng rule.",
+    "activePolicyNodes": "{{count}} node báo đang dùng policy này",
+    "disabled": "Đã tắt khẩn cấp",
+    "cost": "Chi phí trung bình từ mẫu",
+    "costHelp": "Tám rule tốn nhất trong mẫu sự kiện bảo mật 24 giờ, không đại diện toàn bộ lưu lượng. Không có mẫu nghĩa là chưa rõ.",
+    "samples": "Số mẫu",
+    "packDiff": "Thay đổi gói rule",
+    "baseline": "Snapshot gốc",
+    "compare": "So sánh",
+    "diffCount": "Thêm {{added}}, bỏ {{removed}}, sửa {{modified}}.",
+    "changes": {
+      "added": "Đã thêm",
+      "removed": "Đã bỏ",
+      "modified": "Đã sửa"
+    },
+    "catalogCount": "{{count}} rule đã cấu hình",
+    "stale": "Làm mới danh mục thất bại, đang hiển thị metadata lần gần nhất.",
+    "unavailable": "Danh mục hoặc nguồn dữ liệu chưa khả dụng.",
+    "exceptionsTitle": "Vòng đời exception",
+    "exceptionsHelp": "Gồm bản hiện tại, bản duyệt mới nhất và bản node đang dùng. Engine tự kiểm hạn không cần reload; dọn và thu hồi đều tạo draft để duyệt.",
+    "route": "Route",
+    "field": "Field và lý do",
+    "expiry": "Hạn dùng và tín hiệu",
+    "approval": "Bằng chứng duyệt",
+    "actions": "Thao tác",
+    "restricted": "Lý do bị giới hạn hoặc chưa có",
+    "unusedUnknown": "Chưa thu thập telemetry số lần khớp exception; mức sử dụng chưa rõ.",
+    "noProof": "Phiên bản này chưa có bằng chứng replay đã duyệt",
+    "revoke": "Tạo draft thu hồi",
+    "cleanupExpired": "Tạo draft dọn hết hạn",
+    "noExceptions": "Không có exception trong phạm vi này.",
+    "maintenance": "Dọn exception hết hạn",
+    "maintenanceHelp": "Tự dọn chỉ tạo draft và replay khi an toàn, giữ nguyên bản sửa đang chờ của người dùng. Vẫn cần duyệt và phát hành.",
+    "maintenanceStates": {
+      "pending": "Chờ tạo draft an toàn",
+      "drafted": "Đã xếp draft và replay",
+      "superseded": "Đã được thay thế"
+    },
+    "warnings": {
+      "too_broad": "Phạm vi đường dẫn gốc cũ quá rộng",
+      "expired": "Đã hết hiệu lực tại engine",
+      "expiring": "Hết hạn trong 72 giờ",
+      "not_in_configured_catalog": "Rule không còn trong danh mục cấu hình hiện tại"
+    },
+    "actionError": "Chưa thực hiện được. Thử lại cùng yêu cầu hoặc làm mới sau xung đột.",
+    "cve": "CVE",
+    "packs": {
+      "core": "Lõi",
+      "signature": "Chữ ký"
+    },
+    "modes": {
+      "enforce": "Chặn",
+      "shadow": "Quan sát"
+    },
+    "policyStates": {
+      "DRAFT": "Bản nháp",
+      "SUBMITTED": "Chờ duyệt",
+      "APPROVED": "Đã duyệt",
+      "REJECTED": "Đã từ chối",
+      "DEPLOYED": "Đã phát hành"
+    }
   }
 }

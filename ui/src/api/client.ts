@@ -11,6 +11,13 @@ export type EventCase = components['schemas']['EventCase'];
 export type EvidenceExport = components['schemas']['EvidenceExport'];
 export type EventRuleRequest = components['schemas']['EventRuleRequest'];
 export type EventRuleDraft = components['schemas']['EventRuleDraft'];
+export type RuleCatalogEntry = components['schemas']['RuleCatalogEntry'];
+export type RuleCatalogPage = components['schemas']['RuleCatalogPage'];
+export type RuleCatalogDetail = components['schemas']['RuleCatalogDetail'];
+export type RuleCatalogSnapshot = components['schemas']['RuleCatalogSnapshot'];
+export type RuleCatalogDiff = components['schemas']['RuleCatalogDiff'];
+export type ExceptionInventoryPage = components['schemas']['ExceptionInventoryPage'];
+export type ExceptionLifecycleRequest = components['schemas']['ExceptionLifecycleRequest'];
 export type Event = components['schemas']['Event'];
 export type Violation = components['schemas']['Violation'];
 export type SearchEventsRequest = components['schemas']['SearchEventsRequest'];
@@ -206,6 +213,25 @@ export async function localLogin(username: string, password: string, code = '', 
 }
 
 export const apiClient = {
+  ruleCatalog(filters: {source?: string; cve?: string; attack_type?: string; after?: string}): Promise<RuleCatalogPage> {
+    const q = new URLSearchParams();for(const [key,value] of Object.entries(filters)) if(value) q.set(key,value);
+    return call(`/rule-catalog?${q}`,{method:'GET'},'Rule catalog unavailable');
+  },
+  async catalogHistory(): Promise<RuleCatalogSnapshot[]> {
+    return (await call<components['schemas']['RuleCatalogHistory']>('/rule-catalogs',{method:'GET'},'Catalog history unavailable')).catalogs;
+  },
+  catalogDiff(from: string,to: string,after = ''): Promise<RuleCatalogDiff> {
+    return call(`/rule-catalogs:diff?${new URLSearchParams({from,to,after})}`,{method:'GET'},'Catalog comparison unavailable');
+  },
+  ruleCatalogDetail(id: number,application: string,environment: string): Promise<RuleCatalogDetail> {
+    return call(`/rule-catalog/${id}?${new URLSearchParams({application_id:application,environment_id:environment})}`,{method:'GET'},'Rule telemetry unavailable');
+  },
+  exceptions(application: string,environment: string,after = ''): Promise<ExceptionInventoryPage> {
+    return call(`/exceptions?${new URLSearchParams({application_id:application,environment_id:environment,after})}`,{method:'GET'},'Exception inventory unavailable');
+  },
+  exceptionLifecycle(action: 'revoke'|'cleanupExpired',request: ExceptionLifecycleRequest): Promise<EventRuleDraft> {
+    return call(`/exceptions:${action}`,json('POST',request),'Unable to create exception draft');
+  },
   savedSearches(application: string, environment: string, after = ''): Promise<components['schemas']['SavedSearchList']> {
     return call(`/saved-searches?${new URLSearchParams({application_id:application,environment_id:environment,after})}`,{method:'GET'},'Unable to load saved searches');
   },

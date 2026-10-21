@@ -20,7 +20,9 @@
     "applications": "Applications",
     "releases": "Releases",
     "health": "System health",
-    "security": "Account security"
+    "security": "Account security",
+    "rules": "Rules & packs",
+    "exceptions": "Exceptions"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -1141,5 +1143,79 @@
     "exportHistory": "Recent exports",
     "fixedWindow": "Saved time window",
     "update": "Update saved search"
+  },
+  "lifecycle": {
+    "rulesTitle": "Rules and packs",
+    "catalogHelp": "Configured rule metadata and pack history. These snapshots do not certify which pack each proxy is running.",
+    "source": "Source",
+    "attack": "Attack type",
+    "rule": "Rule",
+    "version": "Version",
+    "owner": "Owner",
+    "review": "Review by",
+    "unknown": "Unknown",
+    "firstPage": "First page",
+    "applicationUsage": "Application usage and rule cost",
+    "usageHelp": "Select a scope, then a rule. Usage lists candidate policies from the configured catalog. Active counts are last reported policy activations; per-rule activation is not measured.",
+    "activePolicyNodes": "{{count}} nodes report this policy active",
+    "disabled": "Emergency disabled",
+    "cost": "Sampled mean rule cost",
+    "costHelp": "Top-eight costs in sampled security events over 24 hours; this does not estimate all traffic. No samples means unknown.",
+    "samples": "Samples",
+    "packDiff": "Pack changes",
+    "baseline": "Baseline snapshot",
+    "compare": "Compare",
+    "diffCount": "Added {{added}}, removed {{removed}}, modified {{modified}}.",
+    "changes": {
+      "added": "Added",
+      "removed": "Removed",
+      "modified": "Modified"
+    },
+    "catalogCount": "{{count}} configured rules",
+    "stale": "Catalog refresh failed. Showing the last known configured metadata.",
+    "unavailable": "Rule metadata or data source unavailable.",
+    "exceptionsTitle": "Exception lifecycle",
+    "exceptionsHelp": "Current, latest approved and node-active revisions. Expiry is enforced by the engine without a reload; cleanup and revocation create drafts for review.",
+    "route": "Route",
+    "field": "Field and reason",
+    "expiry": "Expiry and signals",
+    "approval": "Approval evidence",
+    "actions": "Actions",
+    "restricted": "Reason restricted or absent",
+    "unusedUnknown": "Exception hit telemetry is not collected; usage is unknown.",
+    "noProof": "No approved replay proof on this revision",
+    "revoke": "Create revocation draft",
+    "cleanupExpired": "Create expiry cleanup draft",
+    "noExceptions": "No exceptions in this scope.",
+    "maintenance": "Expiry maintenance",
+    "maintenanceHelp": "Safe automatic cleanup creates a draft and replay only. Pending user drafts are preserved. Review and release remain required.",
+    "maintenanceStates": {
+      "pending": "Waiting for a safe draft",
+      "drafted": "Draft and replay queued",
+      "superseded": "Superseded"
+    },
+    "warnings": {
+      "too_broad": "Legacy root-path scope is too broad",
+      "expired": "Expired at runtime",
+      "expiring": "Expires within 72 hours",
+      "not_in_configured_catalog": "Rule absent from current configured catalog"
+    },
+    "actionError": "Action unavailable. Retry the same command or refresh after a conflict.",
+    "cve": "CVE",
+    "packs": {
+      "core": "Core",
+      "signature": "Signature"
+    },
+    "modes": {
+      "enforce": "Enforce",
+      "shadow": "Shadow"
+    },
+    "policyStates": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "DEPLOYED": "Deployed"
+    }
   }
 }
