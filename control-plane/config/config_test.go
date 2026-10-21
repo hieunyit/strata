@@ -180,3 +180,20 @@ func TestDurationNeedsUnit(t *testing.T) {
 		t.Fatalf("%+v %v", f, err)
 	}
 }
+
+func TestDiscoveryLegalConfigurationIsOptIn(t *testing.T) {
+	dir := t.TempDir()
+	expiry := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	valid := "version: 1\ndiscovery:\n  enabled: true\n  approval_reference: synthetic-approval-only\n  approval_expires_at: " + expiry + "\n  trusted_collectors: [sa:example-collector]\n  identity_key_file: keys/discovery.key\n"
+	if _, err := Load(write(t, dir, "discovery.yaml", valid, 0600)); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{"version: 1\ndiscovery: {enabled: true}", strings.Replace(valid, "sa:example-collector", "oidc:operator", 1), strings.Replace(valid, "synthetic-approval-only", "\"\"", 1), "version: 1\ndiscovery: {enabled: false, sample_body: true}"} {
+		if _, err := Load(write(t, dir, "bad-discovery.yaml", body, 0600)); err == nil {
+			t.Fatal("incomplete or unsafe discovery config accepted")
+		}
+	}
+	if _, err := Load(write(t, dir, "disabled-discovery.yaml", "version: 1\ndiscovery: {enabled: false}", 0600)); err != nil {
+		t.Fatal(err)
+	}
+}
