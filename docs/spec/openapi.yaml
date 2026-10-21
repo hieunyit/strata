@@ -7,6 +7,23 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/health:
+    get:
+      operationId: getSystemHealth
+      summary: Freshness-aware operational health (nodes:read); route-scoped counters
+        are withheld when their source has no route dimensions.
+      responses:
+        '200':
+          description: Each observation explicitly distinguishes measured zero, unknown,
+            stale and unavailable sources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthSnapshot'
+        '401':
+          description: Authentication required.
+        '403':
+          description: nodes:read required.
   /v1/releases:
     get:
       operationId: listReleases
@@ -2724,6 +2741,81 @@ components:
             type: string
         ack_baseline:
           type: string
+    HealthCheck:
+      type: object
+      required:
+      - id
+      - state
+      - observed_at
+      - advice
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          enum:
+          - healthy
+          - degraded
+          - unknown
+          - stale
+          - unavailable
+        observed_at:
+          type: string
+          format: date-time
+          nullable: true
+        value:
+          type: string
+          description: Decimal counters are strings to preserve UInt64 precision.
+        unit:
+          type: string
+        advice:
+          type: string
+          description: Stable advice identifier; UI translates it.
+    HealthNode:
+      type: object
+      required:
+      - id
+      - checks
+      properties:
+        id:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+    HealthSnapshot:
+      type: object
+      required:
+      - at
+      - fresh_for_seconds
+      - version
+      - scope
+      - checks
+      - nodes
+      - truncated
+      properties:
+        at:
+          type: string
+          format: date-time
+        fresh_for_seconds:
+          type: integer
+        version:
+          type: string
+        scope:
+          type: string
+          enum:
+          - global
+          - applications
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthNode'
+        truncated:
+          type: boolean
   securitySchemes:
     bearerAuth:
       type: http

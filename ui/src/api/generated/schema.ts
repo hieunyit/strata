@@ -5,6 +5,10 @@
 
 
 export interface paths {
+  "/v1/health": {
+    /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
+    get: operations["getSystemHealth"];
+  };
   "/v1/releases": {
     get: operations["listReleases"];
     post: operations["createRelease"];
@@ -966,6 +970,33 @@ export interface components {
       };
       ack_baseline?: string;
     };
+    HealthCheck: {
+      id: string;
+      /** @enum {string} */
+      state: "healthy" | "degraded" | "unknown" | "stale" | "unavailable";
+      /** Format: date-time */
+      observed_at: string | null;
+      /** @description Decimal counters are strings to preserve UInt64 precision. */
+      value?: string;
+      unit?: string;
+      /** @description Stable advice identifier; UI translates it. */
+      advice: string;
+    };
+    HealthNode: {
+      id: string;
+      checks: components["schemas"]["HealthCheck"][];
+    };
+    HealthSnapshot: {
+      /** Format: date-time */
+      at: string;
+      fresh_for_seconds: number;
+      version: string;
+      /** @enum {string} */
+      scope: "global" | "applications";
+      checks: components["schemas"]["HealthCheck"][];
+      nodes: components["schemas"]["HealthNode"][];
+      truncated: boolean;
+    };
   };
   responses: {
     /** @description Invalid bounded command; creates require request_id. No mutation committed. */
@@ -1018,6 +1049,25 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
+  getSystemHealth: {
+    responses: {
+      /** @description Each observation explicitly distinguishes measured zero, unknown, stale and unavailable sources. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HealthSnapshot"];
+        };
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description nodes:read required. */
+      403: {
+        content: never;
+      };
+    };
+  };
   listReleases: {
     parameters: {
       query?: {
