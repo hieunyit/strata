@@ -36,6 +36,7 @@ type Options struct {
 	Connector func() *fleetv1.Connector
 	// Counters, when set, fills each heartbeat.
 	Counters func() *fleetv1.NodeCounters
+	Health   func() *fleetv1.AgentHealth
 	// BundleVersion is the active bundle version reported in Hello and
 	// heartbeats.
 	BundleVersion func() uint64
@@ -228,6 +229,9 @@ func (c *Controller) stream(ctx context.Context) error {
 			}
 			node, _ := c.node()
 			hb := &fleetv1.Heartbeat{ActiveBundleVersion: c.opts.BundleVersion(), Node: node}
+			if c.opts.Health != nil {
+				hb.Health = c.opts.Health()
+			}
 			if c.opts.Counters != nil {
 				hb.Counters = c.opts.Counters()
 			}

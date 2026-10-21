@@ -259,3 +259,22 @@ func writeAt(path string, b []byte, off int64) error {
 	}
 	return f.Close()
 }
+
+func TestPendingBatchesExcludeAcknowledgedAndDroppedSegments(t *testing.T) {
+	s := open(t, t.TempDir(), Options{SegmentBytes: 128, MaxBytes: 400})
+	for range 12 {
+		if _, err := s.Append(bytes.Repeat([]byte{'x'}, 80), 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stats := s.Stats()
+	if stats.DroppedBatches == 0 || stats.PendingBatches != stats.LastSeq-stats.AckedSeq-stats.DroppedBatches {
+		t.Fatalf("dropped sequences counted as pending: %+v", stats)
+	}
+	if err := s.Ack(stats.LastSeq); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Stats().PendingBatches; got != 0 {
+		t.Fatalf("acknowledged backlog: %d", got)
+	}
+}

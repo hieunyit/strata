@@ -73,7 +73,7 @@ func (x BundleStatus_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BundleStatus_State.Descriptor instead.
 func (BundleStatus_State) EnumDescriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{12, 0}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{13, 0}
 }
 
 type EnrollRequest struct {
@@ -643,6 +643,7 @@ type Heartbeat struct {
 	Workers             []*WorkerState `protobuf:"bytes,2,rep,name=workers,proto3" json:"workers,omitempty"`   // phiên bản engine từng worker
 	Counters            *NodeCounters  `protobuf:"bytes,3,opt,name=counters,proto3" json:"counters,omitempty"` // request, block, fail mode, dropped events
 	Node                *NodeInfo      `protobuf:"bytes,4,opt,name=node,proto3" json:"node,omitempty"`         // refreshed inventory, old agents may omit it
+	Health              *AgentHealth   `protobuf:"bytes,5,opt,name=health,proto3" json:"health,omitempty"`     // absent means spool telemetry unavailable
 }
 
 func (x *Heartbeat) Reset() {
@@ -705,6 +706,84 @@ func (x *Heartbeat) GetNode() *NodeInfo {
 	return nil
 }
 
+func (x *Heartbeat) GetHealth() *AgentHealth {
+	if x != nil {
+		return x.Health
+	}
+	return nil
+}
+
+type AgentHealth struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SpoolBytes      uint64 `protobuf:"varint,1,opt,name=spool_bytes,json=spoolBytes,proto3" json:"spool_bytes,omitempty"`
+	PendingBatches  uint64 `protobuf:"varint,2,opt,name=pending_batches,json=pendingBatches,proto3" json:"pending_batches,omitempty"`
+	DroppedEvents   uint64 `protobuf:"varint,3,opt,name=dropped_events,json=droppedEvents,proto3" json:"dropped_events,omitempty"`
+	SpoolLimitBytes uint64 `protobuf:"varint,4,opt,name=spool_limit_bytes,json=spoolLimitBytes,proto3" json:"spool_limit_bytes,omitempty"`
+}
+
+func (x *AgentHealth) Reset() {
+	*x = AgentHealth{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AgentHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentHealth) ProtoMessage() {}
+
+func (x *AgentHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentHealth.ProtoReflect.Descriptor instead.
+func (*AgentHealth) Descriptor() ([]byte, []int) {
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *AgentHealth) GetSpoolBytes() uint64 {
+	if x != nil {
+		return x.SpoolBytes
+	}
+	return 0
+}
+
+func (x *AgentHealth) GetPendingBatches() uint64 {
+	if x != nil {
+		return x.PendingBatches
+	}
+	return 0
+}
+
+func (x *AgentHealth) GetDroppedEvents() uint64 {
+	if x != nil {
+		return x.DroppedEvents
+	}
+	return 0
+}
+
+func (x *AgentHealth) GetSpoolLimitBytes() uint64 {
+	if x != nil {
+		return x.SpoolLimitBytes
+	}
+	return 0
+}
+
 type WorkerState struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -718,7 +797,7 @@ type WorkerState struct {
 func (x *WorkerState) Reset() {
 	*x = WorkerState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[9]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -731,7 +810,7 @@ func (x *WorkerState) String() string {
 func (*WorkerState) ProtoMessage() {}
 
 func (x *WorkerState) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[9]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +823,7 @@ func (x *WorkerState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerState.ProtoReflect.Descriptor instead.
 func (*WorkerState) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{9}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WorkerState) GetPid() uint32 {
@@ -794,14 +873,15 @@ type NodeCounters struct {
 	// workers since metrics_created_ms: per bucket (not cumulative), upper
 	// bounds 50, 100, 200, 500 us, 1, 2, 5, 10 ms, then +Inf; and the total.
 	// Absent with an agent before W20-F-01.
-	EngineTime []uint64 `protobuf:"varint,10,rep,packed,name=engine_time,json=engineTime,proto3" json:"engine_time,omitempty"`
-	EngineNs   uint64   `protobuf:"varint,11,opt,name=engine_ns,json=engineNs,proto3" json:"engine_ns,omitempty"`
+	EngineTime       []uint64 `protobuf:"varint,10,rep,packed,name=engine_time,json=engineTime,proto3" json:"engine_time,omitempty"`
+	EngineNs         uint64   `protobuf:"varint,11,opt,name=engine_ns,json=engineNs,proto3" json:"engine_ns,omitempty"`
+	MetricsAvailable bool     `protobuf:"varint,12,opt,name=metrics_available,json=metricsAvailable,proto3" json:"metrics_available,omitempty"` // valid worker counters, including measured zero
 }
 
 func (x *NodeCounters) Reset() {
 	*x = NodeCounters{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[10]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -814,7 +894,7 @@ func (x *NodeCounters) String() string {
 func (*NodeCounters) ProtoMessage() {}
 
 func (x *NodeCounters) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[10]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -827,7 +907,7 @@ func (x *NodeCounters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeCounters.ProtoReflect.Descriptor instead.
 func (*NodeCounters) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{10}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *NodeCounters) GetRequests() uint64 {
@@ -907,6 +987,13 @@ func (x *NodeCounters) GetEngineNs() uint64 {
 	return 0
 }
 
+func (x *NodeCounters) GetMetricsAvailable() bool {
+	if x != nil {
+		return x.MetricsAvailable
+	}
+	return false
+}
+
 // Counters of one canary group (docs/design/control-file.md, metrics file
 // 24..49).
 type CanaryCounters struct {
@@ -926,7 +1013,7 @@ type CanaryCounters struct {
 func (x *CanaryCounters) Reset() {
 	*x = CanaryCounters{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[11]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -939,7 +1026,7 @@ func (x *CanaryCounters) String() string {
 func (*CanaryCounters) ProtoMessage() {}
 
 func (x *CanaryCounters) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[11]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -952,7 +1039,7 @@ func (x *CanaryCounters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanaryCounters.ProtoReflect.Descriptor instead.
 func (*CanaryCounters) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{11}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CanaryCounters) GetRequests() uint64 {
@@ -1003,7 +1090,7 @@ type BundleStatus struct {
 func (x *BundleStatus) Reset() {
 	*x = BundleStatus{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[12]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1016,7 +1103,7 @@ func (x *BundleStatus) String() string {
 func (*BundleStatus) ProtoMessage() {}
 
 func (x *BundleStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[12]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1029,7 +1116,7 @@ func (x *BundleStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleStatus.ProtoReflect.Descriptor instead.
 func (*BundleStatus) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{12}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *BundleStatus) GetVersion() uint64 {
@@ -1069,7 +1156,7 @@ type CommandResult struct {
 func (x *CommandResult) Reset() {
 	*x = CommandResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[13]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1082,7 +1169,7 @@ func (x *CommandResult) String() string {
 func (*CommandResult) ProtoMessage() {}
 
 func (x *CommandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[13]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1095,7 +1182,7 @@ func (x *CommandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandResult.ProtoReflect.Descriptor instead.
 func (*CommandResult) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{13}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CommandResult) GetCommandId() string {
@@ -1141,7 +1228,7 @@ type ControlMessage struct {
 func (x *ControlMessage) Reset() {
 	*x = ControlMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[14]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1154,7 +1241,7 @@ func (x *ControlMessage) String() string {
 func (*ControlMessage) ProtoMessage() {}
 
 func (x *ControlMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[14]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1167,7 +1254,7 @@ func (x *ControlMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlMessage.ProtoReflect.Descriptor instead.
 func (*ControlMessage) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{14}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{15}
 }
 
 func (m *ControlMessage) GetMsg() isControlMessage_Msg {
@@ -1221,7 +1308,7 @@ type BundleAvailable struct {
 func (x *BundleAvailable) Reset() {
 	*x = BundleAvailable{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[15]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1234,7 +1321,7 @@ func (x *BundleAvailable) String() string {
 func (*BundleAvailable) ProtoMessage() {}
 
 func (x *BundleAvailable) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[15]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1247,7 +1334,7 @@ func (x *BundleAvailable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleAvailable.ProtoReflect.Descriptor instead.
 func (*BundleAvailable) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{15}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BundleAvailable) GetVersion() uint64 {
@@ -1297,7 +1384,7 @@ type Command struct {
 func (x *Command) Reset() {
 	*x = Command{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[16]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1310,7 +1397,7 @@ func (x *Command) String() string {
 func (*Command) ProtoMessage() {}
 
 func (x *Command) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[16]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,7 +1410,7 @@ func (x *Command) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Command.ProtoReflect.Descriptor instead.
 func (*Command) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{16}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Command) GetId() string {
@@ -1426,7 +1513,7 @@ type SetReplaySampling struct {
 func (x *SetReplaySampling) Reset() {
 	*x = SetReplaySampling{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[17]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1439,7 +1526,7 @@ func (x *SetReplaySampling) String() string {
 func (*SetReplaySampling) ProtoMessage() {}
 
 func (x *SetReplaySampling) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[17]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1452,7 +1539,7 @@ func (x *SetReplaySampling) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetReplaySampling.ProtoReflect.Descriptor instead.
 func (*SetReplaySampling) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{17}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetReplaySampling) GetRateBp() uint32 {
@@ -1494,7 +1581,7 @@ type ForceShadow struct {
 func (x *ForceShadow) Reset() {
 	*x = ForceShadow{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[18]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1507,7 +1594,7 @@ func (x *ForceShadow) String() string {
 func (*ForceShadow) ProtoMessage() {}
 
 func (x *ForceShadow) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[18]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +1607,7 @@ func (x *ForceShadow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceShadow.ProtoReflect.Descriptor instead.
 func (*ForceShadow) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{18}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ForceShadow) GetPolicyId() string {
@@ -1560,7 +1647,7 @@ type CollectDiagnostics struct {
 func (x *CollectDiagnostics) Reset() {
 	*x = CollectDiagnostics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[19]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1573,7 +1660,7 @@ func (x *CollectDiagnostics) String() string {
 func (*CollectDiagnostics) ProtoMessage() {}
 
 func (x *CollectDiagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[19]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1586,7 +1673,7 @@ func (x *CollectDiagnostics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectDiagnostics.ProtoReflect.Descriptor instead.
 func (*CollectDiagnostics) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{19}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{20}
 }
 
 // DisableRules switches rules off on the node, in every policy, without a
@@ -1608,7 +1695,7 @@ type DisableRules struct {
 func (x *DisableRules) Reset() {
 	*x = DisableRules{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[20]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1621,7 +1708,7 @@ func (x *DisableRules) String() string {
 func (*DisableRules) ProtoMessage() {}
 
 func (x *DisableRules) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[20]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1634,7 +1721,7 @@ func (x *DisableRules) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableRules.ProtoReflect.Descriptor instead.
 func (*DisableRules) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{20}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DisableRules) GetRuleIds() []uint32 {
@@ -1664,7 +1751,7 @@ type EnableRules struct {
 func (x *EnableRules) Reset() {
 	*x = EnableRules{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[21]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1677,7 +1764,7 @@ func (x *EnableRules) String() string {
 func (*EnableRules) ProtoMessage() {}
 
 func (x *EnableRules) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[21]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1690,7 +1777,7 @@ func (x *EnableRules) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableRules.ProtoReflect.Descriptor instead.
 func (*EnableRules) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{21}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *EnableRules) GetRuleIds() []uint32 {
@@ -1719,7 +1806,7 @@ type FetchBundleRequest struct {
 func (x *FetchBundleRequest) Reset() {
 	*x = FetchBundleRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[22]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1732,7 +1819,7 @@ func (x *FetchBundleRequest) String() string {
 func (*FetchBundleRequest) ProtoMessage() {}
 
 func (x *FetchBundleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[22]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1745,7 +1832,7 @@ func (x *FetchBundleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchBundleRequest.ProtoReflect.Descriptor instead.
 func (*FetchBundleRequest) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{22}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *FetchBundleRequest) GetVersion() uint64 {
@@ -1774,7 +1861,7 @@ type BundleChunk struct {
 func (x *BundleChunk) Reset() {
 	*x = BundleChunk{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[23]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1787,7 +1874,7 @@ func (x *BundleChunk) String() string {
 func (*BundleChunk) ProtoMessage() {}
 
 func (x *BundleChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[23]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1800,7 +1887,7 @@ func (x *BundleChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleChunk.ProtoReflect.Descriptor instead.
 func (*BundleChunk) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{23}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *BundleChunk) GetOffset() uint64 {
@@ -1831,7 +1918,7 @@ type EventBatch struct {
 func (x *EventBatch) Reset() {
 	*x = EventBatch{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[24]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1844,7 +1931,7 @@ func (x *EventBatch) String() string {
 func (*EventBatch) ProtoMessage() {}
 
 func (x *EventBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[24]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1857,7 +1944,7 @@ func (x *EventBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventBatch.ProtoReflect.Descriptor instead.
 func (*EventBatch) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{24}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EventBatch) GetSeq() uint64 {
@@ -1892,7 +1979,7 @@ type EventAck struct {
 func (x *EventAck) Reset() {
 	*x = EventAck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[25]
+		mi := &file_strata_fleet_v1_fleet_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1905,7 +1992,7 @@ func (x *EventAck) String() string {
 func (*EventAck) ProtoMessage() {}
 
 func (x *EventAck) ProtoReflect() protoreflect.Message {
-	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[25]
+	mi := &file_strata_fleet_v1_fleet_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,7 +2005,7 @@ func (x *EventAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventAck.ProtoReflect.Descriptor instead.
 func (*EventAck) Descriptor() ([]byte, []int) {
-	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{25}
+	return file_strata_fleet_v1_fleet_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *EventAck) GetAckedSeq() uint64 {
@@ -2012,7 +2099,7 @@ var file_strata_fleet_v1_fleet_proto_rawDesc = []byte{
 	0x12, 0x32, 0x0a, 0x15, 0x61, 0x63, 0x74, 0x69, 0x76, 0x65, 0x5f, 0x62, 0x75, 0x6e, 0x64, 0x6c,
 	0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52,
 	0x13, 0x61, 0x63, 0x74, 0x69, 0x76, 0x65, 0x42, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72,
-	0x73, 0x69, 0x6f, 0x6e, 0x22, 0xe1, 0x01, 0x0a, 0x09, 0x48, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65,
+	0x73, 0x69, 0x6f, 0x6e, 0x22, 0x97, 0x02, 0x0a, 0x09, 0x48, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65,
 	0x61, 0x74, 0x12, 0x32, 0x0a, 0x15, 0x61, 0x63, 0x74, 0x69, 0x76, 0x65, 0x5f, 0x62, 0x75, 0x6e,
 	0x64, 0x6c, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x04, 0x52, 0x13, 0x61, 0x63, 0x74, 0x69, 0x76, 0x65, 0x42, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56,
@@ -2026,44 +2113,61 @@ var file_strata_fleet_v1_fleet_proto_rawDesc = []byte{
 	0x08, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x12, 0x2d, 0x0a, 0x04, 0x6e, 0x6f, 0x64,
 	0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x73, 0x74, 0x72, 0x61, 0x74, 0x61,
 	0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e,
-	0x66, 0x6f, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x22, 0x73, 0x0a, 0x0b, 0x57, 0x6f, 0x72, 0x6b,
-	0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x69, 0x64, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x70, 0x69, 0x64, 0x12, 0x25, 0x0a, 0x0e, 0x62, 0x75, 0x6e,
-	0x64, 0x6c, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x04, 0x52, 0x0d, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
-	0x12, 0x2b, 0x0a, 0x11, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x67, 0x65, 0x6e, 0x65, 0x72,
-	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x10, 0x65, 0x6e, 0x67,
-	0x69, 0x6e, 0x65, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0xd7, 0x03,
-	0x0a, 0x0c, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x12, 0x1a,
-	0x0a, 0x08, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04,
-	0x52, 0x08, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x6c,
-	0x6f, 0x63, 0x6b, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x07, 0x62, 0x6c, 0x6f,
-	0x63, 0x6b, 0x65, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x61, 0x69, 0x6c, 0x5f, 0x6f, 0x70, 0x65,
-	0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x66, 0x61, 0x69, 0x6c, 0x4f, 0x70, 0x65,
-	0x6e, 0x12, 0x25, 0x0a, 0x0e, 0x64, 0x72, 0x6f, 0x70, 0x70, 0x65, 0x64, 0x5f, 0x65, 0x76, 0x65,
-	0x6e, 0x74, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0d, 0x64, 0x72, 0x6f, 0x70, 0x70,
-	0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x37, 0x0a, 0x06, 0x63, 0x61, 0x6e, 0x61,
-	0x72, 0x79, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x73, 0x74, 0x72, 0x61, 0x74,
-	0x61, 0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x6e, 0x61, 0x72,
-	0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x52, 0x06, 0x63, 0x61, 0x6e, 0x61, 0x72,
-	0x79, 0x12, 0x44, 0x0a, 0x0d, 0x63, 0x61, 0x6e, 0x61, 0x72, 0x79, 0x5f, 0x73, 0x68, 0x61, 0x64,
-	0x6f, 0x77, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x73, 0x74, 0x72, 0x61, 0x74,
-	0x61, 0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x6e, 0x61, 0x72,
-	0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x52, 0x0c, 0x63, 0x61, 0x6e, 0x61, 0x72,
-	0x79, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x12, 0x2c, 0x0a, 0x12, 0x6d, 0x65, 0x74, 0x72, 0x69,
-	0x63, 0x73, 0x5f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x6d, 0x73, 0x18, 0x07, 0x20,
-	0x01, 0x28, 0x04, 0x52, 0x10, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x43, 0x72, 0x65, 0x61,
-	0x74, 0x65, 0x64, 0x4d, 0x73, 0x12, 0x38, 0x0a, 0x08, 0x70, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65,
-	0x73, 0x18, 0x08, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x73, 0x74, 0x72, 0x61, 0x74, 0x61,
-	0x2e, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x79,
-	0x43, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x08, 0x70, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65, 0x73, 0x12,
-	0x28, 0x0a, 0x10, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x65, 0x64,
-	0x5f, 0x6d, 0x73, 0x18, 0x09, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x53, 0x74, 0x61, 0x72, 0x74, 0x65, 0x64, 0x4d, 0x73, 0x12, 0x1f, 0x0a, 0x0b, 0x65, 0x6e, 0x67,
-	0x69, 0x6e, 0x65, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x0a, 0x20, 0x03, 0x28, 0x04, 0x52, 0x0a,
-	0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x65, 0x6e,
-	0x67, 0x69, 0x6e, 0x65, 0x5f, 0x6e, 0x73, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x65,
-	0x6e, 0x67, 0x69, 0x6e, 0x65, 0x4e, 0x73, 0x22, 0xae, 0x01, 0x0a, 0x0e, 0x43, 0x61, 0x6e, 0x61,
+	0x66, 0x6f, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x34, 0x0a, 0x06, 0x68, 0x65, 0x61, 0x6c,
+	0x74, 0x68, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x73, 0x74, 0x72, 0x61, 0x74,
+	0x61, 0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x52, 0x06, 0x68, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x22, 0xaa,
+	0x01, 0x0a, 0x0b, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x12, 0x1f,
+	0x0a, 0x0b, 0x73, 0x70, 0x6f, 0x6f, 0x6c, 0x5f, 0x62, 0x79, 0x74, 0x65, 0x73, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x04, 0x52, 0x0a, 0x73, 0x70, 0x6f, 0x6f, 0x6c, 0x42, 0x79, 0x74, 0x65, 0x73, 0x12,
+	0x27, 0x0a, 0x0f, 0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x5f, 0x62, 0x61, 0x74, 0x63, 0x68,
+	0x65, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0e, 0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e,
+	0x67, 0x42, 0x61, 0x74, 0x63, 0x68, 0x65, 0x73, 0x12, 0x25, 0x0a, 0x0e, 0x64, 0x72, 0x6f, 0x70,
+	0x70, 0x65, 0x64, 0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x0d, 0x64, 0x72, 0x6f, 0x70, 0x70, 0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x12,
+	0x2a, 0x0a, 0x11, 0x73, 0x70, 0x6f, 0x6f, 0x6c, 0x5f, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x5f, 0x62,
+	0x79, 0x74, 0x65, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0f, 0x73, 0x70, 0x6f, 0x6f,
+	0x6c, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x42, 0x79, 0x74, 0x65, 0x73, 0x22, 0x73, 0x0a, 0x0b, 0x57,
+	0x6f, 0x72, 0x6b, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x70, 0x69, 0x64, 0x12, 0x25, 0x0a, 0x0e,
+	0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x04, 0x52, 0x0d, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73,
+	0x69, 0x6f, 0x6e, 0x12, 0x2b, 0x0a, 0x11, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x67, 0x65,
+	0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x10,
+	0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x22, 0x84, 0x04, 0x0a, 0x0c, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72,
+	0x73, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x04, 0x52, 0x08, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x12, 0x18, 0x0a,
+	0x07, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x07,
+	0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x65, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x61, 0x69, 0x6c, 0x5f,
+	0x6f, 0x70, 0x65, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x66, 0x61, 0x69, 0x6c,
+	0x4f, 0x70, 0x65, 0x6e, 0x12, 0x25, 0x0a, 0x0e, 0x64, 0x72, 0x6f, 0x70, 0x70, 0x65, 0x64, 0x5f,
+	0x65, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0d, 0x64, 0x72,
+	0x6f, 0x70, 0x70, 0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x37, 0x0a, 0x06, 0x63,
+	0x61, 0x6e, 0x61, 0x72, 0x79, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x73, 0x74,
+	0x72, 0x61, 0x74, 0x61, 0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61,
+	0x6e, 0x61, 0x72, 0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x52, 0x06, 0x63, 0x61,
+	0x6e, 0x61, 0x72, 0x79, 0x12, 0x44, 0x0a, 0x0d, 0x63, 0x61, 0x6e, 0x61, 0x72, 0x79, 0x5f, 0x73,
+	0x68, 0x61, 0x64, 0x6f, 0x77, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x73, 0x74,
+	0x72, 0x61, 0x74, 0x61, 0x2e, 0x66, 0x6c, 0x65, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61,
+	0x6e, 0x61, 0x72, 0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x52, 0x0c, 0x63, 0x61,
+	0x6e, 0x61, 0x72, 0x79, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x12, 0x2c, 0x0a, 0x12, 0x6d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x5f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x6d, 0x73,
+	0x18, 0x07, 0x20, 0x01, 0x28, 0x04, 0x52, 0x10, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x43,
+	0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x4d, 0x73, 0x12, 0x38, 0x0a, 0x08, 0x70, 0x6f, 0x6c, 0x69,
+	0x63, 0x69, 0x65, 0x73, 0x18, 0x08, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x73, 0x74, 0x72,
+	0x61, 0x74, 0x61, 0x2e, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x6f, 0x6c,
+	0x69, 0x63, 0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x08, 0x70, 0x6f, 0x6c, 0x69, 0x63, 0x69,
+	0x65, 0x73, 0x12, 0x28, 0x0a, 0x10, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x5f, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x65, 0x64, 0x5f, 0x6d, 0x73, 0x18, 0x09, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x72, 0x74, 0x65, 0x64, 0x4d, 0x73, 0x12, 0x1f, 0x0a, 0x0b,
+	0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x0a, 0x20, 0x03, 0x28,
+	0x04, 0x52, 0x0a, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x1b, 0x0a,
+	0x09, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x6e, 0x73, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x08, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x4e, 0x73, 0x12, 0x2b, 0x0a, 0x11, 0x6d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x5f, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18,
+	0x0c, 0x20, 0x01, 0x28, 0x08, 0x52, 0x10, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x41, 0x76,
+	0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x22, 0xae, 0x01, 0x0a, 0x0e, 0x43, 0x61, 0x6e, 0x61,
 	0x72, 0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65,
 	0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x72, 0x65,
 	0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x65,
@@ -2235,7 +2339,7 @@ func file_strata_fleet_v1_fleet_proto_rawDescGZIP() []byte {
 }
 
 var file_strata_fleet_v1_fleet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_strata_fleet_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_strata_fleet_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_strata_fleet_v1_fleet_proto_goTypes = []any{
 	(BundleStatus_State)(0),    // 0: strata.fleet.v1.BundleStatus.State
 	(*EnrollRequest)(nil),      // 1: strata.fleet.v1.EnrollRequest
@@ -2247,68 +2351,70 @@ var file_strata_fleet_v1_fleet_proto_goTypes = []any{
 	(*AgentMessage)(nil),       // 7: strata.fleet.v1.AgentMessage
 	(*Hello)(nil),              // 8: strata.fleet.v1.Hello
 	(*Heartbeat)(nil),          // 9: strata.fleet.v1.Heartbeat
-	(*WorkerState)(nil),        // 10: strata.fleet.v1.WorkerState
-	(*NodeCounters)(nil),       // 11: strata.fleet.v1.NodeCounters
-	(*CanaryCounters)(nil),     // 12: strata.fleet.v1.CanaryCounters
-	(*BundleStatus)(nil),       // 13: strata.fleet.v1.BundleStatus
-	(*CommandResult)(nil),      // 14: strata.fleet.v1.CommandResult
-	(*ControlMessage)(nil),     // 15: strata.fleet.v1.ControlMessage
-	(*BundleAvailable)(nil),    // 16: strata.fleet.v1.BundleAvailable
-	(*Command)(nil),            // 17: strata.fleet.v1.Command
-	(*SetReplaySampling)(nil),  // 18: strata.fleet.v1.SetReplaySampling
-	(*ForceShadow)(nil),        // 19: strata.fleet.v1.ForceShadow
-	(*CollectDiagnostics)(nil), // 20: strata.fleet.v1.CollectDiagnostics
-	(*DisableRules)(nil),       // 21: strata.fleet.v1.DisableRules
-	(*EnableRules)(nil),        // 22: strata.fleet.v1.EnableRules
-	(*FetchBundleRequest)(nil), // 23: strata.fleet.v1.FetchBundleRequest
-	(*BundleChunk)(nil),        // 24: strata.fleet.v1.BundleChunk
-	(*EventBatch)(nil),         // 25: strata.fleet.v1.EventBatch
-	(*EventAck)(nil),           // 26: strata.fleet.v1.EventAck
-	nil,                        // 27: strata.fleet.v1.NodeInfo.LabelsEntry
-	(*v1.PolicyCount)(nil),     // 28: strata.event.v1.PolicyCount
-	(*v1.Event)(nil),           // 29: strata.event.v1.Event
-	(*v1.ReplaySample)(nil),    // 30: strata.event.v1.ReplaySample
+	(*AgentHealth)(nil),        // 10: strata.fleet.v1.AgentHealth
+	(*WorkerState)(nil),        // 11: strata.fleet.v1.WorkerState
+	(*NodeCounters)(nil),       // 12: strata.fleet.v1.NodeCounters
+	(*CanaryCounters)(nil),     // 13: strata.fleet.v1.CanaryCounters
+	(*BundleStatus)(nil),       // 14: strata.fleet.v1.BundleStatus
+	(*CommandResult)(nil),      // 15: strata.fleet.v1.CommandResult
+	(*ControlMessage)(nil),     // 16: strata.fleet.v1.ControlMessage
+	(*BundleAvailable)(nil),    // 17: strata.fleet.v1.BundleAvailable
+	(*Command)(nil),            // 18: strata.fleet.v1.Command
+	(*SetReplaySampling)(nil),  // 19: strata.fleet.v1.SetReplaySampling
+	(*ForceShadow)(nil),        // 20: strata.fleet.v1.ForceShadow
+	(*CollectDiagnostics)(nil), // 21: strata.fleet.v1.CollectDiagnostics
+	(*DisableRules)(nil),       // 22: strata.fleet.v1.DisableRules
+	(*EnableRules)(nil),        // 23: strata.fleet.v1.EnableRules
+	(*FetchBundleRequest)(nil), // 24: strata.fleet.v1.FetchBundleRequest
+	(*BundleChunk)(nil),        // 25: strata.fleet.v1.BundleChunk
+	(*EventBatch)(nil),         // 26: strata.fleet.v1.EventBatch
+	(*EventAck)(nil),           // 27: strata.fleet.v1.EventAck
+	nil,                        // 28: strata.fleet.v1.NodeInfo.LabelsEntry
+	(*v1.PolicyCount)(nil),     // 29: strata.event.v1.PolicyCount
+	(*v1.Event)(nil),           // 30: strata.event.v1.Event
+	(*v1.ReplaySample)(nil),    // 31: strata.event.v1.ReplaySample
 }
 var file_strata_fleet_v1_fleet_proto_depIdxs = []int32{
 	5,  // 0: strata.fleet.v1.EnrollRequest.node:type_name -> strata.fleet.v1.NodeInfo
 	6,  // 1: strata.fleet.v1.NodeInfo.connector:type_name -> strata.fleet.v1.Connector
-	27, // 2: strata.fleet.v1.NodeInfo.labels:type_name -> strata.fleet.v1.NodeInfo.LabelsEntry
+	28, // 2: strata.fleet.v1.NodeInfo.labels:type_name -> strata.fleet.v1.NodeInfo.LabelsEntry
 	8,  // 3: strata.fleet.v1.AgentMessage.hello:type_name -> strata.fleet.v1.Hello
 	9,  // 4: strata.fleet.v1.AgentMessage.heartbeat:type_name -> strata.fleet.v1.Heartbeat
-	13, // 5: strata.fleet.v1.AgentMessage.bundle_status:type_name -> strata.fleet.v1.BundleStatus
-	14, // 6: strata.fleet.v1.AgentMessage.command_result:type_name -> strata.fleet.v1.CommandResult
+	14, // 5: strata.fleet.v1.AgentMessage.bundle_status:type_name -> strata.fleet.v1.BundleStatus
+	15, // 6: strata.fleet.v1.AgentMessage.command_result:type_name -> strata.fleet.v1.CommandResult
 	5,  // 7: strata.fleet.v1.Hello.node:type_name -> strata.fleet.v1.NodeInfo
-	10, // 8: strata.fleet.v1.Heartbeat.workers:type_name -> strata.fleet.v1.WorkerState
-	11, // 9: strata.fleet.v1.Heartbeat.counters:type_name -> strata.fleet.v1.NodeCounters
+	11, // 8: strata.fleet.v1.Heartbeat.workers:type_name -> strata.fleet.v1.WorkerState
+	12, // 9: strata.fleet.v1.Heartbeat.counters:type_name -> strata.fleet.v1.NodeCounters
 	5,  // 10: strata.fleet.v1.Heartbeat.node:type_name -> strata.fleet.v1.NodeInfo
-	12, // 11: strata.fleet.v1.NodeCounters.canary:type_name -> strata.fleet.v1.CanaryCounters
-	12, // 12: strata.fleet.v1.NodeCounters.canary_shadow:type_name -> strata.fleet.v1.CanaryCounters
-	28, // 13: strata.fleet.v1.NodeCounters.policies:type_name -> strata.event.v1.PolicyCount
-	0,  // 14: strata.fleet.v1.BundleStatus.state:type_name -> strata.fleet.v1.BundleStatus.State
-	16, // 15: strata.fleet.v1.ControlMessage.bundle_available:type_name -> strata.fleet.v1.BundleAvailable
-	17, // 16: strata.fleet.v1.ControlMessage.command:type_name -> strata.fleet.v1.Command
-	19, // 17: strata.fleet.v1.Command.force_shadow:type_name -> strata.fleet.v1.ForceShadow
-	20, // 18: strata.fleet.v1.Command.diagnostics:type_name -> strata.fleet.v1.CollectDiagnostics
-	21, // 19: strata.fleet.v1.Command.disable_rules:type_name -> strata.fleet.v1.DisableRules
-	22, // 20: strata.fleet.v1.Command.enable_rules:type_name -> strata.fleet.v1.EnableRules
-	18, // 21: strata.fleet.v1.Command.replay_sampling:type_name -> strata.fleet.v1.SetReplaySampling
-	29, // 22: strata.fleet.v1.EventBatch.events:type_name -> strata.event.v1.Event
-	30, // 23: strata.fleet.v1.EventBatch.samples:type_name -> strata.event.v1.ReplaySample
-	1,  // 24: strata.fleet.v1.FleetService.Enroll:input_type -> strata.fleet.v1.EnrollRequest
-	3,  // 25: strata.fleet.v1.FleetService.RenewCertificate:input_type -> strata.fleet.v1.RenewRequest
-	7,  // 26: strata.fleet.v1.FleetService.Connect:input_type -> strata.fleet.v1.AgentMessage
-	23, // 27: strata.fleet.v1.FleetService.FetchBundle:input_type -> strata.fleet.v1.FetchBundleRequest
-	25, // 28: strata.fleet.v1.FleetService.PushEvents:input_type -> strata.fleet.v1.EventBatch
-	2,  // 29: strata.fleet.v1.FleetService.Enroll:output_type -> strata.fleet.v1.EnrollResponse
-	4,  // 30: strata.fleet.v1.FleetService.RenewCertificate:output_type -> strata.fleet.v1.RenewResponse
-	15, // 31: strata.fleet.v1.FleetService.Connect:output_type -> strata.fleet.v1.ControlMessage
-	24, // 32: strata.fleet.v1.FleetService.FetchBundle:output_type -> strata.fleet.v1.BundleChunk
-	26, // 33: strata.fleet.v1.FleetService.PushEvents:output_type -> strata.fleet.v1.EventAck
-	29, // [29:34] is the sub-list for method output_type
-	24, // [24:29] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	10, // 11: strata.fleet.v1.Heartbeat.health:type_name -> strata.fleet.v1.AgentHealth
+	13, // 12: strata.fleet.v1.NodeCounters.canary:type_name -> strata.fleet.v1.CanaryCounters
+	13, // 13: strata.fleet.v1.NodeCounters.canary_shadow:type_name -> strata.fleet.v1.CanaryCounters
+	29, // 14: strata.fleet.v1.NodeCounters.policies:type_name -> strata.event.v1.PolicyCount
+	0,  // 15: strata.fleet.v1.BundleStatus.state:type_name -> strata.fleet.v1.BundleStatus.State
+	17, // 16: strata.fleet.v1.ControlMessage.bundle_available:type_name -> strata.fleet.v1.BundleAvailable
+	18, // 17: strata.fleet.v1.ControlMessage.command:type_name -> strata.fleet.v1.Command
+	20, // 18: strata.fleet.v1.Command.force_shadow:type_name -> strata.fleet.v1.ForceShadow
+	21, // 19: strata.fleet.v1.Command.diagnostics:type_name -> strata.fleet.v1.CollectDiagnostics
+	22, // 20: strata.fleet.v1.Command.disable_rules:type_name -> strata.fleet.v1.DisableRules
+	23, // 21: strata.fleet.v1.Command.enable_rules:type_name -> strata.fleet.v1.EnableRules
+	19, // 22: strata.fleet.v1.Command.replay_sampling:type_name -> strata.fleet.v1.SetReplaySampling
+	30, // 23: strata.fleet.v1.EventBatch.events:type_name -> strata.event.v1.Event
+	31, // 24: strata.fleet.v1.EventBatch.samples:type_name -> strata.event.v1.ReplaySample
+	1,  // 25: strata.fleet.v1.FleetService.Enroll:input_type -> strata.fleet.v1.EnrollRequest
+	3,  // 26: strata.fleet.v1.FleetService.RenewCertificate:input_type -> strata.fleet.v1.RenewRequest
+	7,  // 27: strata.fleet.v1.FleetService.Connect:input_type -> strata.fleet.v1.AgentMessage
+	24, // 28: strata.fleet.v1.FleetService.FetchBundle:input_type -> strata.fleet.v1.FetchBundleRequest
+	26, // 29: strata.fleet.v1.FleetService.PushEvents:input_type -> strata.fleet.v1.EventBatch
+	2,  // 30: strata.fleet.v1.FleetService.Enroll:output_type -> strata.fleet.v1.EnrollResponse
+	4,  // 31: strata.fleet.v1.FleetService.RenewCertificate:output_type -> strata.fleet.v1.RenewResponse
+	16, // 32: strata.fleet.v1.FleetService.Connect:output_type -> strata.fleet.v1.ControlMessage
+	25, // 33: strata.fleet.v1.FleetService.FetchBundle:output_type -> strata.fleet.v1.BundleChunk
+	27, // 34: strata.fleet.v1.FleetService.PushEvents:output_type -> strata.fleet.v1.EventAck
+	30, // [30:35] is the sub-list for method output_type
+	25, // [25:30] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_strata_fleet_v1_fleet_proto_init() }
@@ -2426,7 +2532,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[9].Exporter = func(v any, i int) any {
-			switch v := v.(*WorkerState); i {
+			switch v := v.(*AgentHealth); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2438,7 +2544,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[10].Exporter = func(v any, i int) any {
-			switch v := v.(*NodeCounters); i {
+			switch v := v.(*WorkerState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2450,7 +2556,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[11].Exporter = func(v any, i int) any {
-			switch v := v.(*CanaryCounters); i {
+			switch v := v.(*NodeCounters); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2462,7 +2568,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[12].Exporter = func(v any, i int) any {
-			switch v := v.(*BundleStatus); i {
+			switch v := v.(*CanaryCounters); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2474,7 +2580,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[13].Exporter = func(v any, i int) any {
-			switch v := v.(*CommandResult); i {
+			switch v := v.(*BundleStatus); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2486,7 +2592,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[14].Exporter = func(v any, i int) any {
-			switch v := v.(*ControlMessage); i {
+			switch v := v.(*CommandResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2498,7 +2604,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[15].Exporter = func(v any, i int) any {
-			switch v := v.(*BundleAvailable); i {
+			switch v := v.(*ControlMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2510,7 +2616,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[16].Exporter = func(v any, i int) any {
-			switch v := v.(*Command); i {
+			switch v := v.(*BundleAvailable); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2522,7 +2628,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[17].Exporter = func(v any, i int) any {
-			switch v := v.(*SetReplaySampling); i {
+			switch v := v.(*Command); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2534,7 +2640,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[18].Exporter = func(v any, i int) any {
-			switch v := v.(*ForceShadow); i {
+			switch v := v.(*SetReplaySampling); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2546,7 +2652,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[19].Exporter = func(v any, i int) any {
-			switch v := v.(*CollectDiagnostics); i {
+			switch v := v.(*ForceShadow); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2558,7 +2664,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[20].Exporter = func(v any, i int) any {
-			switch v := v.(*DisableRules); i {
+			switch v := v.(*CollectDiagnostics); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2570,7 +2676,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[21].Exporter = func(v any, i int) any {
-			switch v := v.(*EnableRules); i {
+			switch v := v.(*DisableRules); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2582,7 +2688,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[22].Exporter = func(v any, i int) any {
-			switch v := v.(*FetchBundleRequest); i {
+			switch v := v.(*EnableRules); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2594,7 +2700,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[23].Exporter = func(v any, i int) any {
-			switch v := v.(*BundleChunk); i {
+			switch v := v.(*FetchBundleRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2606,7 +2712,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[24].Exporter = func(v any, i int) any {
-			switch v := v.(*EventBatch); i {
+			switch v := v.(*BundleChunk); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2618,6 +2724,18 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			}
 		}
 		file_strata_fleet_v1_fleet_proto_msgTypes[25].Exporter = func(v any, i int) any {
+			switch v := v.(*EventBatch); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_strata_fleet_v1_fleet_proto_msgTypes[26].Exporter = func(v any, i int) any {
 			switch v := v.(*EventAck); i {
 			case 0:
 				return &v.state
@@ -2636,11 +2754,11 @@ func file_strata_fleet_v1_fleet_proto_init() {
 		(*AgentMessage_BundleStatus)(nil),
 		(*AgentMessage_CommandResult)(nil),
 	}
-	file_strata_fleet_v1_fleet_proto_msgTypes[14].OneofWrappers = []any{
+	file_strata_fleet_v1_fleet_proto_msgTypes[15].OneofWrappers = []any{
 		(*ControlMessage_BundleAvailable)(nil),
 		(*ControlMessage_Command)(nil),
 	}
-	file_strata_fleet_v1_fleet_proto_msgTypes[16].OneofWrappers = []any{
+	file_strata_fleet_v1_fleet_proto_msgTypes[17].OneofWrappers = []any{
 		(*Command_ForceShadow)(nil),
 		(*Command_Diagnostics)(nil),
 		(*Command_DisableRules)(nil),
@@ -2653,7 +2771,7 @@ func file_strata_fleet_v1_fleet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_strata_fleet_v1_fleet_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   27,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

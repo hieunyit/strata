@@ -82,7 +82,15 @@ message Heartbeat {
   repeated WorkerState workers = 2; // phiên bản engine từng worker
   NodeCounters counters = 3; // request, block, fail mode, dropped events
   NodeInfo node = 4; // refreshed inventory, old agents may omit it
+  AgentHealth health = 5; // absent means spool telemetry unavailable
 
+}
+
+message AgentHealth {
+  uint64 spool_bytes = 1;
+  uint64 pending_batches = 2;
+  uint64 dropped_events = 3;
+  uint64 spool_limit_bytes = 4;
 }
 
 message WorkerState {
@@ -115,6 +123,7 @@ message NodeCounters {
   // Absent with an agent before W20-F-01.
   repeated uint64 engine_time = 10;
   uint64 engine_ns = 11;
+  bool metrics_available = 12; // valid worker counters, including measured zero
 }
 
 // Counters of one canary group (docs/design/control-file.md, metrics file
