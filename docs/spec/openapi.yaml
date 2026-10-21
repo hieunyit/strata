@@ -2027,6 +2027,135 @@ paths:
           description: Etag/request conflict
         '503':
           description: Source unavailable
+  /v1/report-schedule:
+    get:
+      operationId: getApplicationReportSchedule
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportScheduleReply'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+    put:
+      operationId: saveApplicationReportSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportScheduleRequest'
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportScheduleReply'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/application-reports:
+    get:
+      operationId: listApplicationReports
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationReportPage'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/application-reports/{id}:
+    get:
+      operationId: downloadApplicationReport
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationReport'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
 components:
   parameters:
     MachineAccountID:
@@ -4280,6 +4409,111 @@ components:
           type: string
         request_id:
           type: string
+      additionalProperties: false
+    ApplicationReportSchedule:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - enabled
+      - every_hours
+      - etag
+      - owner
+      - next_run
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        enabled:
+          type: boolean
+        every_hours:
+          type: integer
+          enum:
+          - 24
+          - 168
+        etag:
+          type: string
+        owner:
+          type: string
+        next_run:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ReportScheduleRequest:
+      type: object
+      required:
+      - schedule
+      - request_id
+      properties:
+        schedule:
+          $ref: '#/components/schemas/ApplicationReportScheduleInput'
+        request_id:
+          type: string
+      additionalProperties: false
+    ReportScheduleReply:
+      type: object
+      required:
+      - editable
+      - schedule
+      - scope_changed
+      properties:
+        editable: {type: boolean}
+        schedule:
+          allOf:
+          - $ref: '#/components/schemas/ApplicationReportSchedule'
+          nullable: true
+        scope_changed:
+          type: boolean
+      additionalProperties: false
+    ApplicationReport:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - period_start
+      - period_end
+      - body
+      - expires_at
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        body:
+          $ref: '#/components/schemas/OperationalSummary'
+        expires_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ApplicationReportPage:
+      type: object
+      required:
+      - reports
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationReport'
+      additionalProperties: false
+    ApplicationReportScheduleInput:
+      type: object
+      required: [application_id, environment_id, enabled, every_hours, etag]
+      properties:
+        application_id: {type: string}
+        environment_id: {type: string}
+        enabled: {type: boolean}
+        every_hours: {type: integer, enum: [24, 168]}
+        etag: {type: string}
       additionalProperties: false
   securitySchemes:
     bearerAuth:

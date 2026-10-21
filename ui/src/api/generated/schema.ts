@@ -312,6 +312,16 @@ export interface paths {
   "/v1/incidents:acknowledge": {
     post: operations["acknowledgeOperationalIncident"];
   };
+  "/v1/report-schedule": {
+    get: operations["getApplicationReportSchedule"];
+    put: operations["saveApplicationReportSchedule"];
+  };
+  "/v1/application-reports": {
+    get: operations["listApplicationReports"];
+  };
+  "/v1/application-reports/{id}": {
+    get: operations["downloadApplicationReport"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1408,6 +1418,49 @@ export interface components {
       environment_id: string;
       etag: string;
       request_id: string;
+    };
+    ApplicationReportSchedule: {
+      application_id: string;
+      environment_id: string;
+      enabled: boolean;
+      /** @enum {integer} */
+      every_hours: 24 | 168;
+      etag: string;
+      owner: string;
+      /** Format: date-time */
+      next_run: string;
+    };
+    ReportScheduleRequest: {
+      schedule: components["schemas"]["ApplicationReportScheduleInput"];
+      request_id: string;
+    };
+    ReportScheduleReply: {
+      editable: boolean;
+      schedule: components["schemas"]["ApplicationReportSchedule"] | null;
+      scope_changed: boolean;
+    };
+    ApplicationReport: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      /** Format: date-time */
+      period_start: string;
+      /** Format: date-time */
+      period_end: string;
+      body: components["schemas"]["OperationalSummary"];
+      /** Format: date-time */
+      expires_at: string;
+    };
+    ApplicationReportPage: {
+      reports: components["schemas"]["ApplicationReport"][];
+    };
+    ApplicationReportScheduleInput: {
+      application_id: string;
+      environment_id: string;
+      enabled: boolean;
+      /** @enum {integer} */
+      every_hours: 24 | 168;
+      etag: string;
     };
   };
   responses: {
@@ -3567,6 +3620,152 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["OperationalIncident"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getApplicationReportSchedule: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReportScheduleReply"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  saveApplicationReportSchedule: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReportScheduleRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReportScheduleReply"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listApplicationReports: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationReportPage"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  downloadApplicationReport: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationReport"];
         };
       };
       /** @description Invalid input */
