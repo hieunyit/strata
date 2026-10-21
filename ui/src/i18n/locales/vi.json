@@ -1087,5 +1087,53 @@
     "revoke": "Đăng xuất phiên",
     "failed": "Thao tác bảo mật thất bại. Kiểm tra mật khẩu, mã và cài đặt hiện tại rồi thử lại.",
     "mfaRequired": "Nhập mã ứng dụng xác thực hoặc mã khôi phục chưa dùng."
+  },
+  "investigation": {
+    "searches": "Bộ lọc đã lưu và bằng chứng",
+    "application": "Ứng dụng",
+    "environment": "Môi trường",
+    "select": "Chọn",
+    "more": "Thêm ứng dụng",
+    "title": "Tên bộ lọc",
+    "share": "Chia sẻ với người có quyền",
+    "save": "Lưu bộ lọc hiện tại",
+    "export": "Xuất bằng chứng",
+    "scopeHelp": "Chọn ứng dụng và môi trường để lưu bộ lọc và xuất bằng chứng. Link chia sẻ kiểm tra quyền hiện tại. Mỗi file tối đa 10.000 dòng / 16 MiB, hết hạn sau 24 giờ.",
+    "link": "Mở link chia sẻ",
+    "download": "Tải bằng chứng",
+    "truncated": "(đã giới hạn dữ liệu)",
+    "error": "Chưa thực hiện được. Thử lại cùng yêu cầu; tải lại khi có xung đột.",
+    "jobs": {
+      "pending": "Đang chờ xuất",
+      "running": "Đang xuất",
+      "done": "Đã có bằng chứng",
+      "failed": "Xuất thất bại"
+    },
+    "case": "Hồ sơ điều tra",
+    "status": "Trạng thái",
+    "statuses": {
+      "open": "Mở",
+      "investigating": "Đang điều tra",
+      "resolved": "Đã xử lý"
+    },
+    "assignee": "Subject người phụ trách",
+    "claim": "Giao cho tôi",
+    "note": "Ghi chú điều tra",
+    "saveCase": "Lưu hồ sơ",
+    "retention": "Ghi chú điều tra hết hạn sau 30 ngày.",
+    "similar": "Tìm sự kiện tương tự",
+    "similarCount": "{{count}} sự kiện tương tự trong 24 giờ (trả tối đa 200).",
+    "ruleDimension": "Nguồn rule",
+    "country": "Quốc gia",
+    "action": "Hành động bản nháp",
+    "log": "Chỉ ghi nhận",
+    "block": "Chặn sau khi duyệt",
+    "propose": "Đề xuất rule địa lý",
+    "draftHelp": "Dùng GeoIP từ sự kiện đã lưu. Tạo bản nháp và replay, cần người khác duyệt và phát hành. Rate limit chỉ đo lường.",
+    "draftCreated": "Đã tạo bản nháp phiên bản {{version}}.",
+    "review": "Mở policy",
+    "exportHistory": "Lần xuất gần đây",
+    "fixedWindow": "Khoảng thời gian đã lưu",
+    "update": "Cập nhật bộ lọc đã lưu"
   }
 }

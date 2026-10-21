@@ -1093,5 +1093,53 @@
     "revoke": "Sign out session",
     "failed": "Security action failed. Check your password, code and current settings, then try again.",
     "mfaRequired": "Enter your authenticator code or an unused recovery code."
+  },
+  "investigation": {
+    "searches": "Saved searches and evidence",
+    "application": "Application",
+    "environment": "Environment",
+    "select": "Select",
+    "more": "More applications",
+    "title": "Search title",
+    "share": "Share with authorized users",
+    "save": "Save current filter",
+    "export": "Export evidence",
+    "scopeHelp": "Select an application and environment for saved searches and exports. Share links require current access. Exports contain at most 10,000 rows / 16 MiB and expire after 24 hours.",
+    "link": "Open share link",
+    "download": "Download evidence",
+    "truncated": "(limited output)",
+    "error": "Action unavailable. Retry with the same command; reload after a conflict.",
+    "jobs": {
+      "pending": "Export queued",
+      "running": "Export running",
+      "done": "Export ready",
+      "failed": "Export failed"
+    },
+    "case": "Investigation case",
+    "status": "Status",
+    "statuses": {
+      "open": "Open",
+      "investigating": "Investigating",
+      "resolved": "Resolved"
+    },
+    "assignee": "Assignee subject",
+    "claim": "Assign to me",
+    "note": "Investigation note",
+    "saveCase": "Save case",
+    "retention": "Case notes expire after 30 days.",
+    "similar": "Find similar events",
+    "similarCount": "{{count}} similar events within 24 hours (up to 200 returned).",
+    "ruleDimension": "Rule source",
+    "country": "Country",
+    "action": "Draft action",
+    "log": "Log only",
+    "block": "Block after approval",
+    "propose": "Propose geo rule",
+    "draftHelp": "Uses the stored GeoIP evidence. Creates a draft and replay; independent approval and release are required. Rate limiting remains measurement only.",
+    "draftCreated": "Draft version {{version}} created.",
+    "review": "Open policies",
+    "exportHistory": "Recent exports",
+    "fixedWindow": "Saved time window",
+    "update": "Update saved search"
   }
 }
