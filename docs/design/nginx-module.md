@@ -1072,3 +1072,15 @@ refreshes authorization each poll. Application metadata hides unassigned environ
 Scoped request/engine counters are unavailable (`telemetry_scope=events_only`) because their
 source has no route dimensions; the UI labels coverage unknown. The application page shows
 configuration intent and timestamps, not a claim that workers activated that intent.
+
+### Compact B04 · Release snapshot and rollback
+
+Migration 0033 stores immutable releases (signed artifact metadata, approved replay IDs,
+baseline, compiler/rule/input digests and canary configuration). Preparation keeps artifacts
+under `releases/` without changing the deployed baseline. Independent subject review pins
+hash and replay IDs. Publication atomically records the new bundle, rollout, node desired
+versions and receipt. Rollback copies all historical sections into a new monotonic version
+and signs with the current key, rather than recompiling old policy with new rules. Historical
+or changed replay baselines require explicit acknowledgment of the current baseline.
+Global roles manage these installation-wide artifacts; scoped users cannot disclose them.
+Canary thresholds are YAML/flag settings, pinned at preparation; changes require new review.
