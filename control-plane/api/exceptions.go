@@ -135,7 +135,7 @@ func (s *Server) HandleExceptionFromBlock(w http.ResponseWriter, r *http.Request
 	}
 	// Event field text cannot distinguish a decoder alias from a literal name.
 	// Never strip an alias suffix or infer a wider source field from this evidence.
-	if !matched || strings.HasSuffix(req.Field, "|base64") || event.Action != "block" {
+	if !matched || event.HTTPPath == "/" || strings.HasSuffix(req.Field, "|base64") || event.Action != "block" {
 		writeError(w, 409, "select an unambiguous field recorded for this blocked rule", req.BlockID)
 		return
 	}
