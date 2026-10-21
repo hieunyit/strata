@@ -53,6 +53,6 @@ các thành viên dùng mode `0600`, gồm:
 - `manifest.json`: phiên bản định dạng, kích thước và SHA-256 của ba file trên.
 
 Không sao chép log thô, file cấu hình gốc, credential, IP, URI hay request input.
-Trường lạ, chuỗi advice tùy ý và giá trị ngoài allowlist bị loại. Bản này chưa có pipeline
-privacy C03; dùng allowlist riêng chặt hơn để không cần xử lý lại dữ liệu request.
+Trường lạ, chuỗi advice tùy ý và giá trị ngoài allowlist bị loại. Support bundle dùng
+allowlist riêng chặt hơn và không cần sao chép dữ liệu request để xử lý privacy.
 Kiểm archive trước khi chuyển cho bên hỗ trợ và giữ file ở nơi chỉ người vận hành đọc được.

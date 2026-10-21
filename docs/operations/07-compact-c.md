@@ -2,10 +2,10 @@
 
 [Trang đầu](README.md) · Trước: [backup và nâng cấp](06-backup-upgrade.md)
 
-**Trạng thái tại 21/10/2026:** C03/C01/C02/C04/C05 đã có code và kiểm thử trong chuỗi
-PR #321–#388, chưa merge `main`. Chương này chỉ áp dụng khi đã triển khai đúng source
-có C; không thêm khóa C vào binary A/B. Không có thay đổi nào trong tài liệu tự bật
-collector, deploy hoặc thực thi OpenAPI ở runtime.
+**Trạng thái tích hợp 22/10/2026:** C03/C01/C02/C04/C05 và cẩm nang đã merge vào
+`main` qua chuỗi PR #321–#395. Chương này áp dụng cho binary có C; không thêm khóa C
+vào binary A/B cũ. Merge không tự deploy, bật collector hay thực thi OpenAPI runtime.
+Discovery vẫn mặc định tắt, cần phê duyệt pháp chế thực tế để bật feed riêng.
 
 [Báo cáo tổng và thứ tự review/merge](../reports/compact-c-implementation.md) ghi
 bằng chứng kiểm thử và giới hạn. Migration C dùng từ 0035 đến 0044; nâng từ A/B phải

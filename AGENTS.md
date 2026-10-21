@@ -157,6 +157,13 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | 21 | OpenAPI, danh mục rule, red team | C2 | ⏳ |
 | 22 | Phát hành v1 · **Gate C** | C2 | ⏳ |
 
+## Compact integration · 22/10/2026
+
+C03/C01/C02/C04/C05 và cẩm nang đã merge toàn bộ PR #321–#395 vào main
+(`84160a3ee6ec296ff10d57082512c9820cb99b16`). Trạng thái mới nhất và bằng chứng:
+`docs/reports/compact-main-merge.md`. B03 vẫn loại khỏi phạm vi; discovery mặc định
+tắt chờ pháp chế thực tế, chưa enforce OpenAPI runtime. Không deploy staging/production.
+
 ## 1. Dự án
 
 Strata là WAF mã nguồn mở (Apache-2.0):

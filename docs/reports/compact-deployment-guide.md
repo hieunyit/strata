@@ -59,4 +59,10 @@ Bắt đầu sau PR #388 của phần C; review/merge theo thứ tự để gi�
 - [#392](https://github.com/hieunyit/strata/pull/392) · `codex/ops-docs-security`
 - [#393](https://github.com/hieunyit/strata/pull/393) · `codex/ops-docs-operations`
 - [#394](https://github.com/hieunyit/strata/pull/394) · `codex/ops-docs-backup`
-- [#395](https://github.com/hieunyit/strata/pull/395) · `codex/ops-docs-compact-c`\n
+- [#395](https://github.com/hieunyit/strata/pull/395) · `codex/ops-docs-compact-c`
+
+## Trạng thái sau tích hợp
+
+Toàn bộ PR #389–#395 đã merge vào main cùng phần C. Các trạng thái “chưa merge” ở
+hồ sơ ban đầu phía trên mô tả thời điểm xuất bản; cẩm nang và báo cáo
+[compact-main-merge.md](compact-main-merge.md) đã cập nhật trạng thái hiện tại.
