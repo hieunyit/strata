@@ -1050,3 +1050,9 @@ cũ có thể không báo. Input telemetry được giới hạn và không đư
 PostgreSQL giữ inventory và thời điểm nhận (migration 0030); Fleet API/UI có desired/actual,
 drift và chứng chỉ unknown/expired/expiring/healthy (ngưỡng 7 ngày). Kiểm tương thích và
 manifest module là phần tiếp theo của CP-B02.
+
+Agent nhận `--module-manifest` (mặc định `/etc/strata/module-manifest.json` của gói module),
+kiểm SHA-256 binary và đối chiếu module version/ABI từ metrics trước khi báo capability.
+Thiếu manifest hoặc runtime không khớp nghĩa là chưa biết. Nâng module cần reload NGINX và
+restart agent; manifest không chứng minh mọi worker đã bỏ binary cũ. Manifest tối đa 16 KiB,
+module regular file tối đa 64 MiB và không quá 64 capability.

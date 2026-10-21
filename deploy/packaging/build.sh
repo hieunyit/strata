@@ -86,8 +86,12 @@ nfpm() { # config file under build/, packager
 render deploy/packaging/nfpm-agent.yaml "STRATA_VERSION=$STRATA_VERSION" "AGENT_BIN=$out/bin/strata-agent" \
     > "$out/nfpm-agent.yaml"
 for n in "$@"; do
+    python3 deploy/packaging/module_manifest.py --root "$root" --binary "$out/bin/ngx_http_strata_module-$n.so" \
+        --module-path /usr/lib/nginx/modules/ngx_http_strata_module.so > "$out/bin/module-deb-$n.json"
+    python3 deploy/packaging/module_manifest.py --root "$root" --binary "$out/bin/ngx_http_strata_module-$n.so" \
+        --module-path /usr/lib64/nginx/modules/ngx_http_strata_module.so > "$out/bin/module-rpm-$n.json"
     render deploy/packaging/nfpm-module.yaml "STRATA_VERSION=$STRATA_VERSION" "NGINX_VERSION=$n" \
-        "MODULE_SO=$out/bin/ngx_http_strata_module-$n.so" > "$out/nfpm-module-$n.yaml"
+        "MODULE_SO=$out/bin/ngx_http_strata_module-$n.so" "MODULE_MANIFEST_DEB=$out/bin/module-deb-$n.json" "MODULE_MANIFEST_RPM=$out/bin/module-rpm-$n.json" > "$out/nfpm-module-$n.yaml"
 done
 for p in deb rpm; do
     nfpm "$out/nfpm-agent.yaml" "$p"

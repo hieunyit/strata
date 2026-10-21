@@ -25,10 +25,11 @@ import (
 
 // Options configures a controller.
 type Options struct {
-	Heartbeat  time.Duration // default 15 s
-	BackoffMin time.Duration // default 1 s
-	BackoffMax time.Duration // default 60 s
-	Node       *fleetv1.NodeInfo
+	Capabilities func(*fleetv1.Connector) []string
+	Heartbeat    time.Duration // default 15 s
+	BackoffMin   time.Duration // default 1 s
+	BackoffMax   time.Duration // default 60 s
+	Node         *fleetv1.NodeInfo
 	// Connector, when set, gives the proxy and module versions sent in
 	// Hello; when they change (the module started, or was upgraded), the
 	// stream is opened again so the control plane learns them.
@@ -286,6 +287,9 @@ func (c *Controller) node() (*fleetv1.NodeInfo, string) {
 		n.Connector = &fleetv1.Connector{}
 	}
 	n.Connector.ProxyVersion, n.Connector.ModuleVersion, n.Connector.AbiVersion = cn.GetProxyVersion(), cn.GetModuleVersion(), cn.GetAbiVersion()
+	if c.opts.Capabilities != nil {
+		n.Capabilities = c.opts.Capabilities(n.Connector)
+	}
 	return n, fmt.Sprintf("%s/%s/%#x", cn.GetProxyVersion(), cn.GetModuleVersion(), cn.GetAbiVersion())
 }
 
