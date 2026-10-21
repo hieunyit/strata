@@ -52,8 +52,10 @@ func TestDeployOutlivesServerTimeouts(t *testing.T) {
 		return resp.StatusCode, nil
 	}
 
-	if code, err := do(http.MethodPost, "/v1/policies/example-api:deploy"); err != nil || code != http.StatusOK {
-		t.Fatalf("deploy longer than the server timeouts: code %d, err %v; want 200", code, err)
+	for _, path := range []string{"/v1/policies/example-api:deploy", "/v1/releases", "/v1/releases/example-release:deploy"} {
+		if code, err := do(http.MethodPost, path); err != nil || code != http.StatusOK {
+			t.Fatalf("%s longer than timeouts: %d %v", path, code, err)
+		}
 	}
 	// negative: the same wait on another route is cut at WriteTimeout
 	for _, c := range []struct{ method, path string }{
