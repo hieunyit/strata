@@ -50,51 +50,7 @@ func eventsUnavailable(w http.ResponseWriter, blockID string) {
 	})
 }
 
-func maskIP(ip string) string {
-	if strings.Contains(ip, ".") {
-		parts := strings.Split(ip, ".")
-		if len(parts) == 4 {
-			return parts[0] + "." + parts[1] + "." + parts[2] + ".0/24"
-		}
-	} else if strings.Contains(ip, ":") {
-		parts := strings.Split(ip, ":")
-		if len(parts) >= 3 {
-			return parts[0] + ":" + parts[1] + ":" + parts[2] + "::/48"
-		}
-	}
-	return "[REDACTED]"
-}
-
-// sanitizeEvent masks the full client IP and the input snippets unless the
-// caller may read them (nginx-module.md › Giao diện quản trị: not for viewer).
-func sanitizeEvent(e ingest.Event, p *auth.Principal) ingest.Event {
-	e = ingest.RedactEvent(e, nil)
-	if p.Can(auth.PermEventsReadSensitive) {
-		return e
-	}
-
-	e.ClientIP = maskIP(e.ClientIP)
-	e.Identity = "[REDACTED]"
-	maskedViolations := make([]ingest.Violation, len(e.Violations))
-	for i, v := range e.Violations {
-		v.Snippet = "[REDACTED]"
-		maskedViolations[i] = v
-	}
-	e.Violations = maskedViolations
-	// RV-G2-01 context: header names and the User-Agent stay, values and
-	// the Referer (it may carry personal data in its query) do not
-	if e.Referer != "" {
-		e.Referer = "[REDACTED]"
-	}
-	if len(e.Headers) > 0 {
-		hs := make([]ingest.Header, len(e.Headers))
-		for i, h := range e.Headers {
-			hs[i] = ingest.Header{Name: h.Name, Value: "[REDACTED]"}
-		}
-		e.Headers = hs
-	}
-	return e
-}
+func sanitizeEvent(e ingest.Event, p *auth.Principal) ingest.Event { return ingest.SanitizeEvent(e, p) }
 
 // HandleGetEvent handles GET /v1/events/{block_id}.
 func (h *EventHandler) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +153,7 @@ func (h *EventHandler) HandleSearchEvents(w http.ResponseWriter, r *http.Request
 		RuleID:     req.RuleID,
 		NodeID:     req.NodeID,
 		HTTPMethod: req.HTTPMethod,
+		HTTPHost:   req.HTTPHost, HTTPPath: req.HTTPPath,
 		CountryISO: req.Country,
 		ASN:        req.ASN,
 		AttackType: req.AttackType,

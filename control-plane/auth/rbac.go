@@ -21,6 +21,7 @@ var Roles = []Role{RoleViewer, RoleOperator, RoleApprover, RoleAdmin}
 type Permission string
 
 const (
+	PermDiscoveryIngest     Permission = "discovery:ingest"
 	PermApplicationsRead    Permission = "applications:read"
 	PermApplicationsWrite   Permission = "applications:write"
 	PermVersionRead         Permission = "version:read"
@@ -62,7 +63,7 @@ var (
 			PermEventsReadSensitive, PermPoliciesWrite, PermPoliciesApprove, PermPoliciesDeploy,
 			PermExceptionsWrite, PermNodesWrite, PermRoleBindingsRead, PermRoleBindingsWrite,
 			PermServiceAccountsRead, PermServiceAccountsWrite,
-			PermAuditRead, PermRulesDisable, PermReplayConfigure, PermApplicationsWrite),
+			PermAuditRead, PermRulesDisable, PermReplayConfigure, PermApplicationsWrite, PermDiscoveryIngest),
 	}
 )
 
