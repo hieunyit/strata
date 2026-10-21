@@ -15,6 +15,7 @@ var ErrRequestReused = errors.New("store: request_id reused with different conte
 
 // EventAnnotation is independent of immutable ClickHouse event rows.
 type EventAnnotation struct {
+	CaseOnly      bool      `json:"case_only,omitempty"`
 	BlockID       string    `json:"block_id"`
 	Reason        string    `json:"reason"`
 	MarkedBy      string    `json:"marked_by"`
@@ -68,7 +69,7 @@ func (s *Store) MarkEventFalsePositive(ctx context.Context, block, reason, etag 
 		}
 		result = EventAnnotation{BlockID: block, Reason: reason, MarkedBy: a.Actor, MarkedSubject: a.Subject, Etag: next}
 		err = tx.QueryRow(ctx, `INSERT INTO event_annotations(block_id,reason,marked_by,marked_subject,etag) VALUES($1,$2,$3,$4,$5)
-   ON CONFLICT(block_id) DO UPDATE SET reason=excluded.reason,marked_by=excluded.marked_by,marked_subject=excluded.marked_subject,marked_at=now(),etag=excluded.etag RETURNING marked_at`, block, reason, a.Actor, a.Subject, next).Scan(&result.MarkedAt)
+   ON CONFLICT(block_id) DO UPDATE SET case_only=false,reason=excluded.reason,marked_by=excluded.marked_by,marked_subject=excluded.marked_subject,marked_at=now(),etag=excluded.etag RETURNING marked_at`, block, reason, a.Actor, a.Subject, next).Scan(&result.MarkedAt)
 		if err != nil {
 			return err
 		}
@@ -113,14 +114,14 @@ func (s *Store) EventAnnotations(ctx context.Context, blocks []string) (map[stri
 	if len(blocks) == 0 {
 		return result, nil
 	}
-	rows, err := s.pool.Query(ctx, `SELECT block_id,reason,marked_by,marked_subject,marked_at,etag FROM event_annotations WHERE block_id=ANY($1)`, blocks)
+	rows, err := s.pool.Query(ctx, `SELECT block_id,reason,marked_by,marked_subject,marked_at,etag,case_only FROM event_annotations WHERE block_id=ANY($1)`, blocks)
 	if err != nil {
 		return nil, fmt.Errorf("store: read annotations: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var a EventAnnotation
-		if err := rows.Scan(&a.BlockID, &a.Reason, &a.MarkedBy, &a.MarkedSubject, &a.MarkedAt, &a.Etag); err != nil {
+		if err := rows.Scan(&a.BlockID, &a.Reason, &a.MarkedBy, &a.MarkedSubject, &a.MarkedAt, &a.Etag, &a.CaseOnly); err != nil {
 			return nil, err
 		}
 		a.MarkedAt = a.MarkedAt.UTC()

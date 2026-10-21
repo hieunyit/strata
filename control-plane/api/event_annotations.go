@@ -131,6 +131,10 @@ func (h *EventHandler) overlayAnnotations(ctx context.Context, events []*ingest.
 	}
 	for _, e := range events {
 		if a, ok := annotations[e.BlockID]; ok {
+			e.AnnotationEtag = a.Etag
+			if a.CaseOnly {
+				continue
+			}
 			e.FalsePositive = true
 			e.FalsePositiveReason = a.Reason
 			e.FalsePositiveBy = a.MarkedBy
