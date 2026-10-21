@@ -1160,3 +1160,24 @@ normal approval/release workflow to publish. New root-path exceptions are reject
 DB trigger across all writers; existing identical legacy entries may carry forward.
 Unknown exception-hit telemetry never becomes a claim of zero use. Maintenance reconciles
 superseded work and retains terminal receipts for thirty days.
+
+
+### Compact C04 · operational incidents and application reports
+
+The operations worker groups fixed operational causes, including node heartbeat,
+certificate, spool capacity, fresh counter growth, ingest health, failed operations,
+backup outcome and exception expiry. Unknown/stale observations never resolve an
+incident. Cumulative fail-open/drop counters require a fresh baseline and growth;
+first observation, reset and stale gaps remain unknown. Notification cooldown is one
+hour; acknowledgment suppresses reminders until a known recovery and recurrence.
+The existing bounded HMAC/HTTPS outbox delivers opaque IDs, fixed causes/states and
+counts. No URI, IP address, node name, sample or arbitrary error text is sent.
+No configured receiver means no outgoing alert/report traffic.
+
+Schedules are explicit per application/environment, daily or weekly UTC, with fenced
+two-minute leases, bounded quotas, immutable thirty-day aggregate reports and system
+audit. A changed application etag pauses the schedule and hides old-scope reports until
+an operator confirms the new scope. Reads, updates and downloads revalidate complete
+current environment authority. Reports count security events rather than all requests;
+health describes generation time and source failures remain unknown/unavailable.
+Backup CLI records only success/failure after archive close, without paths or secrets.
