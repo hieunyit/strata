@@ -14,7 +14,12 @@ import (
 func releaseError(w http.ResponseWriter, err error) {
 	code := 503
 	message := "release service unavailable"
+	reason := ""
 	switch {
+	case errors.Is(err, store.ErrIncompatible):
+		code = 412
+		message = err.Error()
+		reason = "NODES_INCOMPATIBLE"
 	case errors.Is(err, store.ErrNotFound):
 		code = 404
 		message = "release not found"
@@ -26,15 +31,16 @@ func releaseError(w http.ResponseWriter, err error) {
 		message = err.Error()
 	default:
 		var proof *policy.ReplayError
-		if errors.As(err, &proof) || errors.Is(err, store.ErrIncompatible) {
+		if errors.As(err, &proof) {
 			code = 412
-			message = "replay or capability precondition failed"
+			message = proof.Error()
+			reason = "REPLAY_REQUIRED"
 		} else if strings.HasPrefix(err.Error(), "release: invalid") {
 			code = 400
 			message = "invalid release request"
 		}
 	}
-	writeJSON(w, code, ErrorResponse{Error: message, Code: code})
+	writeJSON(w, code, ErrorResponse{Error: message, Code: code, Reason: reason})
 }
 func registerReleases(mux *http.ServeMux, service *policy.Releases) {
 	authorized := func(w http.ResponseWriter, r *http.Request, perm auth.Permission) bool {

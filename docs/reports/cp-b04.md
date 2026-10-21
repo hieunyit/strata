@@ -66,3 +66,5 @@ production or shared lab mutation. Native fixtures do not establish live canary/
 
 Self-review: bounded inputs/retention, replay and four-eyes enforced on server, all writes
 atomic/audited, no secret exposed, no bundle-format/engine change, local checks above.
+
+Final integration exposes actionable global capability/replay preconditions while preventing unrelated node metadata disclosure to scoped policy callers. See `cp-b-integration-fixes.md`.

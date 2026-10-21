@@ -1,6 +1,6 @@
 import React, {useState,useEffect,useRef} from 'react';
 import {useTranslation} from 'react-i18next';
-import {apiClient, Application, ApplicationBinding, Overview, Policy} from '../api/client';
+import {apiClient, ApiError, Application, ApplicationBinding, Overview, Policy} from '../api/client';
 import {useAuth} from '../context/AuthContext';
 import {usePolling} from '../usePolling';
 import {PageShell} from './PageShell';
@@ -33,7 +33,8 @@ export const ApplicationsPage:React.FC=()=>{
    if(!edit||busy)return;setBusy(true);setError(undefined);
    try {const application=edit;const out=await apiClient.saveApplication(application,!edit.etag,requestId);setEdit(undefined);await apps.refresh();await inspect(out.application);}catch{setError(t('applications.saveFailed'));}finally{setBusy(false);}
  };
- const bind=async()=>{if(!selected||busy)return;setBusy(true);setError(undefined);try{await apiClient.createApplicationBinding({id:0,subject,role,application_id:selected.id,environment_id:environment||null,request_id:crypto.randomUUID()});await bindings.refresh();setSubject('');}catch{setError(t('applications.saveFailed'));}finally{setBusy(false);}};
+ const bindingError=(e:unknown)=>setError(t(e instanceof ApiError&&e.reason==='ADMIN_AUTHORITY_REQUIRED'?'applications.preserveAdmin':'applications.saveFailed'));
+ const bind=async()=>{if(!selected||busy)return;setBusy(true);setError(undefined);try{await apiClient.createApplicationBinding({id:0,subject,role,application_id:selected.id,environment_id:environment||null,request_id:crypto.randomUUID()});await bindings.refresh();setSubject('');}catch(e){bindingError(e);}finally{setBusy(false);}};
  return <PageShell active="applications">
  <PageHeader title={t('applications.title')} description={t('applications.subtitle')} actions={canWrite&&<button className="btn" onClick={()=>editing(blank)}>{t('applications.create')}</button>}/>
  <ErrorBanner message={error||apps.error||bindings.error}/>
@@ -60,7 +61,7 @@ export const ApplicationsPage:React.FC=()=>{
  <input className="field" aria-label={t('applications.subject')} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="local:example-user"/>
  <select className="field" aria-label={t('applications.role')} value={role} onChange={e=>setRole(e.target.value as ApplicationBinding['role'])}>{['viewer','operator','approver','admin'].map(r=><option key={r}>{r}</option>)}</select>
  <button className="btn" disabled={busy||!subject} onClick={()=>void bind()}>{t('applications.bind')}</button>
- {(bindings.data?.bindings??[]).filter(b=>b.application_id===selected.id).map(b=><p key={b.id}>{b.subject} · {b.role} · {b.environment_id||t('applications.all')} <button className="btn" disabled={busy} onClick={()=>{setBusy(true);void apiClient.deleteApplicationBinding(b.id).then(bindings.refresh).catch(()=>setError(t('applications.saveFailed'))).finally(()=>setBusy(false));}}>{t('applications.revoke')}</button></p>)}
+ {(bindings.data?.bindings??[]).filter(b=>b.application_id===selected.id).map(b=><p key={b.id}>{b.subject} · {b.role} · {b.environment_id||t('applications.all')} <button className="btn" disabled={busy} onClick={()=>{setBusy(true);void apiClient.deleteApplicationBinding(b.id).then(bindings.refresh).catch(bindingError).finally(()=>setBusy(false));}}>{t('applications.revoke')}</button></p>)}
  </section>}
  </>}
  </section></div>

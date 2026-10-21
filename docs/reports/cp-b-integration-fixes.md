@@ -1,0 +1,44 @@
+# Compact B · Final integration corrections
+
+Final validation found regressions and authorization boundary issues across B01/B02/B04/B05.
+
+1. The agent's default optional module manifest was wrapped in an error that
+   `os.IsNotExist` did not recognize. A real enrolled agent therefore exited before its
+   first Hello when the manifest was absent. Use a dedicated missing-manifest sentinel;
+   only absence of that file is tolerated. A present manifest with a missing module binary
+   continues to fail. The manifest is still diagnostic and never grants authority.
+2. A global administrator could assign themselves a scoped binding and lose their only
+   global authority. Binding writes now serialize and recheck actor authority inside the
+   transaction, both before and after mutation. Two already-authenticated administrators
+   cannot concurrently demote one another. Self-restriction rolls back, with a stable 403
+   reason and a translated UI explanation. Trusted internal/bootstrap writers retain their
+   explicit store access; the HTTP layer always supplies the authenticated principal.
+
+3. Publishing an installation-wide bundle can change global rule/bot/GeoIP/identity inputs
+   while policy version numbers stay the same. A scoped publish therefore requires deploy
+   authority on **every included policy**. Authoring/replay/review remain scoped. Node
+   compatibility errors hide unrelated IDs from scoped callers; global release errors
+   retain missing-node/replay details with a translated UI explanation.
+
+Evidence on CPUs 6–10:
+
+```text
+Before: TestBindingChangesCannotLockOutGlobalAdministrators FAIL
+  administrator restricted their own only global authority: <nil>
+After: same test + TestApplicationsScopesAndRetriesInPostgres PASS (race, 2.607s)
+TestMissingManifestAllowsUnknownCapabilities PASS (race, 1.184s)
+Real agent FleetEnrollConnectRevoke failed online-before-Hello before the manifest fix;
+rerun after the fix PASS (race, 31.074s), including persisted spool heartbeat telemetry.
+```
+
+Negative tests retain rejection of an invalid existing manifest, last-global-binding deletion,
+and concurrent stale authorization. API regression checks the 403 reason and that the failed
+assignment leaves the administrator global. The final B05 report records the integrated
+full race/lint/UI/e2e gates. No signing, TLS or authentication check was relaxed.
+
+The correction was also checked independently of the B05 changes in a detached worktree:
+agent startup regression with `-race` PASS (1.159s), scoped store/API regressions with real
+PostgreSQL PASS (2.738s / 2.897s), and both module linters report `0 issues.`
+Integrated store/API full race suites after correction: 33.651s / 23.068s, PASS.
+
+Scoped publication and precondition regression tests passed with race (policy 1.226s; API 1.223s). UI application/release tests and the final build passed.

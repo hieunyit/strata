@@ -910,7 +910,8 @@
     "addRoute": "Thêm tuyến",
     "remove": "Xóa",
     "policyChanges": "Cấu hình dự kiến và thay đổi policy gần đây",
-    "unknown": "Chưa biết"
+    "unknown": "Chưa biết",
+    "preserveAdmin": "Hãy giữ vai trò quản trị toàn hệ thống cho tài khoản của bạn, hoặc nhờ quản trị viên khác thay đổi phân quyền này."
   },
   "releases": {
     "title": "Phát hành",
@@ -954,6 +955,9 @@
       "error_delta": "Mức tăng tỷ lệ 5xx",
       "latency_factor": "Hệ số p99",
       "latency_delta_ms": "Mức tăng p99 (ms)"
-    }
+    },
+    "precondition": "Điều kiện triển khai chưa đạt: {{details}}",
+    "capabilities": "Capability node cần có",
+    "baseCapabilities": "Tính năng bundle cơ bản"
   }
 }

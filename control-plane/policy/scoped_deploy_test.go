@@ -25,3 +25,14 @@ func TestScopedDeployCannotPublishAnotherApplicationsChange(t *testing.T) {
 		t.Fatal("unauthorized bundle recorded")
 	}
 }
+
+func TestScopedPublishNeedsAuthorityForUnchangedPoliciesToo(t *testing.T) {
+	st := &scopedDeployStore{fakeStore: fakeStore{policies: []store.Policy{{ID: "own", Name: "own", CurrentVersion: 2, Spec: []byte(`{"mode":"shadow"}`)}, {ID: "other", Name: "other", CurrentVersion: 1, Spec: []byte(`{"mode":"shadow"}`)}}}}
+	p := &auth.Principal{Roles: []auth.Role{auth.RoleOperator}, Access: &auth.Access{Resources: map[string]map[auth.Permission]bool{"policies/own": {auth.PermPoliciesDeploy: true}}}}
+	called := false
+	d := Deployer{Store: st, Builder: builderFunc(func(uint64, int) []byte { called = true; return nil })}
+	_, err := d.Deploy(auth.WithPrincipal(t.Context(), p), store.Audit{})
+	if !errors.Is(err, auth.ErrScopeDenied) || called {
+		t.Fatalf("ambient global inputs could be published outside assigned scope: %v", err)
+	}
+}

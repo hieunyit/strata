@@ -396,6 +396,9 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	case errors.Is(err, auth.ErrScopeDenied):
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, store.ErrIncompatible):
+		if actor := auth.FromContext(ctx); actor != nil && actor.Access != nil {
+			return nil, status.Error(codes.FailedPrecondition, "node compatibility precondition failed; ask a global operator to inspect the fleet")
+		}
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	case errors.As(err, &replayErr):
 		return nil, status.Error(codes.FailedPrecondition, replayErr.Error())

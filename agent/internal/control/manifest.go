@@ -23,9 +23,14 @@ type ModuleManifest struct {
 	Capabilities  []string `json:"capabilities"`
 }
 
+var ErrModuleManifestMissing = errors.New("module manifest file missing")
+
 func ReadModuleManifest(file string) (*ModuleManifest, error) {
 	f, err := os.Open(file)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%w: %w", ErrModuleManifestMissing, err)
+		}
 		return nil, fmt.Errorf("module manifest: %w", err)
 	}
 	defer f.Close()

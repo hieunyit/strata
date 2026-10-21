@@ -142,29 +142,17 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 		named := make([]Named, 0, len(ps))
 		contents := map[string]int{}
 		for _, p := range ps {
+			// The bundle also carries installation-wide rules, bot/GeoIP data and
+			// identity inputs. A publish affects every policy, even unchanged versions.
+			if actor := auth.FromContext(ctx); actor != nil && actor.Access != nil && !actor.CanResource("policies/"+p.ID, auth.PermPoliciesDeploy) {
+				return auth.ErrScopeDenied
+			}
 			spec, err := Parse(p.Spec)
 			if err != nil {
 				return fmt.Errorf("policy %s version %d: %w", p.ID, p.CurrentVersion, err)
 			}
 			named = append(named, Named{ResourceID: p.ID, Version: p.CurrentVersion, Name: p.Name, Spec: spec})
 			contents[p.ID] = p.CurrentVersion
-		}
-		if p := auth.FromContext(ctx); p != nil && p.Access != nil {
-			reader, ok := d.Store.(interface {
-				LatestBundle(context.Context) (store.Bundle, error)
-			})
-			if !ok {
-				return auth.ErrScopeDenied
-			}
-			baseline, e := reader.LatestBundle(ctx)
-			if e != nil && !errors.Is(e, store.ErrNotFound) {
-				return e
-			}
-			for id, v := range contents {
-				if baseline.Contents[id] != v && !p.CanResource("policies/"+id, auth.PermPoliciesDeploy) {
-					return auth.ErrScopeDenied
-				}
-			}
 		}
 		var data []byte
 		inputDigest, rules := "", ""

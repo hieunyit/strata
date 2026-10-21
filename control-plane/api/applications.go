@@ -20,7 +20,12 @@ func applicationAudit(r *http.Request) store.Audit {
 func applicationError(w http.ResponseWriter, err error) {
 	status := http.StatusServiceUnavailable
 	message := "application store unavailable"
+	reason := ""
 	switch {
+	case errors.Is(err, auth.ErrScopeDenied):
+		status = 403
+		message = "global administrator authority must be preserved"
+		reason = "ADMIN_AUTHORITY_REQUIRED"
 	case errors.Is(err, store.ErrNotFound):
 		status = http.StatusNotFound
 		message = "application not found"
@@ -40,7 +45,7 @@ func applicationError(w http.ResponseWriter, err error) {
 			message = "application operation failed"
 		}
 	}
-	writeJSON(w, status, ErrorResponse{Error: message, Code: status})
+	writeJSON(w, status, ErrorResponse{Error: message, Code: status, Reason: reason})
 }
 func appBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
