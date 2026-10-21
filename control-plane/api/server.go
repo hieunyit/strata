@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/strata/strata/control-plane/apidiscovery"
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
@@ -24,6 +25,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	Discovery    apidiscovery.Gate
 	RuleCatalog  *ruleinventory.Catalog
 	Evidence     *investigation.Worker
 	SystemHealth *health.Service
