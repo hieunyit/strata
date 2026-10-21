@@ -26,7 +26,7 @@ interface AuthContextType {
   /** single sign-on: redirects to the OIDC provider */
   login: () => void;
   /** a local account; throws the API's error (wrong password, throttled) */
-  loginWithPassword: (username: string, password: string) => Promise<void>;
+  loginWithPassword: (username: string, password: string, code?: string, recovery?: boolean) => Promise<void>;
   logout: () => void;
   maskIp: (ip: string) => string;
   maskSnippet: (snippet: string) => string;
@@ -238,8 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; manager?: UserM
 
   const value = useMemo(() => {
     const login = () => void mgr?.signinRedirect();
-    const loginWithPassword = async (username: string, password: string) => {
-      startLocal(await localLogin(username, password));
+    const loginWithPassword = async (username: string, password: string,code='',recovery=false) => {
+      startLocal(await localLogin(username, password,code,recovery));
     };
     const logout = () => {
       if (local.current) {

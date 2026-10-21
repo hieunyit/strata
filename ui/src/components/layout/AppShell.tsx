@@ -29,10 +29,15 @@ export const navItems: NavItem[] = [
   { page: 'map', icon: Globe2 },
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
+ {page:'rules',icon:ScrollText},
+ {page:'exceptions',icon:FileCog},
   { page: 'reviews', icon: GitPullRequest },
   { page:'releases',icon:GitPullRequest },
   { page: 'fleet', icon: Server },
   { page:'health',icon:Server },
+  {page:'operations',icon:History},
+  {page:'discovery',icon:Globe2},
+  { page:'security',icon:Users,visible:(_roles,localAuth)=>localAuth },
   // local accounts: admins only, when the control plane has them
   { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
   // audit trail: admins only (audit:read)

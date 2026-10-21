@@ -29,7 +29,15 @@ auth:
   local:
     enabled: true
     session_ttl: 8h
+    # Made by init; enabling MFA never changes the user's password stored in PostgreSQL.
+    mfa_key_file: /var/lib/strata/keys/local-mfa.key
     admin_password_file: secrets/admin-password
+
+notifications:
+  webhook_url: ""       # optional HTTPS receiver; no credentials/query/fragment in URL
+  key_file: ""          # independent 32-byte HMAC signing key, hex, file mode 600
+  audit_export: false  # opt in to copies of new audit metadata, without raw payloads
+  allow_cidrs: ""      # explicit trusted private receiver networks only
 
 events:
   retention_days: 30
@@ -74,3 +82,11 @@ canary:
   error_delta: 0.01
   latency_factor: 1.5
   latency_delta: 50ms
+
+# Separate positive-traffic feed. Never enable before actual legal approval.
+discovery:
+  enabled: false
+  approval_reference: ""
+  approval_expires_at: ""
+  trusted_collectors: []
+  identity_key_file: "" # independent private 32-byte hex key; not the signer key

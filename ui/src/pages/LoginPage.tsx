@@ -13,17 +13,25 @@ const PasswordForm: React.FC = () => {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [mfa,setMfa] = useState(false);
+  const [code,setCode] = useState('');
+  const [recovery,setRecovery] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
-      await loginWithPassword(username.trim(), password);
+      await loginWithPassword(username.trim(), password,code,recovery);
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 0;
-      setError(code === 401 ? t('login.badCredentials') : code === 429 ? t('login.throttled') : t('login.failed'));
-      setPassword('');
+      if (err instanceof ApiError && err.reason==='MFA_REQUIRED') {
+        setMfa(true);setError(t('security.mfaRequired'));
+      } else {
+        setError(code === 401 ? t('login.badCredentials') : code === 429 ? t('login.throttled') : t('login.failed'));
+        setPassword('');
+      }
+      setCode('');
       setBusy(false);
     }
   };
@@ -57,6 +65,11 @@ const PasswordForm: React.FC = () => {
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
+      {mfa && <div>
+        <label htmlFor="login-code" className="label">{t(recovery?'security.recoveryCode':'security.code')}</label>
+        <input id="login-code" data-testid="login-code" className="field h-10" autoComplete="one-time-code" maxLength={64} required value={code} onChange={e=>setCode(e.target.value.trim())}/>
+        <label className="flex gap-2 text-sm mt-2"><input type="checkbox" checked={recovery} onChange={e=>setRecovery(e.target.checked)}/>{t('security.useRecovery')}</label>
+      </div>}
       {error && (
         <p data-testid="password-login-error" role="alert" className="text-[13px] text-block">{error}</p>
       )}
