@@ -5,6 +5,25 @@
 
 
 export interface paths {
+  "/v1/applications": {
+    get: operations["listApplications"];
+    post: operations["createApplication"];
+  };
+  "/v1/applications/{id}": {
+    get: operations["getApplication"];
+    put: operations["updateApplication"];
+    delete: operations["deleteApplication"];
+  };
+  "/v1/applications/{id}/overview": {
+    get: operations["applicationOverview"];
+  };
+  "/v1/application-role-bindings": {
+    get: operations["listApplicationBindings"];
+    post: operations["createApplicationBinding"];
+  };
+  "/v1/application-role-bindings/{id}": {
+    delete: operations["deleteApplicationBinding"];
+  };
   "/v1/audit": {
     /**
      * Read the newest matching administrative audit records
@@ -710,6 +729,11 @@ export interface components {
       share: number;
     };
     OverviewResponse: {
+      /**
+       * @description Route-scoped request counters are unavailable; zero requests must not be interpreted as measured traffic.
+       * @enum {string}
+       */
+      telemetry_scope?: "events_only";
       engine?: components["schemas"]["EngineLatency"];
       /** @description W20-G2-01: served by the hourly rollup: from/to are whole hours, distinct clients a sketch (~1%), top clients the heaviest of each hour, and the numbers lag the events by at most the rollup's interval; counts of events are exact */
       approximate?: boolean;
@@ -752,6 +776,11 @@ export interface components {
       roles: ("viewer" | "operator" | "approver" | "admin")[];
     };
     Me: {
+      scoped?: boolean;
+      sensitive?: boolean;
+      policy_permissions?: {
+        [key: string]: string[];
+      };
       username: string;
       roles: string[];
       /** @description A local account, which may change its password with POST /v1/auth/password. */
@@ -806,6 +835,51 @@ export interface components {
       /** @description Machine-readable cause. EVENTS_UNAVAILABLE (HTTP 503) means the event store (ClickHouse) did not answer; clients show the data source as unavailable, never an empty result (CP-A08). */
       reason?: string;
     };
+    Application: {
+      id: string;
+      name: string;
+      owner: string;
+      etag: string;
+      created_at: string;
+      updated_at: string;
+      environments: components["schemas"]["ApplicationEnvironment"][];
+      routes: components["schemas"]["ApplicationRoute"][];
+    };
+    ApplicationEnvironment: {
+      id: string;
+      name: string;
+      group_id: string;
+    };
+    ApplicationRoute: {
+      id: string;
+      environment_id: string;
+      host: string;
+      path_prefix: string;
+      policy_id: string;
+      schema_id: string;
+    };
+    ApplicationResult: {
+      application: components["schemas"]["Application"];
+    };
+    ApplicationList: {
+      applications: components["schemas"]["Application"][];
+      next_cursor: string;
+    };
+    ApplicationBinding: {
+      id: number;
+      subject: string;
+      /** @enum {string} */
+      role: "viewer" | "operator" | "approver" | "admin";
+      application_id: string | null;
+      environment_id: string | null;
+      request_id?: string;
+    };
+    ApplicationBindings: {
+      bindings: components["schemas"]["ApplicationBinding"][];
+    };
+    ApplicationBindingResult: {
+      binding: components["schemas"]["ApplicationBinding"];
+    };
   };
   responses: {
     /** @description Invalid bounded command; creates require request_id. No mutation committed. */
@@ -858,6 +932,369 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  listApplications: {
+    parameters: {
+      query?: {
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationList"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  createApplication: {
+    requestBody: {
+      content: {
+        "application/json": {
+          application: components["schemas"]["Application"];
+          request_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ApplicationResult"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getApplication: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationResult"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  updateApplication: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          application: components["schemas"]["Application"];
+          request_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationResult"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  deleteApplication: {
+    parameters: {
+      header: {
+        "If-Match": string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Deleted. */
+      204: {
+        content: never;
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  applicationOverview: {
+    parameters: {
+      query: {
+        from: string;
+        to: string;
+        environment_id?: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OverviewResponse"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listApplicationBindings: {
+    responses: {
+      /** @description Scoped result. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationBindings"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  createApplicationBinding: {
+    requestBody: {
+      content: {
+        "application/json": {
+          binding: components["schemas"]["ApplicationBinding"];
+        };
+      };
+    };
+    responses: {
+      /** @description Scoped result. */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ApplicationBindingResult"];
+        };
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
+  deleteApplicationBinding: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Deleted. Subject remains explicitly scoped after last binding removal. */
+      204: {
+        content: never;
+      };
+      /** @description Invalid request. */
+      400: {
+        content: never;
+      };
+      /** @description Authentication required. */
+      401: {
+        content: never;
+      };
+      /** @description Permission denied. */
+      403: {
+        content: never;
+      };
+      /** @description Resource not visible. */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag or conflicting request_id. */
+      409: {
+        content: never;
+      };
+      /** @description Data source unavailable. */
+      503: {
+        content: never;
+      };
+    };
+  };
   /**
    * Read the newest matching administrative audit records
    * @description Requires audit:read. Filters run in PostgreSQL before limiting; action/resource are literal case-insensitive substrings. Time bounds are from-inclusive/to-exclusive RFC3339 timestamps. Unknown/repeated parameters and invalid bounds are rejected. Old rows without a recorded immutable subject leave that field empty; no identity is inferred. has_more indicates the matching set exceeds the returned limit.
