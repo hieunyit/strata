@@ -35,7 +35,11 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-B01 | Ứng dụng, môi trường, quyền theo phạm vi | Codex | CP-B02 | ✅ Done (`docs/reports/cp-b01.md`; dependent PR stack) |
 | CP-B04 | Luồng phát hành thống nhất | Codex | CP-B01, CP-B02 | ✅ Done (`docs/reports/cp-b04.md`; dependent PR stack) |
 | CP-B05 | Sức khỏe hệ thống, doctor | Codex | CP-B02 | ✅ Done (`docs/reports/cp-b05.md`; dependent PR stack) |
-| CP-C03, C01, C02, C04, C05 | Privacy/bảo mật quản trị, điều tra, rule/exception, cảnh báo, API discovery | — | xem §3 của kế hoạch | ⏳ |
+| CP-C03 | Privacy và bảo mật quản trị | Codex | CP-A05 | ✅ Done (`docs/reports/cp-c03.md`; dependent PR stack) |
+| CP-C01 | Điều tra sự kiện tới hành động | Codex | CP-B01 | ⏳ |
+| CP-C02 | Rule pack và exception có vòng đời | Codex | CP-B01 | ⏳ |
+| CP-C04 | Cảnh báo và báo cáo | Codex | CP-B01 | ⏳ |
+| CP-C05 | API discovery | Codex | CP-C03, duyệt pháp chế telemetry | ⏳ |
 
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
 

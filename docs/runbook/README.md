@@ -10,6 +10,7 @@ dưới đây.
   cảnh báo trong Grafana, và chuỗi `ALERTS{alertstate="firing"}` trong VictoriaMetrics.
 - Cài node: `docs/runbook/install.md`.
 - Sức khỏe Compact, doctor và gói hỗ trợ: [doctor](doctor.md).
+- MFA, phiên đăng nhập, privacy và audit webhook: [bảo mật tài khoản](account-security.md).
 - Các thao tác can thiệp (tắt module, ép shadow, rollback bundle) có lệnh và kết quả
   mong đợi ở các mục cùng tên. `tests/e2e/runbook-drill.sh [lab|staging]` chạy đúng các
   lệnh đó và đo thời gian; biên bản diễn tập nằm trong `docs/reports/w10-n-01.md`.

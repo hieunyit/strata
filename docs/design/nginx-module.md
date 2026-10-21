@@ -1099,3 +1099,26 @@ acquires a lease. Private support archives allowlist numeric configuration and d
 fields, pseudonymize node IDs, omit raw logs/request data/credentials, and include checksums.
 Remote database disk space and offline live-process telemetry remain unknown. Details and
 exit codes are in `docs/runbook/doctor.md`.
+
+### Compact C03 · Privacy, local MFA and audit copies
+
+Go sinks share bounded P-01 field/pattern filters. Ingest resolves the policy revision
+from the event's immutable bundle contents, rather than the latest draft. Lite reads the
+signed PRIVACY section and masks full payloads if metadata/history is unavailable; engine
+layout validation remains unchanged. Replay preserves duplicate JSON keys, exact numbers,
+ordinary encoding and source pseudonyms; retained-output size is included in buffer quotas.
+Support archives remain a stricter allowlist. Read-time event masking also protects old rows.
+
+Migrations 0035/0036 add encrypted local TOTP enrollment, one-use timestep/recovery state,
+MFA-verified opaque sessions and a bounded durable external-copy queue. An independent
+private MFA key lives in the encrypted-backup data directory, not in the rotating signer.
+Enrollment is password-confirmed/session-bound; enabling it revokes other sessions, and
+authentication rechecks MFA state. Only the host recovery command can reset lost MFA
+without an OTP/recovery code. New local self-service routes reject OIDC/machine identities.
+
+An optional HTTPS receiver gets HMAC-signed allowlisted audit metadata and keyed pseudonyms,
+never raw subjects, before/after documents or request data. An audit trigger queues a copy
+in the original transaction. DNS answers are checked at connection and dialed literally;
+private networks need an explicit allowlist, redirects/proxies are disabled, TLS verified.
+The 10,000-record queue and five-attempt retry budget preserve local audit on saturation.
+Details, signatures and recovery procedures: `docs/runbook/account-security.md`.
