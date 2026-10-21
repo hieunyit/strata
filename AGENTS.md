@@ -33,7 +33,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | ✅ `control-plane/backup` (#288), `deploy/compact`, `tests/e2e/compact-drill.sh`; `docs/reports/cp-a09.md` |
 | CP-B02 | Inventory và tương thích | Codex | Compact Preview | ✅ Done (ba PR inventory/manifest/compatibility; `docs/reports/cp-b02.md`) |
 | CP-B01 | Ứng dụng, môi trường, quyền theo phạm vi | Codex | CP-B02 | ✅ Done (`docs/reports/cp-b01.md`; dependent PR stack) |
-| CP-B04 | Luồng phát hành thống nhất | Codex | CP-B01, CP-B02 | ⏳ |
+| CP-B04 | Luồng phát hành thống nhất | Codex | CP-B01, CP-B02 | ✅ Done (`docs/reports/cp-b04.md`; dependent PR stack) |
 | CP-B05 | Sức khỏe hệ thống, doctor | Codex | CP-B02 | ⏳ |
 | CP-C03, C01, C02, C04, C05 | Privacy/bảo mật quản trị, điều tra, rule/exception, cảnh báo, API discovery | — | xem §3 của kế hoạch | ⏳ |
 

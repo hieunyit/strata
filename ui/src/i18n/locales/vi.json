@@ -17,7 +17,8 @@
     "reviews": "Duyệt policy",
     "audit": "Kiểm toán",
     "map": "Bản đồ",
-    "applications": "Ứng dụng"
+    "applications": "Ứng dụng",
+    "releases": "Phát hành"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -910,5 +911,49 @@
     "remove": "Xóa",
     "policyChanges": "Cấu hình dự kiến và thay đổi policy gần đây",
     "unknown": "Chưa biết"
+  },
+  "releases": {
+    "title": "Phát hành",
+    "subtitle": "Duyệt snapshot bất biến của policy, rule và schema trước triển khai.",
+    "prepare": "Chuẩn bị release",
+    "unavailable": "Không lấy được dữ liệu release.",
+    "writeFailed": "Thao tác thất bại. Tải lại release trước khi thử lại; kiểm tra replay, capability, baseline và người duyệt độc lập.",
+    "workflow": "Soạn policy → kiểm tra → replay → xem tác động → duyệt độc lập → canary → node kích hoạt → theo dõi → rollback.",
+    "creator": "Người chuẩn bị",
+    "reviewer": "Người duyệt",
+    "hash": "SHA-256 snapshot",
+    "rules": "Digest rule và compiler",
+    "inputs": "Digest đầu vào",
+    "baseline": "Baseline lúc chuẩn bị / hiện tại",
+    "canary": "Điều kiện dừng canary",
+    "waves": "Tỷ lệ rollout tích lũy (0 nghĩa là một node)",
+    "soak": "Số giây theo dõi mỗi đợt",
+    "comparison": "Replay so baseline và bản mới trên cùng nhãn mẫu, cùng phương pháp đo. Tỷ lệ block tăng không tự chứng minh false positive.",
+    "proofUnavailable": "Không lấy được bằng chứng replay; đã khóa nút duyệt.",
+    "reviewed": "Tôi đã xem đúng snapshot này và bằng chứng replay được ghim.",
+    "approve": "Duyệt release",
+    "reject": "Từ chối release",
+    "baselineWarning": "Bằng chứng replay cũ hoặc baseline đã đổi. Replay và chuẩn bị lại, hoặc xác nhận rõ baseline hiện tại trước triển khai.",
+    "ack": "Xác nhận bằng chứng cũ với bundle hiện tại {{version}}",
+    "deploy": "Triển khai release đã duyệt",
+    "rollout": "Rollout từng node",
+    "rollback": "Chuẩn bị rollback từ đúng snapshot này",
+    "editPolicies": "Soạn policy",
+    "reviewPolicies": "Replay và duyệt policy",
+    "state": {
+      "DRAFT": "Chờ duyệt",
+      "APPROVED": "Đã duyệt",
+      "REJECTED": "Đã từ chối",
+      "DEPLOYED": "Đã tạo rollout"
+    },
+    "thresholds": {
+      "min_requests": "Request tối thiểu mỗi nhóm",
+      "block_factor": "Hệ số block",
+      "block_floor": "Ngưỡng tỷ lệ block",
+      "error_factor": "Hệ số 5xx",
+      "error_delta": "Mức tăng tỷ lệ 5xx",
+      "latency_factor": "Hệ số p99",
+      "latency_delta_ms": "Mức tăng p99 (ms)"
+    }
   }
 }

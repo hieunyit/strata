@@ -30,6 +30,7 @@ export const navItems: NavItem[] = [
   { page: 'events', icon: ScrollText },
   { page: 'policies', icon: FileCog },
   { page: 'reviews', icon: GitPullRequest },
+  { page:'releases',icon:GitPullRequest },
   { page: 'fleet', icon: Server },
   // local accounts: admins only, when the control plane has them
   { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
@@ -59,7 +60,7 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
       </div>
       <ul className="mt-2 flex-1 space-y-0.5 px-2">
         {navItems
-          .filter((n) => (!scoped || !['users','audit'].includes(n.page)) && (!n.visible || n.visible(roles, methods.local)))
+          .filter((n) => (!scoped || !['users','audit','releases'].includes(n.page)) && (!n.visible || n.visible(roles, methods.local)))
           .map(({ page, icon: Icon }) => {
             const on = page === current;
             return (
