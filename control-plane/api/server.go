@@ -153,6 +153,7 @@ func (s *Server) registerRoutes() {
 	}
 	if s.cfg.Applications != nil {
 		registerApplications(v1, s.cfg.Applications, s.handler)
+		s.registerInvestigation(v1)
 	}
 	if s.cfg.ServiceAccounts != nil {
 		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
@@ -165,6 +166,19 @@ func (s *Server) registerRoutes() {
 		if strings.HasSuffix(r.URL.Path, ":search") {
 			search(w, r)
 			return
+		}
+		if s.cfg.Applications != nil {
+			switch {
+			case strings.HasSuffix(r.URL.Path, ":case"):
+				s.handleEventCase(w, r)
+				return
+			case strings.HasSuffix(r.URL.Path, ":propose-rule"):
+				s.handleEventRule(w, r)
+				return
+			case strings.HasSuffix(r.URL.Path, ":similar"):
+				s.handleSimilarEvents(w, r)
+				return
+			}
 		}
 		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
 			auth.RequireHTTP(auth.PermExceptionsWrite, s.handler.HandleMarkFalsePositive)(w, r)

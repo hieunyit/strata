@@ -38,6 +38,7 @@ import (
 	"github.com/strata/strata/control-plane/goodbots"
 	systemhealth "github.com/strata/strata/control-plane/health"
 	"github.com/strata/strata/control-plane/ingest"
+	"github.com/strata/strata/control-plane/investigation"
 	"github.com/strata/strata/control-plane/localauth"
 	"github.com/strata/strata/control-plane/metrics"
 	"github.com/strata/strata/control-plane/policy"
@@ -548,7 +549,14 @@ func main() {
 	if local, ok := objects.(interface{ FreeBytes() (uint64, error) }); ok {
 		healthService.FreeBytes = local.FreeBytes
 	}
-	srv := api.NewServer(api.ServerConfig{SystemHealth: healthService, Applications: pg,
+	var evidence *investigation.Worker
+	if pg != nil && objects != nil {
+		evidence = &investigation.Worker{Store: pg, Events: store, Objects: objects}
+		go evidence.Run(ctx)
+	} else if pg != nil {
+		go investigation.RetainContent(ctx, pg)
+	}
+	srv := api.NewServer(api.ServerConfig{Evidence: evidence, SystemHealth: healthService, Applications: pg,
 		ServiceAccounts: machineAccounts,
 		Annotations:     annotations,
 		Exceptions:      exceptions,
