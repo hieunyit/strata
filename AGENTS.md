@@ -31,7 +31,10 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-A07 | Artifact trên filesystem, file signer mặc định | Claude Code (strata-59) | CP-A02, CP-A03, CP-SEC-02 | ✅ `policy.FS` (`-objects-dir`), dọn artifact theo DB; `docs/reports/cp-a07.md` |
 | CP-A08 | UI nhúng; ClickHouse suy giảm rõ | Claude Code (strata-59) | CP-A02 | ✅ `control-plane/webui`, `ingest/chmigrate.go`, 503 `EVENTS_UNAVAILABLE`; `docs/reports/cp-a08.md` |
 | CP-A09 | Backup/restore (`age`), compose Compact 3 dịch vụ | Claude Code (strata-59) | CP-A03…A08 | ✅ `control-plane/backup` (#288), `deploy/compact`, `tests/e2e/compact-drill.sh`; `docs/reports/cp-a09.md` |
-| CP-B02, B01, B04, B05 | Inventory, ứng dụng, phát hành thống nhất, sức khỏe | — | Compact Preview | ⏳ |
+| CP-B02 | Inventory và tương thích | Codex | Compact Preview | ✅ Done (ba PR inventory/manifest/compatibility; `docs/reports/cp-b02.md`) |
+| CP-B01 | Ứng dụng, môi trường, quyền theo phạm vi | Codex | CP-B02 | ⏳ |
+| CP-B04 | Luồng phát hành thống nhất | Codex | CP-B01, CP-B02 | ⏳ |
+| CP-B05 | Sức khỏe hệ thống, doctor | Codex | CP-B02 | ⏳ |
 | CP-C03, C01, C02, C04, C05 | Privacy/bảo mật quản trị, điều tra, rule/exception, cảnh báo, API discovery | — | xem §3 của kế hoạch | ⏳ |
 
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)

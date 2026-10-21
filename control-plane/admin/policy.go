@@ -392,6 +392,8 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	var costErr *policy.CostError
 	var replayErr *policy.ReplayError
 	switch {
+	case errors.Is(err, store.ErrIncompatible):
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	case errors.As(err, &replayErr):
 		return nil, status.Error(codes.FailedPrecondition, replayErr.Error())
 	case errors.As(err, &costErr):

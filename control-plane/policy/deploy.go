@@ -180,13 +180,24 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 		if h.Version != next || int(h.Policies) != len(named) {
 			return fmt.Errorf("policy: compiled bundle says version %d with %d policies, want %d with %d", h.Version, h.Policies, next, len(named))
 		}
+		requirements, err := bundlefmt.Requirements(data, d.PubKey)
+		if err != nil {
+			return err
+		}
+		if check, ok := d.Store.(interface {
+			CheckCapabilities(context.Context, []string) error
+		}); ok {
+			if err := check.CheckCapabilities(ctx, requirements); err != nil {
+				return err
+			}
+		}
 		sum := sha256.Sum256(data)
 		key := ObjectKey(next)
 		if err := d.Objects.Put(ctx, key, data, hex.EncodeToString(sum[:])); err != nil {
 			return err
 		}
 		out, err = d.Store.RecordBundle(ctx, store.Bundle{
-			InputDigest: inputDigest, RulesDigest: rules, Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
+			RequiredCapabilities: requirements, InputDigest: inputDigest, RulesDigest: rules, Version: next, SHA256: sum[:], ObjectKey: key, SizeBytes: int64(len(data)), Contents: contents,
 		}, a)
 		return err
 	})
