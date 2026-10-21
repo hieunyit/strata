@@ -7,6 +7,195 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/rule-catalog:
+    get:
+      operationId: searchRuleCatalog
+      parameters:
+      - name: source
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cve
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: attack_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalog/{id}:
+    get:
+      operationId: getRuleCatalogDetail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalogs:
+    get:
+      operationId: listRuleCatalogs
+      parameters: []
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogHistory'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalogs:diff:
+    get:
+      operationId: diffRuleCatalogs
+      parameters:
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogDiff'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/exceptions:
+    get:
+      operationId: listExceptionInventory
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionInventoryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/exceptions:cleanupExpired:
+    post:
+      operationId: cleanupExpiredExceptions
+      description: Creates only a policy draft and replay; etag/request_id, current
+        complete policy write scope and independent review/release remain required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionLifecycleRequest'
+      responses:
+        '200':
+          description: Draft created idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Stale policy etag or request reused
+  /v1/exceptions:revoke:
+    post:
+      operationId: revokePolicyException
+      description: Creates only a policy draft and replay; etag/request_id, current
+        complete policy write scope and independent review/release remain required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionLifecycleRequest'
+      responses:
+        '200':
+          description: Draft created idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Stale policy etag or request reused
   /v1/saved-searches:
     get:
       operationId: listSavedSearches
@@ -1779,6 +1968,372 @@ paths:
       - {$ref: '#/components/parameters/MachineIfMatch'}
       - {$ref: '#/components/parameters/MachineRequestID'}
       - {$ref: '#/components/parameters/MachineTokenID'}
+  /v1/incidents:
+    get:
+      operationId: listOperationalIncidents
+      parameters:
+      - name: application_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncidentPage'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/incidents:acknowledge:
+    post:
+      operationId: acknowledgeOperationalIncident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentAcknowledgeRequest'
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncident'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/report-schedule:
+    get:
+      operationId: getApplicationReportSchedule
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportScheduleReply'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+    put:
+      operationId: saveApplicationReportSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportScheduleRequest'
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportScheduleReply'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/application-reports:
+    get:
+      operationId: listApplicationReports
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationReportPage'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/application-reports/{id}:
+    get:
+      operationId: downloadApplicationReport
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Scoped operational result; permission and current application binding are revalidated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationReport'
+        '400':
+          description: Invalid input
+        '403':
+          description: Insufficient complete environment authority
+        '404':
+          description: Absent or changed scope
+        '409':
+          description: Etag/request conflict
+        '503':
+          description: Source unavailable
+  /v1/discovery:
+    get:
+      operationId: getApiDiscovery
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryInventory'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/observations:
+    post:
+      operationId: ingestApiObservations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryBatchRequest'
+      responses:
+        '202':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryBatchReply'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/document:
+    put:
+      operationId: saveDiscoveryDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryDocumentRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryDocument'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:
+    post:
+      operationId: createDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryProposalRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryProposal'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:draft:
+    post:
+      operationId: draftDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryDraftRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals/{id}:
+    get:
+      operationId: downloadDiscoveryDocument
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Minimal OpenAPI 3.0.3 operation index with x-strata-mode=documentation_only;
+                  path parameters, content types and observed body bounds only.
+                additionalProperties: true
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
 components:
   parameters:
     MachineAccountID:
@@ -1802,6 +2357,361 @@ components:
       required: true
       schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    RuleMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+        layer:
+          type: string
+        severity:
+          type: string
+        source:
+          type: string
+        author:
+          type: string
+        license:
+          type: string
+        version:
+          type: string
+        upstream_id:
+          type: string
+        attack_type:
+          type: string
+        cves:
+          type: array
+          items:
+            type: string
+        owner:
+          type: string
+        review_by:
+          type: string
+        pack:
+          type: string
+          enum:
+          - core
+          - signature
+        digest:
+          type: string
+        paranoia_level:
+          type: integer
+        plugin:
+          type: string
+      required:
+      - name
+      - pack
+      - digest
+    RuleCatalogEntry:
+      allOf:
+      - $ref: '#/components/schemas/RuleMetadata'
+      - type: object
+        properties:
+          id:
+            type: integer
+        required:
+        - id
+    RuleCatalogPage:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogEntry'
+        next_cursor:
+          type: integer
+        digest:
+          type: string
+        at:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+        source:
+          type: string
+          enum:
+          - configured_catalog
+        total:
+          type: integer
+      required:
+      - rules
+      - next_cursor
+      - digest
+      - at
+      - stale
+      - source
+      - total
+    RuleCatalogSnapshot:
+      type: object
+      properties:
+        digest:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        rules:
+          type: integer
+      required:
+      - digest
+      - created_at
+      - last_seen_at
+      - current
+      - rules
+    RuleCatalogHistory:
+      type: object
+      properties:
+        catalogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogSnapshot'
+      required:
+      - catalogs
+    RuleCatalogChange:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum:
+          - added
+          - removed
+          - modified
+        before:
+          $ref: '#/components/schemas/RuleMetadata'
+        after:
+          $ref: '#/components/schemas/RuleMetadata'
+      required:
+      - id
+      - kind
+    RuleCatalogDiff:
+      type: object
+      properties:
+        added:
+          type: integer
+        removed:
+          type: integer
+        modified:
+          type: integer
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogChange'
+        next_cursor:
+          type: integer
+      required:
+      - added
+      - removed
+      - modified
+      - changes
+      - next_cursor
+    RuleApplicationUsage:
+      type: object
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        policy_id:
+          type: string
+        policy_name:
+          type: string
+        policy_mode:
+          type: string
+        policy_version:
+          type: integer
+        state:
+          type: string
+        disabled:
+          type: boolean
+        active_policy_nodes:
+          type: integer
+        source:
+          type: string
+          enum:
+          - configured_catalog_and_policy_bindings
+      required:
+      - application_id
+      - environment_id
+      - policy_id
+      - policy_name
+      - policy_mode
+      - policy_version
+      - state
+      - disabled
+      - active_policy_nodes
+      - source
+    RuleCatalogDetail:
+      type: object
+      properties:
+        rule:
+          $ref: '#/components/schemas/RuleCatalogEntry'
+        usage:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleApplicationUsage'
+        health:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/RuleHealth'
+        health_status:
+          type: string
+          enum:
+          - available
+          - unavailable
+      required:
+      - rule
+      - usage
+      - health
+      - health_status
+    ExceptionOrigin:
+      type: object
+      properties:
+        owner:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - owner
+      - created_at
+    ExceptionInventoryItem:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        policy_name:
+          type: string
+        policy_version:
+          type: integer
+        etag:
+          type: string
+        exception:
+          $ref: '#/components/schemas/PolicyException'
+        origin:
+          $ref: '#/components/schemas/ExceptionOrigin'
+        state:
+          type: string
+        decided_by:
+          type: string
+        approved_replay_id:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        match_source:
+          type: string
+          enum:
+          - not_collected
+        unused_status:
+          type: string
+          enum:
+          - unknown
+        editable:
+          type: boolean
+        active_nodes:
+          type: integer
+      required:
+      - policy_id
+      - policy_name
+      - policy_version
+      - etag
+      - exception
+      - origin
+      - state
+      - decided_by
+      - approved_replay_id
+      - warnings
+      - match_source
+      - unused_status
+      - editable
+      - active_nodes
+    ExceptionMaintenance:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        source_version:
+          type: integer
+        source_etag:
+          type: string
+        expired_ids:
+          type: array
+          items:
+            type: string
+        state:
+          type: string
+          enum:
+          - pending
+          - drafted
+          - superseded
+        etag:
+          type: string
+        draft_version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - policy_id
+      - source_version
+      - source_etag
+      - expired_ids
+      - state
+      - etag
+      - draft_version
+      - created_at
+      - updated_at
+    ExceptionInventoryPage:
+      type: object
+      properties:
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionInventoryItem'
+        next_cursor:
+          type: string
+        maintenance:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionMaintenance'
+        at:
+          type: string
+          format: date-time
+      required:
+      - exceptions
+      - next_cursor
+      - maintenance
+      - at
+    ExceptionLifecycleRequest:
+      type: object
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        policy_id:
+          type: string
+        exception_id:
+          type: string
+        etag:
+          type: string
+        request_id:
+          type: string
+      required:
+      - application_id
+      - environment_id
+      - policy_id
+      - etag
+      - request_id
     SavedSearch:
       type: object
       properties:
@@ -2291,7 +3201,7 @@ components:
           minItems: 1
           maxItems: 32
           items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
-              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'discovery:ingest', 'applications:read', 'exceptions:write',
               'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
               'audit:read']}
         expires_at: {type: string, format: date-time}
@@ -2312,7 +3222,7 @@ components:
           minItems: 1
           maxItems: 32
           items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
-              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'discovery:ingest', 'applications:read', 'exceptions:write',
               'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
               'audit:read']}
         ttl_seconds:
@@ -3532,6 +4442,673 @@ components:
             $ref: '#/components/schemas/HealthNode'
         truncated:
           type: boolean
+    OperationalSignal:
+      type: object
+      required:
+      - kind
+      - state
+      - affected
+      properties:
+        kind:
+          type: string
+        state:
+          type: string
+          enum:
+          - healthy
+          - degraded
+          - unavailable
+          - stale
+          - unknown
+        affected:
+          type: integer
+      additionalProperties: false
+    OperationalSummary:
+      type: object
+      required:
+      - source
+      - observed_at
+      - signals
+      - security_events
+      - blocked_security_events
+      - event_status
+      - truncated
+      properties:
+        source:
+          type: string
+          enum:
+          - operational_health_and_security_events
+        observed_at:
+          type: string
+          format: date-time
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationalSignal'
+        security_events:
+          type: integer
+          nullable: true
+        blocked_security_events:
+          type: integer
+          nullable: true
+        event_status:
+          type: string
+          enum:
+          - available
+          - unavailable
+        truncated:
+          type: boolean
+      additionalProperties: false
+    OperationalIncident:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - kind
+      - state
+      - signal_state
+      - affected
+      - etag
+      - opened_at
+      - observed_at
+      - notified_at
+      - ack_subject
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        kind:
+          type: string
+        state:
+          type: string
+          enum:
+          - open
+          - acknowledged
+          - resolved
+        signal_state:
+          type: string
+          enum:
+          - healthy
+          - degraded
+          - unavailable
+          - stale
+          - unknown
+        affected:
+          type: integer
+        etag:
+          type: string
+        opened_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        notified_at:
+          type: string
+          format: date-time
+          nullable: true
+        ack_subject:
+          type: string
+      additionalProperties: false
+    OperationalIncidentPage:
+      type: object
+      required:
+      - editable
+      - incidents
+      - limit
+      properties:
+        editable: {type: boolean}
+        incidents:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationalIncident'
+        limit:
+          type: integer
+      additionalProperties: false
+    IncidentAcknowledgeRequest:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - etag
+      - request_id
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        etag:
+          type: string
+        request_id:
+          type: string
+      additionalProperties: false
+    ApplicationReportSchedule:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - enabled
+      - every_hours
+      - etag
+      - owner
+      - next_run
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        enabled:
+          type: boolean
+        every_hours:
+          type: integer
+          enum:
+          - 24
+          - 168
+        etag:
+          type: string
+        owner:
+          type: string
+        next_run:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ReportScheduleRequest:
+      type: object
+      required:
+      - schedule
+      - request_id
+      properties:
+        schedule:
+          $ref: '#/components/schemas/ApplicationReportScheduleInput'
+        request_id:
+          type: string
+      additionalProperties: false
+    ReportScheduleReply:
+      type: object
+      required:
+      - editable
+      - schedule
+      - scope_changed
+      properties:
+        editable: {type: boolean}
+        schedule:
+          allOf:
+          - $ref: '#/components/schemas/ApplicationReportSchedule'
+          nullable: true
+        scope_changed:
+          type: boolean
+      additionalProperties: false
+    ApplicationReport:
+      type: object
+      required:
+      - id
+      - application_id
+      - environment_id
+      - period_start
+      - period_end
+      - body
+      - expires_at
+      properties:
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        body:
+          $ref: '#/components/schemas/OperationalSummary'
+        expires_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ApplicationReportPage:
+      type: object
+      required:
+      - reports
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationReport'
+      additionalProperties: false
+    ApplicationReportScheduleInput:
+      type: object
+      required: [application_id, environment_id, enabled, every_hours, etag]
+      properties:
+        application_id: {type: string}
+        environment_id: {type: string}
+        enabled: {type: boolean}
+        every_hours: {type: integer, enum: [24, 168]}
+        etag: {type: string}
+      additionalProperties: false
+    DiscoveryOperation:
+      type: object
+      required:
+      - path
+      - method
+      - content_types
+      - max_body_bytes
+      properties:
+        path:
+          type: string
+          maxLength: 512
+        method:
+          type: string
+          enum:
+          - GET
+          - HEAD
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        content_types:
+          type: array
+          items:
+            type: string
+        max_body_bytes:
+          type: integer
+      additionalProperties: false
+    DiscoveryChange:
+      type: object
+      required:
+      - path
+      - method
+      - kind
+      - before
+      - after
+      properties:
+        path:
+          type: string
+        method:
+          type: string
+        kind:
+          type: string
+          enum:
+          - added
+          - modified
+        before:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOperation'
+          nullable: true
+        after:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOperation'
+          nullable: true
+      additionalProperties: false
+    DiscoveryEndpoint:
+      type: object
+      required:
+      - key
+      - route_id
+      - path
+      - method
+      - content_types
+      - samples
+      - independent_sources
+      - first_seen
+      - last_seen
+      - observed_max_body_bytes
+      - eligible
+      properties:
+        key:
+          type: string
+        route_id:
+          type: string
+        path:
+          type: string
+        method:
+          type: string
+        content_types:
+          type: array
+          items:
+            type: string
+        samples:
+          type: integer
+        independent_sources:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        observed_max_body_bytes:
+          type: integer
+        eligible:
+          type: boolean
+      additionalProperties: false
+    DiscoveryDocument:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - etag
+      - operations
+      - digest
+      - updated_at
+      - owner
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        etag:
+          type: string
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryOperation'
+        digest:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        owner:
+          type: string
+      additionalProperties: false
+    DiscoveryProposal:
+      type: object
+      required:
+      - policy_id
+      - policy_etag
+      - policy_version
+      - draftable
+      - id
+      - application_id
+      - environment_id
+      - route_id
+      - base_digest
+      - operations
+      - digest
+      - evidence
+      - changes
+      - etag
+      - owner
+      - created_at
+      - expires_at
+      - draft_policy_id
+      - draft_version
+      - review_state
+      properties:
+        policy_id: {type: string}
+        policy_etag: {type: string}
+        policy_version: {type: integer}
+        draftable: {type: boolean}
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        route_id:
+          type: string
+        base_digest:
+          type: string
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryOperation'
+        digest:
+          type: string
+        evidence:
+          $ref: '#/components/schemas/DiscoveryEndpoint'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryChange'
+        etag:
+          type: string
+        owner:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        draft_policy_id:
+          type: string
+        draft_version:
+          type: integer
+        review_state:
+          type: string
+      additionalProperties: false
+    DiscoveryLimits:
+      type: object
+      required:
+      - min_samples
+      - min_sources
+      - min_span_seconds
+      - retention_days
+      properties:
+        min_samples:
+          type: integer
+        min_sources:
+          type: integer
+        min_span_seconds:
+          type: integer
+        retention_days:
+          type: integer
+      additionalProperties: false
+    DiscoveryInventory:
+      type: object
+      required:
+      - endpoints
+      - document
+      - document_etag
+      - scope_changed
+      - proposals
+      - editable
+      - collection_enabled
+      - approval_expires_at
+      - runtime_enforcement
+      - source
+      - limits
+      properties:
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryEndpoint'
+        document:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryDocument'
+          nullable: true
+        document_etag:
+          type: string
+        scope_changed:
+          type: boolean
+        proposals:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryProposal'
+        editable:
+          type: boolean
+        collection_enabled:
+          type: boolean
+        approval_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        runtime_enforcement:
+          type: boolean
+          enum:
+          - false
+        source:
+          type: string
+          enum:
+          - trusted_backend_2xx_only
+        limits:
+          $ref: '#/components/schemas/DiscoveryLimits'
+      additionalProperties: false
+    DiscoveryObservation:
+      type: object
+      required:
+      - id
+      - route_id
+      - method
+      - path
+      - content_type
+      - body_bytes
+      - backend_status
+      - backend_response
+      - source_ip
+      - at
+      properties:
+        id:
+          type: string
+          format: uuid
+        route_id:
+          type: string
+          maxLength: 63
+        method:
+          type: string
+        path:
+          type: string
+          maxLength: 2048
+        content_type:
+          type: string
+          maxLength: 256
+        body_bytes:
+          type: integer
+          minimum: 0
+          maximum: 16777216
+        backend_status:
+          type: integer
+          minimum: 200
+          maximum: 299
+        backend_response:
+          type: boolean
+          enum:
+          - true
+        source_ip:
+          type: string
+          maxLength: 64
+        at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    DiscoveryBatchRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - request_id
+      - observations
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        request_id:
+          type: string
+          maxLength: 128
+        observations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/DiscoveryObservation'
+      additionalProperties: false
+    DiscoveryBatchReply:
+      type: object
+      required:
+      - accepted
+      properties:
+        accepted:
+          type: boolean
+      additionalProperties: false
+    DiscoveryDocumentRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - etag
+      - document
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        etag:
+          type: string
+          maxLength: 128
+        document:
+          type: string
+          maxLength: 131072
+        request_id:
+          type: string
+          maxLength: 128
+      additionalProperties: false
+    DiscoveryProposalRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - endpoint_key
+      - base_digest
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        endpoint_key:
+          type: string
+        base_digest:
+          type: string
+        request_id:
+          type: string
+          maxLength: 128
+      additionalProperties: false
+    DiscoveryDraftRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - id
+      - etag
+      - policy_etag
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        id:
+          type: string
+          maxLength: 64
+        etag:
+          type: string
+          maxLength: 128
+        policy_etag:
+          type: string
+          maxLength: 128
+        request_id:
+          type: string
+          maxLength: 128
+      additionalProperties: false
   securitySchemes:
     bearerAuth:
       type: http
