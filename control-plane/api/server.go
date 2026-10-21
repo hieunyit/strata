@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"github.com/strata/strata/control-plane/health"
+	"github.com/strata/strata/control-plane/investigation"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
 	"net/http"
@@ -22,6 +23,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	Evidence     *investigation.Worker
 	SystemHealth *health.Service
 	Releases     *policy.Releases
 	Applications *store.Store
