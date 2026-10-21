@@ -39,7 +39,7 @@ Hướng dẫn chung cho mọi agent làm việc trong repo này: **Claude Code*
 | CP-C01 | Điều tra sự kiện tới hành động | Codex | CP-B01 | ✅ Done (`docs/reports/cp-c01.md`; dependent PR stack) |
 | CP-C02 | Rule pack và exception có vòng đời | Codex | CP-B01 | ✅ Done (`docs/reports/cp-c02.md`; dependent PR stack) |
 | CP-C04 | Cảnh báo và báo cáo | Codex | CP-B01 | ✅ Done (`docs/reports/cp-c04.md`; dependent PR stack) |
-| CP-C05 | API discovery | Codex | CP-C03, duyệt pháp chế telemetry | ⏳ |
+| CP-C05 | API discovery | Codex | CP-C03, duyệt pháp chế telemetry | ✅ Code/test (`docs/reports/cp-c05.md`); collection disabled pending actual legal approval |
 
 **Nhiệm vụ tuần 13** (Replay và luồng duyệt; PO duyệt cách chia ngày 15/10; kế hoạch `docs/plan/w13-plan.md`)
 

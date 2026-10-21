@@ -322,11 +322,23 @@ export interface paths {
   "/v1/application-reports/{id}": {
     get: operations["downloadApplicationReport"];
   };
+  "/v1/discovery": {
+    get: operations["getApiDiscovery"];
+  };
   "/v1/discovery/observations": {
     post: operations["ingestApiObservations"];
   };
   "/v1/discovery/document": {
     put: operations["saveDiscoveryDocument"];
+  };
+  "/v1/discovery/proposals": {
+    post: operations["createDiscoveryProposal"];
+  };
+  "/v1/discovery/proposals:draft": {
+    post: operations["draftDiscoveryProposal"];
+  };
+  "/v1/discovery/proposals/{id}": {
+    get: operations["downloadDiscoveryDocument"];
   };
 }
 
@@ -3928,6 +3940,42 @@ export interface operations {
       };
     };
   };
+  getApiDiscovery: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryInventory"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
   ingestApiObservations: {
     requestBody: {
       content: {
@@ -3974,6 +4022,117 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["DiscoveryDocument"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  createDiscoveryProposal: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryProposalRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryProposal"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  draftDiscoveryProposal: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryDraftRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  downloadDiscoveryDocument: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
         };
       };
       /** @description Invalid, ineligible, excessive or insufficient observations */
