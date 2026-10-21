@@ -273,3 +273,40 @@ func TestSignatureSourcesMatchTheEngine(t *testing.T) {
 		}
 	}
 }
+
+func TestChangelogDetectsChangedRulesAndLegacyUnknown(t *testing.T) {
+	before := &Manifest{Version: "v1", RuleIDs: []int{700001, 700002}, RuleDigests: map[string]string{"700001": "old", "700002": "same"}}
+	after := &Manifest{Version: "v2", RuleIDs: []int{700001, 700002, 700003}, RuleDigests: map[string]string{"700001": "new", "700002": "same", "700003": "added"}}
+	changed, unknown := changedIDs(before, after)
+	if len(changed) != 1 || changed[0] != 700001 || unknown != 0 {
+		t.Fatalf("change detection %v %d", changed, unknown)
+	}
+	base := filepath.Join(t.TempDir(), "manifest.json")
+	if err := writeJSON(base, before); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "CHANGELOG.md")
+	if err := writeChangelog(out, after, base); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Added: 1 rules (700003)", "Modified: 1 rules (700001)"} {
+		if !strings.Contains(string(text), want) {
+			t.Fatalf("missing %q: %s", want, text)
+		}
+	}
+	before.RuleDigests = nil
+	if err := writeJSON(base, before); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeChangelog(out, after, base); err != nil {
+		t.Fatal(err)
+	}
+	text, err = os.ReadFile(out)
+	if err != nil || !strings.Contains(string(text), "Content comparison unavailable for 2 retained rules") {
+		t.Fatalf("legacy silently unchanged: %s %v", text, err)
+	}
+}

@@ -3,6 +3,7 @@ package localauth
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -37,6 +38,9 @@ func (h *Handler) Public(mux *http.ServeMux) {
 
 // Authenticated registers the routes behind the auth middleware.
 func (h *Handler) Authenticated(mux *http.ServeMux) {
+	for _, path := range []string{"/v1/auth/mfa", "/v1/auth/mfa:begin", "/v1/auth/mfa:confirm", "/v1/auth/mfa:disable", "/v1/auth/mfa:recovery", "/v1/auth/sessions", "/v1/auth/sessions/"} {
+		mux.HandleFunc(path, h.security)
+	}
 	mux.HandleFunc("/v1/auth/logout", h.logout)
 	mux.HandleFunc("/v1/auth/password", h.changePassword)
 	mux.HandleFunc("/v1/users", h.users)
@@ -57,6 +61,12 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 // fail maps the package's errors to HTTP answers.
 func fail(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, ErrMFARequired):
+		writeJSON(w, 401, map[string]any{"error": err.Error(), "code": 401, "reason": "MFA_REQUIRED"})
+	case errors.Is(err, ErrMFAConflict):
+		writeErr(w, 409, err.Error())
+	case errors.Is(err, ErrMFAUnavailable):
+		writeErr(w, 503, "local MFA unavailable")
 	case errors.Is(err, ErrBadCredentials):
 		writeErr(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, ErrThrottled):
@@ -80,6 +90,11 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid json request body: "+err.Error())
+		return false
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		writeErr(w, 400, "one JSON object required")
 		return false
 	}
 	return true
@@ -113,14 +128,16 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Code     string `json:"code"`
+		Recovery bool   `json:"recovery"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
-	s, err := h.Service.Login(r.Context(), req.Username, req.Password, h.clientIP(r), r.UserAgent())
+	s, err := h.Service.LoginMFA(r.Context(), req.Username, req.Password, req.Code, req.Recovery, h.clientIP(r), r.UserAgent())
 	if err != nil {
 		if errors.Is(err, ErrBadCredentials) {
-			log.Printf("[INFO] local sign-in refused for %q from %s", truncate(req.Username, 64), h.clientIP(r))
+			log.Print("[INFO] local sign-in refused")
 		}
 		fail(w, err)
 		return
