@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ErrEtagMismatch: the policy changed since the caller read it.
@@ -115,7 +117,7 @@ func (s *Store) CreatePolicy(ctx context.Context, p Policy, a Audit) (Policy, er
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO policy_versions (policy_id, version, spec, created_by, created_subject) VALUES ($1, 1, $2, $3, $4)`,
 			p.ID, []byte(p.Spec), a.Actor, a.Subject); err != nil {
-			return fmt.Errorf("store: create policy version: %w", err)
+			return policyWriteError("create policy version", err)
 		}
 		if p, err = scanPolicy(tx.QueryRow(ctx, `SELECT `+policyCols+policyFrom+` WHERE p.id = $1`, p.ID)); err != nil {
 			return fmt.Errorf("store: read policy: %w", err)
@@ -191,7 +193,7 @@ func updatePolicyTx(ctx context.Context, tx pgx.Tx, id, etag string, spec json.R
 	v := before.CurrentVersion + 1
 	if _, err := tx.Exec(ctx, `INSERT INTO policy_versions (policy_id, version, spec, created_by, created_subject) VALUES ($1, $2, $3, $4, $5)`,
 		id, v, []byte(spec), a.Actor, a.Subject); err != nil {
-		return Policy{}, fmt.Errorf("store: policy version: %w", err)
+		return Policy{}, policyWriteError("policy version", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE policies SET current_version = $2, etag = $3, updated_at = now() WHERE id = $1`, id, v, next); err != nil {
 		return Policy{}, fmt.Errorf("store: update policy: %w", err)
@@ -517,4 +519,14 @@ func (s *Store) ListBundles(ctx context.Context, limit int) ([]Bundle, error) {
 		_ = json.Unmarshal(contents, &b.Contents)
 		return b, err
 	})
+}
+
+var ErrBroadException = errors.New("store: new root-path exception is too broad")
+
+func policyWriteError(action string, err error) error {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "23514" && strings.HasPrefix(pg.Message, "exception: new root-path") {
+		return ErrBroadException
+	}
+	return fmt.Errorf("store: %s: %w", action, err)
 }
