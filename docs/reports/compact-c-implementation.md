@@ -10,7 +10,13 @@ All B PRs #296–#320 were merged, final main commit
 | C01 Investigation | Code/tests complete; open dependent PRs #336–#351 | [Acceptance and ordered PRs](cp-c01.md) |
 | C02 Rule/exception lifecycle | Code/tests complete; open PRs #352–#365 | [Acceptance and ordered PRs](cp-c02.md) |
 | C04 Alerts/reports | Code/tests complete; open PRs #366–#375 | [Acceptance and ordered PRs](cp-c04.md) |
-| C05 Discovery | Pending | Collection remains disabled until legal approval; synthetic validation only |
+| C05 Discovery | Code/test complete; collection disabled pending actual legal approval | [Acceptance and ordered PRs](cp-c05.md); documentation-only preview |
 
 Use the PR bases in each report and merge in order. C work remains open for review unless
 explicitly recorded as merged. PostgreSQL/ClickHouse and local-auth defaults remain.
+
+
+All requested C code is implemented in the dependent review stack. C05 does not supply
+runtime OpenAPI enforcement or install a live collector. Its separate feed is legally
+gated and disabled by default; only synthetic observations were exercised. Review and
+merge these PRs in dependency order before deployment. No C PR is claimed as merged.
