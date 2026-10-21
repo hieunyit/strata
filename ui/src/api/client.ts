@@ -217,7 +217,17 @@ export type ReportScheduleReply=components['schemas']['ReportScheduleReply'];
 export type ApplicationReport=components['schemas']['ApplicationReport'];
 export type ReportScheduleRequest=components['schemas']['ReportScheduleRequest'];
 const operationQuery=(application:string,environment:string)=>new URLSearchParams({application_id:application,environment_id:environment}).toString();
+export type DiscoveryInventory=components['schemas']['DiscoveryInventory'];
+export type DiscoveryProposal=components['schemas']['DiscoveryProposal'];
+export type DiscoveryDocumentRequest=components['schemas']['DiscoveryDocumentRequest'];
+export type DiscoveryProposalRequest=components['schemas']['DiscoveryProposalRequest'];
+export type DiscoveryDraftRequest=components['schemas']['DiscoveryDraftRequest'];
 export const apiClient = {
+  apiDiscovery(application:string,environment:string):Promise<DiscoveryInventory>{return call(`/discovery?${operationQuery(application,environment)}`,{method:'GET'},'Discovery unavailable');},
+  saveDiscoveryDocument(request:DiscoveryDocumentRequest):Promise<components['schemas']['DiscoveryDocument']>{return call('/discovery/document',json('PUT',request),'Document unavailable');},
+  proposeDiscovery(request:components['schemas']['DiscoveryProposalRequest']):Promise<DiscoveryProposal>{return call('/discovery/proposals',json('POST',request),'Insufficient discovery evidence or stale baseline');},
+  draftDiscovery(request:DiscoveryDraftRequest):Promise<EventRuleDraft>{return call('/discovery/proposals:draft',json('POST',request),'Draft unavailable');},
+  downloadDiscovery(id:string,application:string,environment:string):Promise<Blob>{return call(`/discovery/proposals/${encodeURIComponent(id)}?${operationQuery(application,environment)}`,{method:'GET'},'Proposal unavailable',true);},
   incidents(application:string,environment:string):Promise<OperationalIncidentPage>{return call(`/incidents?${operationQuery(application,environment)}`,{method:'GET'},'Incidents unavailable');},
   acknowledgeIncident(request:components['schemas']['IncidentAcknowledgeRequest']):Promise<components['schemas']['OperationalIncident']>{return call('/incidents:acknowledge',json('POST',request),'Acknowledge failed');},
   reportSchedule(application:string,environment:string):Promise<ReportScheduleReply>{return call(`/report-schedule?${operationQuery(application,environment)}`,{method:'GET'},'Schedule unavailable');},

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReleasesPage } from './pages/ReleasesPage';
 import { SecurityPage } from './pages/SecurityPage';
+import { DiscoveryPage } from './pages/DiscoveryPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { HealthPage } from './pages/HealthPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
@@ -65,6 +66,8 @@ export const AppContent: React.FC = () => {
         return scoped ? <ApplicationsPage/> : <ReleasesPage/>;
       case 'security':
         return <SecurityPage/>;
+      case 'discovery':
+        return <DiscoveryPage/>;
       case 'operations':
         return <OperationsPage/>;
       case 'health':

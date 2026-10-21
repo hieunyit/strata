@@ -1181,3 +1181,40 @@ an operator confirms the new scope. Reads, updates and downloads revalidate comp
 current environment authority. Reports count security events rather than all requests;
 health describes generation time and source failures remain unknown/unavailable.
 Backup CLI records only success/failure after archive close, without paths or secrets.
+
+
+### Compact C05 · dedicated API discovery preview
+
+Discovery accepts a separate trusted backend-observation contract, never security events
+as representative traffic. It defaults off and requires an actual legal approval reference
+and unexpired approval (at most 366 days), a private independent HMAC key and an explicit
+allowlist of `sa:` machine collectors with the `discovery:ingest` scope. Ordinary sessions
+cannot ingest. Each sample must identify an owned route, carry a stable observation UUID,
+a trusted collector attestation of a backend response and status 2xx. HTTP ingestion and every read/write/download
+revalidate current application/environment authority. No collector is installed on NGINX;
+a trusted backend/access-log adapter must provide this contract after legal approval.
+
+Before persistence, queries are discarded, unknown path segments and resource identifiers
+become parameters, source addresses become keyed per-scope/day pseudonyms, and observations
+are deduplicated by a keyed observation UUID. Raw paths, bodies, query values and source
+addresses are never retained. This conservative vocabulary can merge distinct endpoints.
+A proposal needs twenty observations, three distinct address sources in one UTC day and
+at least ten minutes between observations. Address diversity does not prove independent
+people, so proposed changes always require human review. Observations/batch receipts expire
+after seven days; proposals after thirty days. Lists, cardinality, payloads and quotas are
+bounded. Retention runs even when collection is disabled.
+
+The bounded OpenAPI 3.0/3.1 parser indexes paths, methods, media types and observed body
+bounds. It rejects aliases, duplicate keys, external references and excessive depth/size;
+it does not implement general schema validation or resolve local schema references.
+Immutable proposals retain the exact baseline digest, evidence and before/after changes.
+Draft conversion binds the candidate digest and proposal ID as control-plane metadata to
+one policy version, atomically with its replay and audit. Normal replay/four-eyes/release
+controls remain. The Discovery page shows the immutable document diff next to the existing
+review UI for that exact version.
+
+This branch does not have runtime OpenAPI enforcement. Proposal downloads are minimal
+OpenAPI operation indexes labelled `x-strata-mode: documentation_only`; generating,
+reviewing or downloading them never enables blocking. Control-plane metadata is omitted
+from the compiler's signed policy representation. The request path, FFI, proto and bundle
+format remain unchanged. Real collection remains disabled pending actual legal approval.
