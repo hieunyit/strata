@@ -7,6 +7,166 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/releases:
+    get:
+      operationId: listReleases
+      parameters:
+      - name: after
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseList'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createRelease
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRelease'
+      responses:
+        '201':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseResult'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/releases/{id}:
+    get:
+      operationId: getRelease
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseDetail'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/releases/{id}:approve:
+    post:
+      operationId: approveRelease
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseAction'
+      responses:
+        '200':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseResult'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/releases/{id}:reject:
+    post:
+      operationId: rejectRelease
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseAction'
+      responses:
+        '200':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseResult'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/releases/{id}:deploy:
+    post:
+      operationId: deployRelease
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseAction'
+      responses:
+        '200':
+          description: Immutable release and workflow state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseResult'
+        default:
+          description: Invalid request (400), global/independent reviewer required (403),
+            not found (404), stale etag/baseline/state (409), replay/capability precondition
+            (412), or source unavailable (503).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/applications:
     get:
       operationId: listApplications
@@ -2390,6 +2550,180 @@ components:
       properties:
         binding:
           $ref: '#/components/schemas/ApplicationBinding'
+    ReleaseBundle:
+      type: object
+      required:
+      - contents
+      - input_digest
+      - rules_digest
+      properties:
+        contents:
+          type: object
+          additionalProperties:
+            type: integer
+        input_digest:
+          type: string
+        rules_digest:
+          type: string
+        required_capabilities:
+          type: array
+          items:
+            type: string
+    ReleaseSnapshot:
+      type: object
+      required:
+      - bundle
+      - baseline_bundle
+      - replay_ids
+      - replay_baseline_mismatch
+      - canary
+      - waves
+      - soak_seconds
+      properties:
+        bundle:
+          $ref: '#/components/schemas/ReleaseBundle'
+        baseline_bundle:
+          type: string
+        replay_ids:
+          type: object
+          additionalProperties:
+            type: string
+        replay_baseline_mismatch:
+          type: boolean
+        canary:
+          type: object
+          additionalProperties:
+            type: number
+        waves:
+          type: array
+          items:
+            type: number
+        soak_seconds:
+          type: integer
+    Release:
+      type: object
+      required:
+      - id
+      - etag
+      - state
+      - snapshot
+      - snapshot_hash
+      - source_release
+      - created_by
+      - created_subject
+      - approved_by
+      - created_at
+      - updated_at
+      - bundle_version
+      - rollout_id
+      properties:
+        id:
+          type: string
+        etag:
+          type: string
+        snapshot_hash:
+          type: string
+        source_release:
+          type: string
+        created_by:
+          type: string
+        created_subject:
+          type: string
+        approved_by:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        bundle_version:
+          type: string
+        state:
+          type: string
+          enum:
+          - DRAFT
+          - APPROVED
+          - REJECTED
+          - DEPLOYED
+        snapshot:
+          $ref: '#/components/schemas/ReleaseSnapshot'
+        rollout_id:
+          type: integer
+    ReleaseResult:
+      type: object
+      required:
+      - release
+      properties:
+        release:
+          $ref: '#/components/schemas/Release'
+    ReleaseList:
+      type: object
+      required:
+      - releases
+      - next_cursor
+      properties:
+        releases:
+          type: array
+          items:
+            $ref: '#/components/schemas/Release'
+        next_cursor:
+          type: string
+    ReleaseDetail:
+      type: object
+      required:
+      - release
+      - baseline_warning
+      - current_baseline
+      properties:
+        release:
+          $ref: '#/components/schemas/Release'
+        baseline_warning:
+          type: boolean
+        current_baseline:
+          type: string
+        rollout:
+          type: object
+          nullable: true
+          properties:
+            state:
+              type: string
+            reason:
+              type: string
+            nodes:
+              type: array
+              items:
+                type: object
+                properties:
+                  node_id:
+                    type: string
+                  state:
+                    type: string
+                  error:
+                    type: string
+    CreateRelease:
+      type: object
+      required:
+      - request_id
+      properties:
+        request_id:
+          type: string
+          maxLength: 128
+        source_release:
+          type: string
+    ReleaseAction:
+      type: object
+      required:
+      - etag
+      properties:
+        etag:
+          type: string
+        snapshot_hash:
+          type: string
+        replay_ids:
+          type: object
+          additionalProperties:
+            type: string
+        ack_baseline:
+          type: string
   securitySchemes:
     bearerAuth:
       type: http

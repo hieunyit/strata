@@ -5,6 +5,22 @@
 
 
 export interface paths {
+  "/v1/releases": {
+    get: operations["listReleases"];
+    post: operations["createRelease"];
+  };
+  "/v1/releases/{id}": {
+    get: operations["getRelease"];
+  };
+  "/v1/releases/{id}:approve": {
+    post: operations["approveRelease"];
+  };
+  "/v1/releases/{id}:reject": {
+    post: operations["rejectRelease"];
+  };
+  "/v1/releases/{id}:deploy": {
+    post: operations["deployRelease"];
+  };
   "/v1/applications": {
     get: operations["listApplications"];
     post: operations["createApplication"];
@@ -880,6 +896,76 @@ export interface components {
     ApplicationBindingResult: {
       binding: components["schemas"]["ApplicationBinding"];
     };
+    ReleaseBundle: {
+      contents: {
+        [key: string]: number;
+      };
+      input_digest: string;
+      rules_digest: string;
+      required_capabilities?: string[];
+    };
+    ReleaseSnapshot: {
+      bundle: components["schemas"]["ReleaseBundle"];
+      baseline_bundle: string;
+      replay_ids: {
+        [key: string]: string;
+      };
+      replay_baseline_mismatch: boolean;
+      canary: {
+        [key: string]: number;
+      };
+      waves: number[];
+      soak_seconds: number;
+    };
+    Release: {
+      id: string;
+      etag: string;
+      snapshot_hash: string;
+      source_release: string;
+      created_by: string;
+      created_subject: string;
+      approved_by: string;
+      created_at: string;
+      updated_at: string;
+      bundle_version: string;
+      /** @enum {string} */
+      state: "DRAFT" | "APPROVED" | "REJECTED" | "DEPLOYED";
+      snapshot: components["schemas"]["ReleaseSnapshot"];
+      rollout_id: number;
+    };
+    ReleaseResult: {
+      release: components["schemas"]["Release"];
+    };
+    ReleaseList: {
+      releases: components["schemas"]["Release"][];
+      next_cursor: string;
+    };
+    ReleaseDetail: {
+      release: components["schemas"]["Release"];
+      baseline_warning: boolean;
+      current_baseline: string;
+      rollout?: {
+        state?: string;
+        reason?: string;
+        nodes?: {
+            node_id?: string;
+            state?: string;
+            error?: string;
+          }[];
+      } | null;
+    };
+    CreateRelease: {
+      request_id: string;
+      source_release?: string;
+    };
+    ReleaseAction: {
+      etag: string;
+      snapshot_hash?: string;
+      replay_ids?: {
+        [key: string]: string;
+      };
+      ack_baseline?: string;
+    };
   };
   responses: {
     /** @description Invalid bounded command; creates require request_id. No mutation committed. */
@@ -932,6 +1018,147 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  listReleases: {
+    parameters: {
+      query?: {
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseList"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createRelease: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateRelease"];
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ReleaseResult"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getRelease: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseDetail"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  approveRelease: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReleaseAction"];
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseResult"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  rejectRelease: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReleaseAction"];
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseResult"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  deployRelease: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReleaseAction"];
+      };
+    };
+    responses: {
+      /** @description Immutable release and workflow state. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseResult"];
+        };
+      };
+      /** @description Invalid request (400), global/independent reviewer required (403), not found (404), stale etag/baseline/state (409), replay/capability precondition (412), or source unavailable (503). */
+      default: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   listApplications: {
     parameters: {
       query?: {
