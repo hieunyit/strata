@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient, ApiError, ServiceAccount, ServiceAccountToken, CreateTokenResponse, CreateServiceAccountTokenRequest } from '../../api/client';
 import { ErrorBanner, formatTime } from '../ui';
-const SCOPES = ['version:read', 'events:read', 'events:read_sensitive', 'policies:read', 'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write', 'audit:read', 'replay:configure', 'exceptions:write'] as const;
+const SCOPES = ['discovery:ingest', 'applications:read', 'version:read', 'events:read', 'events:read_sensitive', 'policies:read', 'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write', 'audit:read', 'replay:configure', 'exceptions:write'] as const;
 export const ServiceAccountTokens: React.FC<{
     sa: ServiceAccount;
     onClose: () => void;

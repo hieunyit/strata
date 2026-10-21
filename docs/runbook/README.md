@@ -332,3 +332,5 @@ agent. Không deploy, không enroll được.
 3. `StrataIngestStoreErrors`: ClickHouse. Agent tự gửi lại khi ClickHouse trở lại.
 4. `StrataDeployFailed`: lỗi compile, vượt cost budget (#36), ký (KMS) hoặc lưu (S3);
    chi tiết nằm trong câu trả lời của `:deploy` và trong log.
+
+Cài mới và vận hành Compact từ đầu: [cẩm nang triển khai](../operations/README.md).
