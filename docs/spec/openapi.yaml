@@ -3023,7 +3023,7 @@ components:
           minItems: 1
           maxItems: 32
           items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
-              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'discovery:ingest', 'applications:read', 'exceptions:write',
               'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
               'audit:read']}
         expires_at: {type: string, format: date-time}
@@ -3044,7 +3044,7 @@ components:
           minItems: 1
           maxItems: 32
           items: {type: string, enum: ['version:read', 'events:read', 'events:read_sensitive', 'policies:read',
-              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'exceptions:write',
+              'policies:write', 'policies:approve', 'policies:deploy', 'rules:disable', 'replay:configure', 'discovery:ingest', 'applications:read', 'exceptions:write',
               'nodes:read', 'nodes:write', 'rolebindings:read', 'rolebindings:write', 'serviceaccounts:read', 'serviceaccounts:write',
               'audit:read']}
         ttl_seconds:
@@ -4514,6 +4514,266 @@ components:
         enabled: {type: boolean}
         every_hours: {type: integer, enum: [24, 168]}
         etag: {type: string}
+      additionalProperties: false
+    DiscoveryOperation:
+      type: object
+      required:
+      - path
+      - method
+      - content_types
+      - max_body_bytes
+      properties:
+        path:
+          type: string
+          maxLength: 512
+        method:
+          type: string
+          enum:
+          - GET
+          - HEAD
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        content_types:
+          type: array
+          items:
+            type: string
+        max_body_bytes:
+          type: integer
+      additionalProperties: false
+    DiscoveryChange:
+      type: object
+      required:
+      - path
+      - method
+      - kind
+      - before
+      - after
+      properties:
+        path:
+          type: string
+        method:
+          type: string
+        kind:
+          type: string
+          enum:
+          - added
+          - modified
+        before:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOperation'
+          nullable: true
+        after:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOperation'
+          nullable: true
+      additionalProperties: false
+    DiscoveryEndpoint:
+      type: object
+      required:
+      - key
+      - route_id
+      - path
+      - method
+      - content_types
+      - samples
+      - independent_sources
+      - first_seen
+      - last_seen
+      - observed_max_body_bytes
+      - eligible
+      properties:
+        key:
+          type: string
+        route_id:
+          type: string
+        path:
+          type: string
+        method:
+          type: string
+        content_types:
+          type: array
+          items:
+            type: string
+        samples:
+          type: integer
+        independent_sources:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        observed_max_body_bytes:
+          type: integer
+        eligible:
+          type: boolean
+      additionalProperties: false
+    DiscoveryDocument:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - etag
+      - operations
+      - digest
+      - updated_at
+      - owner
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        etag:
+          type: string
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryOperation'
+        digest:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        owner:
+          type: string
+      additionalProperties: false
+    DiscoveryProposal:
+      type: object
+      required:
+      - policy_id
+      - policy_etag
+      - policy_version
+      - draftable
+      - id
+      - application_id
+      - environment_id
+      - route_id
+      - base_digest
+      - operations
+      - digest
+      - evidence
+      - changes
+      - etag
+      - owner
+      - created_at
+      - expires_at
+      - draft_policy_id
+      - draft_version
+      - review_state
+      properties:
+        policy_id: {type: string}
+        policy_etag: {type: string}
+        policy_version: {type: integer}
+        draftable: {type: boolean}
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        route_id:
+          type: string
+        base_digest:
+          type: string
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryOperation'
+        digest:
+          type: string
+        evidence:
+          $ref: '#/components/schemas/DiscoveryEndpoint'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryChange'
+        etag:
+          type: string
+        owner:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        draft_policy_id:
+          type: string
+        draft_version:
+          type: integer
+        review_state:
+          type: string
+      additionalProperties: false
+    DiscoveryLimits:
+      type: object
+      required:
+      - min_samples
+      - min_sources
+      - min_span_seconds
+      - retention_days
+      properties:
+        min_samples:
+          type: integer
+        min_sources:
+          type: integer
+        min_span_seconds:
+          type: integer
+        retention_days:
+          type: integer
+      additionalProperties: false
+    DiscoveryInventory:
+      type: object
+      required:
+      - endpoints
+      - document
+      - document_etag
+      - scope_changed
+      - proposals
+      - editable
+      - collection_enabled
+      - approval_expires_at
+      - runtime_enforcement
+      - source
+      - limits
+      properties:
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryEndpoint'
+        document:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryDocument'
+          nullable: true
+        document_etag:
+          type: string
+        scope_changed:
+          type: boolean
+        proposals:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryProposal'
+        editable:
+          type: boolean
+        collection_enabled:
+          type: boolean
+        approval_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        runtime_enforcement:
+          type: boolean
+          enum:
+          - false
+        source:
+          type: string
+          enum:
+          - trusted_backend_2xx_only
+        limits:
+          $ref: '#/components/schemas/DiscoveryLimits'
       additionalProperties: false
   securitySchemes:
     bearerAuth:

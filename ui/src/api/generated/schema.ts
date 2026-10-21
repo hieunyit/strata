@@ -705,7 +705,7 @@ export interface components {
       etag: string;
       service_account_id: string;
       token_prefix: string;
-      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "discovery:ingest" | "applications:read" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
       /** Format: date-time */
       expires_at: string;
       /** Format: date-time */
@@ -717,7 +717,7 @@ export interface components {
       revoked: boolean;
     };
     MachineTokenRequest: {
-      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "discovery:ingest" | "applications:read" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
       /**
        * Format: int64
        * @description Zero or omitted defaults to 30 days; negatives rejected before duration conversion.
@@ -1461,6 +1461,92 @@ export interface components {
       /** @enum {integer} */
       every_hours: 24 | 168;
       etag: string;
+    };
+    DiscoveryOperation: {
+      path: string;
+      /** @enum {string} */
+      method: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+      content_types: string[];
+      max_body_bytes: number;
+    };
+    DiscoveryChange: {
+      path: string;
+      method: string;
+      /** @enum {string} */
+      kind: "added" | "modified";
+      before: components["schemas"]["DiscoveryOperation"] | null;
+      after: components["schemas"]["DiscoveryOperation"] | null;
+    };
+    DiscoveryEndpoint: {
+      key: string;
+      route_id: string;
+      path: string;
+      method: string;
+      content_types: string[];
+      samples: number;
+      independent_sources: number;
+      /** Format: date-time */
+      first_seen: string;
+      /** Format: date-time */
+      last_seen: string;
+      observed_max_body_bytes: number;
+      eligible: boolean;
+    };
+    DiscoveryDocument: {
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      operations: components["schemas"]["DiscoveryOperation"][];
+      digest: string;
+      /** Format: date-time */
+      updated_at: string;
+      owner: string;
+    };
+    DiscoveryProposal: {
+      policy_id: string;
+      policy_etag: string;
+      policy_version: number;
+      draftable: boolean;
+      id: string;
+      application_id: string;
+      environment_id: string;
+      route_id: string;
+      base_digest: string;
+      operations: components["schemas"]["DiscoveryOperation"][];
+      digest: string;
+      evidence: components["schemas"]["DiscoveryEndpoint"];
+      changes: components["schemas"]["DiscoveryChange"][];
+      etag: string;
+      owner: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      draft_policy_id: string;
+      draft_version: number;
+      review_state: string;
+    };
+    DiscoveryLimits: {
+      min_samples: number;
+      min_sources: number;
+      min_span_seconds: number;
+      retention_days: number;
+    };
+    DiscoveryInventory: {
+      endpoints: components["schemas"]["DiscoveryEndpoint"][];
+      document: components["schemas"]["DiscoveryDocument"] | null;
+      document_etag: string;
+      scope_changed: boolean;
+      proposals: components["schemas"]["DiscoveryProposal"][];
+      editable: boolean;
+      collection_enabled: boolean;
+      /** Format: date-time */
+      approval_expires_at: string | null;
+      /** @enum {boolean} */
+      runtime_enforcement: false;
+      /** @enum {string} */
+      source: "trusted_backend_2xx_only";
+      limits: components["schemas"]["DiscoveryLimits"];
     };
   };
   responses: {
