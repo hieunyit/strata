@@ -1099,3 +1099,122 @@ acquires a lease. Private support archives allowlist numeric configuration and d
 fields, pseudonymize node IDs, omit raw logs/request data/credentials, and include checksums.
 Remote database disk space and offline live-process telemetry remain unknown. Details and
 exit codes are in `docs/runbook/doctor.md`.
+
+### Compact C03 · Privacy, local MFA and audit copies
+
+Go sinks share bounded P-01 field/pattern filters. Ingest resolves the policy revision
+from the event's immutable bundle contents, rather than the latest draft. Lite reads the
+signed PRIVACY section and masks full payloads if metadata/history is unavailable; engine
+layout validation remains unchanged. Replay preserves duplicate JSON keys, exact numbers,
+ordinary encoding and source pseudonyms; retained-output size is included in buffer quotas.
+Support archives remain a stricter allowlist. Read-time event masking also protects old rows.
+
+Migrations 0035/0036 add encrypted local TOTP enrollment, one-use timestep/recovery state,
+MFA-verified opaque sessions and a bounded durable external-copy queue. An independent
+private MFA key lives in the encrypted-backup data directory, not in the rotating signer.
+Enrollment is password-confirmed/session-bound; enabling it revokes other sessions, and
+authentication rechecks MFA state. Only the host recovery command can reset lost MFA
+without an OTP/recovery code. New local self-service routes reject OIDC/machine identities.
+
+An optional HTTPS receiver gets HMAC-signed allowlisted audit metadata and keyed pseudonyms,
+never raw subjects, before/after documents or request data. An audit trigger queues a copy
+in the original transaction. DNS answers are checked at connection and dialed literally;
+private networks need an explicit allowlist, redirects/proxies are disabled, TLS verified.
+The 10,000-record queue and five-attempt retry budget preserve local audit on saturation.
+Details, signatures and recovery procedures: `docs/runbook/account-security.md`.
+
+### Compact C01 · Event investigation
+
+`/v1/saved-searches` stores private/shared filters per application/environment;
+opaque share IDs always require current access. `/{id}:search` executes under the
+saved application scope. Sensitive IP/path filters require sensitive event access.
+`/v1/events/{block_id}:case` stores independent case metadata in PostgreSQL with
+etag, request ID, scoped assignment and 30-day retention; case-only rows never
+imply false-positive classification. `:similar` returns bounded exact route/rule
+matches within 24 hours. `:propose-rule` uses stored verified GeoIP to create only
+a policy draft and replay; existing review/publication gates remain authoritative.
+Geo rule ID reservations are checked by every policy-version write.
+
+`/v1/evidence` queues private export operations, separate from replay operations.
+Creation/execution/publication/download revalidate access and preserve the original
+scope ceiling. Limits: 31-day query window, 10,000 rows, 16 MiB CSV, five-minute
+worker deadline, three crash attempts, 24-hour artifact expiry. Artifacts are
+content-addressed under `evidence/{id}/`, never public/presigned. CSV quoting and
+formula guards apply server-side and in the browser. Viewer exports mask client
+IP/identity/snippets. Expired notes/filter receipts/artifacts are physically purged.
+
+
+### Compact C02 · configured rule catalog and exception lifecycle
+
+Catalog snapshots store full canonical rule digests, provenance, CVE/attack metadata and
+owner/review dates. A configured catalog and policy bindings are not proof that a given
+pack revision is active on a proxy. Node counts refer to the policy revision. Rule cost
+is measured telemetry scoped by route/policy/node, and remains unknown without samples;
+legacy FP context without enough scope fails closed.
+
+Exception inventory includes current, latest approved and node-active older revisions.
+Runtime checks the expiry for each new transaction without reload. The maintenance worker
+queues bounded durable expiry work and creates only an ordinary draft/replay when the
+approved revision is still current; human drafts are preserved. Every cleanup requires the
+normal approval/release workflow to publish. New root-path exceptions are rejected by a
+DB trigger across all writers; existing identical legacy entries may carry forward.
+Unknown exception-hit telemetry never becomes a claim of zero use. Maintenance reconciles
+superseded work and retains terminal receipts for thirty days.
+
+
+### Compact C04 · operational incidents and application reports
+
+The operations worker groups fixed operational causes, including node heartbeat,
+certificate, spool capacity, fresh counter growth, ingest health, failed operations,
+backup outcome and exception expiry. Unknown/stale observations never resolve an
+incident. Cumulative fail-open/drop counters require a fresh baseline and growth;
+first observation, reset and stale gaps remain unknown. Notification cooldown is one
+hour; acknowledgment suppresses reminders until a known recovery and recurrence.
+The existing bounded HMAC/HTTPS outbox delivers opaque IDs, fixed causes/states and
+counts. No URI, IP address, node name, sample or arbitrary error text is sent.
+No configured receiver means no outgoing alert/report traffic.
+
+Schedules are explicit per application/environment, daily or weekly UTC, with fenced
+two-minute leases, bounded quotas, immutable thirty-day aggregate reports and system
+audit. A changed application etag pauses the schedule and hides old-scope reports until
+an operator confirms the new scope. Reads, updates and downloads revalidate complete
+current environment authority. Reports count security events rather than all requests;
+health describes generation time and source failures remain unknown/unavailable.
+Backup CLI records only success/failure after archive close, without paths or secrets.
+
+
+### Compact C05 · dedicated API discovery preview
+
+Discovery accepts a separate trusted backend-observation contract, never security events
+as representative traffic. It defaults off and requires an actual legal approval reference
+and unexpired approval (at most 366 days), a private independent HMAC key and an explicit
+allowlist of `sa:` machine collectors with the `discovery:ingest` scope. Ordinary sessions
+cannot ingest. Each sample must identify an owned route, carry a stable observation UUID,
+a trusted collector attestation of a backend response and status 2xx. HTTP ingestion and every read/write/download
+revalidate current application/environment authority. No collector is installed on NGINX;
+a trusted backend/access-log adapter must provide this contract after legal approval.
+
+Before persistence, queries are discarded, unknown path segments and resource identifiers
+become parameters, source addresses become keyed per-scope/day pseudonyms, and observations
+are deduplicated by a keyed observation UUID. Raw paths, bodies, query values and source
+addresses are never retained. This conservative vocabulary can merge distinct endpoints.
+A proposal needs twenty observations, three distinct address sources in one UTC day and
+at least ten minutes between observations. Address diversity does not prove independent
+people, so proposed changes always require human review. Observations/batch receipts expire
+after seven days; proposals after thirty days. Lists, cardinality, payloads and quotas are
+bounded. Retention runs even when collection is disabled.
+
+The bounded OpenAPI 3.0/3.1 parser indexes paths, methods, media types and observed body
+bounds. It rejects aliases, duplicate keys, external references and excessive depth/size;
+it does not implement general schema validation or resolve local schema references.
+Immutable proposals retain the exact baseline digest, evidence and before/after changes.
+Draft conversion binds the candidate digest and proposal ID as control-plane metadata to
+one policy version, atomically with its replay and audit. Normal replay/four-eyes/release
+controls remain. The Discovery page shows the immutable document diff next to the existing
+review UI for that exact version.
+
+This branch does not have runtime OpenAPI enforcement. Proposal downloads are minimal
+OpenAPI operation indexes labelled `x-strata-mode: documentation_only`; generating,
+reviewing or downloading them never enables blocking. Control-plane metadata is omitted
+from the compiler's signed policy representation. The request path, FFI, proto and bundle
+format remain unchanged. Real collection remains disabled pending actual legal approval.

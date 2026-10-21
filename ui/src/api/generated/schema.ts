@@ -5,6 +5,100 @@
 
 
 export interface paths {
+  "/v1/rule-catalog": {
+    get: operations["searchRuleCatalog"];
+  };
+  "/v1/rule-catalog/{id}": {
+    get: operations["getRuleCatalogDetail"];
+  };
+  "/v1/rule-catalogs": {
+    get: operations["listRuleCatalogs"];
+  };
+  "/v1/rule-catalogs:diff": {
+    get: operations["diffRuleCatalogs"];
+  };
+  "/v1/exceptions": {
+    get: operations["listExceptionInventory"];
+  };
+  "/v1/exceptions:cleanupExpired": {
+    /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+    post: operations["cleanupExpiredExceptions"];
+  };
+  "/v1/exceptions:revoke": {
+    /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+    post: operations["revokePolicyException"];
+  };
+  "/v1/saved-searches": {
+    get: operations["listSavedSearches"];
+    post: operations["createSavedSearch"];
+  };
+  "/v1/saved-searches/{id}": {
+    get: operations["getSavedSearch"];
+    put: operations["updateSavedSearch"];
+  };
+  "/v1/saved-searches/{id}:search": {
+    post: operations["searchSavedEvents"];
+  };
+  "/v1/events/{block_id}:case": {
+    get: operations["getEventCase"];
+    post: operations["saveEventCase"];
+  };
+  "/v1/events/{block_id}:similar": {
+    get: operations["similarEvents"];
+  };
+  "/v1/events/{block_id}:propose-rule": {
+    post: operations["proposeEventRule"];
+  };
+  "/v1/evidence": {
+    get: operations["listEvidence"];
+    post: operations["createEvidence"];
+  };
+  "/v1/evidence/{id}": {
+    get: operations["getEvidence"];
+  };
+  "/v1/evidence/{id}/download": {
+    get: operations["downloadEvidence"];
+  };
+  "/v1/auth/mfa": {
+    /** Read own local MFA status */
+    get: operations["getLocalMFA"];
+  };
+  "/v1/auth/sessions": {
+    /** List at most 100 own live local sessions */
+    get: operations["listOwnSessions"];
+  };
+  "/v1/auth/mfa:begin": {
+    /**
+     * Local MFA begin with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["beginLocalMFA"];
+  };
+  "/v1/auth/mfa:confirm": {
+    /**
+     * Local MFA confirm with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["confirmLocalMFA"];
+  };
+  "/v1/auth/mfa:disable": {
+    /**
+     * Local MFA disable with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["disableLocalMFA"];
+  };
+  "/v1/auth/mfa:recovery": {
+    /**
+     * Local MFA recovery with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["rotateLocalMFARecovery"];
+  };
+  "/v1/auth/sessions/{id}:revoke": {
+    /** Idempotently revoke an own local session */
+    post: operations["revokeOwnSession"];
+  };
   "/v1/health": {
     /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
     get: operations["getSystemHealth"];
@@ -212,12 +306,305 @@ export interface paths {
     /** Revoke token with etag and immutable retry command */
     delete: operations["revokeServiceAccountToken"];
   };
+  "/v1/incidents": {
+    get: operations["listOperationalIncidents"];
+  };
+  "/v1/incidents:acknowledge": {
+    post: operations["acknowledgeOperationalIncident"];
+  };
+  "/v1/report-schedule": {
+    get: operations["getApplicationReportSchedule"];
+    put: operations["saveApplicationReportSchedule"];
+  };
+  "/v1/application-reports": {
+    get: operations["listApplicationReports"];
+  };
+  "/v1/application-reports/{id}": {
+    get: operations["downloadApplicationReport"];
+  };
+  "/v1/discovery": {
+    get: operations["getApiDiscovery"];
+  };
+  "/v1/discovery/observations": {
+    post: operations["ingestApiObservations"];
+  };
+  "/v1/discovery/document": {
+    put: operations["saveDiscoveryDocument"];
+  };
+  "/v1/discovery/proposals": {
+    post: operations["createDiscoveryProposal"];
+  };
+  "/v1/discovery/proposals:draft": {
+    post: operations["draftDiscoveryProposal"];
+  };
+  "/v1/discovery/proposals/{id}": {
+    get: operations["downloadDiscoveryDocument"];
+  };
 }
 
 export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    RuleMetadata: {
+      name: string;
+      layer?: string;
+      severity?: string;
+      source?: string;
+      author?: string;
+      license?: string;
+      version?: string;
+      upstream_id?: string;
+      attack_type?: string;
+      cves?: string[];
+      owner?: string;
+      review_by?: string;
+      /** @enum {string} */
+      pack: "core" | "signature";
+      digest: string;
+      paranoia_level?: number;
+      plugin?: string;
+    };
+    RuleCatalogEntry: components["schemas"]["RuleMetadata"] & {
+      id: number;
+    };
+    RuleCatalogPage: {
+      rules: components["schemas"]["RuleCatalogEntry"][];
+      next_cursor: number;
+      digest: string;
+      /** Format: date-time */
+      at: string;
+      stale: boolean;
+      /** @enum {string} */
+      source: "configured_catalog";
+      total: number;
+    };
+    RuleCatalogSnapshot: {
+      digest: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_seen_at: string;
+      current: boolean;
+      rules: number;
+    };
+    RuleCatalogHistory: {
+      catalogs: components["schemas"]["RuleCatalogSnapshot"][];
+    };
+    RuleCatalogChange: {
+      id: number;
+      /** @enum {string} */
+      kind: "added" | "removed" | "modified";
+      before?: components["schemas"]["RuleMetadata"];
+      after?: components["schemas"]["RuleMetadata"];
+    };
+    RuleCatalogDiff: {
+      added: number;
+      removed: number;
+      modified: number;
+      changes: components["schemas"]["RuleCatalogChange"][];
+      next_cursor: number;
+    };
+    RuleApplicationUsage: {
+      application_id: string;
+      environment_id: string;
+      policy_id: string;
+      policy_name: string;
+      policy_mode: string;
+      policy_version: number;
+      state: string;
+      disabled: boolean;
+      active_policy_nodes: number;
+      /** @enum {string} */
+      source: "configured_catalog_and_policy_bindings";
+    };
+    RuleCatalogDetail: {
+      rule: components["schemas"]["RuleCatalogEntry"];
+      usage: components["schemas"]["RuleApplicationUsage"][];
+      health: components["schemas"]["RuleHealth"] | null;
+      /** @enum {string} */
+      health_status: "available" | "unavailable";
+    };
+    ExceptionOrigin: {
+      owner: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    ExceptionInventoryItem: {
+      policy_id: string;
+      policy_name: string;
+      policy_version: number;
+      etag: string;
+      exception: components["schemas"]["PolicyException"];
+      origin: components["schemas"]["ExceptionOrigin"];
+      state: string;
+      decided_by: string;
+      approved_replay_id: string;
+      warnings: string[];
+      /** @enum {string} */
+      match_source: "not_collected";
+      /** @enum {string} */
+      unused_status: "unknown";
+      editable: boolean;
+      active_nodes: number;
+    };
+    ExceptionMaintenance: {
+      policy_id: string;
+      source_version: number;
+      source_etag: string;
+      expired_ids: string[];
+      /** @enum {string} */
+      state: "pending" | "drafted" | "superseded";
+      etag: string;
+      draft_version: number;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    ExceptionInventoryPage: {
+      exceptions: components["schemas"]["ExceptionInventoryItem"][];
+      next_cursor: string;
+      maintenance: components["schemas"]["ExceptionMaintenance"][];
+      /** Format: date-time */
+      at: string;
+    };
+    ExceptionLifecycleRequest: {
+      application_id: string;
+      environment_id: string;
+      policy_id: string;
+      exception_id?: string;
+      etag: string;
+      request_id: string;
+    };
+    SavedSearch: {
+      editable?: boolean;
+      id: string;
+      application_id: string;
+      environment_id: string;
+      owner: string;
+      title: string;
+      shared: boolean;
+      sensitive: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    SavedSearchInput: {
+      id?: string;
+      application_id: string;
+      environment_id: string;
+      title: string;
+      shared?: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      etag?: string;
+    };
+    SaveSearchRequest: {
+      search: components["schemas"]["SavedSearchInput"];
+      request_id: string;
+    };
+    SavedSearchReply: {
+      search: components["schemas"]["SavedSearch"];
+    };
+    SavedSearchList: {
+      searches: components["schemas"]["SavedSearch"][];
+      next_cursor: string;
+    };
+    EventCase: {
+      block_id: string;
+      assignee: string;
+      /** @enum {string} */
+      status: "open" | "investigating" | "resolved";
+      note: string;
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    EventCaseRequest: {
+      case: components["schemas"]["EventCase"];
+      request_id: string;
+    };
+    EventCaseReply: {
+      case: components["schemas"]["EventCase"];
+    };
+    EventRuleRequest: {
+      /** @enum {string} */
+      dimension: "country" | "asn";
+      /** @enum {string} */
+      action: "log" | "block";
+      etag: string;
+      request_id: string;
+    };
+    EventRuleDraft: {
+      policy_id: string;
+      policy_version: number;
+      etag: string;
+      /** @enum {string} */
+      state: "DRAFT";
+      replay_url: string;
+    };
+    EvidenceExport: {
+      id: string;
+      owner: string;
+      application_id: string;
+      environment_id: string;
+      sensitive: boolean;
+      /** @enum {string} */
+      state: "pending" | "running" | "done" | "failed";
+      etag: string;
+      row_count: number;
+      truncated: boolean;
+      sha256: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    EvidenceRequest: {
+      application_id: string;
+      environment_id: string;
+      sensitive?: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      request_id: string;
+    };
+    EvidenceReply: {
+      export: components["schemas"]["EvidenceExport"];
+    };
+    MFACommand: {
+      password?: string;
+      code?: string;
+      recovery?: boolean;
+      etag?: string;
+      request_id?: string;
+    };
+    MFAStatus: {
+      available: boolean;
+      enabled: boolean;
+      etag: string;
+      recovery_remaining: number;
+    };
+    MFAEnrollment: {
+      secret: string;
+      uri: string;
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    MFARecovery: {
+      recovery_codes: string[] | null;
+    };
+    OwnSession: {
+      /** Format: uuid */
+      id: string;
+      etag: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      current: boolean;
+      mfa_verified: boolean;
+    };
     /** @enum {string} */
     AttackType: "none" | "sqli" | "xss" | "rce" | "lfi" | "rfi" | "injection_other" | "scanner" | "virtual_patch" | "signature" | "bot" | "protocol" | "custom" | "other";
     GeoCount: {
@@ -336,7 +723,7 @@ export interface components {
       etag: string;
       service_account_id: string;
       token_prefix: string;
-      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "discovery:ingest" | "applications:read" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
       /** Format: date-time */
       expires_at: string;
       /** Format: date-time */
@@ -348,7 +735,7 @@ export interface components {
       revoked: boolean;
     };
     MachineTokenRequest: {
-      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
+      scopes: ("version:read" | "events:read" | "events:read_sensitive" | "policies:read" | "policies:write" | "policies:approve" | "policies:deploy" | "rules:disable" | "replay:configure" | "discovery:ingest" | "applications:read" | "exceptions:write" | "nodes:read" | "nodes:write" | "rolebindings:read" | "rolebindings:write" | "serviceaccounts:read" | "serviceaccounts:write" | "audit:read")[];
       /**
        * Format: int64
        * @description Zero or omitted defaults to 30 days; negatives rejected before duration conversion.
@@ -592,6 +979,8 @@ export interface components {
       license?: string;
     };
     SearchEventsRequest: {
+      http_host?: string;
+      http_path?: string;
       /** Format: date-time */
       from?: string;
       /** Format: date-time */
@@ -784,6 +1173,8 @@ export interface components {
       oidc: boolean;
     };
     LoginRequest: {
+      code?: string;
+      recovery?: boolean;
       username: string;
       password: string;
     };
@@ -997,6 +1388,230 @@ export interface components {
       nodes: components["schemas"]["HealthNode"][];
       truncated: boolean;
     };
+    OperationalSignal: {
+      kind: string;
+      /** @enum {string} */
+      state: "healthy" | "degraded" | "unavailable" | "stale" | "unknown";
+      affected: number;
+    };
+    OperationalSummary: {
+      /** @enum {string} */
+      source: "operational_health_and_security_events";
+      /** Format: date-time */
+      observed_at: string;
+      signals: components["schemas"]["OperationalSignal"][];
+      security_events: number | null;
+      blocked_security_events: number | null;
+      /** @enum {string} */
+      event_status: "available" | "unavailable";
+      truncated: boolean;
+    };
+    OperationalIncident: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      kind: string;
+      /** @enum {string} */
+      state: "open" | "acknowledged" | "resolved";
+      /** @enum {string} */
+      signal_state: "healthy" | "degraded" | "unavailable" | "stale" | "unknown";
+      affected: number;
+      etag: string;
+      /** Format: date-time */
+      opened_at: string;
+      /** Format: date-time */
+      observed_at: string;
+      /** Format: date-time */
+      notified_at: string | null;
+      ack_subject: string;
+    };
+    OperationalIncidentPage: {
+      editable: boolean;
+      incidents: components["schemas"]["OperationalIncident"][];
+      limit: number;
+    };
+    IncidentAcknowledgeRequest: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      request_id: string;
+    };
+    ApplicationReportSchedule: {
+      application_id: string;
+      environment_id: string;
+      enabled: boolean;
+      /** @enum {integer} */
+      every_hours: 24 | 168;
+      etag: string;
+      owner: string;
+      /** Format: date-time */
+      next_run: string;
+    };
+    ReportScheduleRequest: {
+      schedule: components["schemas"]["ApplicationReportScheduleInput"];
+      request_id: string;
+    };
+    ReportScheduleReply: {
+      editable: boolean;
+      schedule: components["schemas"]["ApplicationReportSchedule"] | null;
+      scope_changed: boolean;
+    };
+    ApplicationReport: {
+      id: string;
+      application_id: string;
+      environment_id: string;
+      /** Format: date-time */
+      period_start: string;
+      /** Format: date-time */
+      period_end: string;
+      body: components["schemas"]["OperationalSummary"];
+      /** Format: date-time */
+      expires_at: string;
+    };
+    ApplicationReportPage: {
+      reports: components["schemas"]["ApplicationReport"][];
+    };
+    ApplicationReportScheduleInput: {
+      application_id: string;
+      environment_id: string;
+      enabled: boolean;
+      /** @enum {integer} */
+      every_hours: 24 | 168;
+      etag: string;
+    };
+    DiscoveryOperation: {
+      path: string;
+      /** @enum {string} */
+      method: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+      content_types: string[];
+      max_body_bytes: number;
+    };
+    DiscoveryChange: {
+      path: string;
+      method: string;
+      /** @enum {string} */
+      kind: "added" | "modified";
+      before: components["schemas"]["DiscoveryOperation"] | null;
+      after: components["schemas"]["DiscoveryOperation"] | null;
+    };
+    DiscoveryEndpoint: {
+      key: string;
+      route_id: string;
+      path: string;
+      method: string;
+      content_types: string[];
+      samples: number;
+      independent_sources: number;
+      /** Format: date-time */
+      first_seen: string;
+      /** Format: date-time */
+      last_seen: string;
+      observed_max_body_bytes: number;
+      eligible: boolean;
+    };
+    DiscoveryDocument: {
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      operations: components["schemas"]["DiscoveryOperation"][];
+      digest: string;
+      /** Format: date-time */
+      updated_at: string;
+      owner: string;
+    };
+    DiscoveryProposal: {
+      policy_id: string;
+      policy_etag: string;
+      policy_version: number;
+      draftable: boolean;
+      id: string;
+      application_id: string;
+      environment_id: string;
+      route_id: string;
+      base_digest: string;
+      operations: components["schemas"]["DiscoveryOperation"][];
+      digest: string;
+      evidence: components["schemas"]["DiscoveryEndpoint"];
+      changes: components["schemas"]["DiscoveryChange"][];
+      etag: string;
+      owner: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      draft_policy_id: string;
+      draft_version: number;
+      review_state: string;
+    };
+    DiscoveryLimits: {
+      min_samples: number;
+      min_sources: number;
+      min_span_seconds: number;
+      retention_days: number;
+    };
+    DiscoveryInventory: {
+      endpoints: components["schemas"]["DiscoveryEndpoint"][];
+      document: components["schemas"]["DiscoveryDocument"] | null;
+      document_etag: string;
+      scope_changed: boolean;
+      proposals: components["schemas"]["DiscoveryProposal"][];
+      editable: boolean;
+      collection_enabled: boolean;
+      /** Format: date-time */
+      approval_expires_at: string | null;
+      /** @enum {boolean} */
+      runtime_enforcement: false;
+      /** @enum {string} */
+      source: "trusted_backend_2xx_only";
+      limits: components["schemas"]["DiscoveryLimits"];
+    };
+    DiscoveryObservation: {
+      /** Format: uuid */
+      id: string;
+      route_id: string;
+      method: string;
+      path: string;
+      content_type: string;
+      body_bytes: number;
+      backend_status: number;
+      /** @enum {boolean} */
+      backend_response: true;
+      source_ip: string;
+      /** Format: date-time */
+      at: string;
+    };
+    DiscoveryBatchRequest: {
+      application_id: string;
+      environment_id: string;
+      request_id: string;
+      observations: components["schemas"]["DiscoveryObservation"][];
+    };
+    DiscoveryBatchReply: {
+      accepted: boolean;
+    };
+    DiscoveryDocumentRequest: {
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      document: string;
+      request_id: string;
+    };
+    DiscoveryProposalRequest: {
+      application_id: string;
+      environment_id: string;
+      endpoint_key: string;
+      base_digest: string;
+      request_id: string;
+    };
+    DiscoveryDraftRequest: {
+      application_id: string;
+      environment_id: string;
+      id: string;
+      etag: string;
+      policy_etag: string;
+      request_id: string;
+    };
   };
   responses: {
     /** @description Invalid bounded command; creates require request_id. No mutation committed. */
@@ -1049,6 +1664,618 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  searchRuleCatalog: {
+    parameters: {
+      query?: {
+        source?: string;
+        cve?: string;
+        attack_type?: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogPage"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getRuleCatalogDetail: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogDetail"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listRuleCatalogs: {
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogHistory"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  diffRuleCatalogs: {
+    parameters: {
+      query: {
+        from: string;
+        to: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogDiff"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listExceptionInventory: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ExceptionInventoryPage"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+  cleanupExpiredExceptions: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExceptionLifecycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft created idempotently */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Stale policy etag or request reused */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+  revokePolicyException: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExceptionLifecycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft created idempotently */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Stale policy etag or request reused */
+      409: {
+        content: never;
+      };
+    };
+  };
+  listSavedSearches: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchList"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  createSavedSearch: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveSearchRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getSavedSearch: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  updateSavedSearch: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveSearchRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  searchSavedEvents: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          page_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SearchEventsResponse"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getEventCase: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventCaseReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  saveEventCase: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventCaseRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventCaseReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  similarEvents: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SearchEventsResponse"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  proposeEventRule: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventRuleRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  listEvidence: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description At most 20 own exports, revalidated against current scope. */
+      200: {
+        content: {
+          "application/json": {
+            exports: components["schemas"]["EvidenceExport"][];
+          };
+        };
+      };
+    };
+  };
+  createEvidence: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EvidenceRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      202: {
+        content: {
+          "application/json": components["schemas"]["EvidenceReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getEvidence: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EvidenceReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  downloadEvidence: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Private CSV, up to 10000 rows / 16 MiB, expires after 24 hours; owner and complete original scope revalidated. */
+      200: {
+        content: {
+          "text/csv": string;
+        };
+      };
+      /** @description Expired or inaccessible export */
+      404: {
+        content: never;
+      };
+      /** @description Export incomplete */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** Read own local MFA status */
+  getLocalMFA: {
+    responses: {
+      /** @description Local session only; never returns seed or recovery hashes. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFAStatus"];
+        };
+      };
+    };
+  };
+  /** List at most 100 own live local sessions */
+  listOwnSessions: {
+    responses: {
+      /** @description Opaque IDs; no tokens, token hashes, IPs or user agents. */
+      200: {
+        content: {
+          "application/json": {
+            sessions: components["schemas"]["OwnSession"][];
+          };
+        };
+      };
+    };
+  };
+  /**
+   * Local MFA begin with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  beginLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFAEnrollment"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA confirm with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  confirmLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA disable with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  disableLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA recovery with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  rotateLocalMFARecovery: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** Idempotently revoke an own local session */
+  revokeOwnSession: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Session ended, or no matching own session; etag must equal its opaque ID. */
+      204: {
+        content: never;
+      };
+    };
+  };
   /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
   getSystemHealth: {
     responses: {
@@ -2494,6 +3721,440 @@ export interface operations {
       409: components["responses"]["MachineConflict"];
       500: components["responses"]["MachineFailure"];
       503: components["responses"]["MachineUnavailable"];
+    };
+  };
+  listOperationalIncidents: {
+    parameters: {
+      query?: {
+        application_id?: string;
+        environment_id?: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OperationalIncidentPage"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  acknowledgeOperationalIncident: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IncidentAcknowledgeRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OperationalIncident"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getApplicationReportSchedule: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReportScheduleReply"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  saveApplicationReportSchedule: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReportScheduleRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReportScheduleReply"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listApplicationReports: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationReportPage"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  downloadApplicationReport: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Scoped operational result; permission and current application binding are revalidated. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ApplicationReport"];
+        };
+      };
+      /** @description Invalid input */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient complete environment authority */
+      403: {
+        content: never;
+      };
+      /** @description Absent or changed scope */
+      404: {
+        content: never;
+      };
+      /** @description Etag/request conflict */
+      409: {
+        content: never;
+      };
+      /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getApiDiscovery: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryInventory"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  ingestApiObservations: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      202: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryBatchReply"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  saveDiscoveryDocument: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryDocumentRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryDocument"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  createDiscoveryProposal: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryProposalRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryProposal"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  draftDiscoveryProposal: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryDraftRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  downloadDiscoveryDocument: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
     };
   };
 }

@@ -1,0 +1,25 @@
+import {test,expect} from '@playwright/test';
+test('local MFA enrollment clears its seed after confirmation and supports session revocation',async({page})=>{
+ await page.addInitScript(()=>sessionStorage.setItem('strata.localSession',JSON.stringify({token:'stl_example_session',expires_at:new Date(Date.now()+3600000).toISOString(),username:'example-admin',roles:['admin']})));
+ await page.route('**/v1/auth/methods',r=>r.fulfill({json:{local:true,oidc:false}}));
+ await page.route('**/v1/auth/me',r=>r.fulfill({json:{username:'example-admin',roles:['admin'],local:true,scoped:false,sensitive:true}}));
+ await page.route('**/v1/version',r=>r.fulfill({json:{version:'test',commit:'',api_version:'v1'}}));
+ let enabled=false,revoked=false;
+ await page.route('**/v1/auth/mfa',r=>r.fulfill({json:{available:true,enabled,etag:enabled?'enabled':'pending',recovery_remaining:enabled?8:0}}));
+ await page.route('**/v1/auth/sessions',r=>r.fulfill({json:{sessions:revoked?[]:[{id:'example-session',etag:'example-session',current:false,mfa_verified:false,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+3600000).toISOString()}]}}));
+ await page.route('**/v1/auth/mfa:begin',r=>r.fulfill({json:{secret:'EXAMPLE-PRIVATE-SEED',uri:'otpauth://totp/example',etag:'pending',expires_at:new Date(Date.now()+600000).toISOString()}}));
+ await page.route('**/v1/auth/mfa:confirm',r=>{enabled=true;return r.fulfill({json:{recovery_codes:['EXAMPLE-RECOVERY-CODE']}});});
+ await page.route('**/v1/auth/sessions/*:revoke',r=>{revoked=true;return r.fulfill({status:204});});
+ await page.goto('/#/security');
+ await page.getByLabel('Current password').fill('example-password');
+ await page.getByRole('button',{name:'Set up authenticator'}).click();
+ await expect(page.getByTestId('mfa-enrollment')).toContainText('EXAMPLE-PRIVATE-SEED');
+ await page.getByLabel('Authenticator code').fill('123456');
+ await page.getByRole('button',{name:'Confirm and enable'}).click();
+ await expect(page.getByTestId('recovery-codes')).toContainText('EXAMPLE-RECOVERY-CODE');
+ await expect(page.getByTestId('mfa-enrollment')).toHaveCount(0);
+ await page.getByRole('button',{name:/I saved the codes/}).click();
+ await expect(page.getByTestId('recovery-codes')).toHaveCount(0);
+ await page.getByRole('button',{name:'Sign out session'}).click();
+ await expect(page.getByRole('button',{name:'Sign out session'})).toHaveCount(0);
+});
