@@ -10,6 +10,7 @@ dưới đây.
   cảnh báo trong Grafana, và chuỗi `ALERTS{alertstate="firing"}` trong VictoriaMetrics.
 - Cài node: `docs/runbook/install.md`.
 - Sức khỏe Compact, doctor và gói hỗ trợ: [doctor](doctor.md).
+- MFA, phiên đăng nhập, privacy và audit webhook: [bảo mật tài khoản](account-security.md).
 - Các thao tác can thiệp (tắt module, ép shadow, rollback bundle) có lệnh và kết quả
   mong đợi ở các mục cùng tên. `tests/e2e/runbook-drill.sh [lab|staging]` chạy đúng các
   lệnh đó và đo thời gian; biên bản diễn tập nằm trong `docs/reports/w10-n-01.md`.
@@ -331,3 +332,5 @@ agent. Không deploy, không enroll được.
 3. `StrataIngestStoreErrors`: ClickHouse. Agent tự gửi lại khi ClickHouse trở lại.
 4. `StrataDeployFailed`: lỗi compile, vượt cost budget (#36), ký (KMS) hoặc lưu (S3);
    chi tiết nằm trong câu trả lời của `:deploy` và trong log.
+
+Cài mới và vận hành Compact từ đầu: [cẩm nang triển khai](../operations/README.md).

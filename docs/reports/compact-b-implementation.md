@@ -5,8 +5,9 @@ Local authentication remains the default; Keycloak/OIDC is an optional integrati
 
 PR [#295](https://github.com/hieunyit/strata/pull/295) was merged as explicitly requested:
 `7cdb41fb67d99889b0edd1f3adbc2426063efd79`. It closes the A review corrections, including
-lease takeover and render-before-reset transactional restore. The PRs below are open for
-review; they have not been merged or deployed to staging/production.
+lease takeover and render-before-reset transactional restore. The PRs below were subsequently merged by the PO request, ending at
+`ccf04bf7eaefb26ca969cd12ac33d917448e13bf` (PR #320). Its tree matches the tested B tip.
+No staging/production deployment was performed.
 
 ## Review and merge order
 
