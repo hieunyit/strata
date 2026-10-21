@@ -29,3 +29,8 @@ Negative tests retain rejection of an invalid existing manifest, last-global-bin
 and concurrent stale authorization. API regression checks the 403 reason and that the failed
 assignment leaves the administrator global. The final B05 report records the integrated
 full race/lint/UI/e2e gates. No signing, TLS or authentication check was relaxed.
+
+The correction was also checked independently of the B05 changes in a detached worktree:
+agent startup regression with `-race` PASS (1.159s), scoped store/API regressions with real
+PostgreSQL PASS (2.738s / 2.897s), and both module linters report `0 issues.`
+Integrated store/API full race suites after correction: 33.651s / 23.068s, PASS.
