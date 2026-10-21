@@ -41,6 +41,7 @@ The final documentation branch contains the complete implementation for integrat
 | 22 | [#317](https://github.com/hieunyit/strata/pull/317) | B05 API and read-only doctor |
 | 23 | [#318](https://github.com/hieunyit/strata/pull/318) | B05 OpenAPI/client |
 | 24 | [#319](https://github.com/hieunyit/strata/pull/319) | B05 Health UI |
+| 25 | [#320](https://github.com/hieunyit/strata/pull/320) | B05 runbook, acceptance and complete review index |
 
 The last `codex/cp-b05-docs` PR adds this index, the operator runbook and acceptance report.
 Schema migrations are sequential: 0030 inventory, 0031 requirements, 0032 application scope,
