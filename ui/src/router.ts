@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 //   #/events?range=24h&action=block&rule_id=942100
 //   #/events/STR-XXXX-...          the decision trace of one event
 //   #/policies   #/fleet   #/users
-export type Page = 'security' | 'releases' | 'health' | 'applications' | 'overview' | 'map' | 'events' | 'event' | 'policies' | 'fleet' | 'users' | 'audit' | 'reviews';
+export type Page = 'discovery' | 'operations' | 'rules' | 'exceptions' | 'security' | 'releases' | 'health' | 'applications' | 'overview' | 'map' | 'events' | 'event' | 'policies' | 'fleet' | 'users' | 'audit' | 'reviews';
 
 export interface Route {
   page: Page;
@@ -15,7 +15,7 @@ export interface Route {
   query?: Record<string, string>;
 }
 
-const simple: Page[] = ['security','releases', 'health', 'applications', 'overview', 'map', 'events', 'policies', 'fleet', 'users', 'audit', 'reviews'];
+const simple: Page[] = ['discovery','operations','rules','exceptions','security','releases', 'health', 'applications', 'overview', 'map', 'events', 'policies', 'fleet', 'users', 'audit', 'reviews'];
 
 export function parseRoute(hash: string): Route {
   const raw = hash.replace(/^#\/?/, '');
