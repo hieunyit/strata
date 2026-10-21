@@ -29,6 +29,8 @@ export type OverviewBucket = components['schemas']['OverviewBucket'];
 export type RuleInfo = components['schemas']['RuleInfo'];
 export type AuthMethods = components['schemas']['AuthMethods'];
 export type LocalSession = components['schemas']['LocalSession'];
+export type Release = components['schemas']['Release'];
+export type ReleaseDetail = components['schemas']['ReleaseDetail'];
 export type Application = components['schemas']['Application'];
 export type ApplicationBinding = components['schemas']['ApplicationBinding'];
 export type Me = components['schemas']['Me'];
@@ -301,6 +303,10 @@ export const apiClient = {
     return call('/auth/logout', { method: 'POST' }, 'Failed to sign out');
   },
 
+  listReleases(after=''):Promise<components['schemas']['ReleaseList']> {return call(`/releases?after=${encodeURIComponent(after)}`,{method:'GET'},'Failed to read releases');},
+  getRelease(id:string):Promise<ReleaseDetail>{return call(`/releases/${encodeURIComponent(id)}`,{method:'GET'},'Failed to read release');},
+  createRelease(request_id:string,source_release=''):Promise<components['schemas']['ReleaseResult']>{return call('/releases',{method:'POST',body:JSON.stringify({request_id,source_release})},'Failed to prepare release');},
+  actRelease(id:string,action:'approve'|'reject'|'deploy',request:components['schemas']['ReleaseAction']):Promise<components['schemas']['ReleaseResult']>{return call(`/releases/${encodeURIComponent(id)}:${action}`,{method:'POST',body:JSON.stringify(request)},'Failed to change release');},
   listApplications(after = ''): Promise<components['schemas']['ApplicationList']> {
     return call(`/applications?after=${encodeURIComponent(after)}`, {method:'GET'}, 'Failed to read applications');
   },
@@ -420,6 +426,11 @@ export const apiClient = {
     const r = await call<admin['schemas']['v1RejectPolicyResponse']>(
       `/policies/${encodeURIComponent(id)}:reject`, json('POST', { version, comment }), 'Failed to reject version');
     return versionReceipt(r.version, id, version, 'REJECTED');
+  },
+  async getOperation(id:string):Promise<Operation>{
+    const r=await call<admin['schemas']['v1GetOperationResponse']>(`/operations/${encodeURIComponent(id)}`,{method:'GET'},'Failed to read pinned replay');
+    if(!r.operation||r.operation.id!==id)throw new ApiError('Replay receipt mismatch',502);
+    return r.operation;
   },
   async getVersionReplay(id: string, version: number, signal?: AbortSignal): Promise<Operation | undefined> {
     explicitVersion(version);

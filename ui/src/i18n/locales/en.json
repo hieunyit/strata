@@ -17,7 +17,8 @@
     "reviews": "Reviews",
     "audit": "Audit",
     "map": "Map",
-    "applications": "Applications"
+    "applications": "Applications",
+    "releases": "Releases"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -916,5 +917,49 @@
     "remove": "Remove",
     "policyChanges": "Linked policy intent and recent changes",
     "unknown": "Unknown"
+  },
+  "releases": {
+    "title": "Releases",
+    "subtitle": "Review an immutable policy, rule and schema snapshot before rollout.",
+    "prepare": "Prepare release",
+    "unavailable": "Release data unavailable.",
+    "writeFailed": "Operation failed. Reload the release before retrying; check replay, capabilities, baseline and independent review.",
+    "workflow": "Draft policies → validation → replay → impact review → independent approval → canary rollout → node activation → monitoring → rollback.",
+    "creator": "Prepared by",
+    "reviewer": "Reviewed by",
+    "hash": "Snapshot SHA-256",
+    "rules": "Rule and compiler digest",
+    "inputs": "Input snapshot digest",
+    "baseline": "Prepared / current baseline",
+    "canary": "Canary stop conditions",
+    "waves": "Cumulative rollout fractions (0 means one node)",
+    "soak": "Soak seconds",
+    "comparison": "Replay compares baseline and candidate using the same sample labels and measurement. Block-rate growth alone does not establish a false positive.",
+    "proofUnavailable": "Replay evidence unavailable; approval is disabled.",
+    "reviewed": "I reviewed this exact snapshot and its pinned replay evidence.",
+    "approve": "Approve release",
+    "reject": "Reject release",
+    "baselineWarning": "Historical replay evidence or a changed baseline. Replay and prepare again, or explicitly acknowledge the current baseline before deploying.",
+    "ack": "Acknowledge historical evidence against current bundle {{version}}",
+    "deploy": "Deploy approved release",
+    "rollout": "Node rollout",
+    "rollback": "Prepare rollback from this exact snapshot",
+    "editPolicies": "Edit policies",
+    "reviewPolicies": "Replay and review policies",
+    "state": {
+      "DRAFT": "Awaiting review",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "DEPLOYED": "Rollout created"
+    },
+    "thresholds": {
+      "min_requests": "Minimum requests per group",
+      "block_factor": "Block factor",
+      "block_floor": "Block rate floor",
+      "error_factor": "5xx factor",
+      "error_delta": "5xx rate increase",
+      "latency_factor": "p99 factor",
+      "latency_delta_ms": "p99 increase (ms)"
+    }
   }
 }
