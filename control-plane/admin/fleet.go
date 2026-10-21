@@ -157,12 +157,21 @@ func (f *fleetAdmin) CreateEnrollmentToken(ctx context.Context, req *adminv1.Cre
 
 func (f *fleetAdmin) nodePB(n store.Node, now time.Time) *adminv1.Node {
 	out := &adminv1.Node{
+		AgentVersion: n.Inventory.AgentVersion, OperatingSystem: n.Inventory.OS, AbiVersion: n.Inventory.ABI,
+		Capabilities: n.Inventory.Capabilities, CertificateStatus: store.CertificateStatus(n.CertNotAfter, now),
 		Id: n.ID, GroupId: n.GroupID, Hostname: n.Hostname, ProxyVersion: n.ProxyVersion, ModuleVersion: n.ModuleVersion,
 		BundleState: n.BundleState, Revoked: n.RevokedAt != nil, CreateTime: timestamppb.New(n.CreatedAt),
 		Online: f.presence.Online(n.ID, n.Connected, n.LastSeenAt, n.RevokedAt != nil, now),
 	}
 	if n.BundleVersion != nil && *n.BundleVersion > 0 {
 		out.BundleVersion = uint64(*n.BundleVersion)
+	}
+	if n.DesiredBundleVersion != nil && *n.DesiredBundleVersion > 0 {
+		out.DesiredBundleVersion = uint64(*n.DesiredBundleVersion)
+		out.BundleDrift = n.BundleVersion == nil || *n.BundleVersion != *n.DesiredBundleVersion || n.BundleState != "ACTIVE"
+	}
+	if n.InventoryAt != nil {
+		out.InventoryTime = timestamppb.New(*n.InventoryAt)
 	}
 	if n.LastSeenAt != nil {
 		out.LastSeenTime = timestamppb.New(*n.LastSeenAt)

@@ -270,3 +270,17 @@ describe('CSV export is an operator+ action (W08-F-01)', () => {
     expect(screen.getByTestId('export-csv-btn')).toBeInTheDocument();
   });
 });
+
+
+describe('fleet inventory', () => {
+ it('shows runtime facts, desired drift and expiring certificates', async () => {
+  vi.spyOn(apiClient, 'listNodes').mockResolvedValue([{id:'node-inventory',agent_version:'test-agent',operating_system:'linux/amd64',abi_version:65544,capabilities:['section.9'],desired_bundle_version:'9',bundle_version:'8',bundle_drift:true,certificate_status:'expiring'}]);
+  vi.spyOn(apiClient, 'listGroups').mockResolvedValue([]);
+  vi.spyOn(apiClient, 'listRollouts').mockResolvedValue([]);
+  render(<StaticAuthProvider roles={['viewer']}><FleetPage /></StaticAuthProvider>);
+  expect(await screen.findByTestId('node-inventory')).toHaveTextContent('test-agent');
+  expect(screen.getByTestId('node-inventory')).toHaveTextContent('linux/amd64');
+  expect(screen.getByTestId('node-desired')).toHaveTextContent('Desired v9');
+  expect(screen.getByText('Expires within 7 days')).toBeInTheDocument();
+ });
+});

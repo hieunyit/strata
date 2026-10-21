@@ -135,6 +135,15 @@ message Node {
   google.protobuf.Timestamp cert_expire_time = 10;
   bool revoked = 11;
   google.protobuf.Timestamp create_time = 12;
+  string agent_version = 13;
+  string operating_system = 14;
+  uint32 abi_version = 15;
+  repeated string capabilities = 16;
+  uint64 desired_bundle_version = 17;
+  bool bundle_drift = 18;
+  string certificate_status = 19; // unknown, expired, expiring, healthy
+  google.protobuf.Timestamp inventory_time = 20;
+
 }
 
 message ListNodesRequest {}

@@ -1042,3 +1042,11 @@ Bảng dưới ghi nhận từng điểm của bản review, đánh giá và tha
 | Ring buffer shared memory cho sự kiện | Tốt, cần ring theo từng worker trong `/dev/shm`, agent kiểm từng record | Interface trong v1; ring tùy kết quả benchmark |
 | Circuit breaker cấp node | Tốt, nhưng nếu tính cả vượt budget thì kẻ tấn công tự mở được | Đưa vào với phiên bản đã điều chỉnh |
 | Emergency bypass header | Không khuyến nghị: thực chất là backdoor | Không làm; dùng `ForceShadow` và exception debug |
+
+### CP-B02 · Inventory Fleet
+
+NodeInfo trong Hello/heartbeat có agent version, OS/architecture, ABI và capability; agent
+cũ có thể không báo. Input telemetry được giới hạn và không được dùng để cấp quyền.
+PostgreSQL giữ inventory và thời điểm nhận (migration 0030); Fleet API/UI có desired/actual,
+drift và chứng chỉ unknown/expired/expiring/healthy (ngưỡng 7 ngày). Kiểm tương thích và
+manifest module là phần tiếp theo của CP-B02.

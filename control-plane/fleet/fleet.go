@@ -412,6 +412,9 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 				greeted = true
 				group = s.nodeGroup(ctx, id)
 				ni := msg.Hello.GetNode()
+				if err := s.inventory(ctx, id, ni); err != nil {
+					return err
+				}
 				v := int64(msg.Hello.GetActiveBundleVersion())
 				s.seen(ctx, id, clean(ni.GetHostname(), 253), clean(ni.GetConnector().GetProxyVersion(), 64),
 					clean(ni.GetConnector().GetModuleVersion(), 64), &v)
@@ -436,6 +439,11 @@ func (s *Server) Connect(st fleetv1.FleetService_ConnectServer) error {
 			case *fleetv1.AgentMessage_Heartbeat:
 				if !greeted {
 					return status.Error(codes.InvalidArgument, "the stream must start with Hello")
+				}
+				if ni := msg.Heartbeat.GetNode(); ni != nil {
+					if err := s.inventory(ctx, id, ni); err != nil {
+						return err
+					}
 				}
 				v := int64(msg.Heartbeat.GetActiveBundleVersion())
 				s.seen(ctx, id, "", "", "", &v)
@@ -831,4 +839,20 @@ var inspections = map[eventv1.Inspection]string{
 	eventv1.Inspection_INSPECTION_FULL:         "full",
 	eventv1.Inspection_INSPECTION_PARTIAL:      "partial",
 	eventv1.Inspection_INSPECTION_BODY_SKIPPED: "body_skipped",
+}
+
+// inventory is optional on old Registry implementations; production persists it.
+func (s *Server) inventory(ctx context.Context, id string, n *fleetv1.NodeInfo) error {
+	i := store.Inventory{AgentVersion: n.GetAgentVersion(), OS: n.GetOperatingSystem(), ABI: n.GetConnector().GetAbiVersion(), Capabilities: n.GetCapabilities()}
+	if err := i.Validate(); err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	if recorder, ok := s.cfg.Registry.(interface {
+		RecordInventory(context.Context, string, store.Inventory, time.Time) error
+	}); ok {
+		if err := recorder.RecordInventory(ctx, id, i, s.cfg.Now()); err != nil {
+			return status.Error(codes.Unavailable, "inventory persistence failed")
+		}
+	}
+	return nil
 }

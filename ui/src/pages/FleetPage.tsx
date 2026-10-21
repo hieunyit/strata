@@ -207,6 +207,8 @@ export const FleetPage: React.FC = () => {
                         <td className="td">
                           <div className="font-medium">{n.hostname || n.id}</div>
                           <div className="font-mono text-xs text-faint">{n.id}</div>
+ <div className="text-xs text-muted" data-testid="node-inventory">{t('fleet.inventory.agent')}: {n.agent_version || '—'} · {n.operating_system || '—'} · ABI {n.abi_version ? `0x${n.abi_version.toString(16)}` : '—'}</div>
+ <div className="text-xs text-muted">{t('fleet.inventory.capabilities')}: {n.capabilities?.length ? n.capabilities.join(', ') : t('fleet.inventory.unknown')}</div>
                         </td>
                         <td className="td text-muted" data-testid="node-nginx">{n.proxy_version || '—'}</td>
                         <td className="td text-muted" data-testid="node-module">{n.module_version || '—'}</td>
@@ -215,11 +217,12 @@ export const FleetPage: React.FC = () => {
                             {n.bundle_version ? `v${n.bundle_version}` : '—'}
                           </span>
                           {n.bundle_version && <StateBadge state={n.bundle_state} testId="node-bundle-state" />}
+ {n.desired_bundle_version && <div className={n.bundle_drift ? 'text-shadow' : 'text-muted'} data-testid="node-desired">{t('fleet.inventory.desired', { version: n.desired_bundle_version })}{n.bundle_drift ? ` · ${t('fleet.inventory.drift')}` : ''}</div>}
                         </td>
                         <td className="td whitespace-nowrap text-muted" title={formatTime(n.last_seen_time, i18n.language, t('common.never'))}>
                           {n.last_seen_time ? relativeTime(n.last_seen_time, i18n.language) : t('common.never')}
                         </td>
-                        <td className="td whitespace-nowrap text-muted">{formatTime(n.cert_expire_time, i18n.language, t('common.never'))}</td>
+                        <td className="td whitespace-nowrap text-muted">{formatTime(n.cert_expire_time, i18n.language, t('common.never'))}<div className={['expiring', 'expired'].includes(n.certificate_status ?? '') ? 'text-block' : 'text-muted'}>{t(`fleet.inventory.certificate.${n.certificate_status || 'unknown'}`)}</div></td>
                         {canRevoke && (
                           <td className="td text-right whitespace-nowrap">
                             {s !== 'revoked' && (

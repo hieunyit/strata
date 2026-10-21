@@ -166,28 +166,35 @@ func (s *Store) CreateEnrollmentToken(ctx context.Context, id, groupID string, t
 
 // Node is a row of nodes.
 type Node struct {
-	ID            string     `json:"id"`
-	GroupID       string     `json:"group_id"`
-	Hostname      string     `json:"hostname"`
-	ProxyVersion  string     `json:"proxy_version"`
-	ModuleVersion string     `json:"module_version"`
-	BundleVersion *int64     `json:"bundle_version,omitempty"`
-	BundleState   string     `json:"bundle_state"`
-	CertSerial    string     `json:"cert_serial"`
-	CertNotAfter  *time.Time `json:"cert_not_after,omitempty"`
-	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
-	Connected     bool       `json:"connected"`
-	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
+	Inventory            Inventory  `json:"inventory"`
+	InventoryAt          *time.Time `json:"inventory_at,omitempty"`
+	DesiredBundleVersion *int64     `json:"desired_bundle_version,omitempty"`
+	ID                   string     `json:"id"`
+	GroupID              string     `json:"group_id"`
+	Hostname             string     `json:"hostname"`
+	ProxyVersion         string     `json:"proxy_version"`
+	ModuleVersion        string     `json:"module_version"`
+	BundleVersion        *int64     `json:"bundle_version,omitempty"`
+	BundleState          string     `json:"bundle_state"`
+	CertSerial           string     `json:"cert_serial"`
+	CertNotAfter         *time.Time `json:"cert_not_after,omitempty"`
+	LastSeenAt           *time.Time `json:"last_seen_at,omitempty"`
+	Connected            bool       `json:"connected"`
+	RevokedAt            *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
 }
 
 const nodeCols = `id, group_id, hostname, proxy_version, module_version, bundle_version, bundle_state,
-	cert_serial, cert_not_after, last_seen_at, connected, revoked_at, created_at`
+	cert_serial, cert_not_after, last_seen_at, connected, revoked_at, created_at, inventory, inventory_at, desired_bundle_version`
 
 func scanNode(r pgx.Row) (Node, error) {
 	var n Node
+	var raw []byte
 	err := r.Scan(&n.ID, &n.GroupID, &n.Hostname, &n.ProxyVersion, &n.ModuleVersion, &n.BundleVersion, &n.BundleState,
-		&n.CertSerial, &n.CertNotAfter, &n.LastSeenAt, &n.Connected, &n.RevokedAt, &n.CreatedAt)
+		&n.CertSerial, &n.CertNotAfter, &n.LastSeenAt, &n.Connected, &n.RevokedAt, &n.CreatedAt, &raw, &n.InventoryAt, &n.DesiredBundleVersion)
+	if err == nil {
+		err = json.Unmarshal(raw, &n.Inventory)
+	}
 	return n, err
 }
 

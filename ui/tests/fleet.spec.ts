@@ -99,3 +99,18 @@ test('English by default, Vietnamese on switch', async ({ page }) => {
   await expect(page.getByTestId('rollout-none')).toHaveText('Không có rollout đang chạy.');
   await expect(page.getByTestId('node-bundle-state')).toHaveText('đang dùng');
 });
+
+test('inventory shows versions, desired drift and certificate warning', async ({ page }) => {
+  await signedIn(page, ['viewer'], 'example-viewer');
+  await scripted(page, [{
+    nodes: [{ ...node('node-a', 'edge-01', 'lab', '8', 'ACTIVE'), agent_version: 'example-agent',
+      operating_system: 'linux/amd64', abi_version: 65544, capabilities: ['section.9'],
+      desired_bundle_version: '9', bundle_drift: true, certificate_status: 'expiring' }],
+    rollout: rollout('DONE', 0, []),
+  }]);
+  await page.goto('/#/fleet');
+  await expect(page.getByTestId('node-inventory')).toContainText('example-agent');
+  await expect(page.getByTestId('node-inventory')).toContainText('linux/amd64');
+  await expect(page.getByTestId('node-desired')).toContainText('Desired v9');
+  await expect(page.getByText('Expires within 7 days')).toBeVisible();
+});
