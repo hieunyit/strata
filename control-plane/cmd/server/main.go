@@ -398,7 +398,7 @@ func main() {
 	}
 	var objects policy.ObjectStore
 	var stagingWriter *policy.StagingDeployer
-
+	var releaseService *policy.Releases
 	var rollouts *fleet.Rollouts
 	var canary *fleet.CanaryMonitor
 	if pg != nil {
@@ -437,7 +437,7 @@ func main() {
 				d.Builder.(*policy.Compiler).Geo = geoNetworks(geoIP)
 			}
 			d.Publish = rollouts.Start
-
+			releaseService = &policy.Releases{Store: pg, Deployer: d, Waves: rollouts.Waves, Soak: rollouts.Soak, Notify: rollouts.NotifyPublished, Canary: canaryOptions.Thresholds()}
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
 				d.VerifyReplay = (replay.Gate{Store: pg}).Check
@@ -526,8 +526,8 @@ func main() {
 		Local:           local,
 		Audit:           auditReader(pg),
 		OIDC:            dispatch.OIDC != nil,
-
-		Ready: readiness(pool, keeper, store),
+		Releases:        releaseService,
+		Ready:           readiness(pool, keeper, store),
 	}, store)
 
 	allowedOrigins := map[string]bool{}

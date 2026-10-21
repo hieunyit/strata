@@ -160,3 +160,6 @@ func (r *Rollouts) step(ctx context.Context, ro store.Rollout) error {
 	r.notify(next, b)
 	return nil
 }
+
+// NotifyPublished wakes nodes whose desired version was committed by a release.
+func (r *Rollouts) NotifyPublished(nodes []string, b store.Bundle) { r.notify(nodes, b); r.Kick() }

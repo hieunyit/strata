@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
 	"net/http"
 	"strings"
@@ -20,6 +21,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	Releases     *policy.Releases
 	Applications *store.Store
 	// ServiceAccounts is optional; only atomic durable writers enable mutations.
 	ServiceAccounts auth.ServiceAccountStore
@@ -132,6 +134,9 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
+	if s.cfg.Releases != nil {
+		registerReleases(v1, s.cfg.Releases)
+	}
 	if s.cfg.Applications != nil {
 		registerApplications(v1, s.cfg.Applications, s.handler)
 	}
@@ -271,10 +276,9 @@ func isStream(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/stats/geo:watch"
 }
 
-// isDeploy: POST /v1/policies/{id}:deploy, the one route that compiles.
+// isDeploy includes release preparation and publication, which compile/sign artifacts.
 func isDeploy(r *http.Request) bool {
-	return r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/policies/") &&
-		strings.HasSuffix(r.URL.Path, ":deploy")
+	return r.Method == http.MethodPost && (r.URL.Path == "/v1/releases" || ((strings.HasPrefix(r.URL.Path, "/v1/policies/") || strings.HasPrefix(r.URL.Path, "/v1/releases/")) && strings.HasSuffix(r.URL.Path, ":deploy")))
 }
 
 // Start begins listening and serving HTTP requests.
