@@ -267,28 +267,12 @@ func (s *Store) recordFailure(ctx context.Context, username string, maxFailures 
 	return err
 }
 
-// startSession records a successful login and its session.
-func (s *Store) startSession(ctx context.Context, username string, tokenHash []byte, expires time.Time, ip, ua string) error {
-	return s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE local_users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE username = $1`, username); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO local_sessions (token_sha256, username, expires_at, client_ip, user_agent) VALUES ($1, $2, $3, $4, $5)`,
-			tokenHash, username, expires, ip, truncate(ua, 256)); err != nil {
-			return err
-		}
-		// who signed in, from where, until when; never the token
-		return audit(ctx, tx, username, "local_sessions.start", username, nil, map[string]any{
-			"client_ip": ip, "user_agent": truncate(ua, 256), "expires_at": expires.UTC(),
-		})
-	})
-}
-
 // sessionUser returns the account of a live session, nil when the session
 // is unknown, expired, or its account disabled.
 func (s *Store) sessionUser(ctx context.Context, tokenHash []byte) (username string, roles []string, err error) {
 	err = s.pool.QueryRow(ctx, `SELECT u.username, u.roles FROM local_sessions s JOIN local_users u USING (username)
-		WHERE s.token_sha256 = $1 AND s.expires_at > now() AND NOT u.disabled`, tokenHash).Scan(&username, &roles)
+		WHERE s.token_sha256 = $1 AND s.expires_at > now() AND NOT u.disabled
+		AND (s.mfa_verified OR NOT EXISTS(SELECT 1 FROM local_mfa m WHERE m.username=u.username AND m.enabled))`, tokenHash).Scan(&username, &roles)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil, ErrNotFound
 	}
