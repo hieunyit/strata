@@ -8,7 +8,7 @@
 export function toCsv(headers: string[], rows: (string | number)[][]): string {
   const cell = (v: string | number) => {
     let s = String(v);
-    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s) || typeof v === 'string' && /^[\s\uFEFF]*[=+\-@]/.test(s)) s = `'${s}`;
     return `"${s.replace(/"/g, '""')}"`;
   };
   return [headers.map(cell).join(','), ...rows.map((r) => r.map(cell).join(','))].join('\r\n');

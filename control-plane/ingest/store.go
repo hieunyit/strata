@@ -28,6 +28,8 @@ type SearchFilter struct {
 	RuleID     uint32
 	NodeID     string
 	HTTPMethod string
+	HTTPHost   string
+	HTTPPath   string
 	// W19-F-01: the map's filters, as the geo aggregates count them
 	// (geoCountrySQL, verified locations only; AttackTypeSQL)
 	CountryISO string
@@ -431,6 +433,12 @@ func (s *ClickHouseStore) SearchEvents(ctx context.Context, filter SearchFilter)
 		whereClauses = append(whereClauses, "http_method = ?")
 		args = append(args, filter.HTTPMethod)
 	}
+	for _, pair := range []struct{ column, value string }{{"http_host", filter.HTTPHost}, {"http_path", filter.HTTPPath}} {
+		if pair.value != "" {
+			whereClauses = append(whereClauses, pair.column+" = ?")
+			args = append(args, pair.value)
+		}
+	}
 	if filter.CountryISO != "" {
 		whereClauses = append(whereClauses, geoCountrySQL+" = ?")
 		args = append(args, filter.CountryISO)
@@ -700,6 +708,9 @@ func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) 
 		if filter.NodeID != "" && e.NodeID != filter.NodeID {
 			continue
 		}
+		if filter.HTTPMethod != "" && e.HTTPMethod != filter.HTTPMethod || filter.HTTPHost != "" && e.HTTPHost != filter.HTTPHost || filter.HTTPPath != "" && e.HTTPPath != filter.HTTPPath {
+			continue
+		}
 		if filter.CountryISO != "" && (e.CountryISO != filter.CountryISO || e.GeoIPVersion == "" && e.CountryISO != "INTERNAL") {
 			continue
 		}
@@ -723,12 +734,18 @@ func (m *MockEventStore) SearchEvents(ctx context.Context, filter SearchFilter) 
 
 	total := uint64(len(matched))
 	start := filter.Offset
+	if start < 0 {
+		start = 0
+	}
 	if start > len(matched) {
 		start = len(matched)
 	}
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
 	}
 	end := start + limit
 	if end > len(matched) {

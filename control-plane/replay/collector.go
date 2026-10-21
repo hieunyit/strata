@@ -122,6 +122,7 @@ func (c *Collector) Add(ctx context.Context, node string, samples []*eventv1.Rep
 				c.Dropped.Add(1)
 				continue
 			}
+			cost = max(cost, retainedRecordBytes(prepared[s]))
 		}
 		if s == nil || size > 8192 || k.keyID != keyID || !policies[k.policy] ||
 			cost > c.MaxBytes-c.bytes || cost > c.MaxNodeBytes-c.nodeBytes[node] ||
