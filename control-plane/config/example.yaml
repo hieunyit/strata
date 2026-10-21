@@ -64,3 +64,13 @@ replay:
 
 rollouts:
   waves: ["1", "10%", "100%"]
+
+# Global comparison method, pinned when preparing a release.
+canary:
+  min_requests: 200
+  block_factor: 3
+  block_floor: 0.01
+  error_factor: 2
+  error_delta: 0.01
+  latency_factor: 1.5
+  latency_delta: 50ms

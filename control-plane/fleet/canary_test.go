@@ -3,6 +3,7 @@ package fleet
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -492,5 +493,28 @@ func TestLowTrafficDoesNotTripByChance(t *testing.T) {
 	s := newSim(t, 2, CanaryOptions{})
 	if at := s.run(24*time.Hour, traffic{req: 2, block: 0.01, log: 0.01}); !at.IsZero() {
 		t.Fatalf("tripped by chance at %v", at)
+	}
+}
+
+func TestConfigurableCanaryThresholds(t *testing.T) {
+	o := (CanaryOptions{}).withDefaults()
+	if err := o.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*CanaryOptions){func(o *CanaryOptions) { o.BlockFactor = math.NaN() }, func(o *CanaryOptions) { o.ErrorFactor = 1 }, func(o *CanaryOptions) { o.LatencyDelta = 0 }, func(o *CanaryOptions) { o.MinRequests = 1 }} {
+		bad := o
+		mutate(&bad)
+		if bad.Validate() == nil {
+			t.Fatal("invalid threshold accepted")
+		}
+	}
+	m := &CanaryMonitor{o: o}
+	c, s := groupCounts{req: 1000, x5: 40}, groupCounts{req: 1000, x5: 10}
+	if verdict := m.judge(&groupState{}, c, s, 0, 0, false); verdict.reason != Trip5xx {
+		t.Fatal("default 5xx threshold did not trip")
+	}
+	m.o.ErrorDelta = .05
+	if verdict := m.judge(&groupState{}, c, s, 0, 0, false); verdict.reason != "" {
+		t.Fatal("configured 5xx threshold ignored")
 	}
 }

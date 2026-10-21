@@ -102,6 +102,13 @@ func main() {
 	replayThreads := flag.Int("replay-threads", 2, "Threads of one replay")
 	replayTimeout := flag.Duration("replay-timeout", 10*time.Minute, "Longest replay")
 	rolloutWaves := flag.String("rollout-waves", "1,10%,100%", "Rollout waves: a node count for the first, then cumulative percentages")
+	canaryMin := flag.Uint64("canary-min-requests", 200, "Minimum requests in each canary comparison group")
+	canaryBlockFactor := flag.Float64("canary-block-factor", 3, "Block trip factor over learned baseline")
+	canaryBlockFloor := flag.Float64("canary-block-floor", .01, "Minimum block rate for a trip")
+	canaryErrorFactor := flag.Float64("canary-error-factor", 2, "5xx trip factor over shadow")
+	canaryErrorDelta := flag.Float64("canary-error-delta", .01, "Minimum 5xx rate increase")
+	canaryLatencyFactor := flag.Float64("canary-latency-factor", 1.5, "p99 trip factor over shadow")
+	canaryLatencyDelta := flag.Duration("canary-latency-delta", 50*time.Millisecond, "Minimum p99 increase")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
 	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
@@ -144,6 +151,10 @@ func main() {
 		}
 		configSources = src
 		log.Printf("[INFO] configuration from %s (flags given on the command line override it)", *configPath)
+	}
+	canaryOptions := fleet.CanaryOptions{MinRequests: *canaryMin, BlockFactor: *canaryBlockFactor, BlockFloor: *canaryBlockFloor, ErrorFactor: *canaryErrorFactor, ErrorDelta: *canaryErrorDelta, LatencyFactor: *canaryLatencyFactor, LatencyDelta: *canaryLatencyDelta}
+	if err := canaryOptions.Validate(); err != nil {
+		log.Fatalf("[FATAL] %v", err)
 	}
 	mx := metrics.New(version, commit)
 
@@ -387,6 +398,7 @@ func main() {
 	}
 	var objects policy.ObjectStore
 	var stagingWriter *policy.StagingDeployer
+
 	var rollouts *fleet.Rollouts
 	var canary *fleet.CanaryMonitor
 	if pg != nil {
@@ -403,7 +415,7 @@ func main() {
 		deps.KillSwitch = pg
 		deps.Replay, deps.ReplayApproved = pg, *replayApproved
 		go commands.Run(ctx)
-		canary = fleet.NewCanaryMonitor(pg, commands, fleet.CanaryOptions{})
+		canary = fleet.NewCanaryMonitor(pg, commands, canaryOptions)
 		deps.CanaryTrips = pg
 		go canary.Run(ctx)
 		objects = openObjects()
@@ -425,6 +437,7 @@ func main() {
 				d.Builder.(*policy.Compiler).Geo = geoNetworks(geoIP)
 			}
 			d.Publish = rollouts.Start
+
 			deps.Deployer = mx.Deployer(d)
 			if *replayBin != "" {
 				d.VerifyReplay = (replay.Gate{Store: pg}).Check
@@ -513,7 +526,8 @@ func main() {
 		Local:           local,
 		Audit:           auditReader(pg),
 		OIDC:            dispatch.OIDC != nil,
-		Ready:           readiness(pool, keeper, store),
+
+		Ready: readiness(pool, keeper, store),
 	}, store)
 
 	allowedOrigins := map[string]bool{}
