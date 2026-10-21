@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -180,3 +181,185 @@ func TestInvestigationHTTP(t *testing.T) {
 	}
 }
 
+func TestEvidenceBoundsAndLease(t *testing.T) {
+	s, st, pool, events, worker := investigationFixture(t)
+	ctx := t.Context()
+	now := time.Now().UTC()
+	fixtures := make([]ingest.Event, 10001)
+	for i := range fixtures {
+		fixtures[i] = ingest.Event{BlockID: fmt.Sprintf("STR-TEST-%04d-0000-0000", i), Timestamp: now, PolicyID: "example-api", NodeID: "node-a", HTTPHost: "api.example.test", HTTPMethod: "PATCH", HTTPPath: "/api/records", Action: "shadow"}
+	}
+	if err := events.SaveEvents(ctx, fixtures); err != nil {
+		t.Fatal(err)
+	}
+	create := func(method, id string) store.EvidenceExport {
+		t.Helper()
+		rec := investigationRequest(t, s, "viewer", "POST", "/v1/evidence", map[string]any{"application_id": "example-api", "environment_id": "test", "filter": SearchEventsRequest{From: now.Add(-time.Hour), To: now.Add(time.Hour), HTTPMethod: method}, "request_id": id}, 202)
+		var v struct {
+			Export store.EvidenceExport `json:"export"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v.Export
+	}
+	job := create("PATCH", "row-bounds")
+	// A crash leaves a lease; a later worker reclaims it with a new fencing etag.
+	claimed, err := st.ClaimEvidence(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE evidence_exports SET lease_until=now()-interval '1 second' WHERE id::text=$1`, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Once(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.FinishEvidence(ctx, claimed, true); err == nil {
+		t.Fatal("stale lease completion succeeded")
+	}
+	done, err := st.EvidenceExport(ctx, job.ID)
+	if err != nil || done.RowCount != 10000 || !done.Truncated || done.State != "done" {
+		t.Fatalf("row bound: %+v %v", done, err)
+	}
+	// Large fields hit the byte cap without writing a partial CSV record.
+	large := make([]ingest.Event, 300)
+	for i := range large {
+		large[i] = fixtures[0]
+		large[i].BlockID = fmt.Sprintf("STR-BYTE-%04d-0000-0000", i)
+		large[i].HTTPMethod = "PUT"
+		large[i].HTTPPath = "/api/" + strings.Repeat("x", 60000)
+	}
+	if err := events.SaveEvents(ctx, large); err != nil {
+		t.Fatal(err)
+	}
+	bytesJob := create("PUT", "byte-bounds")
+	if err := worker.Once(ctx); err != nil {
+		t.Fatal(err)
+	}
+	done, err = st.EvidenceExport(ctx, bytesJob.ID)
+	if err != nil || !done.Truncated || done.RowCount >= 300 {
+		t.Fatalf("byte bound: %+v %v", done, err)
+	}
+	data, err := worker.Objects.Get(ctx, done.ArtifactKey)
+	if err != nil || len(data) > investigation.MaxBytes || !bytes.HasSuffix(data, []byte("\r\n")) {
+		t.Fatalf("CSV incomplete: %d %v", len(data), err)
+	}
+	// Scope revoked before background execution produces no artifact.
+	revoked := create("GET", "revoked-before-run")
+	if _, err := pool.Exec(ctx, `DELETE FROM application_role_bindings WHERE subject='oidc:viewer'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Once(ctx); err == nil {
+		t.Fatal("revoked job ran")
+	}
+	done, err = st.EvidenceExport(ctx, revoked.ID)
+	if err != nil || done.State != "failed" || done.ArtifactKey != "" {
+		t.Fatalf("revoked result: %+v %v", done, err)
+	}
+}
+
+func TestInvestigationRejectsInvalidCommands(t *testing.T) {
+	s, _, pool, _, _ := investigationFixture(t)
+	now := time.Now().UTC()
+	filter := SearchEventsRequest{From: now.Add(-time.Hour), To: now}
+	command := map[string]any{"search": map[string]any{"application_id": "example-api", "environment_id": "test", "title": "Example", "shared": true, "filter": filter}, "request_id": "save"}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO application_environments(application_id,id,name,group_id) VALUES('example-api','production','Production','example-group')`); err != nil {
+		t.Fatal(err)
+	}
+	command["search"].(map[string]any)["environment_id"] = "production"
+	investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 404)
+	command["search"].(map[string]any)["environment_id"] = "test"
+	filter.To = now.Add(32 * 24 * time.Hour)
+	command["search"].(map[string]any)["filter"] = filter
+	investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 400)
+	filter.To = now
+	command["search"].(map[string]any)["filter"] = filter
+	command["request_id"] = ""
+	investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 400)
+	command["request_id"] = "saved"
+	rec := investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 200)
+	var reply struct {
+		Search store.SavedSearch `json:"search"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	// Execute the shared filter through the saved application/environment scope.
+	rec = investigationRequest(t, s, "viewer", "POST", "/v1/saved-searches/"+reply.Search.ID+":search", map[string]string{"page_token": ""}, 200)
+	if strings.Contains(rec.Body.String(), "other.example.test") {
+		t.Fatal("saved query escaped application scope")
+	}
+	for _, text := range []string{`{} {}`, `{"search":{},"unknown":true}`, strings.Repeat("x", 257<<10)} {
+		req := httptest.NewRequest("POST", "/v1/saved-searches", strings.NewReader(text))
+		req.Header.Set("Authorization", "Bearer operator")
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != 400 {
+			t.Fatalf("invalid JSON: %d", rec.Code)
+		}
+	}
+	// A local audit failure cannot persist a search or its idempotency receipt.
+	if _, err := pool.Exec(t.Context(), `CREATE FUNCTION fail_investigation_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test failure'; END $$; CREATE TRIGGER fail_investigation_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION fail_investigation_audit()`); err != nil {
+		t.Fatal(err)
+	}
+	command["request_id"] = "rollback"
+	investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 503)
+	var count int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM investigation_requests WHERE request_id='rollback'`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("receipt leaked: %d %v", count, err)
+	}
+}
+
+func TestInvestigationUnshareAndArtifactIntegrity(t *testing.T) {
+	s, st, _, _, worker := investigationFixture(t)
+	ctx := t.Context()
+	now := time.Now().UTC()
+	filter := SearchEventsRequest{From: now.Add(-time.Hour), To: now}
+	command := map[string]any{"search": map[string]any{"application_id": "example-api", "environment_id": "test", "title": "Shared example", "shared": true, "filter": filter}, "request_id": "create-shared"}
+	rec := investigationRequest(t, s, "operator", "POST", "/v1/saved-searches", command, 200)
+	var reply struct {
+		Search store.SavedSearch `json:"search"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if !reply.Search.Editable {
+		t.Fatal("owner cannot edit")
+	}
+	rec = investigationRequest(t, s, "viewer", "GET", "/v1/saved-searches/"+reply.Search.ID, nil, 200)
+	var viewerReply struct {
+		Search store.SavedSearch `json:"search"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &viewerReply); err != nil {
+		t.Fatal(err)
+	}
+	if viewerReply.Search.Editable {
+		t.Fatal("reader can edit")
+	}
+	reply.Search.Shared = false
+	investigationRequest(t, s, "operator", "PUT", "/v1/saved-searches/"+reply.Search.ID, map[string]any{"search": reply.Search, "request_id": "unshare"}, 200)
+	investigationRequest(t, s, "viewer", "GET", "/v1/saved-searches/"+reply.Search.ID, nil, 404)
+	investigationRequest(t, s, "viewer", "POST", "/v1/saved-searches/"+reply.Search.ID+":search", map[string]string{}, 404)
+	rec = investigationRequest(t, s, "operator", "POST", "/v1/evidence", map[string]any{"application_id": "example-api", "environment_id": "test", "filter": filter, "request_id": "integrity"}, 202)
+	var receipt struct {
+		Export store.EvidenceExport `json:"export"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Once(ctx); err != nil {
+		t.Fatal(err)
+	}
+	done, err := st.EvidenceExport(ctx, receipt.Export.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Objects.Delete(ctx, done.ArtifactKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Objects.Put(ctx, done.ArtifactKey, []byte("corrupt"), ""); err != nil {
+		t.Fatal(err)
+	}
+	investigationRequest(t, s, "operator", "GET", "/v1/evidence/"+done.ID+"/download", nil, 503)
+}
