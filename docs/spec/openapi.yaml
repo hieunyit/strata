@@ -2156,6 +2156,184 @@ paths:
           description: Etag/request conflict
         '503':
           description: Source unavailable
+  /v1/discovery:
+    get:
+      operationId: getApiDiscovery
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryInventory'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/observations:
+    post:
+      operationId: ingestApiObservations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryBatchRequest'
+      responses:
+        '202':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryBatchReply'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/document:
+    put:
+      operationId: saveDiscoveryDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryDocumentRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryDocument'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:
+    post:
+      operationId: createDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryProposalRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryProposal'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals:draft:
+    post:
+      operationId: draftDiscoveryProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryDraftRequest'
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
+  /v1/discovery/proposals/{id}:
+    get:
+      operationId: downloadDiscoveryDocument
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 63
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Minimal OpenAPI 3.0.3 operation index with x-strata-mode=documentation_only;
+                  path parameters, content types and observed body bounds only.
+                additionalProperties: true
+        '400':
+          description: Invalid, ineligible, excessive or insufficient observations
+        '403':
+          description: Insufficient scope or untrusted collector
+        '404':
+          description: Absent proposal or current binding
+        '409':
+          description: Stale etag/baseline or reused request
+        '503':
+          description: Collection legally gated or service unavailable
 components:
   parameters:
     MachineAccountID:
@@ -4774,6 +4952,162 @@ components:
           - trusted_backend_2xx_only
         limits:
           $ref: '#/components/schemas/DiscoveryLimits'
+      additionalProperties: false
+    DiscoveryObservation:
+      type: object
+      required:
+      - id
+      - route_id
+      - method
+      - path
+      - content_type
+      - body_bytes
+      - backend_status
+      - backend_response
+      - source_ip
+      - at
+      properties:
+        id:
+          type: string
+          format: uuid
+        route_id:
+          type: string
+          maxLength: 63
+        method:
+          type: string
+        path:
+          type: string
+          maxLength: 2048
+        content_type:
+          type: string
+          maxLength: 256
+        body_bytes:
+          type: integer
+          minimum: 0
+          maximum: 16777216
+        backend_status:
+          type: integer
+          minimum: 200
+          maximum: 299
+        backend_response:
+          type: boolean
+          enum:
+          - true
+        source_ip:
+          type: string
+          maxLength: 64
+        at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    DiscoveryBatchRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - request_id
+      - observations
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        request_id:
+          type: string
+          maxLength: 128
+        observations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/DiscoveryObservation'
+      additionalProperties: false
+    DiscoveryBatchReply:
+      type: object
+      required:
+      - accepted
+      properties:
+        accepted:
+          type: boolean
+      additionalProperties: false
+    DiscoveryDocumentRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - etag
+      - document
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        etag:
+          type: string
+          maxLength: 128
+        document:
+          type: string
+          maxLength: 131072
+        request_id:
+          type: string
+          maxLength: 128
+      additionalProperties: false
+    DiscoveryProposalRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - endpoint_key
+      - base_digest
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        endpoint_key:
+          type: string
+        base_digest:
+          type: string
+        request_id:
+          type: string
+          maxLength: 128
+      additionalProperties: false
+    DiscoveryDraftRequest:
+      type: object
+      required:
+      - application_id
+      - environment_id
+      - id
+      - etag
+      - policy_etag
+      - request_id
+      properties:
+        application_id:
+          type: string
+          maxLength: 63
+        environment_id:
+          type: string
+          maxLength: 63
+        id:
+          type: string
+          maxLength: 64
+        etag:
+          type: string
+          maxLength: 128
+        policy_etag:
+          type: string
+          maxLength: 128
+        request_id:
+          type: string
+          maxLength: 128
       additionalProperties: false
   securitySchemes:
     bearerAuth:
