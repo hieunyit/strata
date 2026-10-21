@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -115,6 +116,7 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
 	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
 	localTTL := flag.Duration("local-session-ttl", 8*time.Hour, "Lifetime of a local sign-in")
+	localMFAKey := flag.String("local-mfa-key-file", "", "Private file containing the independent 32-byte local MFA encryption key (hex)")
 	localAdmin := flag.String("local-admin-user", "admin", "With -local-auth, the admin created on first start when there is no account; its password comes from STRATA_LOCAL_ADMIN_PASSWORD")
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated CIDRs, addresses or host names (resolved every 30s) of reverse proxies whose X-Forwarded-For gives the client IP of a login (throttling, audit)")
 	corsOrigins := flag.String("cors-origins", "", "Comma-separated origins allowed to call the REST API from another origin; empty: none (the UI is served on the API's origin, and npm run dev proxies /v1)")
@@ -286,6 +288,16 @@ func main() {
 		svc, err := localauth.NewService(ls, *localTTL)
 		if err != nil {
 			log.Fatalf("[FATAL] local accounts: %v", err)
+		}
+		if *localMFAKey != "" {
+			encoded, e := config.ReadSecretFile(*localMFAKey)
+			if e != nil {
+				log.Fatal("[FATAL] local MFA key could not be read")
+			}
+			key, e := hex.DecodeString(encoded)
+			if e != nil || svc.ConfigureMFA(key) != nil {
+				log.Fatal("[FATAL] local MFA key must contain 32 bytes encoded as hex")
+			}
 		}
 		if pw := os.Getenv("STRATA_LOCAL_ADMIN_PASSWORD"); pw != "" {
 			created, err := svc.Bootstrap(ctx, *localAdmin, pw)

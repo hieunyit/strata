@@ -148,6 +148,13 @@ func runInit(dir, names, admin, pwFile, dsnFile, ch, s3 string) error {
 	if err := setup.BundleKeys(dir, bundles > 0, &r); err != nil {
 		return err
 	}
+	var enrolled int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM local_mfa WHERE enabled`).Scan(&enrolled); err != nil {
+		return err
+	}
+	if err := setup.MFAKey(dir, enrolled > 0, &r); err != nil {
+		return err
+	}
 	if err := setup.Config(dir, ch, s3, &r); err != nil {
 		return err
 	}
@@ -198,17 +205,18 @@ func adminCommand(args []string) int {
 	pwFile := fs.String("password-file", "", "File holding the new password; without it, asked on the terminal")
 	dsnFile := fs.String("dsn-file", "", "File holding the PostgreSQL DSN (default: STRATA_POSTGRES_DSN)")
 	dir := fs.String("data-dir", "/var/lib/strata", "Data directory (for secrets/postgres-dsn)")
+	resetMFA := fs.Bool("reset-mfa", false, "Also remove lost local MFA enrollment and revoke every session (host recovery only)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
-	if err := runRecover(*dir, *name, *pwFile, *dsnFile); err != nil {
+	if err := runRecover(*dir, *name, *pwFile, *dsnFile, *resetMFA); err != nil {
 		fmt.Fprintln(os.Stderr, "admin recover:", err)
 		return 1
 	}
 	return 0
 }
 
-func runRecover(dir, name, pwFile, dsnFile string) error {
+func runRecover(dir, name, pwFile, dsnFile string, resetMFA ...bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	username, err := localauth.NormalizeUsername(name)
@@ -248,6 +256,12 @@ func runRecover(dir, name, pwFile, dsnFile string) error {
 	if _, err := store.UpdateUser(ctx, username, localauth.Patch{PasswordHash: &hash, Disabled: &enabled, Unlock: true},
 		fmt.Sprintf("system:recover (%s@%s)", who, host)); err != nil {
 		return err
+	}
+	if len(resetMFA) > 0 && resetMFA[0] {
+		if err := store.ResetMFA(ctx, username, fmt.Sprintf("system:recover (%s@%s)", who, host)); err != nil {
+			return err
+		}
+		fmt.Println("local MFA enrollment removed; enroll again after sign-in (audited)")
 	}
 	fmt.Printf("%s: new password set, account enabled and unlocked, its sessions ended (audited)\n", username)
 	return nil

@@ -314,6 +314,7 @@ database:
 auth:
   local:
     enabled: true
+    mfa_key_file: keys/local-mfa.key
 
 events:
   clickhouse:

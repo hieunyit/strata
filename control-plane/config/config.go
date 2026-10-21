@@ -84,6 +84,7 @@ type File struct {
 
 	Auth struct {
 		Local struct {
+			MFAKeyFile        *string   `yaml:"mfa_key_file" flag:"local-mfa-key-file"`
 			Enabled           *bool     `yaml:"enabled" flag:"local-auth"`
 			SessionTTL        *Duration `yaml:"session_ttl" flag:"local-session-ttl"`
 			AdminUser         *string   `yaml:"admin_user" flag:"local-admin-user"`
@@ -365,6 +366,9 @@ func readSecret(path string) (string, error) {
 	return s, nil
 }
 
+// ReadSecretFile applies the same bounded private-file checks to runtime keys.
+func ReadSecretFile(path string) (string, error) { return readSecret(path) }
+
 // resolvePaths makes the relative file paths of the file relative to the
 // directory of the file, not to the working directory.
 func (f *File) resolvePaths(base string) error {
@@ -372,7 +376,7 @@ func (f *File) resolvePaths(base string) error {
 	for _, k := range []string{
 		"server.fleet.tls_ca", "server.fleet.tls_cert", "server.fleet.tls_key", "server.fleet.node_ca_cert",
 		"server.fleet.node_ca_key", "server.fleet.trust_bundle", "server.admin.tls_cert", "server.admin.tls_key",
-		"database.dsn_file", "auth.local.admin_password_file", "events.clickhouse.password_file",
+		"database.dsn_file", "auth.local.admin_password_file", "auth.local.mfa_key_file", "events.clickhouse.password_file",
 		"bundles.rules", "bundles.block_page", "bundles.identity_key_file", "bundles.storage.local.path", "bundles.storage.s3.access_key_file",
 		"bundles.storage.s3.secret_key_file", "bundles.signer.key_file", "bundles.signer.public_key",
 		"bundles.signer.vault.token_file", "replay.corpus", "geoip.city", "geoip.asn",
