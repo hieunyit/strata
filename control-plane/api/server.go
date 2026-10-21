@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/strata/strata/control-plane/health"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
 	"net/http"
@@ -21,6 +22,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	SystemHealth *health.Service
 	Releases     *policy.Releases
 	Applications *store.Store
 	// ServiceAccounts is optional; only atomic durable writers enable mutations.
@@ -136,6 +138,16 @@ func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
 	if s.cfg.Releases != nil {
 		registerReleases(v1, s.cfg.Releases)
+	}
+	if s.cfg.SystemHealth != nil {
+		v1.HandleFunc("/v1/health", auth.RequireHTTP(auth.PermNodesRead, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(405)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			writeJSON(w, 200, s.cfg.SystemHealth.Collect(r.Context(), auth.FromContext(r.Context())))
+		}))
 	}
 	if s.cfg.Applications != nil {
 		registerApplications(v1, s.cfg.Applications, s.handler)
