@@ -47,3 +47,35 @@ func TestNormalizeDedicatedSuccessPrivacyAndEligibility(t *testing.T) {
 		t.Fatal("collection not opt in")
 	}
 }
+func TestOpenAPIBoundedParsingAndDocumentationRoundtrip(t *testing.T) {
+	raw := []byte(`openapi: 3.0.3
+info: {title: Example, version: "1"}
+paths:
+  /api/users/{id}:
+    description: Example API
+    parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+    post:
+      requestBody: {content: {application/json: {schema: {type: object}}}}
+      responses: {"200": {description: Success}}
+`)
+	ops, err := ParseDocument(raw)
+	if err != nil || len(ops) != 1 || !Matches(ops[0].Path, "/api/users/{param1}") {
+		t.Fatalf("parse %+v %v", ops, err)
+	}
+	doc, err := Document(ops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	round, err := ParseDocument(doc)
+	if err != nil || Digest(round) != Digest(ops) {
+		t.Fatalf("roundtrip %+v %v", round, err)
+	}
+	for _, bad := range []string{`openapi: 2.0`, "openapi: 3.0.3\npaths: {}\npaths: {}", "openapi: 3.0.3\nx: &ref [a]\ny: *ref", "openapi: 3.0.3\nx: {$ref: 'http://169.254.169.254/secret'}", "openapi: 3.0.3\n---\nopenapi: 3.0.3"} {
+		if _, err := ParseDocument([]byte(bad)); err == nil {
+			t.Fatalf("bad document accepted %s", bad)
+		}
+	}
+	if _, err := ParseDocument(bytes.Repeat([]byte{'x'}, (1<<20)+1)); err == nil {
+		t.Fatal("oversized document")
+	}
+}
