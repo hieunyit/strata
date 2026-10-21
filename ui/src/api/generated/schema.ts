@@ -17,6 +17,17 @@ export interface paths {
   "/v1/rule-catalogs:diff": {
     get: operations["diffRuleCatalogs"];
   };
+  "/v1/exceptions": {
+    get: operations["listExceptionInventory"];
+  };
+  "/v1/exceptions:cleanupExpired": {
+    /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+    post: operations["cleanupExpiredExceptions"];
+  };
+  "/v1/exceptions:revoke": {
+    /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+    post: operations["revokePolicyException"];
+  };
   "/v1/saved-searches": {
     get: operations["listSavedSearches"];
     post: operations["createSavedSearch"];
@@ -379,6 +390,58 @@ export interface components {
       health: components["schemas"]["RuleHealth"] | null;
       /** @enum {string} */
       health_status: "available" | "unavailable";
+    };
+    ExceptionOrigin: {
+      owner: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    ExceptionInventoryItem: {
+      policy_id: string;
+      policy_name: string;
+      policy_version: number;
+      etag: string;
+      exception: components["schemas"]["PolicyException"];
+      origin: components["schemas"]["ExceptionOrigin"];
+      state: string;
+      decided_by: string;
+      approved_replay_id: string;
+      warnings: string[];
+      /** @enum {string} */
+      match_source: "not_collected";
+      /** @enum {string} */
+      unused_status: "unknown";
+      editable: boolean;
+      active_nodes: number;
+    };
+    ExceptionMaintenance: {
+      policy_id: string;
+      source_version: number;
+      source_etag: string;
+      expired_ids: string[];
+      /** @enum {string} */
+      state: "pending" | "drafted" | "superseded";
+      etag: string;
+      draft_version: number;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    ExceptionInventoryPage: {
+      exceptions: components["schemas"]["ExceptionInventoryItem"][];
+      next_cursor: string;
+      maintenance: components["schemas"]["ExceptionMaintenance"][];
+      /** Format: date-time */
+      at: string;
+    };
+    ExceptionLifecycleRequest: {
+      application_id: string;
+      environment_id: string;
+      policy_id: string;
+      exception_id?: string;
+      etag: string;
+      request_id: string;
     };
     SavedSearch: {
       editable?: boolean;
@@ -1423,6 +1486,70 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       /** @description Catalog or telemetry unavailable */
       503: {
+        content: never;
+      };
+    };
+  };
+  listExceptionInventory: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ExceptionInventoryPage"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+  cleanupExpiredExceptions: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExceptionLifecycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft created idempotently */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Stale policy etag or request reused */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** @description Creates only a policy draft and replay; etag/request_id, current complete policy write scope and independent review/release remain required. */
+  revokePolicyException: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExceptionLifecycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft created idempotently */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Stale policy etag or request reused */
+      409: {
         content: never;
       };
     };

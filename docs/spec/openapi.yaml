@@ -121,6 +121,81 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '503':
           description: Catalog or telemetry unavailable
+  /v1/exceptions:
+    get:
+      operationId: listExceptionInventory
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionInventoryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/exceptions:cleanupExpired:
+    post:
+      operationId: cleanupExpiredExceptions
+      description: Creates only a policy draft and replay; etag/request_id, current
+        complete policy write scope and independent review/release remain required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionLifecycleRequest'
+      responses:
+        '200':
+          description: Draft created idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Stale policy etag or request reused
+  /v1/exceptions:revoke:
+    post:
+      operationId: revokePolicyException
+      description: Creates only a policy draft and replay; etag/request_id, current
+        complete policy write scope and independent review/release remain required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionLifecycleRequest'
+      responses:
+        '200':
+          description: Draft created idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Stale policy etag or request reused
   /v1/saved-searches:
     get:
       operationId: listSavedSearches
@@ -2127,6 +2202,150 @@ components:
       - usage
       - health
       - health_status
+    ExceptionOrigin:
+      type: object
+      properties:
+        owner:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - owner
+      - created_at
+    ExceptionInventoryItem:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        policy_name:
+          type: string
+        policy_version:
+          type: integer
+        etag:
+          type: string
+        exception:
+          $ref: '#/components/schemas/PolicyException'
+        origin:
+          $ref: '#/components/schemas/ExceptionOrigin'
+        state:
+          type: string
+        decided_by:
+          type: string
+        approved_replay_id:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        match_source:
+          type: string
+          enum:
+          - not_collected
+        unused_status:
+          type: string
+          enum:
+          - unknown
+        editable:
+          type: boolean
+        active_nodes:
+          type: integer
+      required:
+      - policy_id
+      - policy_name
+      - policy_version
+      - etag
+      - exception
+      - origin
+      - state
+      - decided_by
+      - approved_replay_id
+      - warnings
+      - match_source
+      - unused_status
+      - editable
+      - active_nodes
+    ExceptionMaintenance:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        source_version:
+          type: integer
+        source_etag:
+          type: string
+        expired_ids:
+          type: array
+          items:
+            type: string
+        state:
+          type: string
+          enum:
+          - pending
+          - drafted
+          - superseded
+        etag:
+          type: string
+        draft_version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - policy_id
+      - source_version
+      - source_etag
+      - expired_ids
+      - state
+      - etag
+      - draft_version
+      - created_at
+      - updated_at
+    ExceptionInventoryPage:
+      type: object
+      properties:
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionInventoryItem'
+        next_cursor:
+          type: string
+        maintenance:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionMaintenance'
+        at:
+          type: string
+          format: date-time
+      required:
+      - exceptions
+      - next_cursor
+      - maintenance
+      - at
+    ExceptionLifecycleRequest:
+      type: object
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        policy_id:
+          type: string
+        exception_id:
+          type: string
+        etag:
+          type: string
+        request_id:
+          type: string
+      required:
+      - application_id
+      - environment_id
+      - policy_id
+      - etag
+      - request_id
     SavedSearch:
       type: object
       properties:
