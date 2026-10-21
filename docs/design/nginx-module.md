@@ -1059,3 +1059,16 @@ rollout kiểm lại trước khi thay desired hoặc hủy rollout cũ; node th
 tải bundle qua FetchBundle, kể cả khi enroll/kết nối sau rollout. Inventory không thay kiểm
 chữ ký/layout của engine. Bundle cũ chưa có requirements giữ đường tương thích cũ; không suy
 ra capability cho agent cũ.
+
+### Compact B01 · Applications and scope
+
+PostgreSQL migration 0032 defines application ownership, environments, route links and
+namespaced subject bindings. Explicit bindings replace token role authority, while machine
+token scopes remain a ceiling; previously bound subjects never revert to legacy global
+roles after revocation. Global operators configure ownership, global admins grant roles.
+Shared policy mutation/approval requires rights on all owning environments. HTTP and gRPC
+resolve and enforce scope, including event detail and scoped ClickHouse aggregations. SSE
+refreshes authorization each poll. Application metadata hides unassigned environments.
+Scoped request/engine counters are unavailable (`telemetry_scope=events_only`) because their
+source has no route dimensions; the UI labels coverage unknown. The application page shows
+configuration intent and timestamps, not a claim that workers activated that intent.

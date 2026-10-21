@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ApplicationsPage } from './pages/ApplicationsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { MapPage } from './pages/MapPage';
 import { EventsPage } from './pages/EventsPage';
@@ -18,7 +19,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { apiClient } from './api/client';
 
 export const AppContent: React.FC = () => {
-  const { status, roles, logout } = useAuth();
+  const { status, roles, scoped, logout } = useAuth();
   const route = useRoute();
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -54,6 +55,8 @@ export const AppContent: React.FC = () => {
 
   const renderPage = () => {
     switch (route.page) {
+      case 'applications':
+        return <ApplicationsPage />;
       case 'map':
         return <MapPage key={JSON.stringify(route.query ?? {})} route={route} />;
       case 'events':
@@ -67,10 +70,10 @@ export const AppContent: React.FC = () => {
       case 'fleet':
         return <FleetPage />;
       case 'users':
-        if (roles.includes('admin')) return <UsersPage />;
+        if (!scoped && roles.includes('admin')) return <UsersPage />;
         return <OverviewPage route={{ page: 'overview' }} />;
       case 'audit':
-        if (roles.includes('admin')) return <AuditPage />;
+        if (!scoped && roles.includes('admin')) return <AuditPage />;
         return <OverviewPage route={{ page: 'overview' }} />;
       default:
         return <OverviewPage key={JSON.stringify(route.query ?? {})} route={route} />;

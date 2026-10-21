@@ -157,6 +157,7 @@ export const OverviewPage: React.FC<{ route: Route }> = ({ route }) => {
       />
       <ErrorBanner message={unavailable ? t('errors.eventsUnavailable') : error && t('common.refreshError', { error })} testId="overview-error" />
 
+      {o?.telemetry_scope === 'events_only' && <p className="panel p-3 mb-4" role="status">{t('applications.protectionUnknown')}</p>}
       <section className="panel mb-5" aria-label={t('overview.totals')}>
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 px-5">
           <Kpi

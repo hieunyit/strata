@@ -16,7 +16,8 @@
     "users": "Users",
     "reviews": "Reviews",
     "audit": "Audit",
-    "map": "Map"
+    "map": "Map",
+    "applications": "Applications"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -398,7 +399,8 @@
     "typeToConfirm": "To confirm, type",
     "below": "below:",
     "auditReason": "Reason (required for audit log):",
-    "reasonPlaceholder": "Explain why this action is taken…"
+    "reasonPlaceholder": "Explain why this action is taken…",
+    "save": "Save"
   },
   "audit": {
     "title": "Audit Trail",
@@ -870,5 +872,49 @@
       "noPolicy": "The policy no longer exists",
       "review": "Review in Policies"
     }
+  },
+  "applications": {
+    "title": "Applications",
+    "subtitle": "Routes, environments and access to each application.",
+    "create": "Create application",
+    "edit": "Edit",
+    "empty": "No applications in your scope.",
+    "unavailable": "Application statistics unavailable.",
+    "saveFailed": "Could not save. Refresh the application before retrying a conflict.",
+    "owner": "Owner",
+    "environment": "Environment",
+    "all": "All environments",
+    "protectionUnknown": "Protection coverage unknown: request counters do not include route dimensions. Events below cover the last 24 hours; their absence does not prove traffic was inspected.",
+    "events": "Events",
+    "block": "Blocked",
+    "shadow": "Shadow",
+    "error": "Inspection errors",
+    "host": "Host",
+    "path": "Path prefix",
+    "policy": "Policy",
+    "schema": "Schema",
+    "updated": "Configuration updated",
+    "permissions": "Scoped roles",
+    "subject": "Account subject",
+    "role": "Role",
+    "bind": "Grant role",
+    "revoke": "Revoke",
+    "id": "Identifier",
+    "name": "Name",
+    "routeHelp": "Connector groups and policies must exist. Route ownership cannot overlap another application or environment in the same group.",
+    "environments": "Environments",
+    "routes": "Routes",
+    "moreButton": "Next page",
+    "first": "First page",
+    "group_id": "Connector group",
+    "environment_id": "Environment identifier",
+    "path_prefix": "Path prefix",
+    "policy_id": "Policy identifier",
+    "schema_id": "Schema reference",
+    "addEnvironment": "Add environment",
+    "addRoute": "Add route",
+    "remove": "Remove",
+    "policyChanges": "Linked policy intent and recent changes",
+    "unknown": "Unknown"
   }
 }

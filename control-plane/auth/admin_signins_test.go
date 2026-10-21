@@ -70,9 +70,13 @@ func TestRecordAdmins(t *testing.T) {
 	}
 }
 
-func TestScopedAdminsDoNotUnlockOIDCOnly(t *testing.T){
- for _,p:=range []*Principal{
-  {Subject:"oidc:scoped",Roles:[]Role{RoleAdmin},Access:&Access{}},
-  {Subject:"local:admin",Roles:[]Role{RoleAdmin}},
- } {if isAdmin(p){t.Fatalf("non-global OIDC administrator counted: %s",p.Subject)}}
+func TestScopedAdminsDoNotUnlockOIDCOnly(t *testing.T) {
+	for _, p := range []*Principal{
+		{Subject: "oidc:scoped", Roles: []Role{RoleAdmin}, Access: &Access{}},
+		{Subject: "local:admin", Roles: []Role{RoleAdmin}},
+	} {
+		if isAdmin(p) {
+			t.Fatalf("non-global OIDC administrator counted: %s", p.Subject)
+		}
+	}
 }
