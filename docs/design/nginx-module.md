@@ -1142,3 +1142,21 @@ worker deadline, three crash attempts, 24-hour artifact expiry. Artifacts are
 content-addressed under `evidence/{id}/`, never public/presigned. CSV quoting and
 formula guards apply server-side and in the browser. Viewer exports mask client
 IP/identity/snippets. Expired notes/filter receipts/artifacts are physically purged.
+
+
+### Compact C02 · configured rule catalog and exception lifecycle
+
+Catalog snapshots store full canonical rule digests, provenance, CVE/attack metadata and
+owner/review dates. A configured catalog and policy bindings are not proof that a given
+pack revision is active on a proxy. Node counts refer to the policy revision. Rule cost
+is measured telemetry scoped by route/policy/node, and remains unknown without samples;
+legacy FP context without enough scope fails closed.
+
+Exception inventory includes current, latest approved and node-active older revisions.
+Runtime checks the expiry for each new transaction without reload. The maintenance worker
+queues bounded durable expiry work and creates only an ordinary draft/replay when the
+approved revision is still current; human drafts are preserved. Every cleanup requires the
+normal approval/release workflow to publish. New root-path exceptions are rejected by a
+DB trigger across all writers; existing identical legacy entries may carry forward.
+Unknown exception-hit telemetry never becomes a claim of zero use. Maintenance reconciles
+superseded work and retains terminal receipts for thirty days.
