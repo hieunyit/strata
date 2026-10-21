@@ -85,7 +85,7 @@ func TestMigrationsUpDownOnEmptyDatabase(t *testing.T) {
 		t.Fatalf("up: %v", err)
 	}
 	want := []string{"application_environments", "application_role_bindings", "application_routes", "application_subjects", "application_write_requests", "applications", "audit_log", "bundle_version_floor", "bundles", "canary_trips", "connector_groups", "control_plane_lease", "disabled_rules", "enrollment_tokens",
-		"event_annotation_requests", "event_annotations", "evidence_exports", "ingest_sequences", "investigation_requests", "local_mfa", "local_sessions", "local_users",
+		"event_annotation_requests", "event_annotations", "exception_maintenance", "evidence_exports", "ingest_sequences", "investigation_requests", "local_mfa", "local_sessions", "local_users",
 		"machine_accounts", "machine_requests", "machine_tokens", "node_commands", "nodes", "oidc_admin_sign_ins", "operations", "outbound_deliveries", "outbound_settings",
 		"policies", "policy_edit_requests", "policy_geo_rule_ids", "policy_versions", "releases", "replay_sampling", "role_bindings", "rollout_nodes", "rollouts",
 		"rule_annotation_context", "rule_catalog_settings", "rule_catalogs", "rule_staging_actions", "saved_searches", "secrets", "service_accounts"}
