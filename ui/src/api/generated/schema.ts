@@ -5,6 +5,27 @@
 
 
 export interface paths {
+  "/v1/saved-searches": {
+    get: operations["listSavedSearches"];
+    post: operations["createSavedSearch"];
+  };
+  "/v1/saved-searches/{id}": {
+    get: operations["getSavedSearch"];
+    put: operations["updateSavedSearch"];
+  };
+  "/v1/saved-searches/{id}:search": {
+    post: operations["searchSavedEvents"];
+  };
+  "/v1/events/{block_id}:case": {
+    get: operations["getEventCase"];
+    post: operations["saveEventCase"];
+  };
+  "/v1/events/{block_id}:similar": {
+    get: operations["similarEvents"];
+  };
+  "/v1/events/{block_id}:propose-rule": {
+    post: operations["proposeEventRule"];
+  };
   "/v1/auth/mfa": {
     /** Read own local MFA status */
     get: operations["getLocalMFA"];
@@ -258,6 +279,73 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    SavedSearch: {
+      editable?: boolean;
+      id: string;
+      application_id: string;
+      environment_id: string;
+      owner: string;
+      title: string;
+      shared: boolean;
+      sensitive: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    SavedSearchInput: {
+      id?: string;
+      application_id: string;
+      environment_id: string;
+      title: string;
+      shared?: boolean;
+      filter: components["schemas"]["SearchEventsRequest"];
+      etag?: string;
+    };
+    SaveSearchRequest: {
+      search: components["schemas"]["SavedSearchInput"];
+      request_id: string;
+    };
+    SavedSearchReply: {
+      search: components["schemas"]["SavedSearch"];
+    };
+    SavedSearchList: {
+      searches: components["schemas"]["SavedSearch"][];
+      next_cursor: string;
+    };
+    EventCase: {
+      block_id: string;
+      assignee: string;
+      /** @enum {string} */
+      status: "open" | "investigating" | "resolved";
+      note: string;
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    EventCaseRequest: {
+      case: components["schemas"]["EventCase"];
+      request_id: string;
+    };
+    EventCaseReply: {
+      case: components["schemas"]["EventCase"];
+    };
+    EventRuleRequest: {
+      /** @enum {string} */
+      dimension: "country" | "asn";
+      /** @enum {string} */
+      action: "log" | "block";
+      etag: string;
+      request_id: string;
+    };
+    EventRuleDraft: {
+      policy_id: string;
+      policy_version: number;
+      etag: string;
+      /** @enum {string} */
+      state: "DRAFT";
+      replay_url: string;
+    };
     MFACommand: {
       password?: string;
       code?: string;
@@ -666,6 +754,8 @@ export interface components {
       license?: string;
     };
     SearchEventsRequest: {
+      http_host?: string;
+      http_path?: string;
       /** Format: date-time */
       from?: string;
       /** Format: date-time */
@@ -1125,6 +1215,246 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  listSavedSearches: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchList"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  createSavedSearch: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveSearchRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getSavedSearch: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  updateSavedSearch: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveSearchRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SavedSearchReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  searchSavedEvents: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          page_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SearchEventsResponse"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  getEventCase: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventCaseReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  saveEventCase: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventCaseRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventCaseReply"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  similarEvents: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SearchEventsResponse"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
+  proposeEventRule: {
+    parameters: {
+      path: {
+        block_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventRuleRequest"];
+      };
+    };
+    responses: {
+      /** @description Authorized bounded result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventRuleDraft"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Resource absent or inaccessible */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag, changed request or unfinished job */
+      409: {
+        content: never;
+      };
+    };
+  };
   /** Read own local MFA status */
   getLocalMFA: {
     responses: {

@@ -7,6 +7,239 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/saved-searches:
+    get:
+      operationId: listSavedSearches
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+    post:
+      operationId: createSavedSearch
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveSearchRequest'
+  /v1/saved-searches/{id}:
+    get:
+      operationId: getSavedSearch
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: updateSavedSearch
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveSearchRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /v1/saved-searches/{id}:search:
+    post:
+      operationId: searchSavedEvents
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchEventsResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                page_token:
+                  type: string
+              required: []
+  /v1/events/{block_id}:case:
+    get:
+      operationId: getEventCase
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventCaseReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: saveEventCase
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventCaseReply'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCaseRequest'
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema:
+          type: string
+  /v1/events/{block_id}:similar:
+    get:
+      operationId: similarEvents
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchEventsResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema:
+          type: string
+  /v1/events/{block_id}:propose-rule:
+    post:
+      operationId: proposeEventRule
+      responses:
+        '200':
+          description: Authorized bounded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRuleDraft'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Resource absent or inaccessible
+        '409':
+          description: Stale etag, changed request or unfinished job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventRuleRequest'
+      parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema:
+          type: string
   /v1/auth/mfa:
     get:
       operationId: getLocalMFA
@@ -1486,6 +1719,174 @@ components:
       required: true
       schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    SavedSearch:
+      type: object
+      properties:
+        editable:
+          type: boolean
+        id:
+          type: string
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        owner:
+          type: string
+        title:
+          type: string
+          maxLength: 100
+        shared:
+          type: boolean
+        sensitive:
+          type: boolean
+        filter:
+          $ref: '#/components/schemas/SearchEventsRequest'
+        etag:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - application_id
+      - environment_id
+      - owner
+      - title
+      - shared
+      - sensitive
+      - filter
+      - etag
+      - expires_at
+    SavedSearchInput:
+      type: object
+      required: [application_id, environment_id, title, filter]
+      properties:
+        id: {type: string}
+        application_id: {type: string}
+        environment_id: {type: string}
+        title: {type: string, maxLength: 100}
+        shared: {type: boolean}
+        filter: {$ref: '#/components/schemas/SearchEventsRequest'}
+        etag: {type: string}
+    SaveSearchRequest:
+      type: object
+      properties:
+        search:
+          $ref: '#/components/schemas/SavedSearchInput'
+        request_id:
+          type: string
+          maxLength: 128
+      required:
+      - search
+      - request_id
+    SavedSearchReply:
+      type: object
+      properties:
+        search:
+          $ref: '#/components/schemas/SavedSearch'
+      required:
+      - search
+    SavedSearchList:
+      type: object
+      properties:
+        searches:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedSearch'
+        next_cursor:
+          type: string
+      required:
+      - searches
+      - next_cursor
+    EventCase:
+      type: object
+      properties:
+        block_id:
+          type: string
+        assignee:
+          type: string
+        status:
+          type: string
+          enum:
+          - open
+          - investigating
+          - resolved
+        note:
+          type: string
+          maxLength: 1000
+        etag:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - block_id
+      - assignee
+      - status
+      - note
+      - etag
+      - expires_at
+    EventCaseRequest:
+      type: object
+      properties:
+        case:
+          $ref: '#/components/schemas/EventCase'
+        request_id:
+          type: string
+          maxLength: 128
+      required:
+      - case
+      - request_id
+    EventCaseReply:
+      type: object
+      properties:
+        case:
+          $ref: '#/components/schemas/EventCase'
+      required:
+      - case
+    EventRuleRequest:
+      type: object
+      properties:
+        dimension:
+          type: string
+          enum:
+          - country
+          - asn
+        action:
+          type: string
+          enum:
+          - log
+          - block
+        etag:
+          type: string
+        request_id:
+          type: string
+      required:
+      - dimension
+      - action
+      - etag
+      - request_id
+    EventRuleDraft:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        policy_version:
+          type: integer
+        etag:
+          type: string
+        state:
+          type: string
+          enum:
+          - DRAFT
+        replay_url:
+          type: string
+      required:
+      - policy_id
+      - policy_version
+      - etag
+      - state
+      - replay_url
     MFACommand:
       type: object
       properties:
@@ -2126,6 +2527,12 @@ components:
     SearchEventsRequest:
       type: object
       properties:
+        http_host:
+          type: string
+          maxLength: 253
+        http_path:
+          type: string
+          maxLength: 2048
         from:
           type: string
           format: date-time
