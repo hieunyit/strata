@@ -1122,3 +1122,23 @@ in the original transaction. DNS answers are checked at connection and dialed li
 private networks need an explicit allowlist, redirects/proxies are disabled, TLS verified.
 The 10,000-record queue and five-attempt retry budget preserve local audit on saturation.
 Details, signatures and recovery procedures: `docs/runbook/account-security.md`.
+
+### Compact C01 · Event investigation
+
+`/v1/saved-searches` stores private/shared filters per application/environment;
+opaque share IDs always require current access. `/{id}:search` executes under the
+saved application scope. Sensitive IP/path filters require sensitive event access.
+`/v1/events/{block_id}:case` stores independent case metadata in PostgreSQL with
+etag, request ID, scoped assignment and 30-day retention; case-only rows never
+imply false-positive classification. `:similar` returns bounded exact route/rule
+matches within 24 hours. `:propose-rule` uses stored verified GeoIP to create only
+a policy draft and replay; existing review/publication gates remain authoritative.
+Geo rule ID reservations are checked by every policy-version write.
+
+`/v1/evidence` queues private export operations, separate from replay operations.
+Creation/execution/publication/download revalidate access and preserve the original
+scope ceiling. Limits: 31-day query window, 10,000 rows, 16 MiB CSV, five-minute
+worker deadline, three crash attempts, 24-hour artifact expiry. Artifacts are
+content-addressed under `evidence/{id}/`, never public/presigned. CSV quoting and
+formula guards apply server-side and in the browser. Viewer exports mask client
+IP/identity/snippets. Expired notes/filter receipts/artifacts are physically purged.

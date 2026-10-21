@@ -7,7 +7,7 @@ All B PRs #296–#320 were merged, final main commit
 | Task | State | Report / review |
 | --- | --- | --- |
 | C03 Privacy, local MFA, sessions, external audit copies | Code/tests complete; open dependent PRs #321–#335 | [Acceptance and ordered PRs](cp-c03.md), [final PR #335](https://github.com/hieunyit/strata/pull/335) |
-| C01 Investigation | In progress | Saved searches/share access, cases, draft actions, bounded evidence exports |
+| C01 Investigation | Code/tests complete; dependent PRs for review | [Acceptance and ordered PRs](cp-c01.md) |
 | C02 Rule/exception lifecycle | Pending | After investigation foundation |
 | C04 Alerts/reports | Pending | Reuses signed delivery and durable queue from C03 |
 | C05 Discovery | Pending | Collection remains disabled until legal approval; synthetic validation only |
