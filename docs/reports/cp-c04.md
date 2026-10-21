@@ -73,3 +73,16 @@ first run overlapped a test-file split and caught a generated test-main mismatch
 the completed rerun used the stable final files. Go lint then caught one trailing
 formatting issue in that test file; `gofmt` and a full lint rerun passed, **0 issues**
 (`c04-lint-final.log`, exit 0). No test behavior was removed or weakened.
+
+## Ordered review PRs
+
+- [store: group operational incidents with durable cooldown](https://github.com/hieunyit/strata/pull/366) · base `codex/cp-c02-docs`
+- [store: schedule scoped reports with fenced leases](https://github.com/hieunyit/strata/pull/367) · base `codex/cp-c04-incidents`
+- [operations: verify cooldown leases privacy and retention](https://github.com/hieunyit/strata/pull/368) · base `codex/cp-c04-reports`
+- [operations: collect scoped incidents and aggregate reports](https://github.com/hieunyit/strata/pull/369) · base `codex/cp-c04-store-tests`
+- [api: scope incident acknowledgment and report downloads](https://github.com/hieunyit/strata/pull/370) · base `codex/cp-c04-worker`
+- [server: run operational reporting and record backup outcomes](https://github.com/hieunyit/strata/pull/371) · base `codex/cp-c04-api`
+- [api: define operational incidents and source limits](https://github.com/hieunyit/strata/pull/372) · base `codex/cp-c04-integration`
+- [api: define application report schedules and downloads](https://github.com/hieunyit/strata/pull/373) · base `codex/cp-c04-incident-contract`
+- [ui: acknowledge incidents and schedule application reports](https://github.com/hieunyit/strata/pull/374) · base `codex/cp-c04-report-contract`
+- [docs: record Compact C04 acceptance and review limits](https://github.com/hieunyit/strata/pull/375) · base `codex/cp-c04-ui`
