@@ -7,6 +7,120 @@ info:
     needs a bearer token in Authorization: an OIDC access token (audience strata-api, roles from realm_access.roles)
     or, with -local-auth, a local session token (stl_ prefix) from POST /v1/auth/login. Machine credentials (stsa_) use the same header when the durable machine authenticator is configured; query credentials are not accepted.'
 paths:
+  /v1/rule-catalog:
+    get:
+      operationId: searchRuleCatalog
+      parameters:
+      - name: source
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cve
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: attack_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalog/{id}:
+    get:
+      operationId: getRuleCatalogDetail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: application_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: environment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalogs:
+    get:
+      operationId: listRuleCatalogs
+      parameters: []
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogHistory'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
+  /v1/rule-catalogs:diff:
+    get:
+      operationId: diffRuleCatalogs
+      parameters:
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Bounded authorized result; configured metadata is not proof of
+            node activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCatalogDiff'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog or telemetry unavailable
   /v1/saved-searches:
     get:
       operationId: listSavedSearches
@@ -1802,6 +1916,217 @@ components:
       required: true
       schema: {type: string, minLength: 1, maxLength: 128}
   schemas:
+    RuleMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+        layer:
+          type: string
+        severity:
+          type: string
+        source:
+          type: string
+        author:
+          type: string
+        license:
+          type: string
+        version:
+          type: string
+        upstream_id:
+          type: string
+        attack_type:
+          type: string
+        cves:
+          type: array
+          items:
+            type: string
+        owner:
+          type: string
+        review_by:
+          type: string
+        pack:
+          type: string
+          enum:
+          - core
+          - signature
+        digest:
+          type: string
+        paranoia_level:
+          type: integer
+        plugin:
+          type: string
+      required:
+      - name
+      - pack
+      - digest
+    RuleCatalogEntry:
+      allOf:
+      - $ref: '#/components/schemas/RuleMetadata'
+      - type: object
+        properties:
+          id:
+            type: integer
+        required:
+        - id
+    RuleCatalogPage:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogEntry'
+        next_cursor:
+          type: integer
+        digest:
+          type: string
+        at:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+        source:
+          type: string
+          enum:
+          - configured_catalog
+        total:
+          type: integer
+      required:
+      - rules
+      - next_cursor
+      - digest
+      - at
+      - stale
+      - source
+      - total
+    RuleCatalogSnapshot:
+      type: object
+      properties:
+        digest:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        rules:
+          type: integer
+      required:
+      - digest
+      - created_at
+      - last_seen_at
+      - current
+      - rules
+    RuleCatalogHistory:
+      type: object
+      properties:
+        catalogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogSnapshot'
+      required:
+      - catalogs
+    RuleCatalogChange:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum:
+          - added
+          - removed
+          - modified
+        before:
+          $ref: '#/components/schemas/RuleMetadata'
+        after:
+          $ref: '#/components/schemas/RuleMetadata'
+      required:
+      - id
+      - kind
+    RuleCatalogDiff:
+      type: object
+      properties:
+        added:
+          type: integer
+        removed:
+          type: integer
+        modified:
+          type: integer
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCatalogChange'
+        next_cursor:
+          type: integer
+      required:
+      - added
+      - removed
+      - modified
+      - changes
+      - next_cursor
+    RuleApplicationUsage:
+      type: object
+      properties:
+        application_id:
+          type: string
+        environment_id:
+          type: string
+        policy_id:
+          type: string
+        policy_name:
+          type: string
+        policy_mode:
+          type: string
+        policy_version:
+          type: integer
+        state:
+          type: string
+        disabled:
+          type: boolean
+        active_policy_nodes:
+          type: integer
+        source:
+          type: string
+          enum:
+          - configured_catalog_and_policy_bindings
+      required:
+      - application_id
+      - environment_id
+      - policy_id
+      - policy_name
+      - policy_mode
+      - policy_version
+      - state
+      - disabled
+      - active_policy_nodes
+      - source
+    RuleCatalogDetail:
+      type: object
+      properties:
+        rule:
+          $ref: '#/components/schemas/RuleCatalogEntry'
+        usage:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleApplicationUsage'
+        health:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/RuleHealth'
+        health_status:
+          type: string
+          enum:
+          - available
+          - unavailable
+      required:
+      - rule
+      - usage
+      - health
+      - health_status
     SavedSearch:
       type: object
       properties:

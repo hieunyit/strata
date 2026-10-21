@@ -5,6 +5,18 @@
 
 
 export interface paths {
+  "/v1/rule-catalog": {
+    get: operations["searchRuleCatalog"];
+  };
+  "/v1/rule-catalog/{id}": {
+    get: operations["getRuleCatalogDetail"];
+  };
+  "/v1/rule-catalogs": {
+    get: operations["listRuleCatalogs"];
+  };
+  "/v1/rule-catalogs:diff": {
+    get: operations["diffRuleCatalogs"];
+  };
   "/v1/saved-searches": {
     get: operations["listSavedSearches"];
     post: operations["createSavedSearch"];
@@ -289,6 +301,85 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    RuleMetadata: {
+      name: string;
+      layer?: string;
+      severity?: string;
+      source?: string;
+      author?: string;
+      license?: string;
+      version?: string;
+      upstream_id?: string;
+      attack_type?: string;
+      cves?: string[];
+      owner?: string;
+      review_by?: string;
+      /** @enum {string} */
+      pack: "core" | "signature";
+      digest: string;
+      paranoia_level?: number;
+      plugin?: string;
+    };
+    RuleCatalogEntry: components["schemas"]["RuleMetadata"] & {
+      id: number;
+    };
+    RuleCatalogPage: {
+      rules: components["schemas"]["RuleCatalogEntry"][];
+      next_cursor: number;
+      digest: string;
+      /** Format: date-time */
+      at: string;
+      stale: boolean;
+      /** @enum {string} */
+      source: "configured_catalog";
+      total: number;
+    };
+    RuleCatalogSnapshot: {
+      digest: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_seen_at: string;
+      current: boolean;
+      rules: number;
+    };
+    RuleCatalogHistory: {
+      catalogs: components["schemas"]["RuleCatalogSnapshot"][];
+    };
+    RuleCatalogChange: {
+      id: number;
+      /** @enum {string} */
+      kind: "added" | "removed" | "modified";
+      before?: components["schemas"]["RuleMetadata"];
+      after?: components["schemas"]["RuleMetadata"];
+    };
+    RuleCatalogDiff: {
+      added: number;
+      removed: number;
+      modified: number;
+      changes: components["schemas"]["RuleCatalogChange"][];
+      next_cursor: number;
+    };
+    RuleApplicationUsage: {
+      application_id: string;
+      environment_id: string;
+      policy_id: string;
+      policy_name: string;
+      policy_mode: string;
+      policy_version: number;
+      state: string;
+      disabled: boolean;
+      active_policy_nodes: number;
+      /** @enum {string} */
+      source: "configured_catalog_and_policy_bindings";
+    };
+    RuleCatalogDetail: {
+      rule: components["schemas"]["RuleCatalogEntry"];
+      usage: components["schemas"]["RuleApplicationUsage"][];
+      health: components["schemas"]["RuleHealth"] | null;
+      /** @enum {string} */
+      health_status: "available" | "unavailable";
+    };
     SavedSearch: {
       editable?: boolean;
       id: string;
@@ -1252,6 +1343,90 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  searchRuleCatalog: {
+    parameters: {
+      query?: {
+        source?: string;
+        cve?: string;
+        attack_type?: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogPage"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  getRuleCatalogDetail: {
+    parameters: {
+      query: {
+        application_id: string;
+        environment_id: string;
+      };
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogDetail"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  listRuleCatalogs: {
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogHistory"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  diffRuleCatalogs: {
+    parameters: {
+      query: {
+        from: string;
+        to: string;
+        after?: string;
+      };
+    };
+    responses: {
+      /** @description Bounded authorized result; configured metadata is not proof of node activation. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleCatalogDiff"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
   listSavedSearches: {
     parameters: {
       query: {
