@@ -48,3 +48,15 @@ Tự review: lệnh không chứa secret thật; không dùng insecure/bỏ ch�
 đích cô lập và giữ volume cũ; không hứa zero-loss, HA nhiều CP, CH nằm trong backup
 metadata hay telemetry chưa có. Thay đổi chỉ gồm tài liệu; PR tách theo chương để
 mỗi phần dưới khoảng 400 dòng.
+
+## Thứ tự PR tài liệu
+
+Bắt đầu sau PR #388 của phần C; review/merge theo thứ tự để giữ base đúng.
+
+- [#389](https://github.com/hieunyit/strata/pull/389) · `codex/ops-docs-install`
+- [#390](https://github.com/hieunyit/strata/pull/390) · `codex/ops-docs-config`
+- [#391](https://github.com/hieunyit/strata/pull/391) · `codex/ops-docs-nodes`
+- [#392](https://github.com/hieunyit/strata/pull/392) · `codex/ops-docs-security`
+- [#393](https://github.com/hieunyit/strata/pull/393) · `codex/ops-docs-operations`
+- [#394](https://github.com/hieunyit/strata/pull/394) · `codex/ops-docs-backup`
+- [#395](https://github.com/hieunyit/strata/pull/395) · `codex/ops-docs-compact-c`\n
