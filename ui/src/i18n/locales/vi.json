@@ -23,7 +23,8 @@
     "security": "Bảo mật tài khoản",
     "rules": "Rule & gói rule",
     "exceptions": "Exception",
-    "operations": "Cảnh báo và báo cáo"
+    "operations": "Cảnh báo và báo cáo",
+    "discovery": "Khám phá API"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -1250,5 +1251,43 @@
       "acknowledged": "Đã xác nhận",
       "resolved": "Đã phục hồi"
     }
+  },
+  "discovery": {
+    "title": "Khám phá API",
+    "help": "Đối chiếu nguồn quan sát backend riêng với danh mục operation OpenAPI.",
+    "enforcementLimit": "Đề xuất tài liệu. Runtime hiện tại chưa thực thi OpenAPI. Bản nháp cần replay và duyệt độc lập; tạo hoặc tải đề xuất không tự bật chặn.",
+    "collection": "Trạng thái thu thập",
+    "enabled": "Đã bật thu thập theo phê duyệt pháp chế đã cấu hình.",
+    "disabled": "Thu thập đang tắt hoặc phê duyệt đã hết hạn.",
+    "telemetryHelp": "Chỉ collector máy được tin cậy mới gửi quan sát 2xx riêng từ backend. Không dùng sự kiện vi phạm làm đại diện toàn bộ lưu lượng. Không lưu query, body hay địa chỉ nguồn thô. Đoạn đường dẫn chưa biết được thay bằng tham số nên có thể gộp nhầm route. Nguồn được đếm theo địa chỉ, không phải số người độc lập.",
+    "approvalExpiry": "Phê duyệt hết hạn",
+    "threshold": "Tối thiểu {{samples}} quan sát, {{sources}} nguồn trong cùng ngày UTC và {{minutes}} phút bằng chứng. Quan sát hết hạn sau {{days}} ngày.",
+    "baseline": "OpenAPI gốc",
+    "documentHelp": "Tải danh mục operation OpenAPI 3.0/3.1 có giới hạn cho môi trường hiện tại. Chỉ lập chỉ mục path, method, content type và mức body đã quan sát. Không kiểm tra các ràng buộc schema khác hay phân giải tham chiếu nội bộ.",
+    "scopeChanged": "Phạm vi ứng dụng đã đổi. Tải lại để xác nhận phạm vi hiện tại.",
+    "operations": "{{count}} operation đã lập chỉ mục",
+    "document": "Tài liệu OpenAPI (JSON hoặc YAML, tối đa 128 KiB)",
+    "saveDocument": "Lưu bản gốc",
+    "endpoints": "Endpoint đã quan sát",
+    "empty": "Chưa có quan sát riêng trong phạm vi này.",
+    "endpoint": "Endpoint",
+    "contentTypes": "Content type quan sát",
+    "samples": "Mẫu",
+    "sources": "Nguồn khác nhau",
+    "observedMax": "Số byte lớn nhất đã thấy",
+    "actions": "Thao tác",
+    "propose": "Đề xuất thay đổi",
+    "insufficient": "Chưa đủ bằng chứng đạt điều kiện.",
+    "proposals": "Đề xuất bất biến và khác biệt",
+    "proposed": "Đang đề xuất",
+    "stale": "Bản gốc đã đổi; tạo đề xuất mới trước khi tạo bản nháp.",
+    "download": "Tải đề xuất OpenAPI",
+    "createDraft": "Tạo bản nháp và replay",
+    "error": "Không thể thực hiện. Thử lại cùng lệnh hoặc làm mới nếu có xung đột. Thiếu bằng chứng sẽ không tạo được đề xuất.",
+    "media": {
+      "none": "Không có content type",
+      "other": "Content type khác"
+    },
+    "reviewDraft": "Xem bản nháp và replay"
   }
 }
