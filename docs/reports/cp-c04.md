@@ -66,3 +66,10 @@ remain visible to its caller. No deployment or external receiver was exercised.
 - Mutations authorize and audit; exports recheck binding and contain aggregate values only.
 - Scope is control plane, generated API/UI and associated tests/docs.
 - Full lint result and ordered review PRs are appended before publication.
+
+Final CP run (`c04-full-final.log`) passed every package, exit 0: API **110.040s**,
+store **49.321s**, with remaining packages passed/cached from the same stack. The
+first run overlapped a test-file split and caught a generated test-main mismatch;
+the completed rerun used the stable final files. Go lint then caught one trailing
+formatting issue in that test file; `gofmt` and a full lint rerun passed, **0 issues**
+(`c04-lint-final.log`, exit 0). No test behavior was removed or weakened.
