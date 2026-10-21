@@ -18,7 +18,8 @@
     "audit": "Kiểm toán",
     "map": "Bản đồ",
     "applications": "Ứng dụng",
-    "releases": "Phát hành"
+    "releases": "Phát hành",
+    "health": "Sức khỏe hệ thống"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -959,5 +960,101 @@
     "precondition": "Điều kiện triển khai chưa đạt: {{details}}",
     "capabilities": "Capability node cần có",
     "baseCapabilities": "Tính năng bundle cơ bản"
+  },
+  "health": {
+    "title": "Sức khỏe hệ thống",
+    "subtitle": "Phân biệt số đo bằng 0, nguồn thiếu và quan sát đã cũ.",
+    "source": "Nguồn",
+    "state": "Trạng thái",
+    "value": "Giá trị",
+    "observed": "Lần quan sát cuối",
+    "action": "Hướng xử lý",
+    "missing": "Chưa có quan sát",
+    "checkSource": "Kiểm tra nguồn dữ liệu và telemetry.",
+    "unavailable": "Nguồn sức khỏe không sẵn sàng. Dữ liệu cũ có thể đã quá hạn.",
+    "snapshot": "Snapshot",
+    "countersNote": "Bộ đếm theo cửa sổ hoặc mốc reset ghi trong nhãn; đã từng mất sự kiện không chứng minh đang tiếp tục mất. Chưa biết dung lượng volume từ xa khi không có nguồn đo trực tiếp.",
+    "truncated": "Chỉ bao gồm 1.000 node đầu tiên.",
+    "scope": {
+      "global": "Phạm vi toàn hệ thống",
+      "applications": "Ứng dụng được giao; ẩn bộ đếm lưu lượng toàn node"
+    },
+    "states": {
+      "healthy": "Tốt",
+      "degraded": "Cần xử lý",
+      "unknown": "Chưa biết",
+      "stale": "Đã cũ",
+      "unavailable": "Không sẵn sàng"
+    },
+    "units": {
+      "count": "",
+      "bytes": "bytes",
+      "seconds": "s",
+      "requests_15m": "/ 15m",
+      "events_15m": "/ 15m",
+      "actual/desired": ""
+    },
+    "sources": {
+      "postgres": "PostgreSQL",
+      "lease": "Lease control plane",
+      "clickhouse": "ClickHouse",
+      "artifact_disk": "Đĩa artifact còn trống",
+      "postgres_disk": "Đĩa PostgreSQL còn trống",
+      "clickhouse_disk": "Đĩa ClickHouse còn trống",
+      "ingest_queue": "Hàng đợi ingest",
+      "invalid_events": "Sự kiện sai từ lúc tiến trình chạy",
+      "ingest_lag": "Độ trễ gửi lớn nhất (5 phút qua, sự kiện trong 24 giờ)",
+      "event_clock_skew": "Timestamp sự kiện ở tương lai",
+      "requests": "Request quan sát được (15 phút)",
+      "not_inspected": "Request kiểm tra chưa đủ (15 phút)",
+      "body_skipped": "Bỏ qua body (15 phút)",
+      "breaker": "Circuit breaker (15 phút)",
+      "shadow_events": "Sự kiện shadow (15 phút)",
+      "fleet": "Nguồn Fleet",
+      "failed_operations": "Operation lỗi (24 giờ)",
+      "heartbeat": "Heartbeat node",
+      "bundle_drift": "Bundle thực tế / mong muốn",
+      "certificate": "Chứng chỉ Fleet",
+      "fail_open": "Fail-open từ lúc reset metrics worker",
+      "dropped_events": "Sự kiện bỏ từ lúc reset bộ đếm",
+      "spool_bytes": "Dung lượng spool",
+      "spool_pending": "Batch trong spool chưa xác nhận",
+      "spool_dropped": "Sự kiện spool bỏ từ lúc agent chạy",
+      "spool_capacity": "Giới hạn spool"
+    },
+    "advice": {
+      "postgres": "Kiểm tra kết nối và migration schema.",
+      "lease": "Kiểm tra control plane duy nhất và gia hạn lease.",
+      "clickhouse": "Khôi phục đường gửi ClickHouse; kiểm tra hàng đợi ingest.",
+      "artifact_disk": "Kiểm tra volume tương ứng và retention.",
+      "postgres_disk": "Kiểm tra volume tương ứng và retention.",
+      "clickhouse_disk": "Kiểm tra volume tương ứng và retention.",
+      "ingest_queue": "Khôi phục đường gửi ClickHouse; kiểm tra hàng đợi ingest.",
+      "invalid_events": "Kiểm tra nguồn này và thời điểm quan sát.",
+      "ingest_lag": "Khôi phục đường gửi ClickHouse; kiểm tra hàng đợi ingest.",
+      "event_clock_skew": "Kiểm tra nguồn này và thời điểm quan sát.",
+      "requests": "Kiểm tra metrics worker, giới hạn request và lỗi kiểm tra.",
+      "not_inspected": "Kiểm tra metrics worker, giới hạn request và lỗi kiểm tra.",
+      "body_skipped": "Kiểm tra metrics worker, giới hạn request và lỗi kiểm tra.",
+      "breaker": "Kiểm tra metrics worker, giới hạn request và lỗi kiểm tra.",
+      "shadow_events": "Kiểm tra nguồn này và thời điểm quan sát.",
+      "fleet": "Kiểm tra nguồn này và thời điểm quan sát.",
+      "failed_operations": "Kiểm tra operation lỗi và bằng chứng replay.",
+      "heartbeat": "Kiểm tra dịch vụ agent và kết nối mTLS.",
+      "bundle_drift": "Kiểm tra lỗi rollout và xác nhận ACTIVE.",
+      "certificate": "Kiểm tra gia hạn chứng chỉ trước khi hết hạn.",
+      "fail_open": "Kiểm tra metrics worker, giới hạn request và lỗi kiểm tra.",
+      "dropped_events": "Khôi phục gửi sự kiện và kiểm tra dung lượng spool.",
+      "spool_bytes": "Khôi phục gửi sự kiện và kiểm tra dung lượng spool.",
+      "spool_pending": "Khôi phục gửi sự kiện và kiểm tra dung lượng spool.",
+      "spool_dropped": "Khôi phục gửi sự kiện và kiểm tra dung lượng spool.",
+      "spool_capacity": "Khôi phục gửi sự kiện và kiểm tra dung lượng spool."
+    },
+    "certificateValue": {
+      "healthy": "Còn hạn",
+      "unknown": "Chưa biết",
+      "expired": "Hết hạn",
+      "expiring": "Sắp hết hạn"
+    }
   }
 }

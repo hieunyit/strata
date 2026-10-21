@@ -31,6 +31,8 @@ export type AuthMethods = components['schemas']['AuthMethods'];
 export type LocalSession = components['schemas']['LocalSession'];
 export type Release = components['schemas']['Release'];
 export type ReleaseDetail = components['schemas']['ReleaseDetail'];
+export type HealthSnapshot = components['schemas']['HealthSnapshot'];
+export type HealthCheck = components['schemas']['HealthCheck'];
 export type Application = components['schemas']['Application'];
 export type ApplicationBinding = components['schemas']['ApplicationBinding'];
 export type Me = components['schemas']['Me'];
@@ -307,6 +309,7 @@ export const apiClient = {
   getRelease(id:string):Promise<ReleaseDetail>{return call(`/releases/${encodeURIComponent(id)}`,{method:'GET'},'Failed to read release');},
   createRelease(request_id:string,source_release=''):Promise<components['schemas']['ReleaseResult']>{return call('/releases',{method:'POST',body:JSON.stringify({request_id,source_release})},'Failed to prepare release');},
   actRelease(id:string,action:'approve'|'reject'|'deploy',request:components['schemas']['ReleaseAction']):Promise<components['schemas']['ReleaseResult']>{return call(`/releases/${encodeURIComponent(id)}:${action}`,{method:'POST',body:JSON.stringify(request)},'Failed to change release');},
+  systemHealth():Promise<HealthSnapshot>{return call('/health',{method:'GET'},'Health source unavailable');},
   listApplications(after = ''): Promise<components['schemas']['ApplicationList']> {
     return call(`/applications?after=${encodeURIComponent(after)}`, {method:'GET'}, 'Failed to read applications');
   },
