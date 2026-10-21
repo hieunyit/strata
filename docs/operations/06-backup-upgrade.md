@@ -167,13 +167,18 @@ hiện tại và spool có giới hạn; nếu thời gian sao lưu dài cần t
 
 ```bash
 dc stop control-plane
-dc stop clickhouse
+dc stop -t 120 clickhouse
+docker inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$ch_container"
 set -o pipefail
 docker run --rm --user 0 --entrypoint tar \
   -v "$ch_volume:/source:ro" \
   clickhouse/clickhouse-server:25.8.33 -cpf - -C /source . \
   | age -p -o /secure-backups/clickhouse-example.tar.age
 ```
+
+Trước khi copy, kiểm container đã dừng sạch, log shutdown không có lỗi/forced kill;
+`Running=false` riêng lẻ chưa chứng minh shutdown sạch. Nếu stop hết timeout hoặc
+exit bất thường, khắc phục/khởi động kiểm tra và dừng sạch trước khi lấy backup.
 
 `age -p` hỏi passphrase qua terminal; giữ passphrase ngoài archive. Chỉ dùng tên đích
 mới, không ghi đè bản đã có. Kiểm pipeline exit code; nếu lỗi, giữ trạng thái và xử

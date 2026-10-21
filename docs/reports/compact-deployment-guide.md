@@ -1,7 +1,7 @@
 # Compact deployment and operations documentation
 
 Yêu cầu PO: viết chi tiết tài liệu cài đặt, cấu hình và triển khai. Tài liệu mới ở
-[docs/operations](../operations/README.md), gồm trang tra cứu và 7 chương, 1.915 dòng.
+[docs/operations](../operations/README.md), gồm trang tra cứu và 7 chương, 1.920 dòng.
 Giữ PostgreSQL/ClickHouse, local auth default, Keycloak tùy chọn; B03 vẫn loại khỏi
 phạm vi. Không đổi runtime, API, dependency, migration hoặc cấu hình triển khai.
 
