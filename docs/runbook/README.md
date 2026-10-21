@@ -9,6 +9,7 @@ dưới đây.
 - Cảnh báo: vmalert (lab `127.0.0.1:18880`, staging `127.0.0.1:28880`), danh sách
   cảnh báo trong Grafana, và chuỗi `ALERTS{alertstate="firing"}` trong VictoriaMetrics.
 - Cài node: `docs/runbook/install.md`.
+- Sức khỏe Compact, doctor và gói hỗ trợ: [doctor](doctor.md).
 - Các thao tác can thiệp (tắt module, ép shadow, rollback bundle) có lệnh và kết quả
   mong đợi ở các mục cùng tên. `tests/e2e/runbook-drill.sh [lab|staging]` chạy đúng các
   lệnh đó và đo thời gian; biên bản diễn tập nằm trong `docs/reports/w10-n-01.md`.

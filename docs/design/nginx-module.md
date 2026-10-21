@@ -1084,3 +1084,18 @@ and signs with the current key, rather than recompiling old policy with new rule
 or changed replay baselines require explicit acknowledgment of the current baseline.
 Global roles manage these installation-wide artifacts; scoped users cannot disclose them.
 Canary thresholds are YAML/flag settings, pinned at preparation; changes require new review.
+
+### Compact B05 · Health and read-only doctor
+
+Fleet Heartbeat optionally carries bounded AgentHealth spool counters; NodeCounters declares
+whether worker metrics were actually observed. Migration 0034 persists this telemetry and its
+receipt time. Authenticated `/v1/health` combines readiness, bounded ClickHouse observations,
+node/certificate/drift, failed operations and filesystem diagnostics with explicit freshness
+and unknown states. Application scope filters nodes/events and withholds whole-node traffic
+counters. The UI ages observations even while its network request is pending.
+
+`strata-control-plane doctor` reads existing schemas and never starts migrations/workers or
+acquires a lease. Private support archives allowlist numeric configuration and diagnostic
+fields, pseudonymize node IDs, omit raw logs/request data/credentials, and include checksums.
+Remote database disk space and offline live-process telemetry remain unknown. Details and
+exit codes are in `docs/runbook/doctor.md`.
