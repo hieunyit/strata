@@ -6,6 +6,7 @@ import (
 	"github.com/strata/strata/control-plane/investigation"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
+	"github.com/strata/strata/control-plane/ruleinventory"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	RuleCatalog  *ruleinventory.Catalog
 	Evidence     *investigation.Worker
 	SystemHealth *health.Service
 	Releases     *policy.Releases
