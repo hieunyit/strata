@@ -5,6 +5,46 @@
 
 
 export interface paths {
+  "/v1/auth/mfa": {
+    /** Read own local MFA status */
+    get: operations["getLocalMFA"];
+  };
+  "/v1/auth/sessions": {
+    /** List at most 100 own live local sessions */
+    get: operations["listOwnSessions"];
+  };
+  "/v1/auth/mfa:begin": {
+    /**
+     * Local MFA begin with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["beginLocalMFA"];
+  };
+  "/v1/auth/mfa:confirm": {
+    /**
+     * Local MFA confirm with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["confirmLocalMFA"];
+  };
+  "/v1/auth/mfa:disable": {
+    /**
+     * Local MFA disable with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["disableLocalMFA"];
+  };
+  "/v1/auth/mfa:recovery": {
+    /**
+     * Local MFA recovery with current local session
+     * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+     */
+    post: operations["rotateLocalMFARecovery"];
+  };
+  "/v1/auth/sessions/{id}:revoke": {
+    /** Idempotently revoke an own local session */
+    post: operations["revokeOwnSession"];
+  };
   "/v1/health": {
     /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
     get: operations["getSystemHealth"];
@@ -218,6 +258,40 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    MFACommand: {
+      password?: string;
+      code?: string;
+      recovery?: boolean;
+      etag?: string;
+      request_id?: string;
+    };
+    MFAStatus: {
+      available: boolean;
+      enabled: boolean;
+      etag: string;
+      recovery_remaining: number;
+    };
+    MFAEnrollment: {
+      secret: string;
+      uri: string;
+      etag: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    MFARecovery: {
+      recovery_codes: string[] | null;
+    };
+    OwnSession: {
+      /** Format: uuid */
+      id: string;
+      etag: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      current: boolean;
+      mfa_verified: boolean;
+    };
     /** @enum {string} */
     AttackType: "none" | "sqli" | "xss" | "rce" | "lfi" | "rfi" | "injection_other" | "scanner" | "virtual_patch" | "signature" | "bot" | "protocol" | "custom" | "other";
     GeoCount: {
@@ -784,6 +858,8 @@ export interface components {
       oidc: boolean;
     };
     LoginRequest: {
+      code?: string;
+      recovery?: boolean;
       username: string;
       password: string;
     };
@@ -1049,6 +1125,141 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /** Read own local MFA status */
+  getLocalMFA: {
+    responses: {
+      /** @description Local session only; never returns seed or recovery hashes. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFAStatus"];
+        };
+      };
+    };
+  };
+  /** List at most 100 own live local sessions */
+  listOwnSessions: {
+    responses: {
+      /** @description Opaque IDs; no tokens, token hashes, IPs or user agents. */
+      200: {
+        content: {
+          "application/json": {
+            sessions: components["schemas"]["OwnSession"][];
+          };
+        };
+      };
+    };
+  };
+  /**
+   * Local MFA begin with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  beginLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFAEnrollment"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA confirm with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  confirmLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA disable with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  disableLocalMFA: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Local MFA recovery with current local session
+   * @description Password required for begin, disable and recovery; etag and one-use code for confirm, disable and recovery. Begin requires request_id. Enrollment expires in ten minutes and is bound to this session. Codes and seeds are never audited.
+   */
+  rotateLocalMFARecovery: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Private no-store response. Recovery codes are returned once. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MFARecovery"];
+        };
+      };
+      /** @description Stale etag, expired enrollment or changed configuration. */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** Idempotently revoke an own local session */
+  revokeOwnSession: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MFACommand"];
+      };
+    };
+    responses: {
+      /** @description Session ended, or no matching own session; etag must equal its opaque ID. */
+      204: {
+        content: never;
+      };
+    };
+  };
   /** Freshness-aware operational health (nodes:read); route-scoped counters are withheld when their source has no route dimensions. */
   getSystemHealth: {
     responses: {
