@@ -88,7 +88,7 @@ func TestMigrationsUpDownOnEmptyDatabase(t *testing.T) {
 		"event_annotation_requests", "event_annotations", "evidence_exports", "ingest_sequences", "investigation_requests", "local_mfa", "local_sessions", "local_users",
 		"machine_accounts", "machine_requests", "machine_tokens", "node_commands", "nodes", "oidc_admin_sign_ins", "operations", "outbound_deliveries", "outbound_settings",
 		"policies", "policy_edit_requests", "policy_geo_rule_ids", "policy_versions", "releases", "replay_sampling", "role_bindings", "rollout_nodes", "rollouts",
-		"rule_annotation_context", "rule_staging_actions", "saved_searches", "secrets", "service_accounts"}
+		"rule_annotation_context", "rule_catalog_settings", "rule_catalogs", "rule_staging_actions", "saved_searches", "secrets", "service_accounts"}
 	if got := userTables(t, pool); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tables after up: %v", got)
 	}
