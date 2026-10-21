@@ -1190,7 +1190,7 @@ as representative traffic. It defaults off and requires an actual legal approval
 and unexpired approval (at most 366 days), a private independent HMAC key and an explicit
 allowlist of `sa:` machine collectors with the `discovery:ingest` scope. Ordinary sessions
 cannot ingest. Each sample must identify an owned route, carry a stable observation UUID,
-backend-response evidence and status 2xx. HTTP ingestion and every read/write/download
+a trusted collector attestation of a backend response and status 2xx. HTTP ingestion and every read/write/download
 revalidate current application/environment authority. No collector is installed on NGINX;
 a trusted backend/access-log adapter must provide this contract after legal approval.
 

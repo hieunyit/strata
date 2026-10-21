@@ -81,3 +81,19 @@ Evidence: [discovery and exact-version review](cp-c05-discovery.png).
 
 Final full Go lint: **0 issues**, exit 0 (`c05-lint.log`). Final CLI/UI/browser/e2e
 command exit codes were also checked, not inferred by filtering successful test lines.
+
+## Ordered review PRs
+
+- [discovery: anonymize a legally gated backend feed](https://github.com/hieunyit/strata/pull/376) · base `codex/cp-c04-docs`
+- [discovery: bound OpenAPI indexing and immutable changes](https://github.com/hieunyit/strata/pull/377) · base `codex/cp-c05-normalize`
+- [store: bound and deduplicate discovery observations](https://github.com/hieunyit/strata/pull/378) · base `codex/cp-c05-openapi-index`
+- [store: version discovery baselines by environment](https://github.com/hieunyit/strata/pull/379) · base `codex/cp-c05-observations`
+- [store: bind discovery proposals to one reviewed policy revision](https://github.com/hieunyit/strata/pull/380) · base `codex/cp-c05-documents`
+- [discovery: verify privacy quotas and concurrent draft recovery](https://github.com/hieunyit/strata/pull/381) · base `codex/cp-c05-proposals`
+- [api: scope dedicated discovery and documentation proposals](https://github.com/hieunyit/strata/pull/382) · base `codex/cp-c05-store-tests`
+- [server: configure legal discovery gates and private retention](https://github.com/hieunyit/strata/pull/383) · base `codex/cp-c05-api`
+- [api: define discovery provenance and immutable evidence](https://github.com/hieunyit/strata/pull/384) · base `codex/cp-c05-integration`
+- [api: define legally gated discovery ingestion](https://github.com/hieunyit/strata/pull/385) · base `codex/cp-c05-metadata-contract`
+- [api: define discovery draft and document download contracts](https://github.com/hieunyit/strata/pull/386) · base `codex/cp-c05-telemetry-contract`
+- [ui: review discovered API changes beside policy replay](https://github.com/hieunyit/strata/pull/387) · base `codex/cp-c05-proposal-contract`
+- [docs: record Compact C completion and discovery limits](https://github.com/hieunyit/strata/pull/388) · base `codex/cp-c05-ui`
