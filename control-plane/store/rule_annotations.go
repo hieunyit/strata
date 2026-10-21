@@ -2,16 +2,23 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/strata/strata/control-plane/auth"
 )
 
 // EventRuleContext binds a human FP annotation to the event snapshot. An FP
 // event containing a rule is not proof that this individual rule caused the FP.
 type EventRuleContext struct {
+	NodeID        string    `json:"node_id,omitempty"`
+	HTTPHost      string    `json:"http_host,omitempty"`
+	HTTPPath      string    `json:"http_path,omitempty"`
 	BundleVersion uint64    `json:"bundle_version"`
 	PolicyID      string    `json:"policy_id"`
 	EventTime     time.Time `json:"event_time"`
@@ -39,9 +46,9 @@ func writeRuleAnnotationContext(ctx context.Context, tx pgx.Tx, block string, c 
 		reportAt, reportPolicy, reportEvent, reportIDs, reportBundle = reported, c.PolicyID, c.EventTime, ids, strconv.FormatUint(c.BundleVersion, 10)
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO rule_annotation_context(block_id,policy_id,event_at,rule_ids,
- first_reported_at,report_policy_id,report_event_at,report_rule_ids,report_bundle_version)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::numeric) ON CONFLICT(block_id) DO UPDATE SET
- policy_id=excluded.policy_id,event_at=excluded.event_at,rule_ids=excluded.rule_ids`, block, c.PolicyID, c.EventTime, ids, reportAt, reportPolicy, reportEvent, reportIDs, reportBundle)
+ first_reported_at,report_policy_id,report_event_at,report_rule_ids,report_bundle_version,node_id,http_host,http_path)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::numeric,$10,$11,$12) ON CONFLICT(block_id) DO UPDATE SET
+ policy_id=excluded.policy_id,event_at=excluded.event_at,rule_ids=excluded.rule_ids,node_id=excluded.node_id,http_host=excluded.http_host,http_path=excluded.http_path`, block, c.PolicyID, c.EventTime, ids, reportAt, reportPolicy, reportEvent, reportIDs, reportBundle, c.NodeID, strings.ToLower(c.HTTPHost), c.HTTPPath)
 	if err != nil {
 		return fmt.Errorf("store: save rule annotation context: %w", err)
 	}
@@ -55,7 +62,7 @@ func (s *Store) RuleFalsePositiveEvents(ctx context.Context, rule uint32, policy
 		return 0, fmt.Errorf("store: invalid rule annotation query")
 	}
 	q := `SELECT count(*) FROM rule_annotation_context c JOIN event_annotations a USING(block_id)
- WHERE c.rule_ids @> ARRAY[$1]::bigint[] AND c.event_at >= $2 AND c.event_at < $3`
+ WHERE NOT a.case_only AND c.rule_ids @> ARRAY[$1]::bigint[] AND c.event_at >= $2 AND c.event_at < $3`
 	// PostgreSQL timestamps have microsecond resolution. Round each boundary
 	// up before binding: >= from and < to then preserve the requested window
 	// on that grid instead of silently widening/narrowing it by truncation.
@@ -66,6 +73,33 @@ func (s *Store) RuleFalsePositiveEvents(ctx context.Context, rule uint32, policy
 	if policy != "" {
 		q += " AND c.policy_id = $4"
 		args = append(args, policy)
+	}
+	if p := auth.FromContext(ctx); p != nil && p.Access != nil {
+		if len(p.Access.Events) == 0 {
+			return 0, nil
+		}
+		names := []string{}
+		for _, scope := range p.Access.Events {
+			names = append(names, scope.Policy)
+		}
+		args = append(args, names)
+		q += fmt.Sprintf(" AND c.policy_id=ANY($%d)", len(args))
+		var incomplete bool
+		if err := s.pool.QueryRow(ctx, "SELECT EXISTS("+strings.Replace(q, "SELECT count(*)", "SELECT 1", 1)+" AND (c.node_id='' OR c.http_host='' OR c.http_path=''))", args...).Scan(&incomplete); err != nil {
+			return 0, err
+		}
+		if incomplete {
+			return 0, ErrRuleContextScopeIncomplete
+		}
+		raw, err := json.Marshal(p.Access.Events)
+		if err != nil {
+			return 0, err
+		}
+		if len(raw) > 1<<20 {
+			return 0, ErrRuleContextScopeIncomplete
+		}
+		args = append(args, raw)
+		q += fmt.Sprintf(` AND EXISTS(SELECT 1 FROM jsonb_array_elements($%d::jsonb) scope WHERE scope->>'Policy'=c.policy_id AND scope->>'Host'=lower(c.http_host) AND starts_with(c.http_path,scope->>'Prefix') AND EXISTS(SELECT 1 FROM jsonb_array_elements_text(scope->'Nodes') n WHERE n=c.node_id))`, len(args))
 	}
 	var n uint64
 	if err := s.pool.QueryRow(ctx, q, args...).Scan(&n); err != nil {
@@ -88,3 +122,5 @@ func (s *Store) PruneRuleAnnotationContext(ctx context.Context, before time.Time
 	}
 	return tag.RowsAffected(), nil
 }
+
+var ErrRuleContextScopeIncomplete = errors.New("store: legacy rule context lacks route scope")

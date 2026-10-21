@@ -82,3 +82,11 @@ canary:
   error_delta: 0.01
   latency_factor: 1.5
   latency_delta: 50ms
+
+# Separate positive-traffic feed. Never enable before actual legal approval.
+discovery:
+  enabled: false
+  approval_reference: ""
+  approval_expires_at: ""
+  trusted_collectors: []
+  identity_key_file: "" # independent private 32-byte hex key; not the signer key
