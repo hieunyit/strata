@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/strata/strata/control-plane/auth"
 	adminv1 "github.com/strata/strata/control-plane/gen/strata/admin/v1"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/store"
@@ -392,6 +393,8 @@ func (p *policyAdmin) DeployPolicy(ctx context.Context, req *adminv1.DeployPolic
 	var costErr *policy.CostError
 	var replayErr *policy.ReplayError
 	switch {
+	case errors.Is(err, auth.ErrScopeDenied):
+		return nil, status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, store.ErrIncompatible):
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	case errors.As(err, &replayErr):

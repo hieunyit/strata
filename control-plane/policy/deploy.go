@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/strata/strata/agent/pkg/bundlefmt"
+	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -147,6 +148,23 @@ func (d *Deployer) build(ctx context.Context, a store.Audit) (store.Bundle, erro
 			}
 			named = append(named, Named{ResourceID: p.ID, Version: p.CurrentVersion, Name: p.Name, Spec: spec})
 			contents[p.ID] = p.CurrentVersion
+		}
+		if p := auth.FromContext(ctx); p != nil && p.Access != nil {
+			reader, ok := d.Store.(interface {
+				LatestBundle(context.Context) (store.Bundle, error)
+			})
+			if !ok {
+				return auth.ErrScopeDenied
+			}
+			baseline, e := reader.LatestBundle(ctx)
+			if e != nil && !errors.Is(e, store.ErrNotFound) {
+				return e
+			}
+			for id, v := range contents {
+				if baseline.Contents[id] != v && !p.CanResource("policies/"+id, auth.PermPoliciesDeploy) {
+					return auth.ErrScopeDenied
+				}
+			}
 		}
 		var data []byte
 		inputDigest, rules := "", ""
