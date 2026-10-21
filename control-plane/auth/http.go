@@ -34,6 +34,10 @@ func Middleware(a Authenticator, next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "authentication required")
 			return
 		}
+		if p.Access != nil && !scopedHTTPPath(r.URL.Path) {
+			writeError(w, http.StatusForbidden, "resource outside assigned scope")
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 	})
 }
@@ -78,4 +82,13 @@ func (d Dispatch) Authenticate(ctx context.Context, raw string) (*Principal, err
 		return nil, ErrUnauthenticated
 	}
 	return d.OIDC.Authenticate(ctx, raw)
+}
+
+func scopedHTTPPath(path string) bool {
+	for _, prefix := range []string{"/v1/applications", "/v1/application-role-bindings", "/v1/events", "/v1/stats/", "/v1/policies", "/v1/nodes", "/v1/groups", "/v1/rollouts", "/v1/bundles", "/v1/operations", "/v1/commands", "/v1/auth/", "/v1/exceptions:fromBlockId", "/v1/version"} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }

@@ -7,8 +7,9 @@ import "context"
 
 // Principal is an authenticated caller.
 type Principal struct {
-	Subject string // the token's sub
-	Name    string // preferred_username, for audit
+	Access  *Access `json:"-"`
+	Subject string  // the token's sub
+	Name    string  // preferred_username, for audit
 	Roles   []Role
 	Scopes  []Permission // explicit scopes (e.g. service account token scopes)
 }
@@ -18,6 +19,22 @@ type Principal struct {
 func (p *Principal) Can(perm Permission) bool {
 	if p == nil {
 		return false
+	}
+	if p.Access != nil {
+		if perm == PermEventsReadSensitive {
+			if len(p.Access.Events) == 0 {
+				return false
+			}
+			for _, route := range p.Access.Events {
+				if !route.Sensitive {
+					return false
+				}
+			}
+		}
+		switch perm {
+		case PermRoleBindingsRead, PermRoleBindingsWrite, PermServiceAccountsRead, PermServiceAccountsWrite, PermAuditRead, PermNodesWrite, PermReplayConfigure, PermApplicationsWrite, PermRulesDisable:
+			return false
+		}
 	}
 	if p.Scopes != nil {
 		permitted := false
