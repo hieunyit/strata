@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/url"
 	"regexp"
@@ -17,6 +16,11 @@ const Mask = "[MASKED]"
 const MaxText = 64 << 10
 
 var nameParts = strings.Fields("password passwd pwd secret token otp pin cvv card cccd cmnd ssn passport apikey api_key auth session phone mobile email dob birth name user address account iban")
+var pseudonym = regexp.MustCompile(`^(~h:[0-9a-f]{16}:[a-z][0-9]{1,6}|hmac:[0-9a-f]{32})$`)
+
+// IsPseudonym recognizes the bounded P-01 anonymized wire representation.
+func IsPseudonym(value string) bool { return len(value) <= 64 && pseudonym.MatchString(value) }
+
 var builtins = []*regexp.Regexp{
 	regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`),
 	regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`),
@@ -117,15 +121,24 @@ func (f *Filter) Text(value string) string {
 	if f != nil && f.strict && value != "" {
 		return Mask
 	}
+	if IsPseudonym(value) {
+		return value
+	}
 	if len(value) > MaxText {
 		return Mask
 	}
 	for _, r := range builtins {
 		value = r.ReplaceAllString(value, Mask)
+		if len(value) > MaxText {
+			return Mask
+		}
 	}
 	if f != nil {
 		for _, r := range f.patterns {
 			value = r.ReplaceAllString(value, Mask)
+			if len(value) > MaxText {
+				return Mask
+			}
 		}
 	}
 	return value
@@ -136,6 +149,9 @@ func (f *Filter) Field(name, value string) string {
 		return ""
 	}
 	if f.Sensitive(name) {
+		if (f == nil || !f.strict) && IsPseudonym(value) {
+			return f.Text(value)
+		}
 		return Mask
 	}
 	// Engine fields carry a variable prefix, e.g. ARGS:customer_id.
@@ -154,16 +170,34 @@ func (f *Filter) Query(raw string) string {
 	if len(raw) > MaxText {
 		return "redacted=" + url.QueryEscape(Mask)
 	}
-	pairs, err := url.ParseQuery(raw)
-	if err != nil {
+	pairs := strings.Split(raw, "&")
+	if len(pairs) > 1024 {
 		return "redacted=" + url.QueryEscape(Mask)
 	}
-	for k, values := range pairs {
-		for i, v := range values {
-			values[i] = f.Field(k, v)
+	for i, pair := range pairs {
+		key, value, hasValue := strings.Cut(pair, "=")
+		decodedKey, err := url.QueryUnescape(key)
+		if err != nil {
+			return "redacted=" + url.QueryEscape(Mask)
+		}
+		decodedValue, err := url.QueryUnescape(value)
+		if err != nil {
+			return "redacted=" + url.QueryEscape(Mask)
+		}
+		maskedKey, maskedValue := f.Text(decodedKey), f.Field(decodedKey, decodedValue)
+		if maskedKey != decodedKey {
+			key = url.QueryEscape(maskedKey)
+		}
+		if maskedValue != decodedValue {
+			value = url.QueryEscape(maskedValue)
+		}
+		if hasValue {
+			pairs[i] = key + "=" + value
+		} else {
+			pairs[i] = key
 		}
 	}
-	return pairs.Encode()
+	return strings.Join(pairs, "&")
 }
 
 func (f *Filter) URL(raw string) string {
@@ -179,62 +213,11 @@ func (f *Filter) URL(raw string) string {
 	}
 	u.User = nil
 	u.Fragment = ""
-	u.Path = f.Text(u.Path)
-	u.RawPath = ""
+	maskedPath := f.Text(u.Path)
+	if maskedPath != u.Path {
+		u.Path = maskedPath
+		u.RawPath = ""
+	}
 	u.RawQuery = f.Query(u.RawQuery)
 	return u.String()
-}
-
-func (f *Filter) Body(raw []byte) []byte {
-	if len(raw) > MaxText {
-		return []byte(Mask)
-	}
-	var value any
-	if json.Unmarshal(raw, &value) != nil {
-		// Form bodies share query-field semantics; unknown text uses pattern masks.
-		if strings.Contains(string(raw), "=") {
-			return []byte(f.Query(string(raw)))
-		}
-		return []byte(f.Text(string(raw)))
-	}
-	var clean func(any, int) (any, bool)
-	clean = func(v any, depth int) (any, bool) {
-		if depth > 32 {
-			return nil, false
-		}
-		switch x := v.(type) {
-		case map[string]any:
-			for k, v := range x {
-				if f.Sensitive(k) {
-					x[k] = Mask
-					continue
-				}
-				var ok bool
-				x[k], ok = clean(v, depth+1)
-				if !ok {
-					return nil, false
-				}
-			}
-		case []any:
-			for i, v := range x {
-				var ok bool
-				x[i], ok = clean(v, depth+1)
-				if !ok {
-					return nil, false
-				}
-			}
-		case string:
-			return f.Text(x), true
-		}
-		return v, true
-	}
-	value, ok := clean(value, 0)
-	if !ok {
-		return []byte(Mask)
-	}
-	out, err := json.Marshal(value)
-	if err != nil {
-		return []byte(Mask)
-	}
-	return out
 }
