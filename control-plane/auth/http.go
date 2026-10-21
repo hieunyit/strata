@@ -85,7 +85,7 @@ func (d Dispatch) Authenticate(ctx context.Context, raw string) (*Principal, err
 }
 
 func scopedHTTPPath(path string) bool {
-	for _, prefix := range []string{"/v1/saved-searches", "/v1/evidence", "/v1/health", "/v1/applications", "/v1/application-role-bindings", "/v1/events", "/v1/stats/", "/v1/policies", "/v1/nodes", "/v1/groups", "/v1/rollouts", "/v1/bundles", "/v1/operations", "/v1/commands", "/v1/auth/", "/v1/exceptions:fromBlockId", "/v1/version"} {
+	for _, prefix := range []string{"/v1/rule-catalog", "/v1/exceptions", "/v1/saved-searches", "/v1/evidence", "/v1/health", "/v1/applications", "/v1/application-role-bindings", "/v1/events", "/v1/stats/", "/v1/policies", "/v1/nodes", "/v1/groups", "/v1/rollouts", "/v1/bundles", "/v1/operations", "/v1/commands", "/v1/auth/", "/v1/exceptions:fromBlockId", "/v1/version"} {
 		if strings.HasPrefix(path, prefix) {
 			return true
 		}

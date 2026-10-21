@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/strata/strata/control-plane/rulecat"
+	"github.com/strata/strata/control-plane/ruleinventory"
 	"log"
 	"net"
 	"net/http"
@@ -515,6 +516,16 @@ func main() {
 		log.Printf("[INFO] rule catalog: %d rules", catalog.Len())
 	}
 
+	var ruleInventory *ruleinventory.Catalog
+	if pg != nil {
+		ruleInventory = &ruleinventory.Catalog{Store: pg, Paths: strings.Split(*rulesFlag, ",")}
+		if err := ruleInventory.Refresh(ctx); err != nil {
+			log.Print("[WARN] configured rule catalog unavailable")
+		}
+		go ruleInventory.Run(ctx)
+		maintenance := &ruleinventory.Maintenance{Store: pg, ReplayKick: deps.ReplayKick}
+		go maintenance.Run(ctx)
+	}
 	var annotations api.EventAnnotationStore
 	var exceptions api.ExceptionPolicyStore
 	var health api.HealthReader
@@ -556,7 +567,7 @@ func main() {
 	} else if pg != nil {
 		go investigation.RetainContent(ctx, pg)
 	}
-	srv := api.NewServer(api.ServerConfig{Evidence: evidence, SystemHealth: healthService, Applications: pg,
+	srv := api.NewServer(api.ServerConfig{RuleCatalog: ruleInventory, Evidence: evidence, SystemHealth: healthService, Applications: pg,
 		ServiceAccounts: machineAccounts,
 		Annotations:     annotations,
 		Exceptions:      exceptions,
