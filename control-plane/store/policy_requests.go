@@ -27,17 +27,17 @@ func (s *Store) UpdatePolicyOnce(ctx context.Context, id, etag string, spec json
 // first successful execution. Bind command to client input, not generated IDs
 // or expiry timestamps. The callback must perform no external I/O.
 func (s *Store) EditPolicyOnce(ctx context.Context, id, etag string, commandInput json.RawMessage, a Audit, edit func(Policy) (json.RawMessage, error)) (Policy, error) {
-	return s.editPolicyOnce(ctx, id, etag, commandInput, a, edit, false)
+	return s.editPolicyOnce(ctx, id, etag, commandInput, a, edit, false, nil)
 }
 
 // EditPolicyAndReplayOnce atomically saves a derived draft, replay operation,
 // both audits and the idempotent response. A committed draft cannot lose its replay
 // across control-plane crashes. The runner later claims the durable operation.
 func (s *Store) EditPolicyAndReplayOnce(ctx context.Context, id, etag string, commandInput json.RawMessage, a Audit, edit func(Policy) (json.RawMessage, error)) (Policy, error) {
-	return s.editPolicyOnce(ctx, id, etag, commandInput, a, edit, true)
+	return s.editPolicyOnce(ctx, id, etag, commandInput, a, edit, true, nil)
 }
 
-func (s *Store) editPolicyOnce(ctx context.Context, id, etag string, commandInput json.RawMessage, a Audit, edit func(Policy) (json.RawMessage, error), queueReplay bool) (Policy, error) {
+func (s *Store) editPolicyOnce(ctx context.Context, id, etag string, commandInput json.RawMessage, a Audit, edit func(Policy) (json.RawMessage, error), queueReplay bool, prepare func(pgx.Tx) error) (Policy, error) {
 
 	if id == "" || etag == "" || a.Subject == "" || a.RequestID == "" || len(a.RequestID) > 128 || len(commandInput) > 256*1024 || !json.Valid(commandInput) || edit == nil {
 		return Policy{}, fmt.Errorf("store: invalid idempotent policy edit")
@@ -76,6 +76,11 @@ func (s *Store) editPolicyOnce(ctx context.Context, id, etag string, commandInpu
 		}
 		if before.Etag != etag {
 			return ErrEtagMismatch
+		}
+		if prepare != nil {
+			if err := prepare(tx); err != nil {
+				return err
+			}
 		}
 		spec, err := edit(before)
 		if err != nil {
@@ -158,4 +163,21 @@ func (s *Store) GetPolicyReplayEditResult(ctx context.Context, etag string, inpu
 		return Policy{}, ErrRequestReused
 	}
 	return p, nil
+}
+
+// EditGeoPolicyAndReplayOnce allocates an ID under the same global reservation
+// lock used by every policy-version insert. Rollback returns the unused ID.
+func (s *Store) EditGeoPolicyAndReplayOnce(ctx context.Context, id, etag string, input json.RawMessage, a Audit, edit func(Policy, uint32) (json.RawMessage, error)) (Policy, error) {
+	var ruleID uint32
+	prepare := func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(741003)`); err != nil {
+			return err
+		}
+		err := tx.QueryRow(ctx, `SELECT n FROM generate_series(190000,199999) n WHERE NOT EXISTS(SELECT 1 FROM policy_geo_rule_ids g WHERE g.rule_id=n) ORDER BY n LIMIT 1`).Scan(&ruleID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("investigation: geo rule ID quota reached")
+		}
+		return err
+	}
+	return s.editPolicyOnce(ctx, id, etag, input, a, func(p Policy) (json.RawMessage, error) { return edit(p, ruleID) }, true, prepare)
 }
