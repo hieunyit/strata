@@ -63,3 +63,5 @@ atomic audit; no credentials logged; scope is Compact B01; local race/lint/UI ga
 Final integration correction: binding mutations additionally preserve the authenticated
 administrator's global authority and serialize authority revalidation, including two
 concurrent stale requests. See `cp-b-integration-fixes.md` and its fail-before/pass-after test.
+
+Publishing a global bundle requires deployment authority over every included policy, including unchanged versions, because global compiler inputs may change. Scoped authors can draft/replay/review their resources; publication remains a whole-installation action.

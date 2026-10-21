@@ -1,6 +1,6 @@
 # Compact B · Final integration corrections
 
-Two regressions were found while validating B01/B02/B04/B05 together.
+Final validation found regressions and authorization boundary issues across B01/B02/B04/B05.
 
 1. The agent's default optional module manifest was wrapped in an error that
    `os.IsNotExist` did not recognize. A real enrolled agent therefore exited before its
@@ -13,6 +13,12 @@ Two regressions were found while validating B01/B02/B04/B05 together.
    cannot concurrently demote one another. Self-restriction rolls back, with a stable 403
    reason and a translated UI explanation. Trusted internal/bootstrap writers retain their
    explicit store access; the HTTP layer always supplies the authenticated principal.
+
+3. Publishing an installation-wide bundle can change global rule/bot/GeoIP/identity inputs
+   while policy version numbers stay the same. A scoped publish therefore requires deploy
+   authority on **every included policy**. Authoring/replay/review remain scoped. Node
+   compatibility errors hide unrelated IDs from scoped callers; global release errors
+   retain missing-node/replay details with a translated UI explanation.
 
 Evidence on CPUs 6–10:
 
@@ -34,3 +40,5 @@ The correction was also checked independently of the B05 changes in a detached w
 agent startup regression with `-race` PASS (1.159s), scoped store/API regressions with real
 PostgreSQL PASS (2.738s / 2.897s), and both module linters report `0 issues.`
 Integrated store/API full race suites after correction: 33.651s / 23.068s, PASS.
+
+Scoped publication and precondition regression tests passed with race (policy 1.226s; API 1.223s). UI application/release tests and the final build passed.
