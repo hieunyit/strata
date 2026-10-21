@@ -20,6 +20,7 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	Applications *store.Store
 	// ServiceAccounts is optional; only atomic durable writers enable mutations.
 	ServiceAccounts auth.ServiceAccountStore
 
@@ -66,8 +67,11 @@ type AuthMethods struct {
 
 // Me is GET /v1/auth/me: the caller as the API sees it.
 type Me struct {
-	Username string   `json:"username"`
-	Roles    []string `json:"roles"`
+	Scoped            bool                `json:"scoped"`
+	PolicyPermissions map[string][]string `json:"policy_permissions,omitempty"`
+	Sensitive         bool                `json:"sensitive"`
+	Username          string              `json:"username"`
+	Roles             []string            `json:"roles"`
 	// Local: a local account (it can change its password here).
 	Local bool `json:"local"`
 }
@@ -99,6 +103,7 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 
 	eventHandler := NewEventHandler(store, cfg.Rules)
+	eventHandler.authenticate = cfg.Auth
 	eventHandler.annotations = cfg.Annotations
 	mux := http.NewServeMux()
 
@@ -127,6 +132,9 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	v1 := http.NewServeMux()
+	if s.cfg.Applications != nil {
+		registerApplications(v1, s.cfg.Applications, s.handler)
+	}
 	if s.cfg.ServiceAccounts != nil {
 		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
 	}
@@ -176,7 +184,19 @@ func (s *Server) registerRoutes() {
 			name = p.Subject
 		}
 		w.Header().Set("Cache-Control", "no-store")
-		writeJSON(w, http.StatusOK, Me{Username: name, Roles: roles, Local: localauth.LocalUsername(p) != ""})
+		permissions := map[string][]string{}
+		if p.Access != nil {
+			for resource, perms := range p.Access.Resources {
+				if strings.HasPrefix(resource, "policies/") {
+					for perm, allowed := range perms {
+						if allowed && p.Can(perm) {
+							permissions[strings.TrimPrefix(resource, "policies/")] = append(permissions[strings.TrimPrefix(resource, "policies/")], string(perm))
+						}
+					}
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, Me{Scoped: p.Access != nil, Sensitive: p.Can(auth.PermEventsReadSensitive), PolicyPermissions: permissions, Username: name, Roles: roles, Local: localauth.LocalUsername(p) != ""})
 	})
 	if s.cfg.Audit != nil {
 		v1.HandleFunc("/v1/audit", auth.RequireHTTP(auth.PermAuditRead, s.handleAudit))

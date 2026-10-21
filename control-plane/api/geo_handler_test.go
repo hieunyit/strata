@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/strata/strata/control-plane/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -288,4 +290,48 @@ func TestGeoWatch_Limits(t *testing.T) {
 	if code := getJSON(t, s, "/v1/stats/geo:watch?token=viewer", "", nil); code != http.StatusUnauthorized {
 		t.Errorf("query token: %d", code)
 	}
+}
+
+// Existing streams must not retain authorization after a role is revoked.
+func TestGeoWatchReauthenticatesAfterRevocation(t *testing.T) {
+	var revoked atomic.Bool
+	a := revocableGeoAuth{revoked: &revoked}
+	g := &fakeGeo{MockEventStore: ingest.NewMockEventStore()}
+	s := NewServer(ServerConfig{Auth: a}, g)
+	hs := httptest.NewServer(s.Handler())
+	defer hs.Close()
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, hs.URL+"/v1/stats/geo:watch?interval=2s", nil)
+	req.Header.Set("Authorization", "Bearer viewer")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	events := make(chan sseEvent, 16)
+	go readSSE(bufio.NewReader(resp.Body), events)
+	next(t, events, "snapshot", time.Second)
+	revoked.Store(true)
+	finished := make(chan struct{})
+	go func() {
+		for range events {
+		}
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(4 * time.Second):
+		t.Fatal("revoked stream remained open")
+	}
+}
+
+type revocableGeoAuth struct{ revoked *atomic.Bool }
+
+func (a revocableGeoAuth) Authenticate(_ context.Context, _ string) (*auth.Principal, error) {
+	if a.revoked.Load() {
+		return &auth.Principal{Subject: "local:viewer"}, nil
+	}
+	return &auth.Principal{Subject: "local:viewer", Roles: []auth.Role{auth.RoleViewer}}, nil
 }

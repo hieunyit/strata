@@ -83,6 +83,10 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 		}
 		return
 	}
+	if !caller.CanResource("eventpolicies/"+event.PolicyID, auth.PermExceptionsWrite) {
+		writeError(w, 403, "event outside assigned write scope", block)
+		return
+	}
 	actor := caller.Name
 	if actor == "" {
 		actor = caller.Subject

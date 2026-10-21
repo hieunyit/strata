@@ -15,7 +15,8 @@ import (
 
 // EventHandler handles security event inspection and search HTTP endpoints.
 type EventHandler struct {
-	annotations EventAnnotationStore
+	authenticate auth.Authenticator
+	annotations  EventAnnotationStore
 
 	store ingest.EventStore
 	rules *rulecat.Catalog

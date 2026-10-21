@@ -261,10 +261,6 @@ func main() {
 			log.Fatalf("[FATAL] %v", err)
 		}
 		dispatch.OIDC = v
-		if pg != nil {
-			// admins who signed in through the IdP (CP-A06)
-			dispatch.OIDC = &auth.RecordAdmins{Authenticator: v, Record: pg.RecordOIDCAdmin}
-		}
 	}
 	var local *localauth.Handler
 	if *localAuth {
@@ -308,7 +304,10 @@ func main() {
 		dispatch.ServiceAccountPrefix = auth.ServiceAccountTokenPrefix
 		dispatch.ServiceAccount = auth.NewServiceAccountAuthenticator(pg)
 	}
-	verifier := dispatch
+	var verifier auth.Authenticator = dispatch
+	if pg != nil {
+		verifier = &auth.RecordAdmins{Authenticator: auth.ResolveAccess{Authenticator: dispatch, Resolve: pg.ResolveApplicationAccess}, Record: pg.RecordOIDCAdmin}
+	}
 
 	var adminOpts []grpc.ServerOption
 	if *adminGRPCAddr != "" && !*adminPlaintext {
@@ -498,7 +497,7 @@ func main() {
 			}
 		}
 	}
-	srv := api.NewServer(api.ServerConfig{
+	srv := api.NewServer(api.ServerConfig{Applications: pg,
 		ServiceAccounts: machineAccounts,
 		Annotations:     annotations,
 		Exceptions:      exceptions,
