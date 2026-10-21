@@ -22,7 +22,8 @@
     "health": "Sức khỏe hệ thống",
     "security": "Bảo mật tài khoản",
     "rules": "Rule & gói rule",
-    "exceptions": "Exception"
+    "exceptions": "Exception",
+    "operations": "Cảnh báo và báo cáo"
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -1023,7 +1024,9 @@
       "spool_bytes": "Dung lượng spool",
       "spool_pending": "Batch trong spool chưa xác nhận",
       "spool_dropped": "Sự kiện spool bỏ từ lúc agent chạy",
-      "spool_capacity": "Giới hạn spool"
+      "spool_capacity": "Giới hạn spool",
+      "backup": "Sao lưu",
+      "exception_expiry": "Hạn exception"
     },
     "advice": {
       "postgres": "Kiểm tra kết nối và migration schema.",
@@ -1210,6 +1213,42 @@
       "APPROVED": "Đã duyệt",
       "REJECTED": "Đã từ chối",
       "DEPLOYED": "Đã phát hành"
+    }
+  },
+  "operations": {
+    "title": "Cảnh báo và báo cáo",
+    "help": "Sự cố vận hành được gộp và báo cáo định kỳ theo ứng dụng. Webhook dùng bên nhận tùy chọn đã cấu hình.",
+    "global": "Sự cố vận hành toàn hệ thống",
+    "incidents": "Sự cố",
+    "incidentHelp": "Gộp theo nguyên nhân, giãn thông báo một giờ. Xác nhận sẽ dừng nhắc đến khi phục hồi rồi tái diễn. Tối đa 200 sự cố gần nhất; danh sách rỗng không có nghĩa mọi nguồn đều đã được đo.",
+    "noIncidents": "Chưa có sự cố trong phạm vi này.",
+    "cause": "Nguyên nhân",
+    "state": "Trạng thái",
+    "affected": "Nguồn bị ảnh hưởng",
+    "observed": "Thời điểm đo",
+    "actions": "Thao tác",
+    "signal": "Tín hiệu vận hành",
+    "ack": "Xác nhận",
+    "schedule": "Lịch báo cáo",
+    "reportHelp": "Báo cáo hằng ngày hoặc hằng tuần theo UTC, lưu số sự kiện bảo mật tổng hợp trong 30 ngày. Đây không phải toàn bộ lưu lượng. Sức khỏe được chụp khi tạo báo cáo. Không chứa URI, địa chỉ khách hay mẫu đầu vào.",
+    "scopeChanged": "Phạm vi ứng dụng đã đổi. Worker sẽ dừng lịch; lưu lại để xác nhận phạm vi mới.",
+    "enabled": "Bật báo cáo định kỳ",
+    "frequency": "Tần suất",
+    "daily": "Hằng ngày",
+    "weekly": "Hằng tuần",
+    "saved": "Đã lưu lịch.",
+    "reports": "Báo cáo gần đây",
+    "noReports": "Chưa có báo cáo còn hạn trong phạm vi hiện tại.",
+    "eventCount": "Sự kiện bảo mật",
+    "blockedCount": "Sự kiện bảo mật bị chặn",
+    "measuredAt": "Thời điểm chụp sức khỏe",
+    "truncated": "Đã chạm giới hạn nguồn; ảnh chụp chưa đầy đủ.",
+    "download": "Tải báo cáo JSON",
+    "error": "Không thể lấy dữ liệu hoặc thực hiện thao tác. Thử lại cùng lệnh lưu lịch, hoặc làm mới nếu có xung đột.",
+    "states": {
+      "open": "Đang mở",
+      "acknowledged": "Đã xác nhận",
+      "resolved": "Đã phục hồi"
     }
   }
 }

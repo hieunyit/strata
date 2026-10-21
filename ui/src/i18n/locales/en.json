@@ -22,7 +22,8 @@
     "health": "System health",
     "security": "Account security",
     "rules": "Rules & packs",
-    "exceptions": "Exceptions"
+    "exceptions": "Exceptions",
+    "operations": "Alerts and reports"
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -1029,7 +1030,9 @@
       "spool_bytes": "Spool bytes",
       "spool_pending": "Spool pending batches",
       "spool_dropped": "Spool drops since agent start",
-      "spool_capacity": "Spool capacity"
+      "spool_capacity": "Spool capacity",
+      "backup": "Backup",
+      "exception_expiry": "Exception expiry"
     },
     "advice": {
       "postgres": "Check connectivity and schema migration.",
@@ -1216,6 +1219,42 @@
       "APPROVED": "Approved",
       "REJECTED": "Rejected",
       "DEPLOYED": "Deployed"
+    }
+  },
+  "operations": {
+    "title": "Alerts and reports",
+    "help": "Grouped operational incidents and scheduled application reports. Webhooks use the optional configured receiver.",
+    "global": "Global operational incidents",
+    "incidents": "Incidents",
+    "incidentHelp": "Grouped by cause; one-hour notification cooldown. Acknowledgment stops reminders until recovery and recurrence. Up to 200 recent incidents; an empty list does not prove every source is measured.",
+    "noIncidents": "No incidents in this scope.",
+    "cause": "Cause",
+    "state": "State",
+    "affected": "Affected sources",
+    "observed": "Observed",
+    "actions": "Actions",
+    "signal": "Operational signal",
+    "ack": "Acknowledge",
+    "schedule": "Report schedule",
+    "reportHelp": "Daily or weekly UTC reports retain aggregate security-event counts for 30 days. These are security events, not all traffic. Health is observed at generation time. No URI, client address or input sample is included.",
+    "scopeChanged": "Application scope changed. The worker pauses this schedule; save again to confirm the new scope.",
+    "enabled": "Enable scheduled reports",
+    "frequency": "Frequency",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "saved": "Schedule saved.",
+    "reports": "Recent reports",
+    "noReports": "No retained reports in the current scope.",
+    "eventCount": "Security events",
+    "blockedCount": "Blocked security events",
+    "measuredAt": "Snapshot observed",
+    "truncated": "Source limit reached; this snapshot is incomplete.",
+    "download": "Download JSON report",
+    "error": "Data or action unavailable. Retry the same schedule command, or refresh after a conflict.",
+    "states": {
+      "open": "Open",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved"
     }
   }
 }

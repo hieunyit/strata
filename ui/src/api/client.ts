@@ -212,7 +212,18 @@ export async function localLogin(username: string, password: string, code = '', 
   return res.json();
 }
 
+export type OperationalIncidentPage=components['schemas']['OperationalIncidentPage'];
+export type ReportScheduleReply=components['schemas']['ReportScheduleReply'];
+export type ApplicationReport=components['schemas']['ApplicationReport'];
+export type ReportScheduleRequest=components['schemas']['ReportScheduleRequest'];
+const operationQuery=(application:string,environment:string)=>new URLSearchParams({application_id:application,environment_id:environment}).toString();
 export const apiClient = {
+  incidents(application:string,environment:string):Promise<OperationalIncidentPage>{return call(`/incidents?${operationQuery(application,environment)}`,{method:'GET'},'Incidents unavailable');},
+  acknowledgeIncident(request:components['schemas']['IncidentAcknowledgeRequest']):Promise<components['schemas']['OperationalIncident']>{return call('/incidents:acknowledge',json('POST',request),'Acknowledge failed');},
+  reportSchedule(application:string,environment:string):Promise<ReportScheduleReply>{return call(`/report-schedule?${operationQuery(application,environment)}`,{method:'GET'},'Schedule unavailable');},
+  saveReportSchedule(request:ReportScheduleRequest):Promise<ReportScheduleReply>{return call('/report-schedule',json('PUT',request),'Schedule unavailable');},
+  async applicationReports(application:string,environment:string):Promise<ApplicationReport[]>{return (await call<components['schemas']['ApplicationReportPage']>(`/application-reports?${operationQuery(application,environment)}`,{method:'GET'},'Reports unavailable')).reports;},
+  downloadApplicationReport(id:string,application:string,environment:string):Promise<Blob>{return call(`/application-reports/${encodeURIComponent(id)}?${operationQuery(application,environment)}`,{method:'GET'},'Report unavailable',true);},
   ruleCatalog(filters: {source?: string; cve?: string; attack_type?: string; after?: string}): Promise<RuleCatalogPage> {
     const q = new URLSearchParams();for(const [key,value] of Object.entries(filters)) if(value) q.set(key,value);
     return call(`/rule-catalog?${q}`,{method:'GET'},'Rule catalog unavailable');

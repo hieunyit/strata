@@ -35,6 +35,7 @@ export const navItems: NavItem[] = [
   { page:'releases',icon:GitPullRequest },
   { page: 'fleet', icon: Server },
   { page:'health',icon:Server },
+  {page:'operations',icon:History},
   { page:'security',icon:Users,visible:(_roles,localAuth)=>localAuth },
   // local accounts: admins only, when the control plane has them
   { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
