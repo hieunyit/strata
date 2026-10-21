@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -36,6 +37,13 @@ func (s *ClickHouseStore) RuleTelemetry(ctx context.Context, rule uint32, policy
 		q += " AND policy_id = @policy"
 		args = append(args, clickhouse.Named("policy", policy))
 	}
+	scope, scopeArgs := eventScopeSQL(ctx)
+	for i, value := range scopeArgs {
+		name := fmt.Sprintf("rule_scope_%d", i)
+		scope = strings.Replace(scope, "?", "@"+name, 1)
+		args = append(args, clickhouse.Named(name, value))
+	}
+	q += " AND (" + scope + ")"
 	q += " SETTINGS max_execution_time=5, max_memory_usage=268435456"
 	if err := s.conn.QueryRow(ctx, q, args...).Scan(&out.MatchedEvents, &out.CostSamples, &out.CostTotalNS, &out.CostMeanNS); err != nil {
 		return out, fmt.Errorf("ingest: aggregate rule telemetry: %w", err)
