@@ -37,6 +37,13 @@ Ràng buộc phiên này:
 - Merge theo quyền PO giao: cho từng PR ("merge #N"), hoặc quyền merge PO đã giao cho cả luồng việc (ví dụ luồng tích hợp W17–W21).
 - Staging và prod-sim: không deploy khi PO chưa cho phép; `deploy/staging/deploy.sh` và `pilot.sh` không có `--env` là staging. Lab dùng chung: hỏi các phiên đang chạy trước, xong thì dựng lại từ worktree detached ở `origin/main`.
 
+## Compact integration · 22/10/2026
+
+C03/C01/C02/C04/C05 và cẩm nang đã merge toàn bộ PR #321–#395 vào main
+(`84160a3ee6ec296ff10d57082512c9820cb99b16`). Trạng thái mới nhất và bằng chứng:
+`docs/reports/compact-main-merge.md`. B03 vẫn loại khỏi phạm vi; discovery mặc định
+tắt chờ pháp chế thực tế, chưa enforce OpenAPI runtime. Không deploy staging/production.
+
 ## Quy tắc code
 
 ### C (connector NGINX)

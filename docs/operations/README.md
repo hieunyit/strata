@@ -9,18 +9,20 @@ Keycloak/OIDC, S3/MinIO, Vault và Grafana là các thành phần bổ sung.
 
 ## Phiên bản và phạm vi
 
-Mốc đối chiếu: 21/10/2026. Cấu hình và lệnh được đối chiếu trực tiếp với source:
+Mốc tích hợp: 22/10/2026, main `84160a3ee6ec296ff10d57082512c9820cb99b16`.
+Cấu hình và lệnh được đối chiếu trực tiếp với source:
 
 | Phạm vi | Mốc source | Khả dụng |
 | --- | --- | --- |
 | Compact A và B01/B02/B04/B05 | `ccf04bf7eaefb26ca969cd12ac33d917448e13bf` | Đã merge `main` tại thời điểm viết |
-| C03/C01/C02/C04/C05 | `b0ec2095aa701031477165fb4936b32931136352` | Chuỗi PR #321–#388, chưa merge tại thời điểm viết |
+| C03/C01/C02/C04/C05 | `b0ec2095aa701031477165fb4936b32931136352` | Đã merge cùng chuỗi tích hợp #321–#395 |
 | B03: quản lý cấu hình NGINX | Chưa triển khai trong Compact | Người vận hành quản lý file NGINX |
 
-Các chương 01–06 hướng dẫn nền tảng A/B. Chương 07 đánh dấu rõ phần cần C; không chép
-khóa YAML của C vào binary A/B vì parser từ chối khóa không biết. Cài bản nào phải
-đọc tài liệu và mẫu cấu hình **của đúng checkout đó**. Bảng trên là ảnh chụp lịch sử,
-không phải thông báo rằng C đã phát hành.
+Các chương 01–06 hướng dẫn nền tảng A/B. Chương 07 hướng dẫn phần C đã có trên main;
+không chép khóa YAML của C vào binary A/B cũ vì parser từ chối khóa không biết.
+Cài bản nào phải đọc tài liệu và mẫu cấu hình **của đúng checkout đó**. Merge source
+không đồng nghĩa đã phát hành image/binary hay đã triển khai môi trường phục vụ.
+Discovery vẫn mặc định tắt và chưa thực thi OpenAPI trong engine.
 
 Không có cam kết image công khai hoặc release binary cho mọi bản source. Lệnh trong
 cẩm nang dùng image/gói tự build tại chỗ. Tag và digest thực tế phải được lưu trong

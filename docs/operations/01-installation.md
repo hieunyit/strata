@@ -94,13 +94,13 @@ canary, replay; C còn dùng TOTP và cửa sổ discovery.
 
 ## 4. Lấy source và build
 
-Dùng checkout triển khai riêng, sạch. Ghim commit/tag đã review; không tự lấy nhánh C
-chưa merge cho hệ thống đang phục vụ. Ví dụ mốc A/B tại thời điểm viết:
+Dùng checkout triển khai riêng, sạch. Ghim commit/tag đã review và đã được phép
+triển khai. Ví dụ mốc tích hợp A/B/C đã kiểm cây mã; discovery vẫn mặc định tắt:
 
 ```bash
 git clone git@github.com:hieunyit/strata.git strata-deploy
 cd strata-deploy
-git checkout --detach ccf04bf7eaefb26ca969cd12ac33d917448e13bf
+git checkout --detach 84160a3ee6ec296ff10d57082512c9820cb99b16
 git status --short
 export STRATA_DEV_DOCKER_ARGS="--cpuset-cpus=6-10"
 deploy/compact/build.sh

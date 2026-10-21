@@ -226,8 +226,8 @@ Mẫu đầy đủ và kiểm tra combination ở [config.go](../../control-plan
 | `good_bots.interval` | `-good-bots-interval` | `0`: không tự gọi ra ngoài |
 
 Khóa MFA, notifications và discovery thuộc C được giải thích riêng ở chương 07.
-File `control-plane/config/example.yaml` trên nhánh C chứa các khóa này; binary main
-A/B cũ sẽ không hiểu chúng.
+File `control-plane/config/example.yaml` trên main sau tích hợp chứa các khóa này;
+binary A/B cũ trước tích hợp C sẽ không hiểu chúng.
 
 ## 6. Đổi YAML an toàn trong Compose
 
