@@ -91,9 +91,12 @@ func (h *EventHandler) HandleMarkFalsePositive(w http.ResponseWriter, r *http.Re
 	if actor == "" {
 		actor = caller.Subject
 	}
+	if len(event.HTTPPath) > 2048 {
+		event.HTTPPath = ""
+	} // scoped historical counts remain unknown
 	a, err := h.annotations.MarkEventFalsePositive(ctx, block, req.Reason, req.Etag, store.Audit{
 		Actor: actor, Subject: caller.Subject, Action: "events.markFalsePositive", Resource: "events/" + block, RequestID: req.RequestID,
-		RuleContext: &store.EventRuleContext{BundleVersion: event.PolicyVersion, PolicyID: event.PolicyID, EventTime: event.Timestamp, RuleIDs: event.MatchedRules},
+		RuleContext: &store.EventRuleContext{NodeID: event.NodeID, HTTPHost: event.HTTPHost, HTTPPath: event.HTTPPath, BundleVersion: event.PolicyVersion, PolicyID: event.PolicyID, EventTime: event.Timestamp, RuleIDs: event.MatchedRules},
 	})
 	if err != nil {
 		switch {
