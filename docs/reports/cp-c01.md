@@ -82,7 +82,26 @@ ClickHouse 25.8.33, without changing shared services.
 
 ### Ordered review PRs
 
-Links are recorded after publication. Start after C03 #335 and review in order.
+Start after C03 #335 and review in this order. None of these C01 PRs are merged.
+
+| PR | Branch |
+| --- | --- |
+| [#336](https://github.com/hieunyit/strata/pull/336) | `codex/cp-c01-persistence` |
+| [#337](https://github.com/hieunyit/strata/pull/337) | `codex/cp-c01-geo-ids` |
+| [#338](https://github.com/hieunyit/strata/pull/338) | `codex/cp-c01-event-queries` |
+| [#339](https://github.com/hieunyit/strata/pull/339) | `codex/cp-c01-evidence-store` |
+| [#340](https://github.com/hieunyit/strata/pull/340) | `codex/cp-c01-evidence-worker` |
+| [#341](https://github.com/hieunyit/strata/pull/341) | `codex/cp-c01-saved-api` |
+| [#342](https://github.com/hieunyit/strata/pull/342) | `codex/cp-c01-rule-proposals` |
+| [#343](https://github.com/hieunyit/strata/pull/343) | `codex/cp-c01-evidence-api` |
+| [#344](https://github.com/hieunyit/strata/pull/344) | `codex/cp-c01-integration` |
+| [#345](https://github.com/hieunyit/strata/pull/345) | `codex/cp-c01-security-tests` |
+| [#346](https://github.com/hieunyit/strata/pull/346) | `codex/cp-c01-investigation-contract` |
+| [#347](https://github.com/hieunyit/strata/pull/347) | `codex/cp-c01-evidence-contract` |
+| [#348](https://github.com/hieunyit/strata/pull/348) | `codex/cp-c01-ui-client` |
+| [#349](https://github.com/hieunyit/strata/pull/349) | `codex/cp-c01-search-ui` |
+| [#350](https://github.com/hieunyit/strata/pull/350) | `codex/cp-c01-case-ui` |
+| [#351](https://github.com/hieunyit/strata/pull/351) | `codex/cp-c01-docs` |
 
 ## Operational limits
 
