@@ -322,6 +322,12 @@ export interface paths {
   "/v1/application-reports/{id}": {
     get: operations["downloadApplicationReport"];
   };
+  "/v1/discovery/observations": {
+    post: operations["ingestApiObservations"];
+  };
+  "/v1/discovery/document": {
+    put: operations["saveDiscoveryDocument"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1547,6 +1553,52 @@ export interface components {
       /** @enum {string} */
       source: "trusted_backend_2xx_only";
       limits: components["schemas"]["DiscoveryLimits"];
+    };
+    DiscoveryObservation: {
+      /** Format: uuid */
+      id: string;
+      route_id: string;
+      method: string;
+      path: string;
+      content_type: string;
+      body_bytes: number;
+      backend_status: number;
+      /** @enum {boolean} */
+      backend_response: true;
+      source_ip: string;
+      /** Format: date-time */
+      at: string;
+    };
+    DiscoveryBatchRequest: {
+      application_id: string;
+      environment_id: string;
+      request_id: string;
+      observations: components["schemas"]["DiscoveryObservation"][];
+    };
+    DiscoveryBatchReply: {
+      accepted: boolean;
+    };
+    DiscoveryDocumentRequest: {
+      application_id: string;
+      environment_id: string;
+      etag: string;
+      document: string;
+      request_id: string;
+    };
+    DiscoveryProposalRequest: {
+      application_id: string;
+      environment_id: string;
+      endpoint_key: string;
+      base_digest: string;
+      request_id: string;
+    };
+    DiscoveryDraftRequest: {
+      application_id: string;
+      environment_id: string;
+      id: string;
+      etag: string;
+      policy_etag: string;
+      request_id: string;
     };
   };
   responses: {
@@ -3871,6 +3923,76 @@ export interface operations {
         content: never;
       };
       /** @description Source unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  ingestApiObservations: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      202: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryBatchReply"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  saveDiscoveryDocument: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryDocumentRequest"];
+      };
+    };
+    responses: {
+      /** @description Dedicated discovery metadata; documentation only, no runtime OpenAPI enforcement. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DiscoveryDocument"];
+        };
+      };
+      /** @description Invalid, ineligible, excessive or insufficient observations */
+      400: {
+        content: never;
+      };
+      /** @description Insufficient scope or untrusted collector */
+      403: {
+        content: never;
+      };
+      /** @description Absent proposal or current binding */
+      404: {
+        content: never;
+      };
+      /** @description Stale etag/baseline or reused request */
+      409: {
+        content: never;
+      };
+      /** @description Collection legally gated or service unavailable */
       503: {
         content: never;
       };
