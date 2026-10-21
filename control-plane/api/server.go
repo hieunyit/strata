@@ -3,12 +3,15 @@ package api
 import (
 	"context"
 	"github.com/strata/strata/control-plane/health"
+	"github.com/strata/strata/control-plane/investigation"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
+	"github.com/strata/strata/control-plane/ruleinventory"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/strata/strata/control-plane/apidiscovery"
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/localauth"
@@ -22,6 +25,9 @@ type AuditStore interface {
 
 // ServerConfig defines HTTP server configuration options.
 type ServerConfig struct {
+	Discovery    apidiscovery.Gate
+	RuleCatalog  *ruleinventory.Catalog
+	Evidence     *investigation.Worker
 	SystemHealth *health.Service
 	Releases     *policy.Releases
 	Applications *store.Store
@@ -151,6 +157,10 @@ func (s *Server) registerRoutes() {
 	}
 	if s.cfg.Applications != nil {
 		registerApplications(v1, s.cfg.Applications, s.handler)
+		s.registerInvestigation(v1)
+		s.registerRuleInventory(v1)
+		s.registerOperations(v1)
+		s.registerDiscovery(v1)
 	}
 	if s.cfg.ServiceAccounts != nil {
 		RegisterServiceAccountRoutes(v1, s.cfg.ServiceAccounts)
@@ -163,6 +173,19 @@ func (s *Server) registerRoutes() {
 		if strings.HasSuffix(r.URL.Path, ":search") {
 			search(w, r)
 			return
+		}
+		if s.cfg.Applications != nil {
+			switch {
+			case strings.HasSuffix(r.URL.Path, ":case"):
+				s.handleEventCase(w, r)
+				return
+			case strings.HasSuffix(r.URL.Path, ":propose-rule"):
+				s.handleEventRule(w, r)
+				return
+			case strings.HasSuffix(r.URL.Path, ":similar"):
+				s.handleSimilarEvents(w, r)
+				return
+			}
 		}
 		if strings.HasSuffix(r.URL.Path, ":markFalsePositive") {
 			auth.RequireHTTP(auth.PermExceptionsWrite, s.handler.HandleMarkFalsePositive)(w, r)
