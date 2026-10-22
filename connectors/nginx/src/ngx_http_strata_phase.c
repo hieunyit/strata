@@ -486,7 +486,8 @@ ngx_http_strata_cleanup(void *data)
 
             len = strata_tx_event(ctx->tx, ngx_http_strata_event_buf,
                                   sizeof(ngx_http_strata_event_buf));
-            if (len > 0) {
+            /* larger than the buffer: nothing was written (audit 22/10) */
+            if (len > 0 && len <= sizeof(ngx_http_strata_event_buf)) {
                 ngx_http_strata_event_send(len);
             }
             ctx->emitted = 1;
