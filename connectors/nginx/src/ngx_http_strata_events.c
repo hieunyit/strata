@@ -128,7 +128,13 @@ ngx_http_strata_metrics_create(ngx_cycle_t *cycle,
     v[0] = STRATA_ABI_VERSION;
     ngx_memcpy(hdr + 60, v, sizeof(uint32_t));
 
-    fd = open((char *) tmp, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0644);
+    /*
+     * The directory may be the agent's: a link planted at this name must
+     * not make the master (root) truncate and map another file (audit
+     * 22/10/2026). Remove the name, then create a new file only.
+     */
+    (void) unlink((char *) tmp);
+    fd = open((char *) tmp, O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC, 0644);
     if (fd == -1) {
         goto failed;
     }

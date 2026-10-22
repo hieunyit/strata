@@ -175,8 +175,11 @@ if [ -n "$server" ]; then
         rm -f "$tok"
     fi
     node=$(cat /var/lib/strata/identity/node-id)
-    # NGINX reads the bundle key at start; the agent's identity stays private
-    install -o strata -g strata -m 0644 /var/lib/strata/identity/bundle.pub /var/lib/strata/bundles/bundle.pub
+    # NGINX reads the bundle key at start; the agent's identity stays private.
+    # Root owns NGINX's copy: the agent user must not choose the key the
+    # root master trusts (audit 22/10/2026). Rotation replaces this file.
+    install -d -o root -g root -m 0755 /etc/strata
+    install -o root -g root -m 0644 /var/lib/strata/identity/bundle.pub /etc/strata/bundle.pub
     sed "s|@NODE_ID@|$node|" /usr/share/nginx-module-strata/strata.conf.example > /etc/nginx/conf.d/strata.conf
     say "node $node enrolled with $server"
 fi

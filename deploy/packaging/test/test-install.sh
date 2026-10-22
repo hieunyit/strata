@@ -84,6 +84,8 @@ for spec in "$@"; do
     x systemctl is-enabled -q strata-agent || fail "[$name] strata-agent not enabled"
     [ "$(x sysctl -n net.unix.max_dgram_qlen)" = 8192 ] || fail "[$name] net.unix.max_dgram_qlen not 8192"
     x id -nG nginx | grep -qw strata || fail "[$name] nginx is not in group strata"
+    [ "$(x stat -c '%U:%G %a' /etc/strata/bundle.pub)" = "root:root 644" ] || fail "[$name] the bundle key NGINX trusts is not root-owned"
+    x nginx -T 2>/dev/null | grep -q '^strata_bundle_pubkey /etc/strata/bundle.pub;' || fail "[$name] NGINX does not read the root-owned key"
     x nginx -T 2>/dev/null | grep -q '^load_module modules/ngx_http_strata_module.so;' || fail "[$name] module not loaded"
     step "NGINX $ngx + module + agent running, sysctl 8192, node $node"
 
