@@ -1,5 +1,6 @@
 # Strata gap rule, W13-S-01: server-side template injection probes and
 # payloads (GoTestWAF sst-injection, 15/10/2026).
+# 22/10/2026: the URL path too (GoTestWAF URLPath).
 rule:
   id: 300005
   name: Server-side template expression in a parameter
@@ -7,7 +8,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: request_headers } ]
+    - targets: [ { var: args }, { var: request_headers }, { var: path } ]
       transforms: [ lowercase ]
       operator:
         type: rx
@@ -25,6 +26,8 @@ rule:
     tags: [w13-s-01, gotestwaf]
 tests:
   match:
+  - uri: /v1/greet/%7B%7B1337%2A1338%7D%7D
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/greet?name=%7B%7B1337%2A1338%7D%7D
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/greet?name=aaaa%5Cu0027%252b%23%7B16%2A8787%7D%252b%5Cu0027bbb
@@ -32,6 +35,8 @@ tests:
   - uri: /v1/greet?name=%3C%23assign%20ex%20%3D%20%22freemarker.template.utility.Execute%22%3Fnew%28%29%3E
     headers: { Host: api.example.test, Accept: application/json }
   no_match:
+  - uri: /v1/templates/%7B%7Buser.name%7D%7D/preview
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/greet?name=%7B%7Buser.name%7D%7D
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/calc?expr=12%2A7

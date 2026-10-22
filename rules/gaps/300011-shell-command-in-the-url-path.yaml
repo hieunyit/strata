@@ -1,0 +1,50 @@
+# Strata gap rule (22/10/2026): a shell command in the URL path, which CRS
+# 932 reads only where its patterns expect an argument value (GoTestWAF
+# rce-urlpath). Two strict shapes: a command that reads a system file, and
+# a command substitution (backticks or $()) of a reconnaissance command.
+# Quotes inside words (cat /et'c/pa'ss'wd) are removed by cmd_line first.
+rule:
+  id: 300011
+  name: Shell command in the URL path
+  layer: managed
+  stage: request_body
+  match:
+    any:
+    - targets: [ { var: path } ]
+      transforms: [ cmd_line ]
+      operator:
+        type: rx
+        value: '(?:^|[\s|&`(])(?:cat|tac|head|tail|more|less|nl|od|xxd|strings|base64|grep|awk|sed|cp|curl|wget)\s*(?:/[\w.-]+)*?/(?:etc/(?:passwd|shadow|group|hosts|issue)|proc/self/environ)\b'
+    - targets: [ { var: path } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '`\s*(?:id|whoami|uname(?:\s+-a)?|pwd|hostname|ifconfig|env|ls|ps)\s*`|\$\(\s*(?:id|whoami|uname(?:\s+-a)?|pwd|hostname|ifconfig|env|ls|ps)\s*\)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: command-injection
+    accuracy: high
+    tags: [gotestwaf, url-path]
+tests:
+  match:
+  - uri: '/%3B%20cat%20%2Fet%27c%2Fpa%27ss%27wd'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/repo/ax--exec=%60id%60--remote=origin'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/run/%24%28whoami%29'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: /docs/linux/cat-command
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/files/etc/passwd-policy.pdf
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/users/id/orders
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/search?q=%60ls%60+lists+files'
+    headers: { Host: api.example.test, Accept: application/json }

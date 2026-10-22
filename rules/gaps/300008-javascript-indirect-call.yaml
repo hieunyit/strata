@@ -1,6 +1,7 @@
 # Strata gap rule, W13-S-01: XSS payloads that call alert/confirm/prompt
 # indirectly, past CRS PL1 (GoTestWAF xss-scripting, rest, soap,
 # community-xss, 15/10/2026).
+# 22/10/2026: the URL path too (GoTestWAF URLPath).
 rule:
   id: 300008
   name: JavaScript dialog called indirectly
@@ -8,7 +9,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args } ]
+    - targets: [ { var: args }, { var: path } ]
       transforms: [ html_entity_decode, js_decode, lowercase ]
       operator:
         type: rx
@@ -26,6 +27,10 @@ rule:
     tags: [w13-s-01, gotestwaf]
 tests:
   match:
+  - uri: /confirm.call%28null%2C1%29
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/items/%28alert%29%281%29
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/search?q=%28alert%29%281%29
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/search?q=alert%3F.%28document%3F.cookie%29
@@ -35,6 +40,10 @@ tests:
   - uri: /v1/search?q=%22OnClick%3D%22%28prompt%601%60%29
     headers: { Host: api.example.test, Accept: application/json }
   no_match:
+  - uri: /docs/alerts/confirm-call-settings
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /static/js/prompt.min.js
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/settings?label=Set+an+alert+%28daily%29
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/ai?q=improve+my+prompt%28s%29+please
