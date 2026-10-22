@@ -146,9 +146,16 @@ where
     let mut out = vec![];
     for (n, v) in pairs {
         if left.values == 0 || left.decoded < MIN_LEN || left.tested < MIN_LEN {
-            break;
+            // audit 22/10/2026: a value left untested because the request
+            // used up its share is reported (rule 100021), not dropped
+            left.skipped |= looks_encoded(v);
+            continue;
         }
-        if v.len() < MIN_LEN || v.len() > left.tested || v.len() / 4 * 3 > left.decoded {
+        if v.len() < MIN_LEN {
+            continue;
+        }
+        if v.len() > left.tested || v.len() / 4 * 3 > left.decoded {
+            left.skipped |= looks_encoded(v);
             continue;
         }
         left.tested -= v.len();
@@ -161,12 +168,30 @@ where
     out
 }
 
-/// What a request may still decode (see [`decode_all`]).
+/// Whether `v` would be decoded if the request had share left: its first
+/// KB (at most) decodes to text. Bounded work per value, so a request past
+/// its share still costs at most a KB per argument.
+fn looks_encoded(v: &[u8]) -> bool {
+    if !(MIN_LEN..=MAX_LEN).contains(&v.len()) {
+        return false;
+    }
+    if v.len() <= PREFIX {
+        return decode(v).is_some();
+    }
+    decode(&v[..PREFIX]).is_some()
+}
+
+/// Bytes of a value `looks_encoded` decodes (a multiple of 4).
+const PREFIX: usize = 1024;
+
+/// What a request may still decode (see [`decode_all`]), and whether a
+/// value that looks encoded was left out because of it.
 #[derive(Clone, Copy, Debug)]
 pub struct Left {
     pub values: usize,
     pub decoded: usize,
     pub tested: usize,
+    pub skipped: bool,
 }
 
 impl Default for Left {
@@ -175,6 +200,7 @@ impl Default for Left {
             values: MAX_VALUES,
             decoded: MAX_TOTAL,
             tested: MAX_TESTED,
+            skipped: false,
         }
     }
 }
@@ -280,6 +306,10 @@ mod tests {
             decode_all(pairs.iter().copied(), &mut left).len(),
             MAX_VALUES
         );
+        assert!(
+            left.skipped,
+            "audit 22/10: the 33rd is reported, not dropped"
+        );
         let mut left = Left {
             decoded: 60,
             ..Left::default()
@@ -294,5 +324,18 @@ mod tests {
         assert!(decode_all(pairs.iter().copied(), &mut left).is_empty());
         assert_eq!(left.tested, 0);
         assert_eq!(left.values, MAX_VALUES);
+        assert!(
+            !left.skipped,
+            "values that do not decode to text are not reported"
+        );
+        // ordinary identifiers past the share are not reported either
+        let ids: Vec<String> = (0..2000).map(|i| format!("order{i:08}x")).collect();
+        let pairs: Vec<(&[u8], &[u8])> = ids.iter().map(|v| (&b"id"[..], v.as_bytes())).collect();
+        let mut left = Left {
+            tested: 64,
+            ..Left::default()
+        };
+        let _ = decode_all(pairs.iter().copied(), &mut left);
+        assert!(!left.skipped);
     }
 }
