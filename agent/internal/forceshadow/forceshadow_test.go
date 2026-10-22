@@ -188,7 +188,7 @@ func TestClear(t *testing.T) {
 	}
 }
 
-// W12-G1-01: the node fallback's hold has no deadline and survives a
+// W12-G1-01: a hold written without a deadline (older agents) survives a
 // restart; a command's deadline passing, a per-policy clear or another
 // hold do not end it; only a clear for every policy does.
 func TestFallbackHoldOnlyEndsOnClearAll(t *testing.T) {
@@ -196,10 +196,10 @@ func TestFallbackHoldOnlyEndsOnClearAll(t *testing.T) {
 	if _, err := bundles.WriteControl(filepath.Join(dir, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.HoldAll("block_rate"); err != nil {
+	if err := m.HoldAll("block_rate", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.HoldAll("budget"); err != nil {
+	if err := m.HoldAll("budget", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	if ctl := control(t, dir); !ctl.ForceAll {
@@ -241,7 +241,7 @@ func TestFallbackHoldOnlyEndsOnClearAll(t *testing.T) {
 	}
 	// no control file yet: the hold is kept and written later
 	dir2, m3, _ := setup(t)
-	if err := m3.HoldAll("engine_errors"); err != nil {
+	if err := m3.HoldAll("engine_errors", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := bundles.WriteControl(filepath.Join(dir2, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
@@ -252,5 +252,36 @@ func TestFallbackHoldOnlyEndsOnClearAll(t *testing.T) {
 	m3.mu.Unlock()
 	if err != nil || !control(t, dir2).ForceAll {
 		t.Fatalf("written later: %v", err)
+	}
+}
+
+// Audit 22/10/2026: the node fallback's hold ends by itself at its
+// deadline, also after a restart.
+func TestFallbackHoldEnds(t *testing.T) {
+	dir, m, c := setup(t)
+	if _, err := bundles.WriteControl(filepath.Join(dir, "control"), 1, [32]byte{}, "bundle-1.sbn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.HoldAll("block_rate", c.now().Add(10*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if !control(t, dir).ForceAll {
+		t.Fatal("not forced")
+	}
+	c.add(9 * time.Minute)
+	m2 := New(filepath.Join(dir, "control"), filepath.Join(dir, "force-shadow.json"))
+	m2.now = c.now
+	if s := m2.Snapshot(); s.Fallback == nil {
+		t.Fatal("hold lost on restart before its deadline")
+	}
+	c.add(2 * time.Minute)
+	m2.mu.Lock()
+	err := m2.reconcileLocked(m2.now())
+	m2.mu.Unlock()
+	if err != nil || control(t, dir).ForceAll || m2.Snapshot().Fallback != nil {
+		t.Fatalf("hold did not end: %v", err)
+	}
+	if err := m2.HoldAll("block_rate", c.now().Add(time.Minute)); err != nil || !control(t, dir).ForceAll {
+		t.Fatalf("no new hold after the end: %v", err)
 	}
 }

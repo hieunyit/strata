@@ -16,16 +16,19 @@
 //
 // A burst of real attacks also raises the would-block share. In shadow
 // nothing is blocked, so nothing trips; with enforce it could trip and put
-// the node in shadow until the control plane lifts it (W12-G1-01: a
-// ForceShadow clear for every policy, POST /v1/nodes:clearForceShadow; no
-// deadline, and an agent restart keeps it): a way to switch the WAF off from
-// outside (#65). So:
-//   - the blocks of an interval count at most SourceCap per client address
-//     (IPv6 per /64), from the agent's own events: one source sending a
-//     flood of blocked payloads counts as SourceCap blocks; a rule that
-//     blocks real users blocks many sources. The reference is learnt from
-//     counts capped the same way (blocks and would-be blocks logged in
-//     shadow), or the same flood would first raise it;
+// the node in shadow: a way to switch the WAF off from outside (#65; audit
+// 22/10/2026: 3 to 30 addresses were enough). So:
+//   - the blocks of an interval count at most SourceCap (1) per client network
+//     (IPv4 /24, IPv6 /48), from the agent's own events: one network
+//     sending a flood of blocked payloads counts as SourceCap blocks; a
+//     rule that blocks real users blocks many networks. The reference is
+//     learnt from counts capped the same way (blocks and would-be blocks
+//     logged in shadow), or the same flood would first raise it;
+//   - the block rate trips only when at least MinSources networks blocked
+//     in the interval;
+//   - the hold ends by itself after HoldFor (10 min), or earlier when the
+//     control plane clears it (POST /v1/nodes:clearForceShadow); the next
+//     interval may trip again;
 //   - a count trips only when it is both Factor times the reference and
 //     improbable under it (one-sided Poisson test, PValue): a fixed ratio
 //     on a few expected blocks tripped on chance alone at low traffic
@@ -75,8 +78,16 @@ type Options struct {
 	// reference is below it (1e-6: at one test per 5 s, a false trip every
 	// few thousand hours per node).
 	PValue float64
-	// SourceCap: blocks of one client address counted per interval (3).
+	// SourceCap: blocks of one client network (IPv4 /24, IPv6 /48)
+	// counted per interval (1: the count is the number of networks that
+	// blocked, so the block rate trips only when Factor times more networks
+	// than usual blocked).
 	SourceCap uint64
+	// MinSources: client networks that must have blocks in an interval for
+	// the block rate to trip (20).
+	MinSources uint64
+	// HoldFor: how long a trip holds every policy in shadow (10 min).
+	HoldFor time.Duration
 	// MaxSources tracked per interval (4096). Overflow suspends block-rate
 	// fallback and baseline learning until the next complete interval.
 	MaxSources int
@@ -108,10 +119,16 @@ func (o Options) withDefaults() Options {
 		o.PValue = 1e-6
 	}
 	if o.SourceCap == 0 {
-		o.SourceCap = 3
+		o.SourceCap = 1
 	}
 	if o.MaxSources <= 0 {
 		o.MaxSources = 4096
+	}
+	if o.MinSources == 0 {
+		o.MinSources = 20
+	}
+	if o.HoldFor <= 0 {
+		o.HoldFor = 10 * time.Minute
 	}
 	return o
 }
@@ -160,7 +177,7 @@ func NewDetector(o Options) *Detector { return &Detector{o: o.withDefaults()} }
 // Step takes the totals read at the end of an interval and returns the
 // reason to trip, or "". Every block counts (no source information).
 func (d *Detector) Step(t Totals) string {
-	return d.StepCapped(t, Capped{Blocked: math.MaxUint64, Would: math.MaxUint64})
+	return d.StepCapped(t, Capped{Blocked: math.MaxUint64, Would: math.MaxUint64, Sources: math.MaxUint64})
 }
 
 // StepCapped is Step with the interval's blocks and would-be blocks
@@ -201,7 +218,7 @@ func (d *Detector) StepCapped(t Totals, capped Capped) (reason string) {
 	}
 	if d.samples >= d.o.Warmup {
 		switch {
-		case !capped.Saturated && blocked > 0 && over(blocked, d.would):
+		case !capped.Saturated && blocked > 0 && capped.Sources >= d.o.MinSources && over(blocked, d.would):
 			return ReasonBlockRate
 		case over(t.Errors-prev.Errors, d.errs):
 			return ReasonErrors
@@ -232,9 +249,11 @@ func (d *Detector) StepCapped(t Totals, capped Capped) (reason string) {
 func PoissonTail(k uint64, lambda float64) float64 { return stats.PoissonTail(k, lambda) }
 
 // Capped counts of an interval: blocks, and blocks plus would-be blocks
-// logged in shadow, at most SourceCap per source.
+// logged in shadow, at most SourceCap per source; Sources: the sources
+// with at least one block.
 type Capped struct {
 	Blocked, Would uint64
+	Sources        uint64
 	Saturated      bool
 }
 
@@ -287,6 +306,9 @@ func (s *Sources) Take(limit uint64) Capped {
 	out := Capped{Saturated: s.saturated}
 	for _, c := range s.n {
 		out.Blocked += min(c[0], limit)
+		if c[0] > 0 {
+			out.Sources++
+		}
 		out.Would += min(c[0]+c[1], limit)
 	}
 	clear(s.n)
@@ -303,7 +325,7 @@ func (d *Detector) Reference() (would, errs, budget float64, samples int) {
 
 // Forcer is what the detector drives: forceshadow.Manager.
 type Forcer interface {
-	HoldAll(reason string) error
+	HoldAll(reason string, until time.Time) error
 	Snapshot() forceshadow.State
 }
 
@@ -377,7 +399,8 @@ func (w *Watcher) tick() {
 	}
 	// also under a ForceShadow command for every policy (nothing is blocked
 	// then, so this is rare): the hold outlives the command's deadline
-	err = w.force.HoldAll(reason)
+	until := time.Now().Add(w.o.HoldFor)
+	err = w.force.HoldAll(reason, until)
 	if err != nil {
 		slog.Error("fallback: force shadow", "reason", reason, "err", err)
 		return
@@ -386,7 +409,7 @@ func (w *Watcher) tick() {
 	w.triggers[reason]++
 	w.mu.Unlock()
 	slog.Warn("fallback: every policy of this node forced into shadow", "reason", reason,
-		"until", "lifted by the control plane", "ref_would_block", fmt.Sprintf("%.4f", would),
+		"until", until.UTC().Format(time.RFC3339), "ref_would_block", fmt.Sprintf("%.4f", would),
 		"ref_errors", fmt.Sprintf("%.4f", errs), "ref_budget", fmt.Sprintf("%.4f", budget))
 }
 

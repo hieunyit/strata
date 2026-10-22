@@ -26,17 +26,20 @@ func PoissonTail(k uint64, lambda float64) float64 {
 	return min(sum, 1)
 }
 
-// SourceKey: a client address as the fallback counts it, IPv6 by /64 (one
-// host easily has many addresses of its /64); anything else as it is.
+// SourceKey: a client address as the fallback counts it, by network: IPv4
+// /24 and IPv6 /48, the smallest blocks an attacker gets many addresses of
+// cheaply (audit 22/10/2026: 30 /64s of one /48 tripped the node); anything
+// else as it is.
 func SourceKey(ip string) string {
 	a, err := netip.ParseAddr(ip)
 	if err != nil {
 		return ip
 	}
 	a = a.Unmap()
+	bits := 24
 	if a.Is6() {
-		p, _ := a.Prefix(64)
-		return p.String()
+		bits = 48
 	}
-	return a.String()
+	p, _ := a.Prefix(bits)
+	return p.String()
 }

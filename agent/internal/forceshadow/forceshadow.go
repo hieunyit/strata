@@ -7,9 +7,11 @@
 // differs: when a deadline passes, and when a bundle install created the
 // file after the command came.
 //
-// The node fallback (package fallback) holds every policy in shadow with no
-// deadline: only a ForceShadow command with clear for every policy, from
-// the control plane, ends it (W12-G1-01).
+// The node fallback (package fallback) holds every policy in shadow until
+// its deadline, or until a ForceShadow command with clear for every policy
+// from the control plane (W12-G1-01; deadline since the audit of
+// 22/10/2026). A hold written by an older agent has no deadline and keeps
+// the old behavior: only the clear ends it.
 package forceshadow
 
 import (
@@ -44,6 +46,8 @@ type State struct {
 type Hold struct {
 	Reason string    `json:"reason"`
 	Since  time.Time `json:"since"`
+	// Until: when the hold ends by itself (zero: never, older agents)
+	Until time.Time `json:"until,omitzero"`
 }
 
 // Forced reports whether every policy is in shadow.
@@ -127,15 +131,16 @@ func (m *Manager) Apply(fs *fleetv1.ForceShadow) error {
 	return err
 }
 
-// HoldAll forces every policy into shadow until a clear for every policy;
-// a second hold keeps the first reason.
-func (m *Manager) HoldAll(reason string) error {
+// HoldAll forces every policy into shadow until until, or a clear for every
+// policy; a second hold while one runs keeps the first.
+func (m *Manager) HoldAll(reason string, until time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.pruneLocked(m.now())
 	if m.st.Fallback != nil {
 		return nil
 	}
-	m.st.Fallback = &Hold{Reason: reason, Since: m.now().UTC()}
+	m.st.Fallback = &Hold{Reason: reason, Since: m.now().UTC(), Until: until.UTC()}
 	if err := m.saveLocked(); err != nil {
 		m.st.Fallback = nil
 		return err
@@ -181,7 +186,7 @@ func (m *Manager) Snapshot() State {
 	m.pruneLocked(m.now())
 	out := State{All: m.st.All, Policies: map[string]time.Time{}}
 	if h := m.st.Fallback; h != nil {
-		out.Fallback = &Hold{Reason: h.Reason, Since: h.Since}
+		out.Fallback = &Hold{Reason: h.Reason, Since: h.Since, Until: h.Until}
 	}
 	for p, t := range m.st.Policies {
 		out.Policies[p] = t
@@ -212,6 +217,10 @@ func (m *Manager) pruneLocked(now time.Time) bool {
 	changed := false
 	if !m.st.All.IsZero() && !now.Before(m.st.All) {
 		m.st.All, changed = time.Time{}, true
+	}
+	if h := m.st.Fallback; h != nil && !h.Until.IsZero() && !now.Before(h.Until) {
+		slog.Warn("force shadow: node fallback ended", "reason", h.Reason, "since", h.Since.Format(time.RFC3339))
+		m.st.Fallback, changed = nil, true
 	}
 	for p, t := range m.st.Policies {
 		if !now.Before(t) {

@@ -190,9 +190,10 @@ func TestNodeFallsBackWithinSixSeconds(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	spike := time.Now()
 	metrics(t, met, allow+920, 0, block+80)
-	// the 80 blocks come from 40 clients (#65: blocks count per source)
+	// the 80 blocks come from 80 networks (#65, audit 22/10: blocks count
+	// once per /24)
 	for i := 0; i < 80; i++ {
-		w.Observe(blockEvent(fmt.Sprintf("192.0.2.%d", i%40)))
+		w.Observe(blockEvent(fmt.Sprintf("10.%d.0.1", i)))
 	}
 
 	for time.Since(spike) < 7*time.Second {
@@ -213,10 +214,10 @@ func TestNodeFallsBackWithinSixSeconds(t *testing.T) {
 			if w.Triggers()[ReasonBlockRate] != 1 {
 				t.Fatalf("triggers %v", w.Triggers())
 			}
-			// held with no deadline, across an agent restart, until the
-			// control plane clears every policy (W12-G1-01)
+			// held across an agent restart until HoldFor passes or the
+			// control plane clears every policy (W12-G1-01, audit 22/10)
 			st := forceshadow.New(ctl, filepath.Join(dir, "force-shadow.json")).Snapshot()
-			if st.Fallback == nil || st.Fallback.Reason != ReasonBlockRate || !st.All.IsZero() {
+			if st.Fallback == nil || st.Fallback.Reason != ReasonBlockRate || !st.All.IsZero() || st.Fallback.Until.IsZero() {
 				t.Fatalf("after restart: %+v", st)
 			}
 			return
@@ -306,7 +307,7 @@ func TestOneSourceCannotTrip(t *testing.T) {
 	}
 	cur.Requests += 1000
 	cur.Blocked += 500
-	if r := d.StepCapped(*cur, Capped{Blocked: 300, Would: 300}); r != ReasonBlockRate {
+	if r := d.StepCapped(*cur, Capped{Blocked: 300, Would: 300, Sources: 100}); r != ReasonBlockRate {
 		t.Fatalf("100 sources: %q", r)
 	}
 }
@@ -327,7 +328,7 @@ func TestOneSourceDoesNotRaiseTheReference(t *testing.T) {
 	}
 	cur.Requests += 1000
 	cur.Blocked += 100
-	if r := d.StepCapped(*cur, Capped{Blocked: 100, Would: 100}); r != ReasonBlockRate {
+	if r := d.StepCapped(*cur, Capped{Blocked: 100, Would: 100, Sources: 100}); r != ReasonBlockRate {
 		t.Fatalf("spike from many sources after the flood: %q", r)
 	}
 }
@@ -337,11 +338,11 @@ func TestSources(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		s.Observe(blockEvent("192.0.2.1"))
 	}
-	// one IPv6 host, several addresses of its /64
+	// one IPv6 network, several addresses of its /48
 	s.Observe(blockEvent("2001:db8:1:2::1"))
 	s.Observe(blockEvent("2001:db8:1:2::2"))
 	s.Observe(blockEvent("2001:db8:1:2:aaaa::3"))
-	s.Observe(blockEvent("2001:db8:1:2:bbbb::4"))
+	s.Observe(blockEvent("2001:db8:1:7:bbbb::4"))
 	// not counted: a fail-closed 503 (EVT, BLOCK), an engine error (no
 	// rule), a finding below the threshold (would_block false)
 	s.Observe(&eventv1.Event{BlockId: "EVT-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_BLOCK, ClientIp: "192.0.2.9"})
@@ -353,7 +354,7 @@ func TestSources(t *testing.T) {
 		s.Observe(&eventv1.Event{BlockId: "EVT-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_LOG, ClientIp: ip,
 			RuleIds: []uint32{942100}, WouldBlock: true, Inspection: eventv1.Inspection_INSPECTION_FULL})
 	}
-	if got := s.Take(3); got != (Capped{Blocked: 6, Would: 9}) {
+	if got := s.Take(3); got != (Capped{Blocked: 6, Would: 9, Sources: 2}) {
 		t.Fatalf("capped %v, want {6 9}", got)
 	}
 	if got := s.Take(3); got != (Capped{}) {
@@ -361,10 +362,10 @@ func TestSources(t *testing.T) {
 	}
 	// Past MaxSources, exclude untracked sources and mark the interval incomplete.
 	for i := 0; i < 5; i++ {
-		s.Observe(blockEvent(fmt.Sprintf("198.51.100.%d", i)))
-		s.Observe(blockEvent(fmt.Sprintf("198.51.100.%d", i)))
+		s.Observe(blockEvent(fmt.Sprintf("10.%d.0.1", i)))
+		s.Observe(blockEvent(fmt.Sprintf("10.%d.0.2", i)))
 	}
-	if got := s.Take(1); got != (Capped{Blocked: 3, Would: 3, Saturated: true}) {
+	if got := s.Take(1); got != (Capped{Blocked: 3, Would: 3, Sources: 3, Saturated: true}) {
 		t.Fatalf("with overflow %v, want 3 with saturation", got)
 	}
 }
@@ -461,20 +462,22 @@ func TestThresholdEdges(t *testing.T) {
 
 // fakeForcer records holds.
 type fakeForcer struct {
-	held []string
-	st   forceshadow.State
+	held  []string
+	until time.Time
+	st    forceshadow.State
 }
 
-func (f *fakeForcer) HoldAll(r string) error {
+func (f *fakeForcer) HoldAll(r string, until time.Time) error {
 	f.held = append(f.held, r)
-	f.st.Fallback = &forceshadow.Hold{Reason: r}
+	f.until = until
+	f.st.Fallback = &forceshadow.Hold{Reason: r, Until: until}
 	return nil
 }
 func (f *fakeForcer) Snapshot() forceshadow.State { return f.st }
 
-// W12-G1-01: a trip holds the node with no deadline; trips while it is held
-// change nothing; once the control plane clears it, the next trip holds
-// again.
+// W12-G1-01: a trip holds the node for HoldFor; trips while it is held
+// change nothing; once the control plane clears it (or it ends), the next
+// trip holds again.
 func TestWatcherHoldsUntilCleared(t *testing.T) {
 	f := &fakeForcer{}
 	w := NewWatcher("unused", f, Options{Warmup: 1})
@@ -492,11 +495,11 @@ func TestWatcherHoldsUntilCleared(t *testing.T) {
 		cur.Blocked += blocked
 		cur.Logged += logged
 		for i := uint64(0); i < blocked; i++ {
-			w.Observe(blockEvent(fmt.Sprintf("198.51.%d.%d", i/256, i%256)))
+			w.Observe(blockEvent(fmt.Sprintf("10.%d.%d.1", i/256, i%256)))
 		}
 		for i := uint64(0); i < logged; i++ {
 			w.Observe(&eventv1.Event{BlockId: "EVT-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_LOG,
-				ClientIp: fmt.Sprintf("203.0.%d.%d", i/256, i%256), RuleIds: []uint32{942100}, WouldBlock: true,
+				ClientIp: fmt.Sprintf("11.%d.%d.1", i/256, i%256), RuleIds: []uint32{942100}, WouldBlock: true,
 				Inspection: eventv1.Inspection_INSPECTION_FULL})
 		}
 		w.tick()
@@ -506,6 +509,9 @@ func TestWatcherHoldsUntilCleared(t *testing.T) {
 	next(200, 0)
 	if len(f.held) != 1 || f.held[0] != ReasonBlockRate || w.Triggers()[ReasonBlockRate] != 1 {
 		t.Fatalf("held %v, triggers %v", f.held, w.Triggers())
+	}
+	if d := time.Until(f.until); d < 9*time.Minute || d > 10*time.Minute {
+		t.Fatalf("hold until %v, want 10 min from now", f.until)
 	}
 	next(300, 0)
 	if len(f.held) != 1 || w.Triggers()[ReasonBlockRate] != 1 {
@@ -521,5 +527,56 @@ func TestWatcherHoldsUntilCleared(t *testing.T) {
 	next(300, 0)
 	if len(f.held) != 3 || w.Triggers()[ReasonBlockRate] != 3 {
 		t.Fatalf("after clear: %v %v", f.held, w.Triggers())
+	}
+}
+
+// Audit 22/10/2026: a few networks each sending SourceCap blocked payloads
+// used to trip the node (3 addresses at 20 req/s, 30 /64s of one /48 at
+// 1,000 req/s). Now each /24 or /48 counts once, below MinSources networks
+// the block rate never trips, and above it the networks must be Factor
+// times more than usual (at 1,000 req/s: more than 75 in 5 s).
+func TestFewNetworksCannotTrip(t *testing.T) {
+	for _, tc := range []struct {
+		rps, sources int
+		v6, trips    bool
+	}{{20, 3, false, false}, {20, 19, false, false}, {200, 8, false, false}, {1000, 30, false, false},
+		{1000, 200, true, false}, {1000, 200, false, false}, {1000, 100, false, true}} {
+		d := NewDetector(Options{})
+		src := NewSources(4096)
+		var tot Totals
+		per := uint64(tc.rps * 5)
+		for i := 0; i < 20; i++ {
+			blocked := per / 200
+			for b := uint64(0); b < blocked; b++ {
+				src.Observe(blockEvent(fmt.Sprintf("10.%d.%d.1", i, b)))
+			}
+			tot.Requests += per
+			tot.Blocked += blocked
+			if r := d.StepCapped(tot, src.Take(1)); r != "" {
+				t.Fatalf("tripped during warm-up: %s", r)
+			}
+		}
+		blocked := per / 200
+		for b := uint64(0); b < blocked; b++ {
+			src.Observe(blockEvent(fmt.Sprintf("10.99.%d.1", b)))
+		}
+		for n := 0; n < tc.sources; n++ {
+			ip := fmt.Sprintf("203.0.%d.1", n)
+			switch {
+			case tc.v6:
+				ip = fmt.Sprintf("2001:db8:0:%x::1", n) // one /48
+			case !tc.trips && tc.sources > 100:
+				ip = fmt.Sprintf("203.0.113.%d", n) // one /24
+			}
+			for k := 0; k < 3; k++ {
+				src.Observe(blockEvent(ip))
+			}
+		}
+		tot.Requests += per + uint64(3*tc.sources)
+		tot.Blocked += blocked + uint64(3*tc.sources)
+		r := d.StepCapped(tot, src.Take(1))
+		if (r == ReasonBlockRate) != tc.trips {
+			t.Errorf("rps=%d sources=%d v6=%v: %q, trips=%v", tc.rps, tc.sources, tc.v6, r, tc.trips)
+		}
 	}
 }
