@@ -86,6 +86,12 @@ type CanaryOptions struct {
 	MaxSources    int           // addresses per group and interval, 4096; overflow suspends block-rate decisions and learning
 	Renew         time.Duration // 12 h
 	Hold          time.Duration // ForceShadow duration, 24 h (the most a command takes)
+	// HealthShadow: a 5xx or latency trip also forces the canary policies
+	// into shadow. Off by default (audit 22/10/2026): these signals carry
+	// no client address, so a few clients of the canary side (slow
+	// uploads, requests the application answers with 500) could force it;
+	// such a trip pauses rollouts and alerts only.
+	HealthShadow bool
 }
 
 func (o CanaryOptions) withDefaults() CanaryOptions {
@@ -551,6 +557,13 @@ func (m *CanaryMonitor) trip(ctx context.Context, group string, v canaryVerdict,
 	if err != nil {
 		return err
 	}
+	if v.reason != TripBlockRate && !m.o.HealthShadow {
+		// audit 22/10/2026: no client attribution, no shadow; the trip
+		// stays open (rollouts paused) until clearForceShadow on the group
+		log.Printf("[WARN] fleet: canary health trip in group %s (%s, %v): rollouts paused, policies left as they are (-canary-health-shadow)",
+			group, v.reason, v.detail)
+		policies = nil
+	}
 	nodes, err := m.Store.GroupNodes(ctx, group)
 	if err != nil {
 		return err
@@ -576,7 +589,9 @@ func (m *CanaryMonitor) trip(ctx context.Context, group string, v canaryVerdict,
 		m.Kick.Kick()
 	}
 	if len(policies) == 0 {
-		log.Printf("[ERROR] fleet: canary fallback in group %s (%s): no policy of this control plane has a canary, nothing forced into shadow", group, v.reason)
+		if v.reason == TripBlockRate || m.o.HealthShadow {
+			log.Printf("[ERROR] fleet: canary fallback in group %s (%s): no policy of this control plane has a canary, nothing forced into shadow", group, v.reason)
+		}
 	} else {
 		log.Printf("[WARN] fleet: canary fallback in group %s (%s, %v): %v forced into shadow on %d nodes (%d commands), trip %d",
 			group, v.reason, v.detail, policies, len(nodes), len(out), t.ID)

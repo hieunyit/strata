@@ -166,6 +166,7 @@ type File struct {
 		ErrorDelta    *float64  `yaml:"error_delta" flag:"canary-error-delta"`
 		LatencyFactor *float64  `yaml:"latency_factor" flag:"canary-latency-factor"`
 		LatencyDelta  *Duration `yaml:"latency_delta" flag:"canary-latency-delta"`
+		HealthShadow  *bool     `yaml:"health_shadow" flag:"canary-health-shadow"`
 	} `yaml:"canary"`
 	Rollouts struct {
 		Waves []string  `yaml:"waves" flag:"rollout-waves"`

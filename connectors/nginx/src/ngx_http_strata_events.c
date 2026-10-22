@@ -377,7 +377,6 @@ ngx_http_strata_metrics_canary(ngx_http_strata_ctx_t *ctx)
     };
 
     ngx_uint_t                  i, b;
-    ngx_time_t                 *tp;
     ngx_msec_int_t              ms;
     ngx_http_request_t         *r = ctx->r;
     ngx_http_upstream_state_t  *us;
@@ -409,9 +408,23 @@ ngx_http_strata_metrics_canary(ngx_http_strata_ctx_t *ctx)
         }
     }
 
-    tp = ngx_timeofday();
-    ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * 1000
-                           + (tp->msec - r->start_msec));
+    /*
+     * The upstream's response time, not the request's (audit 22/10/2026):
+     * a client of the canary side sending its body slowly made the canary
+     * look slow and tripped the fallback. Without an upstream answer the
+     * request is not in the histogram.
+     */
+    if (r->upstream_states == NULL || r->upstream_states->nelts == 0) {
+        return;
+    }
+
+    us = r->upstream_states->elts;
+
+    if (us[r->upstream_states->nelts - 1].response_time == (ngx_msec_t) -1) {
+        return;
+    }
+
+    ms = (ngx_msec_int_t) us[r->upstream_states->nelts - 1].response_time;
 
     for (b = 0; b < sizeof(bounds) / sizeof(bounds[0]); b++) {
         if (ms <= bounds[b]) {

@@ -241,6 +241,10 @@ subtest "a matching request: blocked inside the canary, logged outside" => sub {
     is($d->{e}{req}, $blocked, "every enforced request blocked");
     is($d->{s}{logged}, 200 - $blocked, "the others logged");
     is($d->{s}{blocked} + $d->{e}{logged}, 0, "never the other way");
+    # audit 22/10/2026: the latency is the upstream's, so a request that
+    # never reached it (blocked) is not in the histogram
+    is($d->{e}{hist}, 0, "blocked: no upstream time, not in the histogram");
+    is($d->{s}{hist}, $d->{s}{req}, "logged and proxied: in the histogram");
 };
 
 subtest "the same user stays in the same group" => sub {

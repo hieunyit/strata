@@ -304,6 +304,18 @@ func TestUpstreamErrorsAndLatencyCompareTheGroups(t *testing.T) {
 			if got != c.want {
 				t.Fatalf("trip %q, want %q", got, c.want)
 			}
+			// audit 22/10/2026: a health trip pauses rollouts and alerts,
+			// it forces nothing into shadow unless HealthShadow
+			if c.want != "" && len(s.st.commands()) != 0 {
+				t.Fatalf("health trip forced shadow: %d commands", len(s.st.commands()))
+			}
+			if c.want != "" {
+				s := newSim(t, 10, CanaryOptions{HealthShadow: true})
+				s.run(2*time.Minute, c.tr)
+				if len(s.st.trips) == 0 || len(s.st.commands()) == 0 {
+					t.Fatalf("HealthShadow: %d trips, %d commands", len(s.st.trips), len(s.st.commands()))
+				}
+			}
 		})
 	}
 }
