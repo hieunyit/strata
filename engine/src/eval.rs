@@ -2485,6 +2485,13 @@ fn evaluate_inner(
     }
     let mut left = crate::b64::Left::default();
     let mut b64_args = crate::b64::decode_all(args[..n_get].iter().map(pair), &mut left);
+    // and the segments of the path, as arguments of the query (22/10/2026)
+    b64_args.extend(crate::b64::decode_all(
+        req.uri
+            .split(|&c| c == b'/')
+            .map(|s| (crate::b64::PATH_NAME, s)),
+        &mut left,
+    ));
     let b64_get = b64_args.len();
     b64_args.extend(crate::b64::decode_all(
         args[n_get..].iter().map(pair),

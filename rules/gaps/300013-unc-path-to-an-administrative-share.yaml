@@ -1,0 +1,41 @@
+# Strata gap rule (22/10/2026): a Windows UNC path to an administrative
+# share (C$, ADMIN$, IPC$...), as a path traversal or an SMB credential
+# leak reads it: \\host\c$\users\default\ntuser.dat (GoTestWAF
+# path-traversal, also base64-encoded in the URL path). Ordinary file
+# share paths (\\fileserver\docs) do not match.
+rule:
+  id: 300013
+  name: UNC path to an administrative share
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: args }, { var: path }, { var: request_cookies } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '(?:\\\\|//|\\/|/\\)[^\\/\s]{1,253}[\\/](?:[a-z]|admin|ipc|print)\$(?:[\\/]|$)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: path-traversal
+    accuracy: high
+    tags: [gotestwaf, unc]
+tests:
+  match:
+  - uri: '/v1/files?path=%5C%5C%3A%3A1%5Cc%24%5Cusers%5Cdefault%5Cntuser.dat'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/XFw6OjFcYyRcdXNlcnNcZGVmYXVsdFxudHVzZXIuZGF0'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/files?path=%2F%2F10.0.0.5%2FADMIN%24%2F'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: '/v1/files?path=%5C%5Cfileserver%5Cdocs%5Creport.pdf'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/prices?q=cost+in+c%24+and+us%24'
+    headers: { Host: api.example.test, Accept: application/json }

@@ -1,7 +1,8 @@
 //! Values that look base64-encoded (docs/decisions/base64-args.md): an
 //! argument or cookie whose value is all base64 characters and decodes to
 //! text is inspected a second time, decoded, under its name with
-//! [`SUFFIX`]. Rules need no `base64_decode` transform for it: every rule
+//! [`SUFFIX`]. So is a segment of the URL path, as an argument of the
+//! query named [`PATH_NAME`] (§7). Rules need no `base64_decode` transform for it: every rule
 //! that reads ARGS or REQUEST_COOKIES sees the decoded text too, the way
 //! Cloudflare's attack score and F5's base64 parameters do.
 //!
@@ -22,6 +23,11 @@
 /// Appended to the field name of a decoded value: `ARGS:q|base64`.
 pub const SUFFIX: &[u8] = SUFFIX_STR.as_bytes();
 pub const SUFFIX_STR: &str = "|base64";
+/// The argument name a decoded segment of the path is inspected under
+/// (22/10/2026): `ARGS:REQUEST_FILENAME|base64`, after CRS's name for the
+/// path. A segment is tested like an argument value; the path is not
+/// form-decoded, so a `+` there stays a `+`.
+pub const PATH_NAME: &[u8] = b"REQUEST_FILENAME";
 /// Longest value tested (bytes, encoded).
 pub const MAX_LEN: usize = 16 * 1024;
 /// Shortest value tested: shorter ones decode to at most 5 bytes.

@@ -1,0 +1,39 @@
+# Strata gap rule (22/10/2026): CRLF injection through U+560A / U+560D
+# ("嘊", "嘍"), whose low bytes are LF and CR: a server or library that
+# truncates the character to one byte writes a new response header
+# (GoTestWAF crlf, URLPath). Matched only when a response header name
+# follows, so Chinese text with these characters does not match.
+rule:
+  id: 300012
+  name: Unicode CRLF injection of a response header
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: uri_raw }, { var: args }, { var: path } ]
+      transforms: [ lowercase ]
+      operator:
+        type: rx
+        value: '(?:%e5%98%8[ad]|嘊|嘍)(?:%20|\s)*(?:set-cookie|location|refresh|content-(?:type|length|disposition)|transfer-encoding|access-control-allow-[a-z-]+|x-[a-z0-9-]+)(?:%20|\s)*(?::|%3a)'
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: protocol
+    accuracy: high
+    tags: [gotestwaf, crlf, url-path]
+tests:
+  match:
+  - uri: '/%e5%98%8dSet-cookie%3acrlf%3dinjection'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/redirect?to=%E5%98%8A%E5%98%8DLocation:%20https://evil.example.test'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: '/v1/search?q=%E5%A5%BD%E5%98%8D'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/search?q=Set-Cookie%3A+how+it+works'
+    headers: { Host: api.example.test, Accept: application/json }

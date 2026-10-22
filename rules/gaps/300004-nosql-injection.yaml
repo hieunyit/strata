@@ -1,5 +1,6 @@
 # Strata gap rule, W13-S-01: MongoDB-style operator and JavaScript
 # injection (GoTestWAF nosql-injection, 15/10/2026).
+# 22/10/2026: the URL path too (GoTestWAF URLPath).
 rule:
   id: 300004
   name: NoSQL operator or server-side JavaScript injection
@@ -7,7 +8,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: args_names } ]
+    - targets: [ { var: args }, { var: args_names }, { var: path } ]
       transforms: [ lowercase ]
       operator:
         type: rx
@@ -25,6 +26,10 @@ rule:
     tags: [w13-s-01, gotestwaf, nosql-injection]
 tests:
   match:
+  - uri: /v1/items/true%2C%20$where:%20%2799%20==%2088%27
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /db.injection.insert%28%7Bsuccess:1%7D%29%3B
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/orders?sort=%27%2C%20$or:%20%5B%20%7B%7D%2C%20%7B%20%27order%27:%27order
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/items?q=0%3Bvar%20date=new%20Date%28%29%3B%20do%7BcurDate%20=%20new%20Date%28%29%3B%7Dwhile%28curDate-date%3C10000%29
@@ -36,6 +41,10 @@ tests:
     headers: { Host: api.example.test, Content-Type: application/json }
     body: '{"q":"db.injection.insert({success:1});"}'
   no_match:
+  - uri: /v1/docs/do-while-loops/%7Bexamples%7D
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: /v1/prices/$10-or-more
+    headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/pricing?q=save+%2410+or+more
     headers: { Host: api.example.test, Accept: application/json }
   - uri: /v1/help?q=do+it+while+you+can
