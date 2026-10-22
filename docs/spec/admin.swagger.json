@@ -1426,6 +1426,16 @@
       "default": "OVERSIZE_UNSPECIFIED",
       "title": "- OVERSIZE_UNSPECIFIED: pass"
     },
+    "PolicySpecParseError": {
+      "type": "string",
+      "enum": [
+        "PARSE_ERROR_UNSPECIFIED",
+        "PARSE_ERROR_BLOCK",
+        "PARSE_ERROR_PASS"
+      ],
+      "default": "PARSE_ERROR_UNSPECIFIED",
+      "description": "Audit 22/10/2026: a body the engine cannot read to its end (rule\n100022) or at all (100023, Content-Encoding). BLOCK (and UNSPECIFIED)\nblocks alone in enforce, whatever oversize says; PASS only records it.\nModules from before the setting refuse bundles that set PASS: upgrade\nthem first.\n\n - PARSE_ERROR_UNSPECIFIED: block"
+    },
     "RolloutServiceAbortRolloutBody": {
       "type": "object"
     },
@@ -2263,6 +2273,9 @@
         "template": {
           "$ref": "#/definitions/v1PolicyTemplateRef",
           "description": "W20-S-01: the template the policy started from, if any (set when the\npolicy is created from one; kept as it is by later versions)."
+        },
+        "parse_error": {
+          "$ref": "#/definitions/PolicySpecParseError"
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

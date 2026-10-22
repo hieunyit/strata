@@ -309,6 +309,18 @@ export interface components {
      * @enum {string}
      */
     PolicySpecOversize: "OVERSIZE_UNSPECIFIED" | "OVERSIZE_PASS" | "OVERSIZE_BLOCK";
+    /**
+     * @description Audit 22/10/2026: a body the engine cannot read to its end (rule
+     * 100022) or at all (100023, Content-Encoding). BLOCK (and UNSPECIFIED)
+     * blocks alone in enforce, whatever oversize says; PASS only records it.
+     * Modules from before the setting refuse bundles that set PASS: upgrade
+     * them first.
+     *
+     *  - PARSE_ERROR_UNSPECIFIED: block
+     * @default PARSE_ERROR_UNSPECIFIED
+     * @enum {string}
+     */
+    PolicySpecParseError: "PARSE_ERROR_UNSPECIFIED" | "PARSE_ERROR_BLOCK" | "PARSE_ERROR_PASS";
     RolloutServiceAbortRolloutBody: Record<string, never>;
     RolloutServicePauseRolloutBody: Record<string, never>;
     RolloutServiceResumeRolloutBody: Record<string, never>;
@@ -701,6 +713,7 @@ export interface components {
        */
       geo_rules?: components["schemas"]["v1PolicyGeoRule"][];
       template?: components["schemas"]["v1PolicyTemplateRef"];
+      parse_error?: components["schemas"]["PolicySpecParseError"];
     };
     v1PolicyTemplate: {
       name?: string;

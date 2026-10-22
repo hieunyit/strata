@@ -131,6 +131,12 @@ const EXCEPTIONS_BIT: u8 = 1 << 4;
 const STAGING_BIT: u8 = 1 << 5;
 // W17-S-01: the policy's CRS paranoia levels are in section PARANOIA.
 const PARANOIA_BIT: u8 = 1 << 6;
+/// bit 7 of EVENT_BYTE (audit 22/10/2026): a body the engine cannot read to
+/// its end (rule 100022) or cannot read at all (100023, Content-Encoding)
+/// blocks alone in enforce, whatever `oversize` says; this bit
+/// (`parse_error: pass`) only records them. Engines from before it refuse
+/// a bundle with this bit set.
+const PARSE_PASS_BIT: u8 = 1 << 7;
 
 /// Last byte of the policy entry (#28): the arguments the policy inspects,
 /// in fours; 0 (bundles written before it) is the engine's limit,
@@ -210,6 +216,9 @@ pub struct Policy<'a> {
     pub max_args: usize,
     /// #98: budget exhausted with findings: fail closed (FAIL_ON_FINDINGS_BIT)
     pub fail_on_findings: bool,
+    /// rules 100022/100023 only recorded (PARSE_PASS_BIT); by default they
+    /// block alone in enforce
+    pub parse_error_pass: bool,
 }
 
 /// Rules of the signature pack for a policy (RV-S-01). The default (0 in
@@ -262,6 +271,8 @@ pub struct PolicySpec<'a> {
     pub max_args: usize,
     /// See `Policy::fail_on_findings`.
     pub fail_on_findings: bool,
+    /// See `Policy::parse_error_pass`.
+    pub parse_error_pass: bool,
 }
 
 impl<'a> PolicySpec<'a> {
@@ -281,6 +292,7 @@ impl<'a> PolicySpec<'a> {
             paranoia: false,
             max_args: 0,
             fail_on_findings: false,
+            parse_error_pass: false,
         }
     }
 }
@@ -371,7 +383,8 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
                 | FAIL_ON_FINDINGS_BIT
                 | EXCEPTIONS_BIT
                 | STAGING_BIT
-                | PARANOIA_BIT)
+                | PARANOIA_BIT
+                | PARSE_PASS_BIT)
             == 0
         && entry[EVENT_BYTE] & SNIPPET_MASK <= SnippetSize::Kb4 as u8
         && entry[ARGS_BYTE + 1..].iter().all(|&c| c == 0)
@@ -534,6 +547,7 @@ pub fn policies<'a>(bundle: &'a [u8], info: &Info) -> impl Iterator<Item = Polic
             staging: e[EVENT_BYTE] & STAGING_BIT != 0,
             paranoia: e[EVENT_BYTE] & PARANOIA_BIT != 0,
             fail_on_findings: e[EVENT_BYTE] & FAIL_ON_FINDINGS_BIT != 0,
+            parse_error_pass: e[EVENT_BYTE] & PARSE_PASS_BIT != 0,
             max_args: match e[ARGS_BYTE] {
                 0 => MAX_ARGS_DEFAULT,
                 n => n as usize * 4,
@@ -620,6 +634,11 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
             | if p.paranoia { PARANOIA_BIT } else { 0 }
             | if p.fail_on_findings {
                 FAIL_ON_FINDINGS_BIT
+            } else {
+                0
+            }
+            | if p.parse_error_pass {
+                PARSE_PASS_BIT
             } else {
                 0
             };
@@ -828,7 +847,7 @@ mod tests {
             Err(Error::BadLayout("bad policy entry"))
         );
 
-        // fail_on_findings (#98): bit 3 of byte 62; bit 7 remains unknown (M4 uses bit 5, W17-S-01 bit 6)
+        // fail_on_findings (#98): bit 3 of byte 62 (M4 uses bit 5, W17-S-01 bit 6, parse_error bit 7)
         let ff = PolicySpec {
             fail_on_findings: true,
             ..p
@@ -844,14 +863,24 @@ mod tests {
                 .unwrap()
                 .fail_on_findings
         );
-        let mut bad5 = fb.clone();
-        bad5.truncate(bad5.len() - SIG_LEN);
-        bad5[HEADER_LEN + EVENT_BYTE] |= 1 << 7;
-        let sig = SigningKey::from_bytes(&SEED).sign(&bad5);
-        bad5.extend_from_slice(&sig.to_bytes());
-        assert_eq!(
-            verify(&bad5, &public_key(&SEED)),
-            Err(Error::BadLayout("bad policy entry"))
+        // audit 22/10/2026: bit 7 is parse_error: pass
+        let pp = PolicySpec {
+            parse_error_pass: true,
+            ..p
+        };
+        let pb = build(&spec(&[pp]), &SEED).unwrap();
+        assert_eq!(pb[HEADER_LEN + EVENT_BYTE] & PARSE_PASS_BIT, PARSE_PASS_BIT);
+        let info = verify(&pb, &public_key(&SEED)).unwrap();
+        assert!(
+            find_policy(&pb, &info, b"example-api")
+                .unwrap()
+                .parse_error_pass
+        );
+        let info = verify(&fb, &public_key(&SEED)).unwrap();
+        assert!(
+            !find_policy(&fb, &info, b"example-api")
+                .unwrap()
+                .parse_error_pass
         );
 
         // max_args (#28): byte 63 in fours; 0 is the engine's 1024
@@ -882,21 +911,19 @@ mod tests {
             Err(Error::BadLayout("bad policy entry"))
         );
 
-        // privacy flag: bit 2 of byte 62 (P-01 §1); bit 7 is not known
-        // (bit 3 is fail_on_findings; bit 5 is staging since M4)
+        // privacy flag: bit 2 of byte 62 (P-01 §1) (bit 3 is
+        // fail_on_findings; bit 5 is staging since M4; bit 7 parse_error)
         let pv = PolicySpec { privacy: true, ..p };
         let pb = build(&spec(&[pv]), &SEED).unwrap();
         let info = verify(&pb, &public_key(&SEED)).unwrap();
         assert!(find_policy(&pb, &info, b"example-api").unwrap().privacy);
-        let mut bad4 = pb;
-        bad4.truncate(bad4.len() - SIG_LEN);
-        bad4[HEADER_LEN + EVENT_BYTE] = 1 << 7;
-        let sig = SigningKey::from_bytes(&SEED).sign(&bad4);
-        bad4.extend_from_slice(&sig.to_bytes());
-        assert_eq!(
-            verify(&bad4, &public_key(&SEED)),
-            Err(Error::BadLayout("bad policy entry"))
-        );
+        let mut b4 = pb;
+        b4.truncate(b4.len() - SIG_LEN);
+        b4[HEADER_LEN + EVENT_BYTE] = 1 << 7;
+        let sig = SigningKey::from_bytes(&SEED).sign(&b4);
+        b4.extend_from_slice(&sig.to_bytes());
+        let info = verify(&b4, &public_key(&SEED)).unwrap();
+        assert!(find_policy(&b4, &info, b"example-api").unwrap().parse_error_pass);
 
         // bit 4 (PAN) is known since P-01 §1; bit 5 is not
         let pan = PolicySpec {

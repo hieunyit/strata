@@ -48,12 +48,14 @@ type policyAdmin struct {
 }
 
 var (
-	modeToPB = map[string]adminv1.PolicySpec_Mode{"shadow": adminv1.PolicySpec_MODE_SHADOW, "enforce": adminv1.PolicySpec_MODE_ENFORCE}
-	modeOfPB = map[adminv1.PolicySpec_Mode]string{adminv1.PolicySpec_MODE_SHADOW: "shadow", adminv1.PolicySpec_MODE_ENFORCE: "enforce"}
-	overToPB = map[string]adminv1.PolicySpec_Oversize{"": adminv1.PolicySpec_OVERSIZE_UNSPECIFIED, "pass": adminv1.PolicySpec_OVERSIZE_PASS, "block": adminv1.PolicySpec_OVERSIZE_BLOCK}
-	overOfPB = map[adminv1.PolicySpec_Oversize]string{adminv1.PolicySpec_OVERSIZE_UNSPECIFIED: "", adminv1.PolicySpec_OVERSIZE_PASS: "pass", adminv1.PolicySpec_OVERSIZE_BLOCK: "block"}
-	failToPB = map[string]adminv1.PolicySpec_FailOnFindings{"": adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED, "pass": adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS, "block": adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK}
-	failOfPB = map[adminv1.PolicySpec_FailOnFindings]string{adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED: "", adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS: "pass", adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK: "block"}
+	modeToPB  = map[string]adminv1.PolicySpec_Mode{"shadow": adminv1.PolicySpec_MODE_SHADOW, "enforce": adminv1.PolicySpec_MODE_ENFORCE}
+	modeOfPB  = map[adminv1.PolicySpec_Mode]string{adminv1.PolicySpec_MODE_SHADOW: "shadow", adminv1.PolicySpec_MODE_ENFORCE: "enforce"}
+	overToPB  = map[string]adminv1.PolicySpec_Oversize{"": adminv1.PolicySpec_OVERSIZE_UNSPECIFIED, "pass": adminv1.PolicySpec_OVERSIZE_PASS, "block": adminv1.PolicySpec_OVERSIZE_BLOCK}
+	overOfPB  = map[adminv1.PolicySpec_Oversize]string{adminv1.PolicySpec_OVERSIZE_UNSPECIFIED: "", adminv1.PolicySpec_OVERSIZE_PASS: "pass", adminv1.PolicySpec_OVERSIZE_BLOCK: "block"}
+	failToPB  = map[string]adminv1.PolicySpec_FailOnFindings{"": adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED, "pass": adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS, "block": adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK}
+	failOfPB  = map[adminv1.PolicySpec_FailOnFindings]string{adminv1.PolicySpec_FAIL_ON_FINDINGS_UNSPECIFIED: "", adminv1.PolicySpec_FAIL_ON_FINDINGS_PASS: "pass", adminv1.PolicySpec_FAIL_ON_FINDINGS_BLOCK: "block"}
+	parseToPB = map[string]adminv1.PolicySpec_ParseError{"": adminv1.PolicySpec_PARSE_ERROR_UNSPECIFIED, "block": adminv1.PolicySpec_PARSE_ERROR_BLOCK, "pass": adminv1.PolicySpec_PARSE_ERROR_PASS}
+	parseOfPB = map[adminv1.PolicySpec_ParseError]string{adminv1.PolicySpec_PARSE_ERROR_UNSPECIFIED: "", adminv1.PolicySpec_PARSE_ERROR_BLOCK: "block", adminv1.PolicySpec_PARSE_ERROR_PASS: "pass"}
 )
 
 var (
@@ -155,7 +157,7 @@ func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.Ra
 		return nil, status.Error(codes.InvalidArgument, "policy.spec is required")
 	}
 	s := policy.Spec{Mode: modeOfPB[pb.GetMode()], Oversize: overOfPB[pb.GetOversize()], MaxSnippetSize: int(pb.GetMaxSnippetSize()),
-		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()],
+		CanaryPercent: pb.GetCanaryPercent(), MaxArgs: int(pb.GetMaxArgs()), FailOnFindings: failOfPB[pb.GetFailOnFindings()], ParseError: parseOfPB[pb.GetParseError()],
 		CRSParanoia: int(pb.GetCrsParanoia()), CRSParanoiaShadow: int(pb.GetCrsParanoiaShadow()),
 		CRSPlugins: append([]string(nil), pb.GetCrsPlugins()...)}
 	for _, g := range pb.GetGeoRules() {
@@ -206,7 +208,7 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	var s policy.Spec
 	_ = json.Unmarshal(raw, &s)
 	out := &adminv1.PolicySpec{Mode: modeToPB[s.Mode], Oversize: overToPB[s.Oversize], MaxSnippetSize: uint32(s.MaxSnippetSize),
-		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings],
+		CanaryPercent: s.CanaryPercent, MaxArgs: uint32(s.MaxArgs), FailOnFindings: failToPB[s.FailOnFindings], ParseError: parseToPB[s.ParseError],
 		CrsParanoia: uint32(s.CRSParanoia), CrsParanoiaShadow: uint32(s.CRSParanoiaShadow),
 		CrsPlugins: append([]string(nil), s.CRSPlugins...)}
 	if t := s.Template; t != nil {

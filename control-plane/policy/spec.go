@@ -40,6 +40,10 @@ type Spec struct {
 	// FailOnFindings: "pass" (default) or "block": the CPU budget runs out
 	// on a request that already has findings, block fails closed (#98).
 	FailOnFindings string `json:"fail_on_findings,omitempty"`
+	// ParseError: "block" (default) or "pass": a body the engine cannot
+	// read (rules 100022, 100023) blocks alone, or is only recorded (audit
+	// 22/10/2026).
+	ParseError string `json:"parse_error,omitempty"`
 	// CRSParanoia: CRS paranoia level enforced, 1..4; 0 = 1 (W17-S-01).
 	CRSParanoia int `json:"crs_paranoia,omitempty"`
 	// CRSParanoiaShadow: CRS paranoia level run and reported without
@@ -205,6 +209,11 @@ func (s Spec) Validate() error {
 	case "", "pass", "block":
 	default:
 		return fmt.Errorf("fail_on_findings must be pass or block, got %q", s.FailOnFindings)
+	}
+	switch s.ParseError {
+	case "", "pass", "block":
+	default:
+		return fmt.Errorf("parse_error must be pass or block, got %q", s.ParseError)
 	}
 	if s.CRSParanoia < 0 || s.CRSParanoia > 4 {
 		return fmt.Errorf("crs_paranoia must be 1..4, got %d", s.CRSParanoia)
