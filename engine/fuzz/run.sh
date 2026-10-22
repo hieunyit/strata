@@ -7,7 +7,7 @@ set -euo pipefail
 secs="${1:?usage: run.sh <seconds> [targets...]}"; shift
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
-[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx bodies body_eval event_encode budget_eval ffi)
+[ ${#targets[@]} -gt 0 ] || targets=(sqli xss guard_chunks response_tx bodies body_eval event_encode budget_eval override_codec ffi)
 out="$root/build/fuzz"
 mkdir -p "$out"
 

@@ -4,7 +4,7 @@ Chạy trong image dev: `engine/fuzz/run.sh <giây> [targets...]`. Crash rơi v�
 `build/fuzz/<target>/artifacts/`.
 
 Targets: `sqli`, `xss`, `guard_chunks`, `response_tx`, `bodies`, `body_eval`,
-`event_encode`, `budget_eval`, và **`ffi`** (W08-R-01: lái toàn bộ vòng đời một
+`event_encode`, `budget_eval`, `override_codec` (RS-1: section OVERRIDE), và **`ffi`** (W08-R-01: lái toàn bộ vòng đời một
 transaction qua C ABI libstrata-ffi — request line, header, body chunk, response,
 verdict, event, free — để bắt lỗi bộ nhớ ở biên unsafe).
 

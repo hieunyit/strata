@@ -224,6 +224,8 @@ dependencies = [
  "memchr",
  "regex",
  "regex-automata",
+ "sha2",
+ "strata-clock",
  "strata-hs",
 ]
 
@@ -231,6 +233,7 @@ dependencies = [
 name = "libstrata-ffi"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "libstrata",
 ]
 
@@ -391,6 +394,10 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "strata-clock"
+version = "0.1.0"
 
 [[package]]
 name = "strata-fuzz"

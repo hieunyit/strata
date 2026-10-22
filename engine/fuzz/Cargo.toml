@@ -70,3 +70,9 @@ name = "ffi"
 path = "fuzz_targets/ffi.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "override_codec"
+path = "fuzz_targets/override_codec.rs"
+test = false
+doc = false

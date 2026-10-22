@@ -49,6 +49,8 @@ pub struct Engine {
     geo: crate::geo::Geo,
     /// per policy index: its policy-scoped rules (section SCOPE, W19-G2-01)
     scoped: Vec<Vec<(u32, crate::scope::Mode)>>,
+    /// per policy index: its rule actions (section OVERRIDE, RS-1)
+    overrides: Vec<Vec<(u32, crate::overrides::Action)>>,
     exclusion_rules: Vec<Vec<(u32, u32)>>,
     /// Rule IDs switched off without reloading the bundle (W12-R-02),
     /// sorted; each transaction takes the list current at its start.
@@ -197,6 +199,22 @@ impl Engine {
             &scoped_ids,
         )
         .map_err(|e| (E_BUNDLE, e.message()))?;
+        // RS-1: the header byte says the section is there, both or neither
+        let override_bytes = info.section(bytes, bundle::kind::OVERRIDE);
+        if (info.requires & bundle::REQUIRES_OVERRIDE != 0) != !override_bytes.is_empty() {
+            return Err((
+                E_BUNDLE,
+                "rule override section and header requirement disagree",
+            ));
+        }
+        let mut rule_ids: Vec<u32> = (0..tables.n_rules())
+            .filter_map(|i| tables.rule(i).map(|r| r.id))
+            .collect();
+        rule_ids.sort_unstable();
+        let overrides = crate::overrides::parse(override_bytes, info.n_policies, |id| {
+            rule_ids.binary_search(&id).is_ok()
+        })
+        .map_err(|e| (E_BUNDLE, e.message()))?;
         let paranoid: Vec<u32> = bundle::policies(bytes, &info)
             .filter(|p| p.paranoia)
             .map(|p| p.index)
@@ -321,6 +339,7 @@ impl Engine {
             exclusion_rules,
             geo,
             scoped,
+            overrides,
             rule_costs: crate::rulecost::RuleCosts::new(n_rules_for_costs),
         };
         // map runs off the request path (the connector's thread pool): the
@@ -365,6 +384,12 @@ impl Engine {
     /// by increasing ID (W19-G2-01).
     pub fn scoped(&self, index: u32) -> &[(u32, crate::scope::Mode)] {
         self.scoped.get(index as usize).map_or(&[], |v| &v[..])
+    }
+
+    /// The rule actions of the policy at `index`, as (rule ID, action) by
+    /// increasing ID (RS-1).
+    pub fn overrides(&self, index: u32) -> &[(u32, crate::overrides::Action)] {
+        self.overrides.get(index as usize).map_or(&[], |v| &v[..])
     }
 
     /// Networks of the countries and ASNs the bundle's rules name (W19-R-01).

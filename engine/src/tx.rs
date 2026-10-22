@@ -1068,6 +1068,7 @@ impl Tx {
                 good_bots: engine.good_bots(),
                 geo: engine.geo(),
                 scoped: self.policy_index.map_or(&[][..], |i| engine.scoped(i)),
+                overrides: self.policy_index.map_or(&[][..], |i| engine.overrides(i)),
                 paranoia: self
                     .policy_index
                     .map(|i| engine.paranoia(i))
@@ -1166,6 +1167,7 @@ impl Tx {
             good_bots: engine.good_bots(),
             geo: engine.geo(),
             scoped: self.policy_index.map_or(&[][..], |i| engine.scoped(i)),
+            overrides: self.policy_index.map_or(&[][..], |i| engine.overrides(i)),
             paranoia: self
                 .policy_index
                 .map(|i| engine.paranoia(i))

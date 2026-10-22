@@ -25,6 +25,7 @@ pub mod ja4;
 pub mod json;
 pub mod multipart;
 pub mod operators;
+pub mod overrides;
 pub mod paranoia;
 pub mod privacy;
 pub mod rule_exclusions;
