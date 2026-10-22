@@ -15,6 +15,8 @@ pub struct Xml {
     pub text: Vec<u8>,
     /// attribute values, decoded
     pub attrs: Vec<Vec<u8>>,
+    /// attributes past MAX_ATTRS were left out (rule 100021)
+    pub attrs_left_out: bool,
 }
 
 /// Whether a Content-Type is XML: text/xml, application/xml, */*+xml.
@@ -117,7 +119,13 @@ pub fn parse_checked_with_budget(
         } else if rest.starts_with(b"</") {
             memchr_8k(b'>', rest, budget.as_deref_mut())?.map(|e| i + e + 1)
         } else {
-            start_tag(rest, &mut x.attrs, budget.as_deref_mut())?.map(|e| i + e)
+            start_tag(
+                rest,
+                &mut x.attrs,
+                &mut x.attrs_left_out,
+                budget.as_deref_mut(),
+            )?
+            .map(|e| i + e)
         };
         match next {
             Some(n) => i = n,
@@ -150,6 +158,7 @@ fn doctype_end(
 fn start_tag(
     rest: &[u8],
     attrs: &mut Vec<Vec<u8>>,
+    left_out: &mut bool,
     mut budget: Option<&mut crate::budget::TxBudget>,
 ) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let mut j = 1;
@@ -202,6 +211,8 @@ fn start_tag(
             let mut v = Vec::with_capacity(close - j - 1);
             decode_into(&rest[j + 1..close], &mut v, budget.as_deref_mut())?;
             attrs.push(v);
+        } else {
+            *left_out = true;
         }
         j = close + 1;
     }
@@ -317,7 +328,13 @@ mod tests {
     #[test]
     fn at_most_max_attrs() {
         let doc = [b"<a ".as_slice(), &b"k=\"v\" ".repeat(MAX_ATTRS + 3), b"/>"].concat();
-        assert_eq!(parse(&doc).attrs.len(), MAX_ATTRS);
+        let x = parse(&doc);
+        assert_eq!(x.attrs.len(), MAX_ATTRS);
+        assert!(
+            x.attrs_left_out,
+            "the ones left out are reported (rule 100021)"
+        );
+        assert!(!parse(b"<a k=\"v\"/>").attrs_left_out);
     }
 
     /// #97: whether the whole document was read.

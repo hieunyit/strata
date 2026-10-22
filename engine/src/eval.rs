@@ -545,19 +545,25 @@ fn trim(v: &[u8]) -> &[u8] {
     &v[start..end]
 }
 
-fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> Vec<Pair<'a>> {
-    headers
+/// The cookies of the request, at most MAX_COOKIES, and whether some were
+/// left out (audit 22/10/2026: rule 100021, like arguments past max_args).
+fn parse_cookies<'a>(headers: &[(&'a [u8], &'a [u8])]) -> (Vec<Pair<'a>>, bool) {
+    let mut all = headers
         .iter()
         .filter(|(k, _)| k.eq_ignore_ascii_case(b"cookie"))
         .flat_map(|(_, v)| v.split(|&c| c == b';'))
         .map(trim)
-        .filter(|p| !p.is_empty())
+        .filter(|p| !p.is_empty());
+    let out: Vec<Pair<'a>> = all
+        .by_ref()
         .take(MAX_COOKIES)
         .map(|p| match memchr::memchr(b'=', p) {
             Some(eq) => (Cow::Borrowed(&p[..eq]), Cow::Borrowed(&p[eq + 1..])),
             None => (Cow::Borrowed(p), Cow::Borrowed(&p[..0])),
         })
-        .collect()
+        .collect();
+    let left_out = all.next().is_some();
+    (out, left_out)
 }
 
 /// Request data prepared once per evaluation.
@@ -2350,6 +2356,7 @@ pub fn evaluate_with_budget(
             b"XML" => {
                 let (x, whole) = xml::parse_checked_with_budget(req.body, budget.as_deref_mut())?;
                 body_unparsed = !whole;
+                args_left_out |= x.attrs_left_out;
                 xml_body = Some(x);
             }
             b"MULTIPART" => {
@@ -2377,6 +2384,22 @@ pub fn evaluate_with_budget(
             _ => {}
         }
     }
+    let (cookies, cookies_left_out) = parse_cookies(req.headers);
+    args_left_out |= cookies_left_out;
+    // values that look base64-encoded are inspected decoded too (b64.rs)
+    if let Some(bgt) = budget.as_mut() {
+        bgt.check()?;
+    }
+    let mut left = crate::b64::Left::default();
+    let mut b64_args = crate::b64::decode_all(args[..n_get].iter().map(pair), &mut left);
+    let b64_get = b64_args.len();
+    b64_args.extend(crate::b64::decode_all(
+        args[n_get..].iter().map(pair),
+        &mut left,
+    ));
+    let b64_cookies = crate::b64::decode_all(cookies.iter().map(pair), &mut left);
+    // values that look encoded but were not decoded (the per-request cap)
+    args_left_out |= left.skipped;
     if args_left_out {
         // not every argument is inspected: rule 100021, which the
         // transaction makes block or recorded per the policy's oversize
@@ -2419,19 +2442,6 @@ pub fn evaluate_with_budget(
             snippet: Vec::new(),
         });
     }
-    let cookies = parse_cookies(req.headers);
-    // values that look base64-encoded are inspected decoded too (b64.rs)
-    if let Some(bgt) = budget.as_mut() {
-        bgt.check()?;
-    }
-    let mut left = crate::b64::Left::default();
-    let mut b64_args = crate::b64::decode_all(args[..n_get].iter().map(pair), &mut left);
-    let b64_get = b64_args.len();
-    b64_args.extend(crate::b64::decode_all(
-        args[n_get..].iter().map(pair),
-        &mut left,
-    ));
-    let b64_cookies = crate::b64::decode_all(cookies.iter().map(pair), &mut left);
     let d = Data {
         req,
         full_uri,
@@ -2667,7 +2677,8 @@ mod tests {
         assert_eq!(&*q[1].1, b"x y<");
         assert_eq!(&*q[2].1, b"");
         let h: Vec<(&[u8], &[u8])> = vec![(b"Cookie", b"sid=abc; theme=dark"), (b"cookie", b"x")];
-        let c = parse_cookies(&h);
+        let (c, left_out) = parse_cookies(&h);
+        assert!(!left_out);
         assert_eq!(c.len(), 3);
         assert_eq!((&*c[1].0, &*c[1].1), (&b"theme"[..], &b"dark"[..]));
     }
