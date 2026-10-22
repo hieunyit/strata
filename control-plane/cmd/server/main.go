@@ -115,6 +115,7 @@ func main() {
 	canaryErrorDelta := flag.Float64("canary-error-delta", .01, "Minimum 5xx rate increase")
 	canaryLatencyFactor := flag.Float64("canary-latency-factor", 1.5, "p99 trip factor over shadow")
 	canaryLatencyDelta := flag.Duration("canary-latency-delta", 50*time.Millisecond, "Minimum p99 increase")
+	canaryHealthShadow := flag.Bool("canary-health-shadow", false, "A canary 5xx or latency trip also forces the canary policies into shadow (by default it pauses rollouts and alerts: these signals carry no client address, so a few clients could force it)")
 	rolloutSoak := flag.Duration("rollout-soak", 0, "Wait after a wave is all ACTIVE before the next starts")
 	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics listen address; it has no authentication, bind it where only the scraper reaches; empty disables it")
 	localAuth := flag.Bool("local-auth", true, "Accept local accounts kept in PostgreSQL (username and password) besides, or instead of, OIDC; on by default (CP-A05), off without PostgreSQL unless set explicitly")
@@ -170,7 +171,7 @@ func main() {
 		configSources = src
 		log.Printf("[INFO] configuration from %s (flags given on the command line override it)", *configPath)
 	}
-	canaryOptions := fleet.CanaryOptions{MinRequests: *canaryMin, BlockFactor: *canaryBlockFactor, BlockFloor: *canaryBlockFloor, ErrorFactor: *canaryErrorFactor, ErrorDelta: *canaryErrorDelta, LatencyFactor: *canaryLatencyFactor, LatencyDelta: *canaryLatencyDelta}
+	canaryOptions := fleet.CanaryOptions{MinRequests: *canaryMin, BlockFactor: *canaryBlockFactor, BlockFloor: *canaryBlockFloor, ErrorFactor: *canaryErrorFactor, ErrorDelta: *canaryErrorDelta, LatencyFactor: *canaryLatencyFactor, LatencyDelta: *canaryLatencyDelta, HealthShadow: *canaryHealthShadow}
 	if err := canaryOptions.Validate(); err != nil {
 		log.Fatalf("[FATAL] %v", err)
 	}
