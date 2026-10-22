@@ -5,7 +5,7 @@
 // field the API leaves out and its default compare equal.
 import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec, paranoiaLevels } from './policyYaml';
 import { geoRuleSummary } from './geoRules';
-import { actionOf } from './ruleSets';
+import { actionOf, filterSummary } from './ruleSets';
 
 export type DiffBlock = 'general' | 'response' | 'rules' | 'advanced';
 
@@ -66,7 +66,8 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
   ];
   // RS-4: rule sets (in order: a later set wins) and overrides, one line
   // each, as the reviewer reads them
-  const sets = (x: PolicySpec) => (x.rule_sets ?? []).map((r) => `${r.set}: ${actionOf(r.action)}`);
+  // a custom set with the copy of its filter: a change of the copy shows
+  const sets = (x: PolicySpec) => (x.rule_sets ?? []).map((r) => `${r.set}: ${actionOf(r.action)}${r.match ? ` [${filterSummary(r.match)}]` : ''}`);
   const overrides = (x: PolicySpec) => (x.rule_overrides ?? []).map((o) => `${o.rule}: ${actionOf(o.action)} (${o.reason ?? ''})`);
   const listed = (key: 'rule_sets' | 'rule_overrides', la: string[], lb: string[]) => {
     const f = field(key, la.join('\n') || '—', lb.join('\n') || '—');

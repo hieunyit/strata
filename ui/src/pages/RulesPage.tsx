@@ -5,6 +5,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { PageHeader, formatTime } from '../components/ui';
 import { ApplicationScope } from '../components/applications/ApplicationScope';
 import { OverrideForm } from '../components/events/RuleOverrideDraft';
+import { CustomRuleSets } from '../components/rules/CustomRuleSets';
 import { canWritePolicies } from '../auth/roles';
 import { useAuth } from '../context/AuthContext';
 import { SET_GROUPS, setTitle } from '../lib/ruleSets';
@@ -18,8 +19,8 @@ export const RulesPage: React.FC = () => {
   const [cve, setCve] = useState(''), [text, setText] = useState('');
   const [query, setQuery] = useState(noFilters), [refresh, setRefresh] = useState(0);
   // RS-4b: the built-in rule sets, to filter by and to name a rule's sets
-  const [sets, setSets] = useState<RuleSet[]>([]), [override, setOverride] = useState<number>();
-  useEffect(() => { apiClient.listRuleSets().then((r) => setSets(r.sets), () => setSets([])); }, []);
+  const [sets, setSets] = useState<RuleSet[]>([]), [override, setOverride] = useState<number>(), [setsRead, setSetsRead] = useState(0);
+  useEffect(() => { apiClient.listRuleSets().then((r) => setSets(r.sets), () => setSets([])); }, [setsRead]);
   const filter = (patch: Partial<typeof noFilters>) => { setQuery({ ...query, ...patch, after: '' }); setDiff(undefined); };
   const titleOf = (name: string) => { const s = sets.find((x) => x.name === name); return s ? setTitle(s, i18n.language) : name; };
   const [app, setApp] = useState(''), [env, setEnv] = useState(''), [detail, setDetail] = useState<RuleCatalogDetail>();
@@ -80,6 +81,7 @@ export const RulesPage: React.FC = () => {
       {page.next_cursor > 0 && <button className="btn m-3" disabled={loading} onClick={() => setQuery({ ...query, after: String(page.next_cursor) })}>{t('common.next')}</button>}
       {query.after && <button className="btn m-3" onClick={() => setQuery({ ...query, after: '' })}>{t('lifecycle.firstPage')}</button>}
     </section>}
+    <CustomRuleSets sets={sets} facets={page?.facets} canWrite={canWritePolicies(roles)} onChanged={() => setSetsRead((n) => n + 1)} />
     <section className="panel p-3 mb-3"><h2 className="font-medium mb-2">{t('lifecycle.applicationUsage')}</h2><ApplicationScope application={app} environment={env} onChange={(a,e) => { setApp(a); setEnv(e); }}/><p className="text-sm text-muted mt-2">{t('lifecycle.usageHelp')}</p>
       {detail && <div className="mt-3"><h3>{detail.rule.id} · {detail.rule.name}</h3><ul>{detail.usage.map((v) => <li key={v.policy_id}>{v.policy_name} · v{v.policy_version} · {t(`lifecycle.policyStates.${v.state}`)} · {t(`lifecycle.modes.${v.policy_mode}`)} · {t('lifecycle.activePolicyNodes', { count: v.active_policy_nodes })}{v.disabled && ` · ${t('lifecycle.disabled')}`}</li>)}</ul>
         <p className="mt-2">{t('lifecycle.cost')}: {detail.health_status === 'available' && detail.health?.cost_mean_ns != null ? `${detail.health.cost_mean_ns.toFixed(1)} ns` : t('lifecycle.unknown')}</p>

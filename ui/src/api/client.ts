@@ -22,6 +22,9 @@ export type RuleSetRules = components['schemas']['RuleSetRules'];
 export type RuleActionsDraft = components['schemas']['RuleActionsDraft'];
 export type EffectiveRule = components['schemas']['EffectiveRule'];
 export type EffectiveRules = components['schemas']['EffectiveRules'];
+export type CustomRuleSet = components['schemas']['CustomRuleSet'];
+export type CustomRuleSetInput = components['schemas']['CustomRuleSetInput'];
+export type RuleSetFilter = components['schemas']['RuleSetFilter'];
 export type ExceptionInventoryPage = components['schemas']['ExceptionInventoryPage'];
 export type ExceptionLifecycleRequest = components['schemas']['ExceptionLifecycleRequest'];
 export type Event = components['schemas']['Event'];
@@ -489,6 +492,21 @@ export const apiClient = {
   async listRuleSets(signal?: AbortSignal, policy = ''): Promise<RuleSetList> {
     const q = policy ? `?policy=${encodeURIComponent(policy)}` : '';
     return call<RuleSetList>(`/rule-sets${q}`, { method: 'GET', signal }, 'Rule sets unavailable');
+  },
+
+  /** POST /v1/rule-sets: a custom rule set (RS-3c) */
+  async createCustomRuleSet(input: CustomRuleSetInput): Promise<CustomRuleSet> {
+    return call<CustomRuleSet>('/rule-sets', json('POST', input), 'Failed to create the rule set');
+  },
+
+  /** PUT /v1/rule-sets/{name}: a new version of a custom rule set, from the etag read (RS-3c) */
+  async updateCustomRuleSet(name: string, input: CustomRuleSetInput): Promise<CustomRuleSet> {
+    return call<CustomRuleSet>(`/rule-sets/${encodeURIComponent(name)}`, json('PUT', input), 'Failed to save the rule set');
+  },
+
+  /** DELETE /v1/rule-sets/{name}?etag=: policies keep their copy of its filter (RS-3c) */
+  async deleteCustomRuleSet(name: string, etag: string): Promise<void> {
+    return call<void>(`/rule-sets/${encodeURIComponent(name)}?etag=${encodeURIComponent(etag)}`, { method: 'DELETE' }, 'Failed to delete the rule set');
   },
 
   /** GET /v1/rule-sets/{name}/rules: one page of a set's rules (RS-3) */

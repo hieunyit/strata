@@ -4,7 +4,7 @@ import { ListFilter, Plus, Trash2, X } from 'lucide-react';
 import { EffectiveRules, RuleSet, RuleSetRules, apiClient } from '../../api/client';
 import { PolicySpec, paranoiaLevels } from '../../lib/policyYaml';
 import {
-  MAX_REASON, MAX_RULE_OVERRIDES, RULE_ACTIONS, RuleAction, SET_GROUPS, actionOf, draftOf, setOverride, setRuleSet, setTitle, validReason, validRuleId,
+  MAX_REASON, MAX_RULE_OVERRIDES, RULE_ACTIONS, RuleAction, SET_GROUPS, actionOf, draftOf, filterSummary, refreshCustomSet, sameFilter, setOverride, setRuleSet, setTitle, validReason, validRuleId,
 } from '../../lib/ruleSets';
 
 // Rule sets and overrides of a policy (RS-4, NGINX Instance Manager
@@ -32,6 +32,7 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
   }, [policyName]);
 
   const chosen = useMemo(() => new Map((spec.rule_sets ?? []).map((r) => [r.set ?? '', r.action ?? 'POLICY_RULE_ACTION_UNSPECIFIED'])), [spec.rule_sets]);
+  const copies = useMemo(() => new Map((spec.rule_sets ?? []).filter((r) => r.match).map((r) => [r.set ?? '', r.match])), [spec.rule_sets]);
   const overrides = spec.rule_overrides ?? [];
   const tabButton = (id: 'sets' | 'overrides', label: string) => (
     <button
@@ -108,6 +109,14 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
                             {t('editor.ruleSets.view')}
                           </button>
                         </div>
+                        {/* RS-3c: the policy runs the copy it was saved with */}
+                        {s.custom && copies.has(s.name) && !sameFilter(copies.get(s.name), s.match) && (
+                          <p className="mt-1 text-xs text-muted" data-testid={`ruleset-stale-${s.name}`}>
+                            {t('editor.ruleSets.staleCopy', { version: s.version ?? '?' })}
+                            <button type="button" className="ml-2 underline" onClick={() => onChange(refreshCustomSet(spec, s.name))} data-testid={`ruleset-refresh-${s.name}`}>{t('editor.ruleSets.useCurrent')}</button>
+                          </p>
+                        )}
+                        {s.custom && chosen.has(s.name) && !copies.has(s.name) && <p className="mt-1 text-xs text-muted">{t('editor.ruleSets.copyOnSave')}</p>}
                         {open === s.name && <SetRules set={s.name} spec={spec} onChange={onChange} onClose={() => setOpen(undefined)} />}
                       </li>
                     );
@@ -119,7 +128,7 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
           {/* sets the catalog does not know (an older or newer control plane) */}
           {sets && [...chosen.keys()].filter((n) => !sets.some((s) => s.name === n)).map((n) => (
             <p key={n} className="text-xs text-block" data-testid="ruleset-unknown">
-              {t('editor.ruleSets.unknown', { name: n })}
+              {copies.has(n) ? t('editor.ruleSets.deletedCustom', { name: n, filter: filterSummary(copies.get(n)) }) : t('editor.ruleSets.unknown', { name: n })}
               <button type="button" className="ml-2 underline" onClick={() => onChange(setRuleSet(spec, sets, n, undefined))}>{t('editor.ruleSets.remove')}</button>
             </p>
           ))}

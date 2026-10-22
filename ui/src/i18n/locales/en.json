@@ -596,7 +596,8 @@
         "attack": "Attacks",
         "signature": "Signatures",
         "technology": "Technologies",
-        "bot": "Bots"
+        "bot": "Bots",
+        "custom": "Custom"
       },
       "class": {
         "malicious": "malicious",
@@ -646,7 +647,11 @@
         "override": "override"
       },
       "matches_one": "{{count}} match in 24 h",
-      "matches_other": "{{count}} matches in 24 h"
+      "matches_other": "{{count}} matches in 24 h",
+      "staleCopy": "The set changed (v{{version}}) since the policy was saved; the policy runs the filter it copied then.",
+      "useCurrent": "Take the current filter on save",
+      "copyOnSave": "On save, the policy copies this set's current filter.",
+      "deletedCustom": "Custom set {{name}} was deleted; the policy keeps the filter it copied ({{filter}})."
     }
   },
   "diff": {
@@ -1399,6 +1404,40 @@
     },
     "policy": "Policy",
     "choosePolicy": "Choose a policy",
-    "openShort": "Override…"
+    "openShort": "Override…",
+    "reviewRequired": "The override takes effect only after replay, independent approval and deployment."
+  },
+  "customSets": {
+    "title": "Custom rule sets",
+    "new": "New set",
+    "help": "Custom sets are used like the built-in ones in a policy. A policy copies a set's filter when saved: editing or deleting a set here changes no policy until the policy is saved, reviewed and deployed again.",
+    "name": "Name",
+    "copyFrom": "Copy a built-in set",
+    "copyNone": "None (empty set)",
+    "setTitle": "Title",
+    "description": "Description",
+    "sources": "Sources",
+    "attackTypes": "Attack types",
+    "tags": "Tags",
+    "ids": "Rule IDs",
+    "filterHelp": "A rule is in the set when it matches every non-empty list (tags: any of them), or is one of the Rule IDs. Separate values with commas.",
+    "badIds": "Rule IDs are numbers from 1 to 4294967295.",
+    "editNote": "Saving makes a new version of the set; policies using it keep the old copy until saved again.",
+    "save": "Save set",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "none": "No custom sets yet.",
+    "col": {
+      "name": "Set",
+      "filter": "Filter",
+      "rules": "Rules",
+      "version": "Version"
+    },
+    "actions": "Actions",
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "confirmDelete": "Delete set {{name}}? Policies using it keep the filter they copied.",
+    "conflict": "The set was just changed or the name is taken: reload and try again.",
+    "error": "Could not save: {{error}}"
   }
 }

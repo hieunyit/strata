@@ -20,6 +20,21 @@ export interface paths {
   "/v1/rule-sets": {
     /** @description RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an action (rule_sets of the policy spec), with how many rules of the configured catalog each one holds. Needs policies:read. */
     get: operations["listRuleSets"];
+    /** @description RS-3c. A custom rule set (name custom-*). A policy using it keeps a copy of its filter, made when the policy is saved. Needs policies:write, not scoped to applications. */
+    post: operations["createCustomRuleSet"];
+  };
+  "/v1/rule-sets/{name}": {
+    /** @description RS-3c. A built-in set (RuleSet) or a custom one (CustomRuleSet). Needs policies:read. */
+    get: operations["getRuleSet"];
+    /** @description RS-3c. A new version of a custom set, from the etag read. Policies keep the copy of its filter they were saved with until saved again. Needs policies:write, not scoped to applications. */
+    put: operations["updateCustomRuleSet"];
+    /** @description RS-3c. Policies keep their copy of its filter. Needs policies:write, not scoped to applications. */
+    delete: operations["deleteCustomRuleSet"];
+    parameters: {
+      path: {
+        name: string;
+      };
+    };
   };
   "/v1/rule-sets/{name}/rules": {
     /** @description RS-3. The rules of the configured catalog in a built-in set, by Rule ID, 200 a page. Needs policies:read. */
@@ -392,7 +407,7 @@ export interface components {
     RuleSet: {
       name: string;
       /** @enum {string} */
-      group: "attack" | "signature" | "technology" | "bot";
+      group: "attack" | "signature" | "technology" | "bot" | "custom";
       /**
        * @description Of a bot set.
        * @enum {string}
@@ -405,6 +420,35 @@ export interface components {
       rule_count?: number;
       /** @description RS-4b. Matches of the set's rules over the last 24 hours (an event matching two rules of the set counts twice); absent when the caller may not read events or the event store does not count. */
       matches_24h?: number;
+      /** @description RS-3c. A custom set (group custom). */
+      custom?: boolean;
+      description?: string;
+      version?: number;
+      etag?: string;
+      updated_by?: string;
+    };
+    CustomRuleSetInput: {
+      /** @description custom- and up to 48 lower-case letters, digits or dashes (POST only). */
+      name?: string;
+      title: string;
+      description?: string;
+      match: components["schemas"]["RuleSetFilter"];
+      /** @description The version read (PUT). */
+      etag?: string;
+    };
+    CustomRuleSet: {
+      name: string;
+      title: string;
+      description: string;
+      match: components["schemas"]["RuleSetFilter"];
+      version: number;
+      etag: string;
+      created_by: string;
+      updated_by: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
     };
     RuleSetList: {
       sets: components["schemas"]["RuleSet"][];
@@ -427,6 +471,7 @@ export interface components {
           set: string;
           /** @enum {string} */
           action: "off" | "log" | "block" | "default";
+          match?: components["schemas"]["RuleSetFilter"];
         })[];
       rule_overrides?: ({
           rule: number;
@@ -1861,6 +1906,115 @@ export interface operations {
         };
       };
       403: components["responses"]["Forbidden"];
+    };
+  };
+  /** @description RS-3c. A custom rule set (name custom-*). A policy using it keeps a copy of its filter, made when the policy is saved. Needs policies:write, not scoped to applications. */
+  createCustomRuleSet: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CustomRuleSetInput"];
+      };
+    };
+    responses: {
+      /** @description Created, version 1. */
+      201: {
+        content: {
+          "application/json": components["schemas"]["CustomRuleSet"];
+        };
+      };
+      /** @description Invalid set */
+      400: {
+        content: never;
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description The name is taken */
+      409: {
+        content: never;
+      };
+      /** @description No PostgreSQL store */
+      501: {
+        content: never;
+      };
+    };
+  };
+  /** @description RS-3c. A built-in set (RuleSet) or a custom one (CustomRuleSet). Needs policies:read. */
+  getRuleSet: {
+    parameters: {
+      path: {
+        name: string;
+      };
+    };
+    responses: {
+      /** @description The set. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleSet"] | components["schemas"]["CustomRuleSet"];
+        };
+      };
+      /** @description No such rule set */
+      404: {
+        content: never;
+      };
+    };
+  };
+  /** @description RS-3c. A new version of a custom set, from the etag read. Policies keep the copy of its filter they were saved with until saved again. Needs policies:write, not scoped to applications. */
+  updateCustomRuleSet: {
+    parameters: {
+      path: {
+        name: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CustomRuleSetInput"];
+      };
+    };
+    responses: {
+      /** @description The new version. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CustomRuleSet"];
+        };
+      };
+      /** @description Invalid set, or a rename */
+      400: {
+        content: never;
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description No such custom set */
+      404: {
+        content: never;
+      };
+      /** @description The etag is stale */
+      409: {
+        content: never;
+      };
+    };
+  };
+  /** @description RS-3c. Policies keep their copy of its filter. Needs policies:write, not scoped to applications. */
+  deleteCustomRuleSet: {
+    parameters: {
+      query: {
+        etag: string;
+      };
+      path: {
+        name: string;
+      };
+    };
+    responses: {
+      /** @description Deleted. */
+      204: {
+        content: never;
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description No such custom set */
+      404: {
+        content: never;
+      };
+      /** @description The etag is stale */
+      409: {
+        content: never;
+      };
     };
   };
   /** @description RS-3. The rules of the configured catalog in a built-in set, by Rule ID, 200 a page. Needs policies:read. */

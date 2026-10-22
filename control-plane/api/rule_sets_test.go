@@ -93,7 +93,8 @@ func TestRuleSetsCountTheConfiguredRules(t *testing.T) {
 	}
 	for path, want := range map[string]int{
 		"/v1/rule-sets/no-such-set/rules":           http.StatusNotFound,
-		"/v1/rule-sets/bots-scanners":               http.StatusNotFound,
+		"/v1/rule-sets/bots-scanners":               http.StatusOK,
+		"/v1/rule-sets/custom-none":                 http.StatusNotFound,
 		"/v1/rule-sets/bots-scanners/rules?after=x": http.StatusBadRequest,
 	} {
 		if c := getRuleSets(t, s, path, nil); c != want {

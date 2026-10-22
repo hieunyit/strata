@@ -61,7 +61,11 @@ func (s *Server) catalogList(w http.ResponseWriter, r *http.Request) {
 	// RS-4b: the rules of a built-in set, and a search by Rule ID or name
 	var set *rulesets.Set
 	if name := q.Get("set"); name != "" {
-		found, ok := rulesets.Get(name)
+		found, ok, err := s.lookupSet(r.Context(), name)
+		if err != nil {
+			customSetError(w, err)
+			return
+		}
 		if !ok {
 			writeError(w, 400, "unknown rule set", "")
 			return

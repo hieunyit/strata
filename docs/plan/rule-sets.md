@@ -102,7 +102,8 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 ### 3.4 Compiler và control plane
 
 - **Danh mục bộ dựng sẵn:** file trong repo (`rules/sets/*.yaml`), kiểm schema, đóng vào image.
-  Bộ tự tạo lưu PostgreSQL (migration mới), có version và audit.
+  Bộ tự tạo lưu PostgreSQL (migration 0045), có version và audit. Policy chép bộ lọc của bộ tự
+  tạo vào spec khi lưu, để sửa một bộ không đổi hành vi của policy đã duyệt mà không qua duyệt.
 - **Compiler:** giải `rule_sets` + `rule_overrides` trên danh mục rule của bundle, cho ra danh
   sách mục `OVERRIDE`. Quá giới hạn hoặc tham chiếu rule/bộ không có thì từ chối khi lưu policy
   (lỗi có tên bộ/rule). Riêng `ids` trong định nghĩa một bộ là một phần bộ lọc: rule của gói mà
@@ -144,7 +145,7 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 | RS-2 ✅ | Compiler: `rule_sets`, `rule_overrides`, danh mục `rules/sets/catalog.yaml` (19 bộ dựng sẵn), giới hạn, schema policy. Control plane gửi bộ lọc đã mở rộng (không gửi tên bộ); compiler đọc metadata rule từ chính file IR `--rules` | Rust + spec |
 | RS-3 ✅ | Control plane: spec + proto (`rule_sets`, `rule_overrides`), kiểm khi lưu, mở rộng tên bộ thành bộ lọc cho compiler, template `strict` + mọi bot `log` (template v2), `GET /v1/rule-sets` và `/v1/rule-sets/{name}/rules` | Go |
 | RS-3b ✅ | `POST /v1/rule-sets:resolve`; compiler bỏ qua ghi đè của rule mà mọi policy không chạy (paranoia, plugin) thay vì từ chối | Go + Rust |
-| RS-3c | Bộ tự tạo (CRUD, migration) | Go |
+| RS-3c ✅ | Bộ tự tạo `custom-*` (migration 0045, CRUD có etag + audit, `POST/PUT/DELETE /v1/rule-sets`), quản lý trên trang Rules & packs (nhân bản từ bộ dựng sẵn). Policy **chép bộ lọc** của bộ tự tạo khi lưu (`rule_sets[].match`): sửa/xóa bộ không đổi policy nào cho tới khi policy được lưu lại, duyệt và deploy (giữ nguyên quy tắc four-eyes); trình sửa báo khi bản chép cũ hơn bộ | Go + React |
 | RS-4a ✅ | UI trình sửa policy: bộ rule theo nhóm (bật/tắt, action, số rule, xem rule của bộ và ghi đè từng rule kèm lý do), tab Ghi đè, tóm tắt tác động của bản nháp (`rule-sets:resolve`); ảnh `docs/reports/rs/` | React |
 | RS-4b ✅ | Trang Rules & packs: tìm theo ID/tên, lọc theo bộ/nguồn/loại tấn công bằng danh sách chọn (`GET /v1/rule-catalog` thêm `q`, `set`, `matched`, `facets`, `sets` mỗi rule), "Ghi đè…" cho một policy chọn được; "Ghi đè rule cho cả policy" từ sự kiện; diff/duyệt có khối "Bộ rule và ghi đè"; số lượt khớp 24 giờ mỗi bộ (`matches_24h`, rollup ClickHouse); người dùng theo phạm vi ứng dụng đọc được `/v1/rule-sets` | React + Go |
 | RS-5 | Lab: bộ bot chặn thật (scanner) trên 2 node, rollback, node cũ bị chặn deploy; replay báo rule đổi action | e2e |

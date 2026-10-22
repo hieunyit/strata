@@ -663,6 +663,17 @@ export interface components {
       /** e.g. bots-scanners */
       set?: string;
       action?: components["schemas"]["v1PolicyRuleAction"];
+      match?: components["schemas"]["v1PolicyRuleSetFilter"];
+    };
+    /**
+     * @description A rule is in the set when it matches every non-empty list (tags: any of
+     * them), or is one of ids.
+     */
+    v1PolicyRuleSetFilter: {
+      sources?: string[];
+      attack_types?: string[];
+      tags?: string[];
+      ids?: number[];
     };
     /**
      * @description PolicySpec is what the bundle carries for the policy

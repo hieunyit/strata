@@ -15,6 +15,7 @@ import (
 	"github.com/strata/strata/control-plane/auth"
 	adminv1 "github.com/strata/strata/control-plane/gen/strata/admin/v1"
 	"github.com/strata/strata/control-plane/policy"
+	"github.com/strata/strata/control-plane/rulesets"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -67,6 +68,39 @@ var (
 	ruleActionTo = map[string]adminv1.PolicyRuleAction{"default": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_UNSPECIFIED,
 		"off": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_OFF, "log": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_LOG, "block": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_BLOCK}
 )
+
+// CustomRuleSetStore is the store of custom rule sets (RS-3c), when the
+// policy store has one.
+type CustomRuleSetStore interface {
+	GetCustomRuleSet(ctx context.Context, name string) (store.CustomRuleSet, error)
+}
+
+// fillCustomSets copies the current filter of each custom set the spec
+// names without one (a set just added). A set already copied keeps its
+// copy: editing the set changes no policy until it is saved again.
+func (p *policyAdmin) fillCustomSets(ctx context.Context) func(*policy.Spec) error {
+	return func(s *policy.Spec) error {
+		for i, r := range s.RuleSets {
+			if !rulesets.IsCustom(r.Set) || r.Match != nil {
+				continue
+			}
+			sets, ok := p.store.(CustomRuleSetStore)
+			if !ok {
+				return status.Error(codes.FailedPrecondition, "custom rule sets need the PostgreSQL store")
+			}
+			c, err := sets.GetCustomRuleSet(ctx, r.Set)
+			if errors.Is(err, store.ErrNotFound) {
+				return status.Errorf(codes.InvalidArgument, "policy.spec: rule set %q does not exist", r.Set)
+			}
+			if err != nil {
+				return internal("custom rule set", err)
+			}
+			match := c.Match
+			s.RuleSets[i].Match = &match
+		}
+		return nil
+	}
+}
 
 // assignGeoIDs gives each new geo rule (id 0) of the spec of policy id the
 // lowest geo rule id no version of another policy uses, and refuses an id
@@ -183,7 +217,11 @@ func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.Ra
 		if !ok {
 			return nil, status.Error(codes.InvalidArgument, "policy.spec: unknown rule set action")
 		}
-		s.RuleSets = append(s.RuleSets, policy.RuleSetRef{Set: r.GetSet(), Action: a})
+		ref := policy.RuleSetRef{Set: r.GetSet(), Action: a}
+		if m := r.GetMatch(); m != nil {
+			ref.Match = &rulesets.Filter{Sources: m.GetSources(), AttackTypes: m.GetAttackTypes(), Tags: m.GetTags(), IDs: m.GetIds()}
+		}
+		s.RuleSets = append(s.RuleSets, ref)
 	}
 	for _, o := range pb.GetRuleOverrides() {
 		if o == nil {
@@ -244,7 +282,11 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 			Asns: append([]uint32(nil), g.ASNs...), Not: g.Not, Action: geoActionTo[g.Action]})
 	}
 	for _, r := range s.RuleSets {
-		out.RuleSets = append(out.RuleSets, &adminv1.PolicyRuleSet{Set: r.Set, Action: ruleActionTo[r.Action]})
+		ref := &adminv1.PolicyRuleSet{Set: r.Set, Action: ruleActionTo[r.Action]}
+		if m := r.Match; m != nil {
+			ref.Match = &adminv1.PolicyRuleSetFilter{Sources: m.Sources, AttackTypes: m.AttackTypes, Tags: m.Tags, Ids: m.IDs}
+		}
+		out.RuleSets = append(out.RuleSets, ref)
 	}
 	for _, o := range s.RuleOverrides {
 		out.RuleOverrides = append(out.RuleOverrides, &adminv1.PolicyRuleOverride{Rule: o.Rule, Action: ruleActionTo[o.Action], Reason: o.Reason})
@@ -324,7 +366,7 @@ func (p *policyAdmin) CreatePolicy(ctx context.Context, req *adminv1.CreatePolic
 	if pbSpec == nil && req.GetTemplate() != "" {
 		pbSpec = &adminv1.PolicySpec{}
 	}
-	spec, err := specOf(pbSpec, fromTemplate(req.GetTemplate()), p.assignGeoIDs(ctx, in.GetId()))
+	spec, err := specOf(pbSpec, fromTemplate(req.GetTemplate()), p.assignGeoIDs(ctx, in.GetId()), p.fillCustomSets(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +396,7 @@ func (p *policyAdmin) UpdatePolicy(ctx context.Context, req *adminv1.UpdatePolic
 			return nil, status.Error(codes.InvalidArgument, "policy.name cannot change")
 		}
 	}
-	spec, err := specOf(in.GetSpec(), p.assignGeoIDs(ctx, in.GetId()))
+	spec, err := specOf(in.GetSpec(), p.assignGeoIDs(ctx, in.GetId()), p.fillCustomSets(ctx))
 	if err != nil {
 		return nil, err
 	}

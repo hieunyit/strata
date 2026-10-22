@@ -590,7 +590,8 @@
         "attack": "Tấn công",
         "signature": "Chữ ký",
         "technology": "Công nghệ",
-        "bot": "Bot"
+        "bot": "Bot",
+        "custom": "Tự tạo"
       },
       "class": {
         "malicious": "độc hại",
@@ -640,7 +641,11 @@
         "override": "ghi đè"
       },
       "matches_one": "{{count}} lượt khớp/24 giờ",
-      "matches_other": "{{count}} lượt khớp/24 giờ"
+      "matches_other": "{{count}} lượt khớp/24 giờ",
+      "staleCopy": "Bộ đã được sửa (v{{version}}) từ lần lưu policy; policy vẫn chạy bộ lọc đã chép khi lưu.",
+      "useCurrent": "Dùng bản mới khi lưu",
+      "copyOnSave": "Khi lưu, policy sẽ chép bộ lọc hiện tại của bộ này.",
+      "deletedCustom": "Bộ tự tạo {{name}} đã bị xóa; policy vẫn dùng bộ lọc đã chép ({{filter}})."
     }
   },
   "diff": {
@@ -1393,6 +1398,40 @@
     },
     "policy": "Policy",
     "choosePolicy": "Chọn policy",
-    "openShort": "Ghi đè…"
+    "openShort": "Ghi đè…",
+    "reviewRequired": "Ghi đè chỉ có hiệu lực sau khi replay, được người khác duyệt và deploy."
+  },
+  "customSets": {
+    "title": "Bộ rule tự tạo",
+    "new": "Tạo bộ",
+    "help": "Bộ tự tạo dùng như bộ dựng sẵn trong policy. Policy chép bộ lọc của bộ khi được lưu: sửa hay xóa bộ ở đây không đổi policy nào cho tới khi policy được lưu lại, duyệt và deploy.",
+    "name": "Tên",
+    "copyFrom": "Nhân bản từ bộ dựng sẵn",
+    "copyNone": "Không (bộ trống)",
+    "setTitle": "Tiêu đề",
+    "description": "Mô tả",
+    "sources": "Nguồn",
+    "attackTypes": "Loại tấn công",
+    "tags": "Tag",
+    "ids": "Rule ID",
+    "filterHelp": "Một rule thuộc bộ khi khớp mọi danh sách không trống (tag: chỉ cần một), hoặc có trong danh sách Rule ID. Các giá trị cách nhau bằng dấu phẩy.",
+    "badIds": "Rule ID là số từ 1 đến 4294967295.",
+    "editNote": "Lưu tạo phiên bản mới của bộ; policy đang dùng bộ vẫn giữ bản cũ cho tới khi được lưu lại.",
+    "save": "Lưu bộ",
+    "saving": "Đang lưu…",
+    "cancel": "Hủy",
+    "none": "Chưa có bộ tự tạo nào.",
+    "col": {
+      "name": "Bộ",
+      "filter": "Bộ lọc",
+      "rules": "Số rule",
+      "version": "Phiên bản"
+    },
+    "actions": "Thao tác",
+    "edit": "Sửa {{name}}",
+    "delete": "Xóa {{name}}",
+    "confirmDelete": "Xóa bộ {{name}}? Policy đang dùng vẫn giữ bộ lọc đã chép.",
+    "conflict": "Bộ vừa được người khác sửa hoặc tên đã có: tải lại rồi thử lại.",
+    "error": "Không lưu được: {{error}}"
   }
 }

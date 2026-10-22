@@ -15,7 +15,7 @@ export const RULE_ACTIONS: RuleAction[] = ['POLICY_RULE_ACTION_BLOCK', 'POLICY_R
 export const MAX_RULE_SETS = 32;
 export const MAX_RULE_OVERRIDES = 2048;
 export const MAX_REASON = 256;
-export const SET_GROUPS = ['attack', 'signature', 'technology', 'bot'] as const;
+export const SET_GROUPS = ['attack', 'signature', 'technology', 'bot', 'custom'] as const;
 
 const actionWord: Record<RuleAction, string> = {
   POLICY_RULE_ACTION_UNSPECIFIED: 'default',
@@ -47,8 +47,9 @@ export function normalizeRuleActions(spec: PolicySpec): PolicySpec {
 // does not know keep their place at the end.
 export function setRuleSet(spec: PolicySpec, catalog: RuleSet[], name: string, action: RuleAction | undefined): PolicySpec {
   const current = new Map((spec.rule_sets ?? []).map((r) => [r.set ?? '', r]));
+  // a custom set keeps the copy of its filter the policy was saved with
   if (action === undefined) current.delete(name);
-  else current.set(name, { set: name, action });
+  else current.set(name, { ...current.get(name), set: name, action });
   const known = catalog.map((s) => s.name);
   const ordered = known.filter((n) => current.has(n)).map((n) => current.get(n)!);
   const rest = (spec.rule_sets ?? []).filter((r) => !known.includes(r.set ?? '') && current.has(r.set ?? ''));
@@ -81,7 +82,7 @@ export function draftOf(spec: PolicySpec, [enforce, shadow]: [number, number]): 
   const d: RuleActionsDraft = {};
   if (enforce > 1) d.crs_paranoia = enforce;
   if (shadow > enforce) d.crs_paranoia_shadow = shadow;
-  const sets = (spec.rule_sets ?? []).map((r) => ({ set: r.set ?? '', action: actionOf(r.action) as 'off' | 'log' | 'block' | 'default' }));
+  const sets = (spec.rule_sets ?? []).map((r) => ({ set: r.set ?? '', action: actionOf(r.action) as 'off' | 'log' | 'block' | 'default', ...(r.match ? { match: r.match } : {}) }));
   if (sets.length) d.rule_sets = sets;
   const overrides = (spec.rule_overrides ?? []).filter((o) => validReason(o.reason))
     .map((o) => ({ rule: o.rule ?? 0, action: actionOf(o.action) as 'off' | 'log' | 'block' | 'default', reason: o.reason ?? '' }));
@@ -91,4 +92,37 @@ export function draftOf(spec: PolicySpec, [enforce, shadow]: [number, number]): 
 
 export function setTitle(s: Pick<RuleSet, 'title' | 'name'>, language: string): string {
   return (language.startsWith('vi') ? s.title.vi : s.title.en) || s.title.en || s.name;
+}
+
+// RS-3c: custom sets (custom-*), whose filter a policy copies when saved.
+export const isCustomSet = (name: string): boolean => /^custom-[a-z0-9][a-z0-9-]{0,47}$/.test(name);
+
+type Filter = { sources?: string[]; attack_types?: string[]; tags?: string[]; ids?: number[] };
+const sorted = (l?: (string | number)[]) => [...(l ?? [])].map(String).sort();
+
+// sameFilter: two filters select the same rules (order does not count).
+export function sameFilter(a: Filter | undefined, b: Filter | undefined): boolean {
+  return (['sources', 'attack_types', 'tags', 'ids'] as const).every((k) => JSON.stringify(sorted(a?.[k])) === JSON.stringify(sorted(b?.[k])));
+}
+
+// filterSummary: a filter in one line, for the diff and the lists.
+export function filterSummary(f: Filter | undefined): string {
+  if (!f) return '';
+  const parts: string[] = [];
+  if (f.sources?.length) parts.push(`sources=${f.sources.join(',')}`);
+  if (f.attack_types?.length) parts.push(`attack_types=${f.attack_types.join(',')}`);
+  if (f.tags?.length) parts.push(`tags=${f.tags.join(',')}`);
+  if (f.ids?.length) parts.push(`ids=${f.ids.join(',')}`);
+  return parts.join(' ');
+}
+
+// refreshCustomSet drops the copy of set name's filter: the policy takes
+// the set's current filter when saved.
+export function refreshCustomSet(spec: PolicySpec, name: string): PolicySpec {
+  return normalizeRuleActions({ ...spec, rule_sets: (spec.rule_sets ?? []).map((r) => {
+    if (r.set !== name) return r;
+    const out = { ...r };
+    delete out.match;
+    return out;
+  }) });
 }
