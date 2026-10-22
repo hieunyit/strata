@@ -21,3 +21,7 @@ jsonschema = { version = "=0.56.0", default-features = false }
 serde_json = "1.0.149"
 regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
 yaml-rust2 = "=0.12.0"
+
+[dev-dependencies]
+# eval::fail_scans_for_test (scan_errors.rs); dev builds only
+libstrata = { path = "..", features = ["test-hooks"] }
