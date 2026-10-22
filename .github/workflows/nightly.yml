@@ -1,4 +1,5 @@
-# Nightly jobs (W09-S-02): payload variants against the signature package.
+# Nightly jobs (W09-S-02): payload variants against the signature package;
+# GoTestWAF with score thresholds (22/10/2026).
 name: nightly
 
 on:
@@ -41,3 +42,43 @@ jobs:
           path: |
             docs/mutation-report.md
             build/mutate/summary.json
+
+  gotestwaf:
+    name: GoTestWAF against NGINX and the signature package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/dev
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=dev-image
+          cache-to: type=gha,scope=dev-image,mode=max
+
+      - name: Build NGINX and the module
+        run: deploy/dev/run.sh make nginx NGINX_VERSION=1.30.5
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+
+      # thresholds: GTW_MIN_TP (91) and GTW_MIN_TN (100); the bypasses
+      # become regression seed candidates to triage into corpus/regression
+      - name: make gotestwaf
+        run: make gotestwaf
+        env:
+          STRATA_DEV_IMAGE: ${{ env.IMAGE }}
+          GTW_NGINX_CPUS: "0"
+          GTW_SCANNER_CPUS: "1"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gotestwaf
+          path: |
+            build/gotestwaf/report
+            build/gotestwaf/candidates.jsonl
+            build/gotestwaf/logs/access.log
