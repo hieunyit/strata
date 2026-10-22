@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/netip"
 	"regexp"
 	"strings"
 	"sync"
@@ -301,16 +302,26 @@ func newIPLimiter(n int, window time.Duration) *ipLimiter {
 }
 
 func (l *ipLimiter) allow(ip string, now time.Time) bool {
+	ip = limiterKey(ip)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.seen) >= 10000 { // forget old windows rather than grow without bound
+	if len(l.seen) >= 10000 && l.seen[ip] == nil { // forget old windows rather than grow without bound
 		for k, w := range l.seen {
 			if now.Sub(w.start) >= l.window {
 				delete(l.seen, k)
 			}
 		}
-		if len(l.seen) >= 10000 && l.seen[ip] == nil {
-			return false
+		// audit 22/10/2026: still full, drop the oldest window rather than
+		// refuse every new address (which let many addresses lock every
+		// administrator out); the account lockout still counts failures
+		if len(l.seen) >= 10000 {
+			var oldest string
+			for k, w := range l.seen {
+				if oldest == "" || w.start.Before(l.seen[oldest].start) {
+					oldest = k
+				}
+			}
+			delete(l.seen, oldest)
 		}
 	}
 	w := l.seen[ip]
@@ -320,4 +331,15 @@ func (l *ipLimiter) allow(ip string, now time.Time) bool {
 	}
 	w.count++
 	return w.count <= l.n
+}
+
+// limiterKey: an IPv6 address counts by its /64 (one host easily has many
+// addresses of it); anything else as it is.
+func limiterKey(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil || !a.Unmap().Is6() {
+		return ip
+	}
+	p, _ := a.Prefix(64)
+	return p.String()
 }

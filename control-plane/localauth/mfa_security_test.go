@@ -93,7 +93,8 @@ func TestSecurityRoutesRejectNonLocalIdentityAndThrottleCardinality(t *testing.T
 	for i := range 10000 {
 		limiter.seen[strings.Repeat("x", i%20)+string(rune(i+100))] = &ipWindow{start: time.Now(), count: 1}
 	}
-	if limiter.allow("new-address", time.Now()) || len(limiter.seen) > 10000 {
-		t.Fatal("limiter grew beyond cap")
+	// audit 22/10/2026: full, a new address takes the oldest window's place
+	if !limiter.allow("192.0.2.77", time.Now()) || len(limiter.seen) > 10000 {
+		t.Fatal("limiter refused a new address or grew beyond cap")
 	}
 }

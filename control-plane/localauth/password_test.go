@@ -62,6 +62,23 @@ func TestPasswordAndNameRules(t *testing.T) {
 	}
 }
 
+// audit 22/10/2026: the addresses of one IPv6 /64 share a window.
+func TestIPLimiterIPv6Prefix(t *testing.T) {
+	l := newIPLimiter(2, time.Minute)
+	now := time.Now()
+	for _, ip := range []string{"2001:db8:1:2::1", "2001:db8:1:2::2"} {
+		if !l.allow(ip, now) {
+			t.Fatal(ip)
+		}
+	}
+	if l.allow("2001:db8:1:2:aaaa::3", now) {
+		t.Fatal("a third address of the same /64 got a new window")
+	}
+	if !l.allow("2001:db8:1:3::1", now) {
+		t.Fatal("another /64 shares the window")
+	}
+}
+
 func TestIPLimiter(t *testing.T) {
 	l := newIPLimiter(3, time.Minute)
 	now := time.Now()
