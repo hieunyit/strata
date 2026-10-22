@@ -80,6 +80,11 @@ fn scan(input: &[u8], mut searched: impl FnMut(usize)) -> bool {
     let mut closers: [Closer; 3] = std::array::from_fn(|_| Closer::default());
     let mut i = 0;
     while i + 1 < input.len() {
+        // every opener has `{` or `%` as its second byte: jump to the next
+        let Some(at) = memchr::memchr2(b'{', b'%', &input[i + 1..]) else {
+            break;
+        };
+        i += at;
         let (family, closing): (usize, &[u8]) = match &input[i..i + 2] {
             b"{{" => (0, b"}}"),
             b"${" | b"#{" | b"*{" => (1, b"}"),

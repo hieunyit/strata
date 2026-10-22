@@ -128,60 +128,70 @@ fn server_js(input: &[u8]) -> bool {
     // the next `}` from where it was looked for: the search only moves
     // forward, so many `do{` openers cost one pass
     let mut next_brace: Option<Option<usize>> = None;
-    let mut i = 0;
-    while i < n {
-        let rest = &input[i..];
-        if rest.starts_with(b"db.") && token_start(i) {
-            // db.<collection>.<method>(
-            if let Some(a) = ident(i + 3)
-                && a < n
-                && input[a] == b'.'
-                && let Some(b) = ident(a + 1)
-            {
-                let p = skip_spaces(input, b);
-                if p < n && input[p] == b'(' {
-                    return true;
-                }
-            }
-        } else if rest.starts_with(b"do") && token_start(i) {
-            // do { ... } while (
-            let p = skip_spaces(input, i + 2);
-            if p < n && input[p] == b'{' {
-                let stale = match next_brace {
-                    None => true,
-                    Some(Some(c)) => c < p,
-                    Some(None) => false,
-                };
-                if stale {
-                    next_brace = Some(memchr::memchr(b'}', &input[p..]).map(|c| p + c));
-                }
-                if let Some(Some(c)) = next_brace
-                    && c - p < WINDOW
+    // every shape has a `.` (db.x, this.x) or a `{` (do {): only those
+    // positions are looked at
+    let mut from = 0;
+    while let Some(at) = memchr::memchr2(b'.', b'{', &input[from..]) {
+        let d = from + at;
+        from = d + 1;
+        if input[d] == b'.' {
+            if d >= 2 && &input[d - 2..d] == b"db" && token_start(d - 2) {
+                // db.<collection>.<method>(
+                if let Some(a) = ident(d + 1)
+                    && a < n
+                    && input[a] == b'.'
+                    && let Some(b) = ident(a + 1)
                 {
-                    let q = skip_spaces(input, c + 1);
-                    if input[q..].starts_with(b"while") {
-                        let r = skip_spaces(input, q + 5);
-                        if r < n && input[r] == b'(' {
-                            return true;
-                        }
+                    let p = skip_spaces(input, b);
+                    if p < n && input[p] == b'(' {
+                        return true;
                     }
                 }
             }
-        } else if rest.starts_with(b"this.") && token_start(i) {
-            // this.<field> == / != / .match(
-            if let Some(a) = ident(i + 5) {
-                let p = skip_spaces(input, a);
-                let tail = &input[p..];
-                if tail.starts_with(b"==")
-                    || tail.starts_with(b"!=")
-                    || tail.starts_with(b".match(")
-                    || tail.starts_with(b".length")
-                {
+            if d >= 4 && &input[d - 4..d] == b"this" && token_start(d - 4) {
+                // this.<field> == / != / .match(
+                if let Some(a) = ident(d + 1) {
+                    let p = skip_spaces(input, a);
+                    let tail = &input[p..];
+                    if tail.starts_with(b"==")
+                        || tail.starts_with(b"!=")
+                        || tail.starts_with(b".match(")
+                        || tail.starts_with(b".length")
+                    {
+                        return true;
+                    }
+                }
+            }
+            continue;
+        }
+        // do { ... } while (
+        let p = d;
+        let mut b = p;
+        while b > 0 && is_space(input[b - 1]) {
+            b -= 1;
+        }
+        if !(b >= 2 && &input[b - 2..b] == b"do" && token_start(b - 2)) {
+            continue;
+        }
+        let stale = match next_brace {
+            None => true,
+            Some(Some(c)) => c < p,
+            Some(None) => false,
+        };
+        if stale {
+            next_brace = Some(memchr::memchr(b'}', &input[p..]).map(|c| p + c));
+        }
+        if let Some(Some(c)) = next_brace
+            && c - p < WINDOW
+        {
+            let q = skip_spaces(input, c + 1);
+            if input[q..].starts_with(b"while") {
+                let r = skip_spaces(input, q + 5);
+                if r < n && input[r] == b'(' {
                     return true;
                 }
             }
         }
-        i += 1;
     }
     false
 }
@@ -286,8 +296,10 @@ mod tests {
             let v: Vec<u8> = unit.iter().copied().cycle().take(256 * 1024).collect();
             let t = std::time::Instant::now();
             let _ = detect(&v);
+            // a quadratic scan of 256 KiB takes minutes; 2 s leaves room for
+            // an unoptimized build on a loaded machine
             assert!(
-                t.elapsed().as_millis() < 500,
+                t.elapsed().as_millis() < 2000,
                 "{:?}",
                 String::from_utf8_lossy(unit)
             );
