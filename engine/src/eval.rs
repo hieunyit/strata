@@ -1336,6 +1336,25 @@ fn may_match(
 // FastBuildHasher is reserved for internally generated pointer/index keys.
 type ContentScans = HashMap<Box<[u8]>, Vec<u32>>;
 
+/// #27: the conditions each distinct byte string of a transaction matched,
+/// kept from one stage to the next. The database and its condition indexes
+/// are the transaction's engine's, whatever the stage, so the request_body
+/// stage reuses the scans of the request_headers stage (the request line,
+/// the headers, the query arguments) instead of scanning them again.
+pub struct ScanCache(ContentScans);
+
+impl std::fmt::Debug for ScanCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ScanCache({} byte strings)", self.0.len())
+    }
+}
+
+impl ScanCache {
+    pub fn new(operators: &CompiledOperators) -> Self {
+        ScanCache(ContentScans::with_hasher(operators.content_hasher.clone()))
+    }
+}
+
 struct Ctx<'t, 'b, 'a> {
     engine_id: u64,
     tables: &'t Tables<'b>,
@@ -1344,8 +1363,9 @@ struct Ctx<'t, 'b, 'a> {
     hs: Option<HsDbs<'b>>,
     /// (value address, length, chain, chain_len) -> conditions matched by the scan
     scans: HashMap<ScanKey, Vec<u32>, FastBuildHasher>,
-    /// transformed values (owned) -> conditions matched by the scan
-    scans_by_bytes: ContentScans,
+    /// transformed values (owned) -> conditions matched by the scan; the
+    /// transaction's across stages (`ScanCache`) when it gives one
+    scans_by_bytes: &'a mut ContentScans,
     active_exceptions: Vec<&'t crate::exceptions::Exception>,
     /// removals of the exclusion rules matched so far (W17-S-01)
     removals: Vec<&'t crate::rule_exclusions::Removal>,
@@ -2300,6 +2320,7 @@ pub fn evaluate(
         None,
         None,
         None,
+        None,
         report,
     );
 }
@@ -2355,6 +2376,7 @@ pub fn evaluate_with_budget(
     exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
     exclusions: Option<crate::rule_exclusions::Pass<'_>>,
     budget: Option<&mut crate::budget::TxBudget>,
+    cache: Option<&mut ScanCache>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), EvalError> {
     SCAN_FAILED.with(|f| f.set(false));
@@ -2373,6 +2395,7 @@ pub fn evaluate_with_budget(
         exception_policy,
         exclusions,
         budget,
+        cache,
         report,
     );
     if SCAN_FAILED.with(|f| f.replace(false)) {
@@ -2397,6 +2420,7 @@ fn evaluate_inner(
     exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
     exclusions: Option<crate::rule_exclusions::Pass<'_>>,
     mut budget: Option<&mut crate::budget::TxBudget>,
+    cache: Option<&mut ScanCache>,
     report: &mut impl FnMut(Violation),
 ) -> Result<(), crate::budget::BudgetExceeded> {
     if tables.n_rules() == 0 {
@@ -2588,6 +2612,14 @@ fn evaluate_inner(
             .filter(|e| e.matches_scope(index, req.method, host, req.uri, now))
             .collect()
     });
+    let mut own_scans;
+    let scans_by_bytes = match cache {
+        Some(c) => &mut c.0,
+        None => {
+            own_scans = ContentScans::with_hasher(operators.content_hasher.clone());
+            &mut own_scans
+        }
+    };
     let mut ctx = Ctx {
         engine_id,
         tables,
@@ -2595,7 +2627,7 @@ fn evaluate_inner(
         operators,
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
-        scans_by_bytes: ContentScans::with_hasher(operators.content_hasher.clone()),
+        scans_by_bytes,
         active_exceptions,
         removals: vec![],
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],

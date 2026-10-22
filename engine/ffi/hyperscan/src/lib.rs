@@ -122,11 +122,16 @@ struct Scratch {
     /// (stream mode)
     engine_id: u64,
     stream: *mut HsStream,
-    /// database ID the scratch was last grown for in block mode. A scratch
+    /// database IDs the scratch was grown for in block mode. A scratch
     /// grown for a database stays large enough for the ones before it, so
-    /// a stream database and a block database of one bundle share it.
-    block_id: u64,
+    /// the databases of one bundle share it; hs_alloc_scratch checks the
+    /// whole bytecode, so it runs once per database, not once per switch.
+    block_ids: Vec<u64>,
 }
+
+/// Block databases a thread's scratch remembers; past that (bundle
+/// reloads), the list starts again.
+const MAX_BLOCK_IDS: usize = 256;
 
 impl Drop for Scratch {
     fn drop(&mut self) {
@@ -147,7 +152,7 @@ thread_local! {
             ptr: std::ptr::null_mut(),
             engine_id: 0,
             stream: std::ptr::null_mut(),
-            block_id: 0,
+            block_ids: Vec::new(),
         })
     };
 }
@@ -212,13 +217,16 @@ impl<'a> MappedDb<'a> {
             let mut s = cell.borrow_mut();
             // the stream of a stream database, if open, is left as it is:
             // block and stream databases of one bundle are used in turn
-            if s.block_id != self.id {
+            if !s.block_ids.contains(&self.id) {
                 // SAFETY: db was validated; grows (or creates) the scratch.
                 let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.block_id = self.id;
+                if s.block_ids.len() >= MAX_BLOCK_IDS {
+                    s.block_ids.clear();
+                }
+                s.block_ids.push(self.id);
             }
             let mut ctx = Ctx {
                 f: on_match,
@@ -252,13 +260,16 @@ impl<'a> MappedDb<'a> {
         let db = self.bytes.as_ptr().cast::<HsDatabase>();
         SCRATCH.with(|cell| {
             let mut s = cell.borrow_mut();
-            if s.block_id != self.id {
+            if !s.block_ids.contains(&self.id) {
                 // SAFETY: db was validated; grows (or creates) the scratch.
                 let rc = unsafe { hs_alloc_scratch(db, &mut s.ptr) };
                 if rc != HS_SUCCESS {
                     return Err(Error::Invalid(rc));
                 }
-                s.block_id = self.id;
+                if s.block_ids.len() >= MAX_BLOCK_IDS {
+                    s.block_ids.clear();
+                }
+                s.block_ids.push(self.id);
             }
             Ok(())
         })
