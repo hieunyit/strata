@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 strata-hs = { path = "ffi/hyperscan" }
+# CPU time of the thread for the budget (budget.rs)
+strata-clock = { path = "ffi/clock" }
 memchr = { version = "2.7", default-features = false, features = ["std"] }
 regex = { version = "1.13.1", default-features = false, features = ["std", "perf"] }
 regex-automata = { version = "0.4.18", default-features = false, features = ["std", "hybrid", "syntax", "dfa-search"] }

@@ -28,6 +28,12 @@ Tiêu chí là **thời gian engine mỗi request**, đọc từ metrics của m
 
 Throughput so với NGINX không bật module vẫn có trong báo cáo, đo với backend có độ trễ thật, nhưng không là điều kiện.
 
+## Đo
+
+- Benchmark (`connectors/nginx/scripts/bench.sh`) ghi `cpu_noise_pct` cho mỗi lượt: phần thời gian của CPU NGINX bị tiến trình khác dùng (`cpu-noise.py`). Báo cáo (`bench-report.py`) cảnh báo khi có lượt trên 5%: khi đó con số của lượt không so được với lượt khác.
+- Ngày 22/10/2026, CPU 0–5 của máy lab có khoảng 12% thời gian bị ClickHouse và các stack khác (không ghim CPU) dùng. Hai lượt benchmark cách nhau vài giờ cho fail-open form 64 KB của gói đầy đủ 23% rồi 48%; đo A/B xen kẽ cùng lúc thì bundle cũ và mới như nhau (33–59% tùy vòng, đếm lệnh: +4,0%). Kết luận về hiệu năng phải từ A/B xen kẽ, hoặc từ số lệnh (callgrind), và trên CPU đã cô lập: các stack lab ghim `cpuset` ngoài CPU benchmark.
+- Từ 22/10/2026 budget tính thời gian CPU (`nginx-module.md`), nên nhiễu không còn đổi số request fail-open; nó vẫn đổi thời gian trả lời.
+
 ## Phương án đã cân nhắc
 
 | Phương án | Vì sao không chọn làm tiêu chí chính |

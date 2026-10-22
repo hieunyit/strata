@@ -1,0 +1,9 @@
+[package]
+name = "strata-clock"
+version = "0.1.0"
+description = "CPU time of the calling thread for the Strata engine's budget (clock_gettime)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

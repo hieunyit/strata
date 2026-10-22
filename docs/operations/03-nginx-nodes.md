@@ -164,6 +164,24 @@ Không có directive `strata_mode enforce`; enforce là quyết định trong po
 
 `open` cho request tiếp tục khi không kiểm được; `closed` có thể trả 503. Chọn theo
 rủi ro route. Không tăng budget/tắt breaker như cách mặc định chữa lỗi performance.
+
+**Route enforce nhận body** (API, form, upload): đặt `strata_fail_mode closed`, và trong
+policy `oversize: block` cùng `fail_on_findings: block`. Ở `open`, một body vài chục KB hết
+CPU budget thì đi qua mà không được kiểm đủ: kẻ tấn công đặt payload ở cuối body đệm
+(lab redteam TC-EXP-02; benchmark 22/10/2026: 33–59% request form 64 KB với gói signature
+đầy đủ vượt budget). Trước khi chuyển, chạy route ở shadow và xem `strata_budget_exceeded`
+của route: đó là số request hợp lệ sẽ nhận 503. Budget tính thời gian CPU của request
+(không tính lúc tiến trình khác chiếm CPU), nên tải của host không làm tăng số đó.
+
+```nginx
+location /v1/ {
+    strata on;
+    strata_policy example-api;      # policy: oversize: block, fail_on_findings: block
+    strata_fail_mode closed;
+    strata_request_body_limit 1m;
+    proxy_pass http://127.0.0.1:9000;
+}
+```
 Body limit là giới hạn kiểm, không bảo đảm mọi body đều được kiểm đầy đủ. Stream
 chỉ dùng shadow; không đổi sang stream cho một route enforce.
 
