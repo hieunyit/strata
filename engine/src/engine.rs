@@ -112,6 +112,13 @@ impl Engine {
             // same version as the stream section (Tables::validate)
             MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
         }
+        for k in 0..tables.n_hyperscan_chains() {
+            // same version as the stream section (Tables::validate)
+            let (_, hs) = tables
+                .hyperscan_chain(k)
+                .ok_or((E_BUNDLE, "bad hyperscan chains section"))?;
+            MappedDb::validate(hs.image).map_err(|e| (E_BUNDLE, e.message()))?;
+        }
         let flagged: Vec<u32> = bundle::policies(bytes, &info)
             .filter(|p| p.privacy)
             .map(|p| p.index)
@@ -529,12 +536,30 @@ impl Engine {
             .count()
     }
 
+    /// The databases of HYPERSCAN_CHAINS, validated at map time, with the
+    /// scratch IDs `eval` gives them.
+    fn hyperscan_chains(&self) -> impl Iterator<Item = MappedDb<'_>> {
+        let tables = self.tables();
+        let id = self.id;
+        (0..tables.n_hyperscan_chains()).filter_map(move |k| {
+            tables.hyperscan_chain(k).map(|(_, h)| {
+                MappedDb::assume_valid_with_id(
+                    h.image,
+                    id | crate::eval::CHAIN_DB_ID | ((k as u64) << 40),
+                )
+            })
+        })
+    }
+
     /// Warms up thread-local Hyperscan scratch and stream state.
     pub fn warm_thread(&self) {
         if let Some(db) = self.hyperscan() {
             let _ = db.warm_thread();
         }
         if let Some(db) = self.hyperscan_block() {
+            let _ = db.warm_block();
+        }
+        for db in self.hyperscan_chains() {
             let _ = db.warm_block();
         }
     }
@@ -550,6 +575,10 @@ impl Engine {
         if let Some(db) = self.hyperscan_block() {
             db.warm_block()
                 .map_err(|e| format!("block scratch: {e:?}"))?;
+        }
+        for db in self.hyperscan_chains() {
+            db.warm_block()
+                .map_err(|e| format!("chain scratch: {e:?}"))?;
         }
         let tables = self.tables();
         for ci in self.prefilter.startup_conditions(&tables) {

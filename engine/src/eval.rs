@@ -50,6 +50,11 @@ type HsDbs<'b> = (Hyperscan<'b>, MappedDb<'b>, Option<MappedDb<'b>>);
 /// Set in the scratch ID of a HYPERSCAN_BLOCK database: it differs from the
 /// ID of the stream database of the same engine, whose scratch it shares.
 pub const BLOCK_DB_ID: u64 = 1 << 62;
+/// Set, with the chain's index from bit 40, in the scratch ID of a
+/// HYPERSCAN_CHAINS database (#27/#28).
+pub const CHAIN_DB_ID: u64 = 1 << 61;
+/// A node of the chain trie without a database of its own.
+const NO_CHAIN_DB: u16 = u16::MAX;
 use crate::transform;
 use crate::{json, multipart, xml};
 
@@ -664,6 +669,8 @@ pub struct Prefilter {
     nodes: Vec<(u16, u8)>,
     /// chain -> its node
     chain_node: HashMap<Vec<u8>, u16>,
+    /// per node: its chain's database in HYPERSCAN_CHAINS, or NO_CHAIN_DB
+    node_db: Vec<u16>,
     /// per group: its target set, and the nodes it reads (its chain, and
     /// every shorter prefix with multi_match)
     group_tset: Vec<u32>,
@@ -794,6 +801,15 @@ impl Prefilter {
             groups.dedup();
         }
         pf.build_trie(tables);
+        let chain_dbs: HashMap<&[u8], u16> = (0..tables.n_hyperscan_chains())
+            .filter_map(|k| tables.hyperscan_chain(k).map(|(c, _)| (c, k as u16)))
+            .collect();
+        pf.node_db = vec![NO_CHAIN_DB; pf.nodes.len()];
+        for (chain, &n) in &pf.chain_node {
+            if let Some(&k) = chain_dbs.get(&chain[..]) {
+                pf.node_db[n as usize] = k;
+            }
+        }
         pf.trie =
             pf.nodes.len() < u16::MAX as usize && pf.group_tset.iter().all(|&t| t != u32::MAX);
         pf
@@ -1039,6 +1055,7 @@ enum NodeBytes {
 /// `ctx.groups` for them.
 fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, groups: &[u32]) {
     let n_nodes = pf.nodes.len();
+    let chains_on = ctx.hs.is_some() && ctx.tables.n_hyperscan_chains() > 0;
     ctx.pass.pf = Some(pf);
     // the values of each target set, by index
     let mut tsets: Vec<u32> = groups.iter().map(|&g| pf.group_tset[g as usize]).collect();
@@ -1113,6 +1130,8 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
     // instead of transforming again ("url_decode, lowercase" on a value
     // without '%' is "lowercase")
     let mut memo: Vec<(u16, u8, u16)> = Vec::with_capacity(n_nodes);
+    // per node: how many nodes read its bytes (it is their `same`)
+    let mut class_reads = vec![0u16; n_nodes];
     'vals: for (vi, &v) in vals.iter().enumerate() {
         if let Some(bgt) = ctx.budget.as_mut()
             && bgt.check_cheap().is_err()
@@ -1180,24 +1199,50 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
                 }
             };
             bytes[n] = b;
+        }
+        // #27/#28: bytes that one node only reads (its transformation
+        // changed them) are scanned with the database of its chain, which
+        // holds its patterns only; bytes several nodes read are scanned once
+        // with the full database, whose result they share
+        if chains_on {
+            class_reads.fill(0);
+            for n in 0..n_nodes {
+                if reads[n] {
+                    class_reads[same[n] as usize] += 1;
+                }
+            }
+        }
+        for n in 0..n_nodes {
             if !reads[n] {
                 continue;
             }
-            // same bytes as a node already scanned: its result
+            let b = bytes[n];
             let s = same[n] as usize;
-            if s != n && ctx.pass.slot[base + s] != NOT_SCANNED {
+            let len = match b {
+                NodeBytes::Value => v.len(),
+                NodeBytes::Buf(i) => bufs[i as usize].len(),
+                NodeBytes::Missing => 0,
+            };
+            let k = match pf.node_db.get(n) {
+                Some(&k)
+                    if chains_on
+                        && k != NO_CHAIN_DB
+                        && class_reads[s] == 1
+                        && len <= BLOCK_SCAN_MAX =>
+                {
+                    k
+                }
+                _ => NO_CHAIN_DB,
+            };
+            // same bytes as a node already scanned: its result
+            if k == NO_CHAIN_DB && s != n && ctx.pass.slot[base + s] != NOT_SCANNED {
                 ctx.pass.slot[base + n] = ctx.pass.slot[base + s];
                 continue;
             }
             let found = match b {
                 NodeBytes::Missing => vec![],
-                NodeBytes::Value => scan_bytes(ctx, v),
-                NodeBytes::Buf(i) => {
-                    let o = std::mem::take(&mut bufs[i as usize]);
-                    let h = scan_bytes(ctx, &o);
-                    bufs[i as usize] = o;
-                    h
-                }
+                NodeBytes::Value => scan_bytes(ctx, k, v),
+                NodeBytes::Buf(i) => scan_bytes(ctx, k, &bufs[i as usize]),
             };
             if ctx.budget_exceeded {
                 break 'vals;
@@ -1207,7 +1252,7 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
             ctx.pass.ranges.push((a, ctx.pass.hits.len() as u32));
             let r = ctx.pass.ranges.len() as u32 - 1;
             ctx.pass.slot[base + n] = r;
-            if s != n {
+            if k == NO_CHAIN_DB && s != n {
                 ctx.pass.slot[base + s] = r;
             }
         }
@@ -1254,21 +1299,71 @@ fn scan_values<'t>(ctx: &mut Ctx<'t, '_, '_>, d: &Data<'_>, pf: &'t Prefilter, g
     }
 }
 
-/// Conditions matched by `b`, shared between equal bytes of the request.
-fn scan_bytes(ctx: &mut Ctx<'_, '_, '_>, b: &[u8]) -> Vec<u32> {
-    if let Some(h) = ctx.scans_by_bytes.get(b) {
+/// Conditions matched by `b` in database `k` (a chain's, or NO_CHAIN_DB:
+/// the full one), shared between equal bytes of the transaction.
+fn scan_bytes(ctx: &mut Ctx<'_, '_, '_>, k: u16, b: &[u8]) -> Vec<u32> {
+    if k == NO_CHAIN_DB {
+        if let Some(h) = ctx.scans_by_bytes.get(b) {
+            return h.clone();
+        }
+        let h = scan(
+            &ctx.hs,
+            &mut ctx.budget,
+            &mut ctx.budget_exceeded,
+            &Some(Cow::Borrowed(b)),
+        );
+        if !ctx.budget_exceeded {
+            ctx.scans_by_bytes.insert(b.into(), h.clone());
+        }
+        return h;
+    }
+    let ki = k as usize;
+    if ctx.chain_scans.len() <= ki {
+        let hasher = ctx.operators.content_hasher.clone();
+        ctx.chain_scans
+            .resize_with(ki + 1, || ContentScans::with_hasher(hasher.clone()));
+    }
+    if let Some(h) = ctx.chain_scans[ki].get(b) {
         return h.clone();
     }
-    let h = scan(
-        &ctx.hs,
-        &mut ctx.budget,
-        &mut ctx.budget_exceeded,
-        &Some(Cow::Borrowed(b)),
-    );
+    let h = scan_chain(ctx, k, b);
     if !ctx.budget_exceeded {
-        ctx.scans_by_bytes.insert(b.into(), h.clone());
+        ctx.chain_scans[ki].insert(b.into(), h.clone());
     }
     h
+}
+
+/// Conditions matched by `b` in the database of chain `k`
+/// (HYPERSCAN_CHAINS), validated with the engine (Engine::map).
+fn scan_chain(ctx: &mut Ctx<'_, '_, '_>, k: u16, b: &[u8]) -> Vec<u32> {
+    let mut hits = vec![];
+    #[cfg(any(test, feature = "test-hooks"))]
+    if FAIL_SCANS.with(|f| f.get()) {
+        scan_failed(&mut ctx.budget_exceeded);
+        return hits;
+    }
+    let (Some((_, db, _)), Some((_, map))) = (&ctx.hs, ctx.tables.hyperscan_chain(k as usize))
+    else {
+        return hits;
+    };
+    let chain_db =
+        MappedDb::assume_valid_with_id(map.image, db.id() | CHAIN_DB_ID | (u64::from(k) << 40));
+    if chain_db
+        .scan(b, &mut |id| {
+            if let Some(c) = map.condition(id) {
+                hits.push(c);
+            }
+            true
+        })
+        .is_err()
+    {
+        scan_failed(&mut ctx.budget_exceeded);
+    }
+    if hits.len() > 1 {
+        hits.sort_unstable();
+        hits.dedup();
+    }
+    hits
 }
 
 /// The rules of `stage` that may match this request, in rule order: those
@@ -1341,7 +1436,7 @@ type ContentScans = HashMap<Box<[u8]>, Vec<u32>>;
 /// are the transaction's engine's, whatever the stage, so the request_body
 /// stage reuses the scans of the request_headers stage (the request line,
 /// the headers, the query arguments) instead of scanning them again.
-pub struct ScanCache(ContentScans);
+pub struct ScanCache(ContentScans, Vec<ContentScans>);
 
 impl std::fmt::Debug for ScanCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1351,7 +1446,10 @@ impl std::fmt::Debug for ScanCache {
 
 impl ScanCache {
     pub fn new(operators: &CompiledOperators) -> Self {
-        ScanCache(ContentScans::with_hasher(operators.content_hasher.clone()))
+        ScanCache(
+            ContentScans::with_hasher(operators.content_hasher.clone()),
+            Vec::new(),
+        )
     }
 }
 
@@ -1366,6 +1464,8 @@ struct Ctx<'t, 'b, 'a> {
     /// transformed values (owned) -> conditions matched by the scan; the
     /// transaction's across stages (`ScanCache`) when it gives one
     scans_by_bytes: &'a mut ContentScans,
+    /// the same per database of HYPERSCAN_CHAINS (#27/#28)
+    chain_scans: &'a mut Vec<ContentScans>,
     active_exceptions: Vec<&'t crate::exceptions::Exception>,
     /// removals of the exclusion rules matched so far (W17-S-01)
     removals: Vec<&'t crate::rule_exclusions::Removal>,
@@ -2613,11 +2713,13 @@ fn evaluate_inner(
             .collect()
     });
     let mut own_scans;
-    let scans_by_bytes = match cache {
-        Some(c) => &mut c.0,
+    let mut own_chain_scans;
+    let (scans_by_bytes, chain_scans) = match cache {
+        Some(ScanCache(full, chains)) => (full, chains),
         None => {
             own_scans = ContentScans::with_hasher(operators.content_hasher.clone());
-            &mut own_scans
+            own_chain_scans = Vec::new();
+            (&mut own_scans, &mut own_chain_scans)
         }
     };
     let mut ctx = Ctx {
@@ -2628,6 +2730,7 @@ fn evaluate_inner(
         hs,
         scans: HashMap::with_hasher(FastBuildHasher::default()),
         scans_by_bytes,
+        chain_scans,
         active_exceptions,
         removals: vec![],
         groups: vec![None; prefilter.map_or(0, |p| p.group_rep.len())],

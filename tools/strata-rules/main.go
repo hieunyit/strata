@@ -6,7 +6,7 @@
 //	                    [--max-fp-block-pct P] [--min-recall-block P]
 //	                                          FP and recall on the corpus, as Markdown
 //	strata-rules ftw [--repo <root>] [--group 942] [--min 90] [--min-total 95]  CRS go-ftw tests of rules/crs, as Markdown
-//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml] [--pack core|signature] [--hs-block=false]
+//	strata-rules release --version <label> --key <seed> --out <dir> [--bundle-version N] [--baseline m.json] [--policies p.yaml] [--pack core|signature] [--hs-block=false] [--hs-chains]
 //	                                          signed signature package: bundle + manifest (signed, sha256 of every file) + changelog + NOTICE
 //	strata-rules verify --pub <key> <dir>     check a package: manifest signature and every file's sha256
 //	strata-rules fp-report [--clickhouse <url>] [--database <db>] [--user <u>] [--password <p>] [--since <duration>] [--policy <p>] [--exclude-ips <file>]
@@ -251,6 +251,7 @@ func releaseCmd() {
 	policies := fs.String("policies", "", "policies file compiled into the bundle (default: none)")
 	pack := fs.String("pack", "", "core (CRS, protocol, virtual patches, organization rules) or signature (Sigma, ET Open, bot lists); default: every rule")
 	hsBlock := fs.Bool("hs-block", true, "store the Hyperscan database in block mode too (section HYPERSCAN_BLOCK, #27); false: strata-compile --no-hs-block")
+	hsChains := fs.Bool("hs-chains", false, "one block-mode Hyperscan database per transformation chain instead of HYPERSCAN_BLOCK (section HYPERSCAN_CHAINS, #27/#28): strata-compile --hs-chains")
 	_ = fs.Parse(os.Args[2:])
 	if *out == "" {
 		die(fmt.Errorf("--out is required"))
@@ -266,6 +267,7 @@ func releaseCmd() {
 		Policies:      *policies,
 		Pack:          *pack,
 		NoHSBlock:     !*hsBlock,
+		HSChains:      *hsChains,
 	})
 	if err != nil {
 		die(err)

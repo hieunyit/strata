@@ -73,8 +73,12 @@ pub mod kind {
     /// The policies each policy-scoped rule (rule flag bit 4) runs for,
     /// and its mode (W19-G2-01, `crate::scope`).
     pub const SCOPE: u32 = 16;
+    /// One block-mode Hyperscan database per transformation chain, each
+    /// with the patterns of the conditions on that chain only (#27/#28,
+    /// `strata-compile --hs-chains`). Engines before it skip the section.
+    pub const HYPERSCAN_CHAINS: u32 = 17;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 16;
+    pub const KNOWN: u32 = 17;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.

@@ -72,7 +72,17 @@ fn bundle(hs_block: bool) -> Vec<u8> {
         created_at_ms: 0,
         rollback: false,
     };
-    compile_opts(&defs, &pol, &build, &SEED, Options { hs_block }).unwrap()
+    compile_opts(
+        &defs,
+        &pol,
+        &build,
+        &SEED,
+        Options {
+            hs_block,
+            ..Default::default()
+        },
+    )
+    .unwrap()
 }
 
 fn map(b: &[u8]) -> Result<Engine, (i32, &'static str)> {

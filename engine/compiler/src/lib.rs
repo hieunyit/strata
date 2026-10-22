@@ -858,6 +858,50 @@ pub struct Options {
     /// it, older ones skip it. About doubles the Hyperscan part of the
     /// bundle and its compile time.
     pub hs_block: bool,
+    /// One block-mode database per transformation chain (section
+    /// HYPERSCAN_CHAINS, #27/#28) instead of HYPERSCAN_BLOCK: a value's
+    /// bytes after a chain are scanned with the patterns of that chain only.
+    /// Engines before it scan with HYPERSCAN alone (correct, slower).
+    pub hs_chains: bool,
+}
+
+/// The patterns of `pats` grouped by the transformation chain of their
+/// condition (a multi_match condition is in every prefix of its chain),
+/// each group compiled in block mode: (chain, condition index, image).
+fn chain_images(
+    rules: &[RuleDef],
+    pats: &[strata_hs::Pattern],
+    conds: &[u32],
+) -> Result<Vec<(Vec<u8>, Vec<u32>, Vec<u8>)>> {
+    let flat: Vec<&rules::CondDef> = rules.iter().flat_map(|r| &r.conditions).collect();
+    let mut by: std::collections::BTreeMap<Vec<u8>, (Vec<strata_hs::Pattern>, Vec<u32>)> =
+        std::collections::BTreeMap::new();
+    for (p, &ci) in pats.iter().zip(conds) {
+        let c = flat
+            .get(ci as usize)
+            .ok_or_else(|| format!("pattern of an unknown condition {ci}"))?;
+        let ks: Vec<usize> = if c.multi_match {
+            (0..=c.transforms.len()).collect()
+        } else {
+            vec![c.transforms.len()]
+        };
+        for k in ks {
+            let (ps, cs) = by.entry(c.transforms[..k].to_vec()).or_default();
+            ps.push(strata_hs::Pattern {
+                expression: p.expression.clone(),
+                flags: p.flags,
+                id: ps.len() as u32,
+            });
+            cs.push(ci);
+        }
+    }
+    by.into_iter()
+        .map(|(chain, (ps, cs))| {
+            strata_hs::compile_mode(&ps, strata_hs::HS_MODE_BLOCK)
+                .map(|image| (chain, cs, image))
+                .map_err(|(i, m)| format!("hyperscan chain database, pattern {i}: {m}"))
+        })
+        .collect()
 }
 
 /// `\xHH` for every byte that is not alphanumeric: a literal as a regex.
@@ -1363,7 +1407,15 @@ fn compile_unsigned_with(
             libstrata::bundle::kind::HYPERSCAN,
             rules::encode_hyperscan(strata_hs::version(), &conds, &image),
         ));
-        if opts.hs_block {
+        if opts.hs_chains {
+            sections.push((
+                libstrata::bundle::kind::HYPERSCAN_CHAINS,
+                rules::encode_hyperscan_chains(
+                    strata_hs::version(),
+                    &chain_images(rules, &pats, &conds)?,
+                ),
+            ));
+        } else if opts.hs_block {
             // the same patterns, ids and index as the stream database, which
             // the engine checks; a pattern only stream mode takes (none
             // known) leaves the section out rather than failing the build

@@ -19,7 +19,9 @@
 //! The block-mode copy of the Hyperscan database (section HYPERSCAN_BLOCK,
 //! #27), which engines scan short values with, is written by default (PO
 //! 14/10/2026); `--no-hs-block` leaves it out (smaller bundle, slower
-//! scans). `--hs-block` is accepted and changes nothing.
+//! scans). `--hs-block` is accepted and changes nothing. `--hs-chains`
+//! writes one block-mode database per transformation chain instead
+//! (section HYPERSCAN_CHAINS, #27/#28; off by default while it is measured).
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -38,7 +40,10 @@ fn run(args: &[String]) -> Result<(), String> {
     let mut good_bots: Option<String> = None;
     let mut geo: Option<String> = None;
     // HYPERSCAN_BLOCK by default (PO 14/10/2026)
-    let mut opts = Options { hs_block: true };
+    let mut opts = Options {
+        hs_block: true,
+        hs_chains: false,
+    };
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -67,6 +72,7 @@ fn run(args: &[String]) -> Result<(), String> {
             "--geo" => geo = Some(val()?),
             "--hs-block" => opts.hs_block = true,
             "--no-hs-block" => opts.hs_block = false,
+            "--hs-chains" => opts.hs_chains = true,
             "--unsigned" => unsigned = true,
             "--cost-report" => cost_report = Some(val()?),
             _ => return Err(format!("unexpected argument {a}")),

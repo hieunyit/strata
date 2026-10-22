@@ -64,6 +64,7 @@ type Options struct {
 	Policies      string // policies file compiled in (optional; default none)
 	Pack          string // PackCore, PackSignature, or "" for every rule
 	NoHSBlock     bool   // strata-compile --no-hs-block: leave out the block-mode copy of the Hyperscan database (on by default)
+	HSChains      bool   // strata-compile --hs-chains: one block-mode database per transformation chain (#27/#28)
 }
 
 // Packs (RV-S-01).
@@ -305,6 +306,9 @@ func compile(bin string, rules []map[string]any, o Options, out string, createdM
 	}
 	if o.NoHSBlock {
 		args = append(args, "--no-hs-block")
+	}
+	if o.HSChains {
+		args = append(args, "--hs-chains")
 	}
 	cmd := exec.Command(bin, args...)
 	if b, err := cmd.CombinedOutput(); err != nil {

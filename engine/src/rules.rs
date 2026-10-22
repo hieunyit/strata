@@ -40,6 +40,15 @@
 //!                  patterns (cond_index byte for byte the one of a stream
 //!                  HYPERSCAN section) compiled in block mode, scanned for
 //!                  values up to BLOCK_SCAN_MAX bytes
+//! HYPERSCAN_CHAINS magic "SHC1" | n u32 | n x entry (28 B: chain_len u8 |
+//!                  reserved [u8; 3] | chain [u8; 16] | sub_off u32 |
+//!                  sub_len u32) | zero padding | sub-sections, each at a
+//!                  multiple of 4096 from the section start, with the layout
+//!                  of HYPERSCAN_BLOCK (magic "SHS1", the version of the
+//!                  stream section): the patterns of the conditions whose
+//!                  transformation chain is the entry's (or, multi_match,
+//!                  starts with it), scanned for the bytes of that chain
+//!                  (#27/#28). Chains are distinct.
 //! ```
 //!
 //! Conditions whose operator is one of `HS_OPERATORS` are compiled into the
@@ -214,6 +223,8 @@ pub const HS_MAGIC: &[u8; 4] = b"SHS1";
 pub const BLOCK_SCAN_MAX: usize = 2048;
 pub const HS_MAGIC_V2: &[u8; 4] = b"SHS2";
 const HS_HEADER_LEN: usize = 56;
+pub const HS_CHAINS_MAGIC: &[u8; 4] = b"SHC1";
+const CHAIN_ENTRY_LEN: usize = 28;
 pub const HS_VERSION_LEN: usize = 32;
 const RULE_LEN: usize = 32;
 const COND_LEN: usize = 48;
@@ -441,6 +452,97 @@ pub fn encode_hyperscan_mode(
     s
 }
 
+/// HYPERSCAN_CHAINS section: per chain, its condition index and its
+/// block-mode image (see the module docs).
+pub fn encode_hyperscan_chains(
+    hs_version: &str,
+    chains: &[(Vec<u8>, Vec<u32>, Vec<u8>)],
+) -> Vec<u8> {
+    let subs: Vec<Vec<u8>> = chains
+        .iter()
+        .map(|(_, conds, image)| encode_hyperscan_mode(HS_MAGIC, hs_version, conds, image))
+        .collect();
+    let mut s = Vec::new();
+    s.extend_from_slice(HS_CHAINS_MAGIC);
+    put_u32(&mut s, chains.len() as u32);
+    let mut off = (8 + chains.len() * CHAIN_ENTRY_LEN).div_ceil(4096) * 4096;
+    for ((chain, _, _), sub) in chains.iter().zip(&subs) {
+        let mut c = [0u8; MAX_TRANSFORMS];
+        c[..chain.len()].copy_from_slice(chain);
+        s.push(chain.len() as u8);
+        s.extend_from_slice(&[0; 3]);
+        s.extend_from_slice(&c);
+        put_u32(&mut s, off as u32);
+        put_u32(&mut s, sub.len() as u32);
+        off = (off + sub.len()).div_ceil(4096) * 4096;
+    }
+    for sub in &subs {
+        s.resize(s.len().div_ceil(4096) * 4096, 0);
+        s.extend_from_slice(sub);
+    }
+    s
+}
+
+/// Entry `i` of a HYPERSCAN_CHAINS section that `validate` accepted.
+fn chain_entry(sec: &[u8], i: usize) -> Option<(&[u8], &[u8])> {
+    let e = sec.get(8 + i * CHAIN_ENTRY_LEN..8 + (i + 1) * CHAIN_ENTRY_LEN)?;
+    let n = (e[0] as usize).min(MAX_TRANSFORMS);
+    let (off, len) = (u32_at(e, 20) as usize, u32_at(e, 24) as usize);
+    Some((&e[4..4 + n], sec.get(off..off.checked_add(len)?)?))
+}
+
+/// Bounds of a HYPERSCAN_CHAINS section: entries, sub-sections (aligned,
+/// inside, block mode, the stream section's version), distinct chains.
+/// The conditions of each sub-section are checked against its chain by
+/// `Tables::validate`.
+fn parse_hyperscan_chains<'a>(
+    sec: &'a [u8],
+    conds: &[u8],
+    stream: Option<Hyperscan<'a>>,
+) -> Result<usize, Error> {
+    if sec.is_empty() {
+        return Ok(0);
+    }
+    let bad = Error::BadLayout("bad hyperscan chains section");
+    if sec.len() < 8 || &sec[..4] != HS_CHAINS_MAGIC {
+        return Err(bad);
+    }
+    let Some(stream) = stream.filter(|s| s.is_stream) else {
+        return Err(Error::BadLayout(
+            "hyperscan chains section without a stream section",
+        ));
+    };
+    let n = u32_at(sec, 4) as usize;
+    if n.checked_mul(CHAIN_ENTRY_LEN)
+        .and_then(|t| t.checked_add(8))
+        .is_none_or(|t| t > sec.len())
+    {
+        return Err(bad);
+    }
+    let mut seen = std::collections::HashSet::new();
+    for i in 0..n {
+        let e = &sec[8 + i * CHAIN_ENTRY_LEN..8 + (i + 1) * CHAIN_ENTRY_LEN];
+        let (off, len) = (u32_at(e, 20) as usize, u32_at(e, 24) as usize);
+        if e[0] as usize > MAX_TRANSFORMS
+            || e[1..4] != [0; 3]
+            || e[4 + e[0] as usize..20].iter().any(|&b| b != 0)
+            || !off.is_multiple_of(4096)
+            || off.checked_add(len).is_none_or(|end| end > sec.len())
+        {
+            return Err(bad);
+        }
+        let chain = &e[4..4 + e[0] as usize];
+        if !seen.insert(chain) {
+            return Err(bad);
+        }
+        match parse_hyperscan_with(&sec[off..off + len], conds, true)? {
+            Some(h) if !h.is_stream && h.version == stream.version => {}
+            _ => return Err(bad),
+        }
+    }
+    Ok(n)
+}
+
 fn u32_at(b: &[u8], off: usize) -> u32 {
     u32::from_le_bytes([b[off], b[off + 1], b[off + 2], b[off + 3]])
 }
@@ -491,6 +593,8 @@ pub struct Tables<'a> {
     page: Option<(&'a [u8], &'a [u8])>,
     hs: Option<Hyperscan<'a>>,
     hs_block: Option<Hyperscan<'a>>,
+    /// HYPERSCAN_CHAINS: the section and its number of chains
+    hs_chains: (&'a [u8], usize),
 }
 
 /// The HYPERSCAN section: pattern id -> condition index, and the image.
@@ -749,8 +853,10 @@ impl<'a> Tables<'a> {
         let hs = parse_hyperscan(info.section(bundle, kind::HYPERSCAN), conds)?;
         let hs_block =
             parse_hyperscan_block(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, hs)?;
+        let chains_sec = info.section(bundle, kind::HYPERSCAN_CHAINS);
+        let n_chains = parse_hyperscan_chains(chains_sec, conds, hs)?;
 
-        Ok(Tables {
+        let tables = Tables {
             rules,
             n_rules,
             conds,
@@ -760,7 +866,29 @@ impl<'a> Tables<'a> {
             page,
             hs,
             hs_block,
-        })
+            hs_chains: (chains_sec, n_chains),
+        };
+        // each pattern of a chain's database is a condition on that chain
+        // (or a multi_match condition on a longer one starting with it)
+        for k in 0..n_chains {
+            let Some((chain, h)) = tables.hyperscan_chain(k) else {
+                return Err(Error::BadLayout("bad hyperscan chains section"));
+            };
+            for id in 0..h.n_patterns() as u32 {
+                let ok = h
+                    .condition(id)
+                    .and_then(|ci| tables.cond(ci))
+                    .is_some_and(|c| {
+                        c.transforms == chain || (c.multi_match && c.transforms.starts_with(chain))
+                    });
+                if !ok {
+                    return Err(Error::BadLayout(
+                        "hyperscan chain pattern for a condition on another chain",
+                    ));
+                }
+            }
+        }
+        Ok(tables)
     }
 
     /// View of a bundle that already passed `validate` (only the cheap
@@ -776,6 +904,7 @@ impl<'a> Tables<'a> {
             page: None,
             hs: None,
             hs_block: None,
+            hs_chains: (&[], 0),
         })
     }
 
@@ -811,6 +940,12 @@ impl<'a> Tables<'a> {
         // not repeated on every view
         let hs_block =
             parse_hyperscan_with(info.section(bundle, kind::HYPERSCAN_BLOCK), conds, false)?;
+        let chains_sec = info.section(bundle, kind::HYPERSCAN_CHAINS);
+        let n_chains = if chains_sec.len() >= 8 {
+            u32_at(chains_sec, 4) as usize
+        } else {
+            0
+        };
         Ok(Tables {
             rules,
             n_rules,
@@ -821,6 +956,7 @@ impl<'a> Tables<'a> {
             page,
             hs,
             hs_block,
+            hs_chains: (chains_sec, n_chains),
         })
     }
 
@@ -831,6 +967,22 @@ impl<'a> Tables<'a> {
     /// The block-mode copy of the stream database, for short values.
     pub fn hyperscan_block(&self) -> Option<Hyperscan<'a>> {
         self.hs_block
+    }
+
+    /// Number of transformation chains with their own database
+    /// (HYPERSCAN_CHAINS).
+    pub fn n_hyperscan_chains(&self) -> usize {
+        self.hs_chains.1
+    }
+
+    /// Chain `k` of HYPERSCAN_CHAINS and its database.
+    pub fn hyperscan_chain(&self, k: usize) -> Option<(&'a [u8], Hyperscan<'a>)> {
+        if k >= self.hs_chains.1 {
+            return None;
+        }
+        let (chain, sub) = chain_entry(self.hs_chains.0, k)?;
+        let h = parse_hyperscan_with(sub, self.conds, false).ok()??;
+        Some((chain, h))
     }
 
     pub fn cond(&self, i: u32) -> Option<CondView<'a>> {

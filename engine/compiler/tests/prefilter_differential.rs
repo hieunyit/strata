@@ -58,7 +58,7 @@ fn rule_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn engines() -> (Arc<Engine>, Arc<Engine>, Arc<Engine>) {
+fn engines() -> (Arc<Engine>, Arc<Engine>, Arc<Engine>, Arc<Engine>) {
     let mut files = vec![];
     rule_files(&repo().join("rules"), &mut files);
     let mut defs = vec![];
@@ -94,13 +94,48 @@ fn engines() -> (Arc<Engine>, Arc<Engine>, Arc<Engine>) {
     let mut reference = map(compile_reference(&defs, &pol, &build, &SEED).unwrap());
     reference.disable_prefilter();
     let fast = map(compile(&defs, &pol, &build, &SEED).unwrap());
-    let block = map(compile_opts(&defs, &pol, &build, &SEED, Options { hs_block: true }).unwrap());
+    let block = map(compile_opts(
+        &defs,
+        &pol,
+        &build,
+        &SEED,
+        Options {
+            hs_block: true,
+            ..Default::default()
+        },
+    )
+    .unwrap());
     assert!(fast.hyperscan_block().is_none());
     assert!(
         block.hyperscan_block().is_some(),
         "no HYPERSCAN_BLOCK section"
     );
-    (Arc::new(reference), Arc::new(fast), Arc::new(block))
+    // #27/#28: one block database per transformation chain
+    let chains = map(compile_opts(
+        &defs,
+        &pol,
+        &build,
+        &SEED,
+        Options {
+            hs_block: true,
+            hs_chains: true,
+        },
+    )
+    .unwrap());
+    assert!(
+        chains.tables().n_hyperscan_chains() > 1,
+        "no HYPERSCAN_CHAINS section"
+    );
+    assert!(
+        chains.hyperscan_block().is_none(),
+        "chains replace HYPERSCAN_BLOCK"
+    );
+    (
+        Arc::new(reference),
+        Arc::new(fast),
+        Arc::new(block),
+        Arc::new(chains),
+    )
 }
 
 struct Req {
@@ -293,7 +328,7 @@ fn verdict(e: &Arc<Engine>, r: &Req) -> (u32, i32, Vec<u32>) {
 #[test]
 #[ignore]
 fn prefilter_gives_the_verdicts_of_before() {
-    let (reference, fast, block) = engines();
+    let (reference, fast, block, chains) = engines();
     let reqs = requests();
     assert!(reqs.len() > 7000, "only {} requests", reqs.len());
     let mut differ = vec![];
@@ -312,6 +347,10 @@ fn prefilter_gives_the_verdicts_of_before() {
         }
         if a != c {
             differ.push(format!("{}: reference {a:?}, hs block {c:?}", r.id));
+        }
+        let d = verdict(&chains, r);
+        if a != d {
+            differ.push(format!("{}: reference {a:?}, hs chains {d:?}", r.id));
         }
     }
     eprintln!(
