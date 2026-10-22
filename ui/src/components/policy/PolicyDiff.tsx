@@ -92,12 +92,12 @@ export const PolicyDiff: React.FC<{ name: string; versions: PolicyVersion[]; onC
                   <td className="td font-mono text-xs whitespace-pre-wrap break-words">
                     {f.to}
                     {(f.added ?? []).map((g) => (
-                      <span key={`+${g}`} className="ml-2 text-ok" data-testid="diff-added">
+                      <span key={`+${g}`} className={`${f.key === 'data_guard' ? 'ml-2' : 'block'} text-ok`} data-testid="diff-added">
                         +{g}
                       </span>
                     ))}
                     {(f.removed ?? []).map((g) => (
-                      <span key={`-${g}`} className="ml-2 text-block" data-testid="diff-removed">
+                      <span key={`-${g}`} className={`${f.key === 'data_guard' ? 'ml-2' : 'block'} text-block`} data-testid="diff-removed">
                         −{g}
                       </span>
                     ))}

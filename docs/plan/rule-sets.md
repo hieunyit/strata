@@ -146,7 +146,7 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 | RS-3b ✅ | `POST /v1/rule-sets:resolve`; compiler bỏ qua ghi đè của rule mà mọi policy không chạy (paranoia, plugin) thay vì từ chối | Go + Rust |
 | RS-3c | Bộ tự tạo (CRUD, migration) | Go |
 | RS-4a ✅ | UI trình sửa policy: bộ rule theo nhóm (bật/tắt, action, số rule, xem rule của bộ và ghi đè từng rule kèm lý do), tab Ghi đè, tóm tắt tác động của bản nháp (`rule-sets:resolve`); ảnh `docs/reports/rs/` | React |
-| RS-4b | UI: trang Rules & packs (lọc dạng danh sách chọn, phân trang, bộ/policy của rule), "Ghi đè rule này" từ sự kiện, diff/duyệt hiện thay đổi bộ/ghi đè, số sự kiện 24 giờ mỗi bộ | React |
+| RS-4b ✅ | Trang Rules & packs: tìm theo ID/tên, lọc theo bộ/nguồn/loại tấn công bằng danh sách chọn (`GET /v1/rule-catalog` thêm `q`, `set`, `matched`, `facets`, `sets` mỗi rule), "Ghi đè…" cho một policy chọn được; "Ghi đè rule cho cả policy" từ sự kiện; diff/duyệt có khối "Bộ rule và ghi đè"; số lượt khớp 24 giờ mỗi bộ (`matches_24h`, rollup ClickHouse); người dùng theo phạm vi ứng dụng đọc được `/v1/rule-sets` | React + Go |
 | RS-5 | Lab: bộ bot chặn thật (scanner) trên 2 node, rollback, node cũ bị chặn deploy; replay báo rule đổi action | e2e |
 
 Mỗi việc một nhánh, gate cục bộ như kế hoạch Compact (§8a). RS-1 → RS-2 → RS-3 → RS-4 → RS-5.

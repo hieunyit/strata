@@ -240,7 +240,7 @@ export const apiClient = {
   saveReportSchedule(request:ReportScheduleRequest):Promise<ReportScheduleReply>{return call('/report-schedule',json('PUT',request),'Schedule unavailable');},
   async applicationReports(application:string,environment:string):Promise<ApplicationReport[]>{return (await call<components['schemas']['ApplicationReportPage']>(`/application-reports?${operationQuery(application,environment)}`,{method:'GET'},'Reports unavailable')).reports;},
   downloadApplicationReport(id:string,application:string,environment:string):Promise<Blob>{return call(`/application-reports/${encodeURIComponent(id)}?${operationQuery(application,environment)}`,{method:'GET'},'Report unavailable',true);},
-  ruleCatalog(filters: {source?: string; cve?: string; attack_type?: string; after?: string}): Promise<RuleCatalogPage> {
+  ruleCatalog(filters: {source?: string; cve?: string; attack_type?: string; q?: string; set?: string; after?: string}): Promise<RuleCatalogPage> {
     const q = new URLSearchParams();for(const [key,value] of Object.entries(filters)) if(value) q.set(key,value);
     return call(`/rule-catalog?${q}`,{method:'GET'},'Rule catalog unavailable');
   },
@@ -486,8 +486,9 @@ export const apiClient = {
   },
 
   /** GET /v1/rule-sets: the built-in rule sets, with their rule count (RS-3) */
-  async listRuleSets(signal?: AbortSignal): Promise<RuleSetList> {
-    return call<RuleSetList>('/rule-sets', { method: 'GET', signal }, 'Rule sets unavailable');
+  async listRuleSets(signal?: AbortSignal, policy = ''): Promise<RuleSetList> {
+    const q = policy ? `?policy=${encodeURIComponent(policy)}` : '';
+    return call<RuleSetList>(`/rule-sets${q}`, { method: 'GET', signal }, 'Rule sets unavailable');
   },
 
   /** GET /v1/rule-sets/{name}/rules: one page of a set's rules (RS-3) */

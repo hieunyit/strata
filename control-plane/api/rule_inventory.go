@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/rulehealth"
 	"github.com/strata/strata/control-plane/ruleinventory"
+	"github.com/strata/strata/control-plane/rulesets"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -50,13 +52,54 @@ func (s *Server) catalogList(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	after, err := strconv.ParseUint("0"+q.Get("after"), 10, 32)
-	if err != nil || len(q.Get("source")) > 64 || len(q.Get("cve")) > 32 || len(q.Get("attack_type")) > 64 {
+	source, cve, attack := q.Get("source"), strings.ToUpper(q.Get("cve")), q.Get("attack_type")
+	text := strings.ToLower(strings.TrimSpace(q.Get("q")))
+	if err != nil || len(source) > 64 || len(cve) > 32 || len(attack) > 64 || len(text) > 64 {
 		writeError(w, 400, "invalid catalog filter", "")
 		return
 	}
-	entries, next := value.Search(q.Get("source"), q.Get("cve"), q.Get("attack_type"), uint32(after), 200)
-	writeJSON(w, 200, map[string]any{"rules": entries, "next_cursor": next, "digest": value.Digest(), "at": at, "stale": stale, "source": "configured_catalog", "total": value.Len()})
+	// RS-4b: the rules of a built-in set, and a search by Rule ID or name
+	var set *rulesets.Set
+	if name := q.Get("set"); name != "" {
+		found, ok := rulesets.Get(name)
+		if !ok {
+			writeError(w, 400, "unknown rule set", "")
+			return
+		}
+		set = &found
+	}
+	all := rulesets.All()
+	entries, next, matched := value.SearchFunc(uint32(after), 200, func(v rulecat.Entry) bool {
+		if source != "" && v.Source != source || attack != "" && v.AttackType != attack || cve != "" && !slices.Contains(v.CVEs, cve) {
+			return false
+		}
+		if set != nil && !inSet(*set, value, v) {
+			return false
+		}
+		return text == "" || strings.Contains(strconv.FormatUint(uint64(v.ID), 10), text) || strings.Contains(strings.ToLower(v.Name), text)
+	})
+	rows := make([]catalogRow, 0, len(entries))
+	for _, e := range entries {
+		row := catalogRow{Entry: e}
+		for _, s := range all {
+			if inSet(s, value, e) {
+				row.Sets = append(row.Sets, s.Name)
+			}
+		}
+		rows = append(rows, row)
+	}
+	sources, attackTypes := value.Facets()
+	writeJSON(w, 200, map[string]any{"rules": rows, "next_cursor": next, "digest": value.Digest(), "at": at, "stale": stale, "source": "configured_catalog", "total": value.Len(),
+		"matched": matched, "facets": map[string]any{"sources": sources, "attack_types": attackTypes}})
 }
+
+// catalogRow: a rule of GET /v1/rule-catalog and the built-in rule sets
+// it is in (RS-4b).
+type catalogRow struct {
+	rulecat.Entry
+	Sets []string `json:"sets,omitempty"`
+}
+
 func (s *Server) catalogHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodGet {

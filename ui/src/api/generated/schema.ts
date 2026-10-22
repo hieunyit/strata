@@ -379,6 +379,8 @@ export interface components {
     };
     RuleCatalogEntry: components["schemas"]["RuleMetadata"] & {
       id: number;
+      /** @description RS-4b. The built-in rule sets the rule is in (GET /v1/rule-catalog only). */
+      sets?: string[];
     };
     /** @description A rule is in the set when it matches every non-empty list (tags, any of them), or is one of ids. */
     RuleSetFilter: {
@@ -401,6 +403,8 @@ export interface components {
       };
       match: components["schemas"]["RuleSetFilter"];
       rule_count?: number;
+      /** @description RS-4b. Matches of the set's rules over the last 24 hours (an event matching two rules of the set counts twice); absent when the caller may not read events or the event store does not count. */
+      matches_24h?: number;
     };
     RuleSetList: {
       sets: components["schemas"]["RuleSet"][];
@@ -458,7 +462,15 @@ export interface components {
       stale: boolean;
       /** @enum {string} */
       source: "configured_catalog";
+      /** @description Rules in the catalog. */
       total: number;
+      /** @description RS-4b. Rules the filters match, over every page. */
+      matched: number;
+      /** @description RS-4b. The values the source and attack_type filters can take. */
+      facets: {
+        sources: string[];
+        attack_types: string[];
+      };
     };
     RuleCatalogSnapshot: {
       digest: string;
@@ -1751,6 +1763,10 @@ export interface operations {
         source?: string;
         cve?: string;
         attack_type?: string;
+        /** @description RS-4b. Part of the Rule ID or of the name, at most 64 bytes. */
+        q?: string;
+        /** @description RS-4b. Rules of this built-in rule set only (400 when unknown). */
+        set?: string;
         after?: string;
       };
     };
@@ -1831,6 +1847,12 @@ export interface operations {
   };
   /** @description RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an action (rule_sets of the policy spec), with how many rules of the configured catalog each one holds. Needs policies:read. */
   listRuleSets: {
+    parameters: {
+      query?: {
+        /** @description RS-4b. Count matches_24h for this policy only (its name). */
+        policy?: string;
+      };
+    };
     responses: {
       /** @description Every built-in set; rule_count is absent while the catalog is unavailable. */
       200: {

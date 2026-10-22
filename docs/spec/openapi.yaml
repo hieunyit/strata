@@ -26,6 +26,18 @@ paths:
         required: false
         schema:
           type: string
+      - name: q
+        in: query
+        required: false
+        description: RS-4b. Part of the Rule ID or of the name, at most 64 bytes.
+        schema:
+          type: string
+      - name: set
+        in: query
+        required: false
+        description: RS-4b. Rules of this built-in rule set only (400 when unknown).
+        schema:
+          type: string
       - name: after
         in: query
         required: false
@@ -127,7 +139,13 @@ paths:
       description: RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an
         action (rule_sets of the policy spec), with how many rules of the configured catalog
         each one holds. Needs policies:read.
-      parameters: []
+      parameters:
+      - name: policy
+        in: query
+        required: false
+        description: RS-4b. Count matches_24h for this policy only (its name).
+        schema:
+          type: string
       responses:
         '200':
           description: Every built-in set; rule_count is absent while the catalog is unavailable.
@@ -2508,6 +2526,11 @@ components:
         properties:
           id:
             type: integer
+          sets:
+            type: array
+            description: RS-4b. The built-in rule sets the rule is in (GET /v1/rule-catalog only).
+            items:
+              type: string
         required:
         - id
     RuleSetFilter:
@@ -2559,6 +2582,11 @@ components:
           $ref: '#/components/schemas/RuleSetFilter'
         rule_count:
           type: integer
+        matches_24h:
+          type: integer
+          description: RS-4b. Matches of the set's rules over the last 24 hours (an event
+            matching two rules of the set counts twice); absent when the caller may not read
+            events or the event store does not count.
       required:
       - name
       - group
@@ -2693,6 +2721,25 @@ components:
           - configured_catalog
         total:
           type: integer
+          description: Rules in the catalog.
+        matched:
+          type: integer
+          description: RS-4b. Rules the filters match, over every page.
+        facets:
+          type: object
+          description: RS-4b. The values the source and attack_type filters can take.
+          properties:
+            sources:
+              type: array
+              items:
+                type: string
+            attack_types:
+              type: array
+              items:
+                type: string
+          required:
+          - sources
+          - attack_types
       required:
       - rules
       - next_cursor
@@ -2701,6 +2748,8 @@ components:
       - stale
       - source
       - total
+      - matched
+      - facets
     RuleCatalogSnapshot:
       type: object
       properties:

@@ -5,16 +5,18 @@
 // field the API leaves out and its default compare equal.
 import { DATA_GUARDS, PolicySpec, advancedSpec, normalizeSpec, paranoiaLevels } from './policyYaml';
 import { geoRuleSummary } from './geoRules';
+import { actionOf } from './ruleSets';
 
-export type DiffBlock = 'general' | 'response' | 'advanced';
+export type DiffBlock = 'general' | 'response' | 'rules' | 'advanced';
 
 export interface FieldDiff {
   key: 'mode' | 'oversize' | 'canary_percent' | 'crs_paranoia' | 'crs_paranoia_shadow' | 'crs_plugins' | 'geo_rules'
-    | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'advanced';
+    | 'allowed_codes_check' | 'db_errors' | 'data_guard' | 'rule_sets' | 'rule_overrides' | 'advanced';
   from: string;
   to: string;
   changed: boolean;
-  // data_guard only: items in "to" and not in "from", and the reverse
+  // data_guard, rule_sets, rule_overrides: items in "to" and not in
+  // "from", and the reverse
   added?: string[];
   removed?: string[];
 }
@@ -62,6 +64,20 @@ export function diffSpecs(fromSpec: PolicySpec, toSpec: PolicySpec): BlockDiff[]
     { block: 'general', fields: general, changed: general.filter((f) => f.changed).length },
     { block: 'response', fields: response, changed: response.filter((f) => f.changed).length },
   ];
+  // RS-4: rule sets (in order: a later set wins) and overrides, one line
+  // each, as the reviewer reads them
+  const sets = (x: PolicySpec) => (x.rule_sets ?? []).map((r) => `${r.set}: ${actionOf(r.action)}`);
+  const overrides = (x: PolicySpec) => (x.rule_overrides ?? []).map((o) => `${o.rule}: ${actionOf(o.action)} (${o.reason ?? ''})`);
+  const listed = (key: 'rule_sets' | 'rule_overrides', la: string[], lb: string[]) => {
+    const f = field(key, la.join('\n') || '—', lb.join('\n') || '—');
+    f.added = lb.filter((x) => !la.includes(x));
+    f.removed = la.filter((x) => !lb.includes(x));
+    return f;
+  };
+  if (a.rule_sets || b.rule_sets || a.rule_overrides || b.rule_overrides) {
+    const rules = [listed('rule_sets', sets(a), sets(b)), listed('rule_overrides', overrides(a), overrides(b))];
+    blocks.push({ block: 'rules', fields: rules, changed: rules.filter((f) => f.changed).length });
+  }
   const from = stable(advancedSpec(a));
   const to = stable(advancedSpec(b));
   if (from !== '{}' || to !== '{}') {

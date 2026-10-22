@@ -267,7 +267,7 @@ export const PolicyEditor: React.FC<{
         </div>
       </div>
       <div className="px-4 pb-4">
-        <RuleSetsEditor spec={spec} onChange={update} />
+        <RuleSetsEditor spec={spec} onChange={update} policyName={policy.name} />
       </div>
     </section>
   );

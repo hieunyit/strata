@@ -1,6 +1,7 @@
 package rulecat
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -76,29 +77,57 @@ func Diff(before, after []Entry, cursor uint32, limit int) Changes {
 	return out
 }
 func (c *Catalog) Search(source, cve, attack string, after uint32, limit int) ([]Entry, uint32) {
+	out, next, _ := c.SearchFunc(after, limit, func(v Entry) bool {
+		if source != "" && v.Source != source || attack != "" && v.AttackType != attack {
+			return false
+		}
+		return cve == "" || slices.Contains(v.CVEs, strings.ToUpper(cve))
+	})
+	return out, next
+}
+
+// SearchFunc: the entries keep accepts after Rule ID after, at most limit
+// (1..200), the cursor of the next page (0: none) and how many match.
+func (c *Catalog) SearchFunc(after uint32, limit int, keep func(Entry) bool) ([]Entry, uint32, int) {
 	if limit < 1 || limit > 200 {
 		limit = 200
 	}
-	out := []Entry{}
+	out, next, matched := []Entry{}, uint32(0), 0
 	for _, v := range c.Entries() {
-		if v.ID <= after || source != "" && v.Source != source || attack != "" && v.AttackType != attack {
+		if !keep(v) {
 			continue
 		}
-		if cve != "" {
-			matched := false
-			for _, x := range v.CVEs {
-				if x == strings.ToUpper(cve) {
-					matched = true
-				}
-			}
-			if !matched {
-				continue
-			}
+		matched++
+		if v.ID <= after {
+			continue
 		}
 		if len(out) == limit {
-			return out, out[len(out)-1].ID
+			if next == 0 {
+				next = out[len(out)-1].ID
+			}
+			continue
 		}
 		out = append(out, v)
 	}
-	return out, 0
+	return out, next, matched
+}
+
+// Facets: the sources and attack types of the catalog's rules, sorted,
+// for filters to choose from.
+func (c *Catalog) Facets() (sources, attackTypes []string) {
+	seen := map[string]bool{}
+	sources, attackTypes = []string{}, []string{}
+	for _, v := range c.Entries() {
+		if v.Source != "" && !seen["s:"+v.Source] {
+			seen["s:"+v.Source] = true
+			sources = append(sources, v.Source)
+		}
+		if v.AttackType != "" && !seen["a:"+v.AttackType] {
+			seen["a:"+v.AttackType] = true
+			attackTypes = append(attackTypes, v.AttackType)
+		}
+	}
+	slices.Sort(sources)
+	slices.Sort(attackTypes)
+	return sources, attackTypes
 }

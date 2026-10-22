@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { signedIn } from './session';
 const digest='a'.repeat(64), previous='b'.repeat(64);
-const catalog={rules:[{id:700011,name:'Example virtual patch',pack:'core',digest,source:'strata',version:'1.2',cves:['CVE-2026-12345'],owner:'example-team'}],next_cursor:0,digest,at:'2026-10-21T00:00:00Z',stale:false,source:'configured_catalog',total:1};
+const catalog={rules:[{id:700011,name:'Example virtual patch',pack:'core',digest,source:'strata',version:'1.2',cves:['CVE-2026-12345'],owner:'example-team'}],next_cursor:0,digest,at:'2026-10-21T00:00:00Z',stale:false,source:'configured_catalog',total:1,matched:1,facets:{sources:['strata'],attack_types:[]}};
 const exceptions={exceptions:[{policy_id:'policy-api',policy_name:'example-api',policy_version:2,etag:'policy-etag',exception:{id:'exc-0123456789abcdef0123456789abcdef',rule_id:700011,method:'POST',host:'api.example.test',path:'/api/search',field:'ARGS:q',expires_unix_ms:1792540800000,reason:'example'},origin:{owner:'oidc:operator',created_at:'2026-10-20T00:00:00Z'},state:'DRAFT',decided_by:'',approved_replay_id:'',warnings:['expired'],match_source:'not_collected',unused_status:'unknown',editable:true,active_nodes:0}],maintenance:[],next_cursor:'',at:'2026-10-21T00:00:00Z'};
 
 test('catalog content diff and unknown measured cost',async({page})=>{

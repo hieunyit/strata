@@ -3,11 +3,14 @@ package api
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/strata/strata/control-plane/auth"
+	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/rulesets"
@@ -26,6 +29,11 @@ type RuleSetInfo struct {
 	// RuleCount: rules of the configured catalog in the set; absent while
 	// the catalog is unavailable.
 	RuleCount *int `json:"rule_count,omitempty"`
+	// Matches24h (RS-4b): matches of the set's rules over the last 24
+	// hours (an event matching two rules of the set counts twice), of
+	// ?policy= only when given; absent when the caller may not read events
+	// or the event store does not count.
+	Matches24h *uint64 `json:"matches_24h,omitempty"`
 }
 
 // RuleSetRule is one rule of GET /v1/rule-sets/{name}/rules.
@@ -64,17 +72,35 @@ func (s *Server) ruleSetList(w http.ResponseWriter, r *http.Request) {
 	if catalog != nil {
 		entries = catalog.Entries()
 	}
+	policyName := r.URL.Query().Get("policy")
+	if len(policyName) > 256 {
+		writeError(w, http.StatusBadRequest, "invalid policy", "")
+		return
+	}
+	var counts map[uint32]uint64
+	if store, ok := s.handler.store.(ingest.RuleCountStore); ok && catalog != nil && auth.FromContext(r.Context()).Can(auth.PermEventsRead) {
+		to := time.Now().UTC()
+		if c, err := store.RuleCounts(r.Context(), policyName, to.Add(-24*time.Hour), to); err == nil {
+			counts = c
+		} else {
+			log.Printf("[WARN] rule sets: rule counts: %v", err)
+		}
+	}
 	out := []RuleSetInfo{}
 	for _, set := range rulesets.All() {
 		info := RuleSetInfo{Name: set.Name, Group: set.Group, Class: set.Class, Title: set.Title, Match: set.Match}
 		if catalog != nil {
-			n := 0
+			n, matches := 0, uint64(0)
 			for _, e := range entries {
 				if inSet(set, catalog, e) {
 					n++
+					matches += counts[e.ID]
 				}
 			}
 			info.RuleCount = &n
+			if counts != nil {
+				info.Matches24h = &matches
+			}
 		}
 		out = append(out, info)
 	}
