@@ -1049,9 +1049,18 @@ impl Tx {
             for v in found {
                 self.add(v);
             }
-            if res.is_err() {
-                self.set_budget_exceeded();
-                return if self.matched { OK } else { E_BUDGET };
+            match res {
+                Ok(()) => {}
+                Err(eval::EvalError::Budget) => {
+                    self.set_budget_exceeded();
+                    return if self.matched { OK } else { E_BUDGET };
+                }
+                // audit 22/10/2026: a failed scan is an engine error, so the
+                // fail mode and the breaker apply (a block found stays)
+                Err(eval::EvalError::Scan) => {
+                    self.fail(E_INTERNAL);
+                    return if self.matched { OK } else { E_INTERNAL };
+                }
             }
             let ct = eval::content_type(headers);
             let proc = eval::body_processor(ct);
@@ -1134,8 +1143,10 @@ impl Tx {
         for v in found {
             self.add(v);
         }
-        if res.is_err() {
-            self.set_budget_exceeded();
+        match res {
+            Ok(()) => {}
+            Err(eval::EvalError::Budget) => self.set_budget_exceeded(),
+            Err(eval::EvalError::Scan) => self.fail(E_INTERNAL),
         }
         self.body = Vec::new();
         // the headers stay for the event's context (moved, not copied)
@@ -1215,8 +1226,8 @@ impl Tx {
                     }
                     self.evaluate_body();
                 }
-                if self.error == E_BUDGET {
-                    return E_BUDGET;
+                if self.error == E_BUDGET || self.error == E_INTERNAL {
+                    return self.error;
                 }
             }
         } else if self.buffer_body && !self.matched && self.body.len() < MAX_BODY_KEEP {

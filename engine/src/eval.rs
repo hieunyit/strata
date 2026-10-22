@@ -2106,6 +2106,28 @@ fn matched<'c>(ctx: &'c mut Ctx<'_, '_, '_>, v: &[u8], chain: &[u8]) -> &'c [u32
     ctx.scans.get(&key).map_or(&[], Vec::as_slice)
 }
 
+thread_local! {
+    /// A Hyperscan scan failed during the evaluation running on this
+    /// thread (audit 22/10/2026, A-05): its conditions cannot be trusted.
+    static SCAN_FAILED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// test-hooks: every scan fails
+    #[cfg(any(test, feature = "test-hooks"))]
+    static FAIL_SCANS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// test-hooks: make every Hyperscan scan on this thread fail (or not).
+#[cfg(any(test, feature = "test-hooks"))]
+pub fn fail_scans_for_test(on: bool) {
+    FAIL_SCANS.with(|f| f.set(on));
+}
+
+/// A scan error: the evaluation stops (through the budget's way out) and
+/// reports `EvalError::Scan`.
+fn scan_failed(budget_exceeded: &mut bool) {
+    SCAN_FAILED.with(|f| f.set(true));
+    *budget_exceeded = true;
+}
+
 /// Conditions matched by a transformed value, without the cache.
 fn scan(
     hs: &Option<HsDbs<'_>>,
@@ -2114,16 +2136,25 @@ fn scan(
     tv: &Option<Cow<'_, [u8]>>,
 ) -> Vec<u32> {
     let mut hits = vec![];
+    #[cfg(any(test, feature = "test-hooks"))]
+    if hs.is_some() && FAIL_SCANS.with(|f| f.get()) {
+        scan_failed(budget_exceeded);
+        return hits;
+    }
     if let (Some((map, db, block)), Some(tv)) = (hs, tv) {
         let short_block = block.as_ref().filter(|_| tv.len() <= BLOCK_SCAN_MAX);
         if let (true, Some(b)) = (map.is_stream, short_block) {
             // same patterns and ids as the stream database (checked at load)
-            let _ = b.scan(tv, &mut |id| {
+            if b.scan(tv, &mut |id| {
                 if let Some(c) = map.condition(id) {
                     hits.push(c);
                 }
                 true
-            });
+            })
+            .is_err()
+            {
+                scan_failed(budget_exceeded);
+            }
         } else if map.is_stream {
             let mut on_match = |id: u32| -> bool {
                 if let Some(c) = map.condition(id) {
@@ -2140,19 +2171,22 @@ fn scan(
             };
             match db.scan_stream_chunks(tv, 2048, check_budget, &mut on_match) {
                 Ok(true) => {}
-                Ok(false) | Err(_) => {
-                    if budget.as_mut().is_some_and(|bgt| bgt.check().is_err()) {
-                        *budget_exceeded = true;
-                    }
-                }
+                // stopped between chunks: the budget ran out
+                Ok(false) => *budget_exceeded = true,
+                Err(_) => scan_failed(budget_exceeded),
             }
         } else {
-            let _ = db.scan(tv, &mut |id| {
-                if let Some(c) = map.condition(id) {
-                    hits.push(c);
-                }
-                true
-            });
+            if db
+                .scan(tv, &mut |id| {
+                    if let Some(c) = map.condition(id) {
+                        hits.push(c);
+                    }
+                    true
+                })
+                .is_err()
+            {
+                scan_failed(budget_exceeded);
+            }
         }
     }
     if hits.len() > 1 {
@@ -2287,9 +2321,68 @@ impl Drop for RuleTimer<'_> {
     }
 }
 
-/// Evaluates every rule of `stage` against the request with CPU budget tracking.
+/// Why an evaluation stopped before its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EvalError {
+    /// the CPU budget ran out
+    Budget,
+    /// a Hyperscan scan failed (audit 22/10/2026): pattern conditions
+    /// were not evaluated, the request must take the fail mode
+    Scan,
+}
+
+impl From<crate::budget::BudgetExceeded> for EvalError {
+    fn from(_: crate::budget::BudgetExceeded) -> Self {
+        EvalError::Budget
+    }
+}
+
+/// Evaluates every rule of `stage` against the request with CPU budget
+/// tracking. Every match is reported, also those found before an error.
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_with_budget(
+    engine_id: u64,
+    tables: &Tables<'_>,
+    db: Option<MappedDb<'_>>,
+    regexes: &Regexes,
+    operators: &CompiledOperators,
+    prefilter: Option<&Prefilter>,
+    req: &Request<'_>,
+    stage: u8,
+    degraded: bool,
+    signatures: bool,
+    disabled: &[u32],
+    exception_policy: Option<(u32, &[crate::exceptions::Exception])>,
+    exclusions: Option<crate::rule_exclusions::Pass<'_>>,
+    budget: Option<&mut crate::budget::TxBudget>,
+    report: &mut impl FnMut(Violation),
+) -> Result<(), EvalError> {
+    SCAN_FAILED.with(|f| f.set(false));
+    let res = evaluate_inner(
+        engine_id,
+        tables,
+        db,
+        regexes,
+        operators,
+        prefilter,
+        req,
+        stage,
+        degraded,
+        signatures,
+        disabled,
+        exception_policy,
+        exclusions,
+        budget,
+        report,
+    );
+    if SCAN_FAILED.with(|f| f.replace(false)) {
+        return Err(EvalError::Scan);
+    }
+    Ok(res?)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_inner(
     engine_id: u64,
     tables: &Tables<'_>,
     db: Option<MappedDb<'_>>,
