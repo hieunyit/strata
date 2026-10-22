@@ -1,6 +1,6 @@
 # Bộ rule mặc định và tùy chỉnh rule theo policy (đề xuất)
 
-Trạng thái: **PO duyệt 22/10/2026, đang làm** (RS-1 xong). Người lập: Claude Code (strata-59).
+Trạng thái: **PO duyệt 22/10/2026, đang làm** (RS-1, RS-2 xong). Người lập: Claude Code (strata-59).
 Tham chiếu: `docs/design/strata-overview.md` › Mô hình policy & rule (khối *Template*,
 *Signature sets*, *Overrides*); mô hình chỉnh policy của NGINX App Protect trong NGINX Instance
 Manager (PO chọn 22/10/2026).
@@ -138,7 +138,7 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 | Mã | Việc | Tầng |
 | --- | --- | --- |
 | RS-1 ✅ | Section `OVERRIDE` trong engine + test (khớp/không khớp, log không chặn, block với điểm 0, off), fuzz codec. Thêm byte header 48 `requires` (bit 0) để engine cũ **từ chối** bundle thay vì bỏ qua ghi đè (engine cũ bỏ qua kind lạ) | Rust |
-| RS-2 | Compiler: `rule_sets`, `rule_overrides`, danh mục `rules/sets/`, giới hạn, schema policy | Rust + spec |
+| RS-2 ✅ | Compiler: `rule_sets`, `rule_overrides`, danh mục `rules/sets/catalog.yaml` (19 bộ dựng sẵn), giới hạn, schema policy. Control plane gửi bộ lọc đã mở rộng (không gửi tên bộ); compiler đọc metadata rule từ chính file IR `--rules` | Rust + spec |
 | RS-3 | Control plane: spec, kiểm khi lưu, template `strict` + bot `log`, API bộ rule và effective-rules, bộ tự tạo (migration) | Go |
 | RS-4 | UI: tab Bộ rule, Ghi đè, trang Rules & packs, nút từ sự kiện, diff/duyệt | React |
 | RS-5 | Lab: bộ bot chặn thật (scanner) trên 2 node, rollback, node cũ bị chặn deploy; replay báo rule đổi action | e2e |
