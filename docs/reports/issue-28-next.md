@@ -62,3 +62,32 @@ Budget cố định 10 ms bảo vệ CPU, nhưng mọi body cỡ vài chục KB 
 1. Làm 3.1 ngay: sửa một chỗ trong `tx.rs`, có test, không đổi interface.
 2. PO chọn `k` và trần cho 3.2, rồi làm.
 3. CRS theo route: để B1+.
+
+## 4. Đã thử thêm (22/10/2026): một database Hyperscan cho mỗi chuỗi transformation
+
+Người dùng duyệt làm sau cờ. Nhánh `hs-chains` (không merge): section 17 `HYPERSCAN_CHAINS`, `strata-compile --hs-chains`, kèm test layout và test vi sai.
+
+**Ý tưởng**: mỗi lần scan DB đầy đủ chạy cả các NFA đắt của CRS, kể cả trên byte của chuỗi mà các pattern đó không đọc. Một DB cho mỗi chuỗi thì byte của chuỗi nào chỉ gặp pattern của chuỗi đó.
+
+**Thí nghiệm riêng phần scan** (`node-split-exp`: gọi `hs_scan` trên đúng các cặp (chuỗi, byte) mà engine đọc): thời gian scan của GET nhỏ giảm từ 382 µs xuống 254 µs, attack từ 370 µs xuống 204 µs.
+
+**Trong engine** (`strata-bench`, gói đầy đủ, CPU 3, hai bundle xen kẽ):
+
+| Bản | GET nhỏ | JSON nhỏ | Attack | Form 64 KB | JSON 64 KB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Mặc định (section 8) | 608–652 µs | 628–636 µs | 588–598 µs | 38,2–38,6 ms | 26,2–32,6 ms |
+| Mỗi node một DB | 683 µs | 766 µs | 654 µs | 82,0 ms | 54,7 ms |
+| Lai: byte chỉ một node đọc dùng DB của chuỗi, byte chung dùng DB đầy đủ | 618 µs | 779 µs | 611 µs | 40,9 ms | 27,6 ms |
+
+- **Mỗi node một DB**: số lần scan của GET nhỏ tăng từ 52 lên 454. Số lệnh trong `hs_scan` giảm 27%, nhưng chi phí quản lý (hash cache cho từng cặp DB và byte) và việc đổi qua lại giữa khoảng 50 DB làm tổng thời gian tăng.
+- **Bản lai**: không khác biệt so với mức nhiễu, JSON nhỏ còn chậm hơn.
+- **Đúng/sai**: `prefilter_differential` cho 11.590 request, 8.019 có rule khớp, 0 khác biệt.
+- **Bundle**: 21,3 MB → 24,1 MB (bỏ section 8).
+
+**Kết luận**: không merge. Lợi ích của thí nghiệm chỉ có khi tính riêng lời gọi `hs_scan`. Chi phí còn lại của #28 nằm ở số giá trị và số chuỗi transformation mỗi request, không nằm ở cách chia DB.
+
+Phần đã merge cùng đợt (#413):
+- kết quả scan dùng lại giữa các stage: GET nhỏ gói đầy đủ −14%;
+- scratch nhớ nhiều DB.
+
+Mục tiêu hiệu năng đổi sang thời gian engine: `docs/decisions/perf-targets.md`.
