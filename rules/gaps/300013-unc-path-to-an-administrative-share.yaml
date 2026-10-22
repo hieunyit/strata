@@ -4,6 +4,8 @@
 # path-traversal, also base64-encoded in the URL path). Ordinary file
 # share paths (\\fileserver\docs) do not match.
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300013
   name: UNC path to an administrative share
@@ -12,7 +14,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input } ]
-      transforms: [ lowercase ]
+      transforms: [ url_decode_uni, lowercase ]
       operator:
         type: rx
         value: '(?:\\\\|//|\\/|/\\)[^\\/\s]{1,253}[\\/](?:[a-z]|admin|ipc|print)\$(?:[\\/]|$)'

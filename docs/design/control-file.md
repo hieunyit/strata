@@ -151,6 +151,12 @@ sai thì từ chối. Engine cũ từ chối bit 4: nâng module trước.
 `detect_ssti` (không `value`, transform/negate như `detect_sqli`, engine cũ từ chối
 bundle chứa nó, không tự bật rule, không đổi section hay layout).
 
+**Operator NoSQL (22/10/2026):** `detect_nosql` nối tiếp ở mã 20, cùng quy tắc như
+`detect_cmdi`. Rule 300016 (`rules/gaps`) dùng nó: **nâng module trên mọi node trước**
+khi deploy gói có rule này (engine cũ từ chối bundle, rollout dừng ở node đầu tiên còn
+bản cũ). Rule 300014 (`detect_cmdi`) và 300015 (`detect_ssti`) cũng bật hai detector
+có sẵn trong gói gaps.
+
 
 ### Section 11 `STAGING` (M4)
 

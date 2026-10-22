@@ -1,0 +1,41 @@
+# Strata gap rule (22/10/2026): the SSTI lexical detector (detect_ssti,
+# W17-R-01, engine/src/detectors/injection/ssti.rs) on every place the
+# client fills in: template delimiters (Jinja2, Twig, Spring EL, OGNL, ERB,
+# EJS, Freemarker, Velocity) around arithmetic probes, reflection or
+# execution primitives.
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
+rule:
+  id: 300015
+  name: Server-side template injection (lexical detector)
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: user_input } ]
+      transforms: [ url_decode_uni ]
+      operator: { type: detect_ssti }
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: template-injection
+    accuracy: high
+    tags: [detector, user-input]
+tests:
+  match:
+  - uri: '/v1/greet?name=%7B%7B7%2A191%7D%7D'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/greet?name=%7B%7B%27%27.__class__.__mro__%7D%7D'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/greet?name=%24%7BT%28java.lang.Runtime%29.getRuntime%28%29%7D'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: '/v1/greet?name=%7B%7Buser.name%7D%7D'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/docs/templates/%7B%7Bname%7D%7D-syntax'
+    headers: { Host: api.example.test, Accept: application/json }

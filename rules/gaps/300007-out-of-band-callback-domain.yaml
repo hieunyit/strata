@@ -2,6 +2,8 @@
 # scanners and exploit tools plant in payloads (GoTestWAF
 # community-user-agent, shell-injection, rce-urlparam, 15/10/2026).
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300007
   name: Out-of-band callback domain in the request

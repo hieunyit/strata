@@ -8,6 +8,9 @@
 /// CMDi lexical component used by the opt-in `detect_cmdi` rule operator.
 pub mod cmdi;
 pub mod html5;
+/// NoSQL (MongoDB-style) lexical component used by the opt-in
+/// `detect_nosql` rule operator.
+pub mod nosql;
 pub mod sqli;
 /// SSTI lexical component used by the opt-in `detect_ssti` rule operator.
 pub mod ssti;

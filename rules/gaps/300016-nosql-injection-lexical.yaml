@@ -1,0 +1,42 @@
+# Strata gap rule (22/10/2026): the NoSQL lexical detector (detect_nosql,
+# engine/src/detectors/injection/nosql.rs) on every place the client fills
+# in: a MongoDB query operator used as a key ({"$ne": ...}, user[$ne]=,
+# json.user.$ne), server-side JavaScript (db.c.find(, do{}while(,
+# this.x ==), a quote broken into a tautology ('||'a'=='a). Next to the
+# regex of 300004, structure instead of strings.
+rule:
+  id: 300016
+  name: NoSQL injection (lexical detector)
+  layer: managed
+  stage: request_body
+  match:
+    all:
+    - targets: [ { var: user_input } ]
+      transforms: [ url_decode_uni ]
+      operator: { type: detect_nosql }
+  score: 100
+  action_mode: score
+  severity: critical
+  metadata:
+    source: strata
+    license: Apache-2.0
+    owner: rules-team
+    review_by: "2027-01-22"
+    attack_type: other
+    accuracy: high
+    tags: [detector, user-input, nosql-injection]
+tests:
+  match:
+  - uri: '/v1/login?user%5B%24ne%5D=x&pass%5B%24ne%5D=x'
+    headers: { Host: api.example.test, Accept: application/json }
+  - method: POST
+    uri: /v1/login
+    headers: { Host: api.example.test, Content-Type: application/json }
+    body: '{"user": {"$gt": ""}, "pass": {"$gt": ""}}'
+  - uri: '/v1/items/admin%27%20%7C%7C%20%27a%27%3D%3D%27a'
+    headers: { Host: api.example.test, Accept: application/json }
+  no_match:
+  - uri: '/v1/pricing?q=save+%2410+or+more'
+    headers: { Host: api.example.test, Accept: application/json }
+  - uri: '/v1/docs?q=%24where+is+a+keyword'
+    headers: { Host: api.example.test, Accept: application/json }

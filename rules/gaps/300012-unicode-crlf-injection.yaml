@@ -4,6 +4,8 @@
 # (GoTestWAF crlf, URLPath). Matched only when a response header name
 # follows, so Chinese text with these characters does not match.
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300012
   name: Unicode CRLF injection of a response header
@@ -12,7 +14,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input }, { var: uri_raw } ]
-      transforms: [ lowercase ]
+      transforms: [ url_decode_uni, lowercase ]
       operator:
         type: rx
         value: '(?:%e5%98%8[ad]|嘊|嘍)(?:%20|\s)*(?:set-cookie|location|refresh|content-(?:type|length|disposition)|transfer-encoding|access-control-allow-[a-z-]+|x-[a-z0-9-]+)(?:%20|\s)*(?::|%3a)'

@@ -2,6 +2,8 @@
 # variable declarations and system objects, MySQL JSON functions, nested
 # time-based subqueries (GoTestWAF sql-injection, 15/10/2026).
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300009
   name: SQL injection with MSSQL declarations or JSON functions
@@ -10,7 +12,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input }, { var: request_headers } ]
-      transforms: [ replace_comments, compress_whitespace, lowercase ]
+      transforms: [ url_decode_uni, replace_comments, compress_whitespace, lowercase ]
       operator:
         type: rx
         value: '\bdeclare\s+@\w+\s+(?:n?var)?char\b|\bmaster\.(?:sys|dbo)\.|\bfn_varbintohexstr\b|\bjson_(?:extract|depth|keys|length|value|search|contains)\s*\(\s*''[^'']*''\s*(?:,|\))\s*\S{0,40}?\s*(?:!=|=|<|>|\band\b|\bor\b)|\(\s*select\s*\(\s*\d+\s*\)\s*from\s*\(\s*select\s*\(\s*sleep\s*\(\s*\d+'
