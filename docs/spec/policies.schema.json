@@ -84,6 +84,10 @@
             "description": "#98: when the CPU budget runs out on a request that already has findings (rules matched below the blocking threshold), `block` answers as in fail mode closed (503 with the Event ID) whatever the connector's fail mode; `pass` (default) follows the fail mode. Enforce only: a shadow policy never blocks. Measure the share of such requests in shadow first (`strata-rules lifecycle`). Engines from before the setting refuse a bundle that sets block: upgrade the module on every node first.",
             "enum": ["pass", "block"]
           },
+          "parse_error": {
+            "description": "Audit 22/10/2026: a request body the engine cannot read to its end (rule 100022: JSON damaged or nested deeper than 64, XML or multipart damaged) or at all (100023: Content-Encoding other than identity). The client chooses to send one, and the backend may still read it: `block` (default) blocks alone in enforce, whatever `oversize` says; `pass` only records it (inspection PARTIAL), as before the audit. Engines from before the setting refuse a bundle that sets pass: upgrade the module on every node first.",
+            "enum": ["pass", "block"]
+          },
           "crs_paranoia": {
             "description": "W17-S-01: CRS paranoia level enforced (1 by default): CRS rules up to it score and block as usual. Rules carry their level; rules without one (not CRS) always run. Engines from before the setting refuse a bundle that sets a level other than 1: upgrade the module on every node first.",
             "type": "integer", "minimum": 1, "maximum": 4

@@ -1,9 +1,10 @@
 //! #97: a request body that does not parse to its end (JSON damaged,
 //! nested deeper than 64 or followed by more data; XML tag or comment that
 //! does not end; multipart without its delimiters or with a broken part)
-//! raises rule 100022, which the policy's `oversize` makes block alone or
-//! recorded, with the event's inspection PARTIAL. Before, what followed
-//! the damage was not inspected and nothing said so.
+//! raises rule 100022, with the event's inspection PARTIAL. Before, what
+//! followed the damage was not inspected and nothing said so. Since the
+//! audit of 22/10/2026 it blocks alone in enforce unless the policy says
+//! `parse_error: pass` (it used to follow `oversize`, pass by default).
 
 use std::path::Path;
 use std::sync::Arc;
@@ -37,7 +38,8 @@ rules:
 
 const POLICIES: &str = "policies:
   - { name: example-api, mode: enforce }
-  - { name: example-strict, mode: enforce, oversize: block }";
+  - { name: example-strict, mode: enforce, oversize: block }
+  - { name: example-lenient, mode: enforce, parse_error: pass }";
 
 fn engine(policies: &str) -> Result<Arc<Engine>, String> {
     let defs = rules_from_ir(&from_yaml(RULES).unwrap()).unwrap();
@@ -102,8 +104,8 @@ const XML: &str = "application/xml";
 const MULTIPART: &str = "multipart/form-data; boundary=xyz";
 
 /// #97: a payload after the place where the body stops parsing used to go
-/// through uninspected and unreported. Now rule 100022 is recorded
-/// (oversize pass, inspection PARTIAL) or blocks alone (oversize block).
+/// through uninspected and unreported. Now rule 100022 blocks alone
+/// (audit 22/10/2026), or is recorded with `parse_error: pass`.
 #[test]
 fn damaged_bodies_raise_100022() {
     let e = engine(POLICIES).unwrap();
@@ -129,16 +131,14 @@ fn damaged_bodies_raise_100022() {
                 .to_string(),
         ),
     ] {
-        let t = post(&e, b"example-api", "", ct, &body);
+        let t = post(&e, b"example-lenient", "", ct, &body);
         assert_eq!(rules(&t), [BODY_UNPARSED], "{ct}: {body:.60}");
-        assert_eq!(t.verdict().action, 0, "oversize pass: recorded only");
-        let t = post(&e, b"example-strict", "", ct, &body);
-        assert!(rules(&t).contains(&BODY_UNPARSED));
-        assert_ne!(
-            t.verdict().action,
-            0,
-            "oversize block: blocked alone ({ct})"
-        );
+        assert_eq!(t.verdict().action, 0, "parse_error pass: recorded only");
+        for policy in [&b"example-api"[..], b"example-strict"] {
+            let t = post(&e, policy, "", ct, &body);
+            assert!(rules(&t).contains(&BODY_UNPARSED));
+            assert_eq!(t.verdict().action, 3, "blocked alone by default ({ct})");
+        }
     }
     // the event says the request was not fully inspected
     let t = post(

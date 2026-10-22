@@ -100,6 +100,9 @@ pub struct Tx {
     json: bool,
     /// the policy blocks request bodies larger than what is inspected
     oversize_block: bool,
+    /// a body the engine cannot read (100022, 100023) blocks alone; off
+    /// with the policy's `parse_error: pass` (audit 22/10/2026)
+    parse_block: bool,
     /// response layer switches of the policy
     response: Response,
     /// longest snippet of a match in the event (the policy's
@@ -308,6 +311,7 @@ impl Tx {
             canary: crate::event::CanaryGroup::None,
             json: false,
             oversize_block: false,
+            parse_block: true,
             response: Response::default(),
             guard: None,
             stage: Stage::New,
@@ -525,6 +529,7 @@ impl Tx {
                 (_, false) => crate::event::CanaryGroup::Shadow,
             };
             self.oversize_block = p.oversize == crate::bundle::Oversize::Block;
+            self.parse_block = !p.parse_error_pass;
             self.response = p.response;
             self.signatures = p.signatures;
             self.snippet_max = p.snippet.bytes();
@@ -710,12 +715,17 @@ impl Tx {
             // end: 100020 already says so
             return;
         }
-        if v.rule == protocol::ARGS_OVER_LIMIT
-            || v.rule == protocol::BODY_UNPARSED
-            || v.rule == protocol::BODY_ENCODED
-        {
+        if v.rule == protocol::ARGS_OVER_LIMIT {
             // like a body over the limit (100020): the policy's oversize
             v.block_alone = self.oversize_block;
+            self.args_left_out = true;
+        }
+        if v.rule == protocol::BODY_UNPARSED || v.rule == protocol::BODY_ENCODED {
+            // audit 22/10/2026: the client chooses to send a body the
+            // engine cannot read (JSON 65 levels deep, a part header over
+            // 8 KB, gzip...): it blocks unless the policy says
+            // parse_error: pass, whatever oversize says
+            v.block_alone = self.parse_block;
             self.args_left_out = true;
         }
         if self.n_rules < MAX_RULES {

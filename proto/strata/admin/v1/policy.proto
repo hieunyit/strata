@@ -129,6 +129,17 @@ message PolicySpec {
   // W20-S-01: the template the policy started from, if any (set when the
   // policy is created from one; kept as it is by later versions).
   PolicyTemplateRef template = 15;
+  // Audit 22/10/2026: a body the engine cannot read to its end (rule
+  // 100022) or at all (100023, Content-Encoding). BLOCK (and UNSPECIFIED)
+  // blocks alone in enforce, whatever oversize says; PASS only records it.
+  // Modules from before the setting refuse bundles that set PASS: upgrade
+  // them first.
+  enum ParseError {
+    PARSE_ERROR_UNSPECIFIED = 0; // block
+    PARSE_ERROR_BLOCK = 1;
+    PARSE_ERROR_PASS = 2;
+  }
+  ParseError parse_error = 16;
 }
 
 // A geo rule (W19-G2-01): an address in one of the countries or ASNs

@@ -294,7 +294,8 @@ pub fn rules_from_ir(doc: &Value) -> Result<Vec<RuleDef>> {
 
 /// A policy as the compiler reads it: (name, mode, oversize, response
 /// flags, canary share in basis points, signature pack, snippet size,
-/// max_args (0 = the engine's 1024), fail_on_findings (#98)).
+/// max_args (0 = the engine's 1024), fail_on_findings (#98),
+/// parse_error: pass (audit 22/10/2026)).
 pub type PolicyFields = (
     String,
     Mode,
@@ -304,6 +305,7 @@ pub type PolicyFields = (
     Signatures,
     SnippetSize,
     usize,
+    bool,
     bool,
 );
 
@@ -662,6 +664,17 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 ));
             }
         };
+        // audit 22/10/2026: a body the engine cannot read (100022/100023)
+        // blocks alone in enforce; pass only records it
+        let parse_error_pass = match p["parse_error"].as_str() {
+            None | Some("block") => false,
+            Some("pass") => true,
+            Some(v) => {
+                return Err(format!(
+                    "policy {name:?}: parse_error must be pass or block, got {v:?}"
+                ));
+            }
+        };
         // W17-S-01: CRS paranoia level enforced, and the level run in
         // shadow above it (default: the enforced level)
         let level = |k: &str, default: u8| -> Result<u8> {
@@ -788,6 +801,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
             snippet,
             max_args,
             fail_on_findings,
+            parse_error_pass,
         ));
     }
     libstrata::exceptions::encode(&exceptions, policies.len() as u32)
@@ -1475,13 +1489,14 @@ fn compile_unsigned_with(
         .policies
         .iter()
         .enumerate()
-        .map(|(i, (n, m, o, r, c, g, sn, a, f))| PolicySpec {
+        .map(|(i, (n, m, o, r, c, g, sn, a, f, pe))| PolicySpec {
             response: *r,
             canary: *c,
             signatures: *g,
             snippet: *sn,
             max_args: *a,
             fail_on_findings: *f,
+            parse_error_pass: *pe,
             privacy: policies.privacy.iter().any(|p| p.policy_index == i as u32),
             staging: policies.staging.iter().any(|p| p.policy_index == i as u32),
             paranoia: policies.paranoia.iter().any(|p| p.policy_index == i as u32),
