@@ -188,6 +188,8 @@ pub struct Tx {
     staged_score: i32,
     staged_any: bool,
     staged_block_alone: bool,
+    /// #27: scans of the request_headers stage, reused by request_body
+    scan_cache: Option<eval::ScanCache>,
     /// rules switched off on the engine when the transaction started
     disabled: Arc<[u32]>,
     /// what a sampled transaction keeps for replay (W12-N-01)
@@ -370,6 +372,7 @@ impl Tx {
             staged_score: 0,
             staged_any: false,
             staged_block_alone: false,
+            scan_cache: None,
             disabled,
             sample: None,
             has_body_rules,
@@ -1052,6 +1055,10 @@ impl Tx {
                     active: &mut self.excluded,
                 }),
                 self.budget.as_mut(),
+                Some(
+                    self.scan_cache
+                        .get_or_insert_with(|| eval::ScanCache::new(engine.operators())),
+                ),
                 &mut |v| found.push(v),
             );
             // #28 (PO 16/10/2026): what was found before the budget ran
@@ -1146,9 +1153,12 @@ impl Tx {
                 active: &mut self.excluded,
             }),
             self.budget.as_mut(),
+            self.scan_cache.as_mut(),
             &mut |v| found.push(v),
         );
         drop(headers);
+        // the last stage that reads the request: its scans are not needed
+        self.scan_cache = None;
         // #28: findings before the budget ran out count (see above)
         for v in found {
             self.add(v);

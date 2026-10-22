@@ -286,6 +286,56 @@ mod tests {
         assert_eq!(via_stream(b"x w5xabc0 tail"), [5, 1000]);
     }
 
+    /// #27: block databases used in turn (one per transformation chain)
+    /// grow the thread's scratch once each; switching back does not call
+    /// hs_alloc_scratch again, which checks the whole bytecode.
+    #[test]
+    fn block_databases_in_turn_grow_the_scratch_once() {
+        let images: Vec<AlignedBuf> = (1..=3)
+            .map(|n| {
+                let pats: Vec<Pattern> = (0..n * 50)
+                    .map(|i| Pattern {
+                        expression: format!("k{n}w{i}x[a-z]{{2,5}}\\d").into_bytes(),
+                        flags: SINGLEMATCH,
+                        id: i,
+                    })
+                    .collect();
+                AlignedBuf::from_bytes(&compile_mode(&pats, HS_MODE_BLOCK).unwrap())
+            })
+            .collect();
+        let dbs: Vec<MappedDb<'_>> = images
+            .iter()
+            .map(|b| MappedDb::validate(b.as_ref()).unwrap())
+            .collect();
+        let hits = |db: &MappedDb<'_>, data: &[u8]| {
+            let mut h = vec![];
+            db.scan(data, &mut |id| {
+                h.push(id);
+                true
+            })
+            .unwrap();
+            h
+        };
+        for (n, db) in dbs.iter().enumerate() {
+            let data = format!("k{}w7xab1", n + 1);
+            assert_eq!(hits(db, data.as_bytes()), [7]);
+        }
+        let ptr = crate::SCRATCH.with(|s| s.borrow().ptr);
+        for _ in 0..3 {
+            for (n, db) in dbs.iter().enumerate().rev() {
+                let data = format!("k{}w7xab1 k9w1xzz2", n + 1);
+                assert_eq!(hits(db, data.as_bytes()), [7]);
+            }
+        }
+        crate::SCRATCH.with(|s| {
+            let s = s.borrow();
+            assert_eq!(s.ptr, ptr, "not allocated again");
+            for db in &dbs {
+                assert!(s.block_ids.contains(&db.id()));
+            }
+        });
+    }
+
     #[test]
     fn bad_pattern_reports_its_index() {
         let pats = vec![
