@@ -923,7 +923,11 @@ mod tests {
         let sig = SigningKey::from_bytes(&SEED).sign(&b4);
         b4.extend_from_slice(&sig.to_bytes());
         let info = verify(&b4, &public_key(&SEED)).unwrap();
-        assert!(find_policy(&b4, &info, b"example-api").unwrap().parse_error_pass);
+        assert!(
+            find_policy(&b4, &info, b"example-api")
+                .unwrap()
+                .parse_error_pass
+        );
 
         // bit 4 (PAN) is known since P-01 §1; bit 5 is not
         let pan = PolicySpec {
