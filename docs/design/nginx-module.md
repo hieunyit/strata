@@ -9,7 +9,7 @@ Oct 10, 2026 · @hieuny
 **Mục tiêu đo được**
 
 1. Overhead latency p99 dưới 1 ms với request dưới 64 KB khi bật đủ lớp phase 0–1.
-2. Thời gian engine mỗi request (metrics của module, `strata_engine_*`), thay cho "throughput giảm không quá 10%" (người dùng duyệt 22/10/2026, `docs/decisions/perf-targets.md`):
+2. Thời gian engine mỗi request (histogram `strata_engine_seconds` của agent), thay cho "throughput giảm không quá 10%" (người dùng duyệt 22/10/2026, `docs/decisions/perf-targets.md`):
    - GET nhỏ, phase 0–1: p99 ≤ 100 µs;
    - GET nhỏ, gói signature đầy đủ: p99 ≤ 1 ms;
    - body 64 KB, gói đầy đủ: 0 request fail-open trong body budget.
