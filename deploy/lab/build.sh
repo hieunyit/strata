@@ -24,6 +24,10 @@ for v in "${versions[@]}"; do
     mkdir -p "$dist/nginx/$v"
     cp "$out/nginx-$v/objs/nginx" "$out/nginx-$v/objs/ngx_http_strata_module.so" \
         "$out/nginx-$v/conf/mime.types" "$dist/nginx/$v/"
+    # the module's build manifest, as the packages install it: without one
+    # the agent reports no capabilities and every deploy is refused (B02)
+    python3 deploy/packaging/module_manifest.py --root . --binary "$dist/nginx/$v/ngx_http_strata_module.so" \
+        --module-path "/opt/nginx/$v/ngx_http_strata_module.so" > "$dist/nginx/$v/module-manifest.json"
 done
 cp "$CARGO_TARGET_DIR/release/mkbundle" "$CARGO_TARGET_DIR/release/strata-compile" "$CARGO_TARGET_DIR/release/strata-replay" "$dist/bin/"
 # the whole benign and attack corpus once, replayed with every draft
