@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -307,6 +308,9 @@ func (s *Store) DecidePolicyVersion(ctx context.Context, id string, version int,
 			if a.Subject == "" || a.Subject == created || a.Subject == submitted {
 				return ErrFourEyes
 			}
+			if err := notTheirMachine(ctx, tx, a.Subject, created, submitted); err != nil {
+				return err
+			}
 			if version < approved {
 				return &StateError{fmt.Sprintf("version %d is older than version %d, already approved", version, approved)}
 			}
@@ -529,4 +533,27 @@ func policyWriteError(action string, err error) error {
 		return ErrBroadException
 	}
 	return fmt.Errorf("store: %s: %w", action, err)
+}
+
+// notTheirMachine refuses an approval by a service account that one of
+// authors created (audit 22/10/2026): four eyes compares subjects, and
+// "sa:<id>" differs from its creator's, so whoever drafted a version could
+// create an approver service account and approve it alone.
+func notTheirMachine(ctx context.Context, tx pgx.Tx, approver string, authors ...string) error {
+	id, ok := strings.CutPrefix(approver, "sa:")
+	if !ok {
+		return nil
+	}
+	var creator string
+	err := tx.QueryRow(ctx, `SELECT coalesce(metadata->>'created_by','') FROM machine_accounts WHERE id=$1`, id).Scan(&creator)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: approver account: %w", err)
+	}
+	if slices.Contains(authors, creator) {
+		return ErrFourEyes
+	}
+	return nil
 }

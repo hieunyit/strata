@@ -119,6 +119,11 @@ func (s *Store) ReviewRelease(ctx context.Context, id, etag, hash string, replay
 		if approve && (r.CreatedSubject == a.Subject || a.Subject == "") {
 			return ErrFourEyes
 		}
+		if approve {
+			if err := notTheirMachine(ctx, tx, a.Subject, r.CreatedSubject); err != nil {
+				return err
+			}
+		}
 		if hash != r.SnapshotHash || !reflect.DeepEqual(replayIDs, r.Snapshot.ReplayIDs) {
 			return ErrEtagMismatch
 		}

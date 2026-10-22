@@ -75,7 +75,7 @@ groups:
         labels: { severity: warning, component: agent }
         annotations:
           summary: "{{ $labels.instance }}: the node forced every policy into shadow on its own ({{ $labels.reason }})"
-          description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
+          description: "Node tier of the automatic fallback (off by default since the audit of 22/10/2026, --fallback): 3x more client networks than usual blocked (IPv4 /24, IPv6 /48, one count each), at least --fallback-min-sources, improbable by chance. The node stays in shadow for --fallback-hold (10 min) or until POST /v1/nodes:clearForceShadow (every policy)."
           runbook_url: docs/runbook/README.md#node-tự-về-shadow
       - alert: StrataNodeErrorsJump
         expr: increase(strata_agent_fallback_alerts_total{reason!="source_limit"}[10m]) > 0
@@ -138,6 +138,25 @@ groups:
           summary: "{{ $labels.instance }}: held in shadow by a ForceShadow command"
           description: "Expected during an incident; clear it with POST /v1/nodes:clearForceShadow when done."
           runbook_url: docs/runbook/README.md#ép-shadow
+      # audit 22/10/2026 (F-06): one operator can force every policy into
+      # shadow or switch rules off without a second person; held this long,
+      # it is no longer an incident's few minutes
+      - alert: StrataForceShadowLong
+        expr: strata_agent_force_shadow_active == 1
+        for: 2h
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: held in shadow by a ForceShadow command for over 2 hours"
+          description: "A ForceShadow needs one operator only (policies:deploy). Check the audit log (/v1/audit, action forceShadow) for who asked and why; clear it with POST /v1/nodes:clearForceShadow."
+          runbook_url: docs/runbook/README.md#ép-shadow
+      - alert: StrataRulesDisabledLong
+        expr: strata_agent_disabled_rules > 0
+        for: 24h
+        labels: { severity: warning, component: agent }
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} rules switched off by the kill switch for over a day"
+          description: "The kill switch needs one operator only (rules:disable). Check the audit log for who switched them off; fix the rules and enable them again (POST /v1/rules/{rule_id}:enable)."
+          runbook_url: docs/runbook/README.md#tắt-rule-khẩn-cấp
       - alert: StrataRulesDisabled
         expr: strata_agent_disabled_rules > 0
         for: 1m

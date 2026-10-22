@@ -456,7 +456,7 @@ tests:
           - exp_labels: { instance: a, reason: block_rate, severity: warning, component: agent }
             exp_annotations:
               summary: "a: the node forced every policy into shadow on its own (block_rate)"
-              description: "Node tier of the automatic fallback: the node blocks 3x its shadow level, from many client addresses (3 blocks per address per 5 s count), improbable by chance. The node stays in shadow until POST /v1/nodes:clearForceShadow (every policy)."
+              description: "Node tier of the automatic fallback (off by default since the audit of 22/10/2026, --fallback): 3x more client networks than usual blocked (IPv4 /24, IPv6 /48, one count each), at least --fallback-min-sources, improbable by chance. The node stays in shadow for --fallback-hold (10 min) or until POST /v1/nodes:clearForceShadow (every policy)."
               runbook_url: "docs/runbook/README.md#node-tự-về-shadow"
       - eval_time: 15m
         alertname: StrataNodeFallback
