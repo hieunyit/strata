@@ -7,7 +7,9 @@ package rulesets
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 
 	"gopkg.in/yaml.v3"
@@ -80,4 +82,44 @@ func Get(name string) (Set, bool) {
 		}
 	}
 	return Set{}, false
+}
+
+// Custom rule sets (RS-3c): made by operators, stored by the control
+// plane, named custom-*; a policy keeps a copy of their filter (see
+// policy.RuleSetRef.Match).
+var customName = regexp.MustCompile(`^custom-[a-z0-9][a-z0-9-]{0,47}$`)
+
+// IsCustom: name is the name of a custom set.
+func IsCustom(name string) bool { return customName.MatchString(name) }
+
+// Validate a filter as the compiler's schema takes it (policies.schema.json
+// rule_sets.match): not empty, at most 64 values of at most 64 bytes in
+// each list, at most 4096 Rule IDs, no value twice.
+func (f Filter) Validate() error {
+	if len(f.Sources) == 0 && len(f.AttackTypes) == 0 && len(f.Tags) == 0 && len(f.IDs) == 0 {
+		return errors.New("a rule set needs sources, attack_types, tags or ids")
+	}
+	for _, list := range [][]string{f.Sources, f.AttackTypes, f.Tags} {
+		if len(list) > 64 {
+			return errors.New("at most 64 sources, attack types or tags")
+		}
+		seen := map[string]bool{}
+		for _, v := range list {
+			if v == "" || len(v) > 64 || seen[v] {
+				return fmt.Errorf("invalid or repeated value %q", v)
+			}
+			seen[v] = true
+		}
+	}
+	if len(f.IDs) > 4096 {
+		return errors.New("at most 4096 rule ids")
+	}
+	ids := map[uint32]bool{}
+	for _, id := range f.IDs {
+		if id == 0 || ids[id] {
+			return fmt.Errorf("invalid or repeated rule id %d", id)
+		}
+		ids[id] = true
+	}
+	return nil
 }

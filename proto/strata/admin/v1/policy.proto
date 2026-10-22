@@ -166,6 +166,19 @@ enum PolicyRuleAction {
 message PolicyRuleSet {
   string set = 1; // e.g. bots-scanners
   PolicyRuleAction action = 2;
+  // RS-3c: the filter of a custom set (custom-*) as saved with the policy;
+  // left out for built-in sets. On save, a custom set without it gets the
+  // set's current filter.
+  PolicyRuleSetFilter match = 3;
+}
+
+// A rule is in the set when it matches every non-empty list (tags: any of
+// them), or is one of ids.
+message PolicyRuleSetFilter {
+  repeated string sources = 1;
+  repeated string attack_types = 2;
+  repeated string tags = 3;
+  repeated uint32 ids = 4;
 }
 
 message PolicyRuleOverride {

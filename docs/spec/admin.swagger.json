@@ -2235,8 +2235,43 @@
         },
         "action": {
           "$ref": "#/definitions/v1PolicyRuleAction"
+        },
+        "match": {
+          "$ref": "#/definitions/v1PolicyRuleSetFilter",
+          "description": "RS-3c: the filter of a custom set (custom-*) as saved with the policy;\nleft out for built-in sets. On save, a custom set without it gets the\nset's current filter."
         }
       }
+    },
+    "v1PolicyRuleSetFilter": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attack_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "description": "A rule is in the set when it matches every non-empty list (tags: any of\nthem), or is one of ids."
     },
     "v1PolicySpec": {
       "type": "object",

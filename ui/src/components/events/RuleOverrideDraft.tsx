@@ -72,7 +72,7 @@ export const OverrideForm: React.FC<{ policyName?: string; ruleIds: number[]; na
     <h2 id="override-heading" className="font-medium">{t('ruleOverride.title')}</h2>
     {saved !== undefined ? <div role="status" className="mt-3 text-sm" data-testid="override-created">
       <p>{t('ruleOverride.created', { version: saved })}</p>
-      <p className="mt-2 text-muted">{t('exception.reviewRequired')}</p>
+      <p className="mt-2 text-muted">{t('ruleOverride.reviewRequired')}</p>
       <a href={href({ page: 'policies' })} className="btn mt-3">{t('exception.viewPolicies')}</a>
       <button type="button" className="btn ml-2" onClick={onClose}>{t('exception.close')}</button>
     </div> : <form onSubmit={(e) => void submit(e)}>

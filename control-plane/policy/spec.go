@@ -57,9 +57,9 @@ type Spec struct {
 	// GeoRules: the policy's own rules on the country and ASN of the
 	// client address (W19-G2-01, policies.schema.json geo_rules).
 	GeoRules []GeoRule `json:"geo_rules,omitempty"`
-	// RuleSets: built-in rule sets (control-plane/rulesets) with the
-	// policy's action for their rules; a later set wins for a rule in two
-	// (RS-3, docs/plan/rule-sets.md).
+	// RuleSets: built-in rule sets (control-plane/rulesets) and custom
+	// ones (RS-3c) with the policy's action for their rules; a later set
+	// wins for a rule in two (RS-3, docs/plan/rule-sets.md).
 	RuleSets []RuleSetRef `json:"rule_sets,omitempty"`
 	// RuleOverrides: actions of single rules, over the rule sets.
 	RuleOverrides []RuleOverride `json:"rule_overrides,omitempty"`
@@ -73,6 +73,11 @@ type RuleSetRef struct {
 	Set string `json:"set"`
 	// Action: off, log, block or default (each rule's own behaviour).
 	Action string `json:"action"`
+	// Match: the filter of a custom set (custom-*, RS-3c) as it was when
+	// the policy was saved, so that editing the set changes no policy
+	// until the policy is saved, reviewed and deployed again; absent for
+	// the built-in sets, which change with the release.
+	Match *rulesets.Filter `json:"match,omitempty"`
 }
 
 // RuleOverride is the action of one rule in a policy.
@@ -100,8 +105,18 @@ func (s Spec) validateRuleActions() error {
 	}
 	seen := map[string]bool{}
 	for _, r := range s.RuleSets {
-		if _, ok := rulesets.Get(r.Set); !ok {
+		switch _, builtIn := rulesets.Get(r.Set); {
+		case builtIn && r.Match != nil:
+			return fmt.Errorf("rule set %q is built in: no match", r.Set)
+		case builtIn:
+		case !rulesets.IsCustom(r.Set):
 			return fmt.Errorf("rule set %q does not exist", r.Set)
+		case r.Match == nil:
+			return fmt.Errorf("rule set %q: the filter of a custom set is required", r.Set)
+		default:
+			if err := r.Match.Validate(); err != nil {
+				return fmt.Errorf("rule set %q: %w", r.Set, err)
+			}
 		}
 		if seen[r.Set] {
 			return fmt.Errorf("rule set %q listed twice", r.Set)

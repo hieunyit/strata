@@ -277,12 +277,14 @@ type compiledRuleSet struct {
 	Action string          `json:"action"`
 }
 
-// expandRuleSets turns a spec's set names into filters; Validate has
-// checked every name exists.
+// expandRuleSets turns a spec's set names into filters: a custom set's
+// copy, a built-in set's filter; Validate has checked every name exists.
 func expandRuleSets(refs []RuleSetRef) []compiledRuleSet {
 	var out []compiledRuleSet
 	for _, r := range refs {
-		if set, ok := rulesets.Get(r.Set); ok {
+		if r.Match != nil {
+			out = append(out, compiledRuleSet{Name: r.Set, Match: *r.Match, Action: r.Action})
+		} else if set, ok := rulesets.Get(r.Set); ok {
 			out = append(out, compiledRuleSet{Name: r.Set, Match: set.Match, Action: r.Action})
 		}
 	}

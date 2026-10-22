@@ -134,6 +134,32 @@ paths:
         '503':
           description: Catalog or telemetry unavailable
   /v1/rule-sets:
+    post:
+      operationId: createCustomRuleSet
+      description: RS-3c. A custom rule set (name custom-*). A policy using it keeps a copy
+        of its filter, made when the policy is saved. Needs policies:write, not scoped to
+        applications.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomRuleSetInput'
+      responses:
+        '201':
+          description: Created, version 1.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomRuleSet'
+        '400':
+          description: Invalid set
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The name is taken
+        '501':
+          description: No PostgreSQL store
     get:
       operationId: listRuleSets
       description: RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an
@@ -155,6 +181,72 @@ paths:
                 $ref: '#/components/schemas/RuleSetList'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /v1/rule-sets/{name}:
+    parameters:
+    - name: name
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getRuleSet
+      description: RS-3c. A built-in set (RuleSet) or a custom one (CustomRuleSet). Needs policies:read.
+      responses:
+        '200':
+          description: The set.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/RuleSet'
+                - $ref: '#/components/schemas/CustomRuleSet'
+        '404':
+          description: No such rule set
+    put:
+      operationId: updateCustomRuleSet
+      description: RS-3c. A new version of a custom set, from the etag read. Policies keep
+        the copy of its filter they were saved with until saved again. Needs policies:write,
+        not scoped to applications.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomRuleSetInput'
+      responses:
+        '200':
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomRuleSet'
+        '400':
+          description: Invalid set, or a rename
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No such custom set
+        '409':
+          description: The etag is stale
+    delete:
+      operationId: deleteCustomRuleSet
+      description: RS-3c. Policies keep their copy of its filter. Needs policies:write, not
+        scoped to applications.
+      parameters:
+      - name: etag
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No such custom set
+        '409':
+          description: The etag is stale
   /v1/rule-sets/{name}/rules:
     get:
       operationId: listRuleSetRules
@@ -2566,6 +2658,7 @@ components:
           - signature
           - technology
           - bot
+          - custom
         class:
           type: string
           description: Of a bot set.
@@ -2587,11 +2680,67 @@ components:
           description: RS-4b. Matches of the set's rules over the last 24 hours (an event
             matching two rules of the set counts twice); absent when the caller may not read
             events or the event store does not count.
+        custom:
+          type: boolean
+          description: RS-3c. A custom set (group custom).
+        description:
+          type: string
+        version:
+          type: integer
+        etag:
+          type: string
+        updated_by:
+          type: string
       required:
       - name
       - group
       - title
       - match
+    CustomRuleSetInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: custom- and up to 48 lower-case letters, digits or dashes (POST only).
+        title:
+          type: string
+        description:
+          type: string
+        match:
+          $ref: '#/components/schemas/RuleSetFilter'
+        etag:
+          type: string
+          description: The version read (PUT).
+      required:
+      - title
+      - match
+    CustomRuleSet:
+      type: object
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        match:
+          $ref: '#/components/schemas/RuleSetFilter'
+        version:
+          type: integer
+        etag:
+          type: string
+        created_by:
+          type: string
+        updated_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [name, title, description, match, version, etag, created_by, updated_by, created_at, updated_at]
     RuleSetList:
       type: object
       properties:
@@ -2650,6 +2799,8 @@ components:
               action:
                 type: string
                 enum: ['off', log, block, default]
+              match:
+                $ref: '#/components/schemas/RuleSetFilter'
             required: [set, action]
         rule_overrides:
           type: array

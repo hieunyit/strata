@@ -16,8 +16,9 @@ import (
 	"github.com/strata/strata/control-plane/rulesets"
 )
 
-// RS-3 (docs/plan/rule-sets.md): the built-in rule sets a policy gives an
-// action, with the rules of the configured catalog each one holds.
+// RS-3 (docs/plan/rule-sets.md): the rule sets a policy gives an action,
+// built in and custom (RS-3c), with the rules of the configured catalog
+// each one holds.
 
 // RuleSetInfo is one set of GET /v1/rule-sets.
 type RuleSetInfo struct {
@@ -34,6 +35,12 @@ type RuleSetInfo struct {
 	// ?policy= only when given; absent when the caller may not read events
 	// or the event store does not count.
 	Matches24h *uint64 `json:"matches_24h,omitempty"`
+	// Custom set (RS-3c): group "custom", and the stored details.
+	Custom      bool   `json:"custom,omitempty"`
+	Description string `json:"description,omitempty"`
+	Version     int    `json:"version,omitempty"`
+	Etag        string `json:"etag,omitempty"`
+	UpdatedBy   string `json:"updated_by,omitempty"`
 }
 
 // RuleSetRule is one rule of GET /v1/rule-sets/{name}/rules.
@@ -43,7 +50,13 @@ type RuleSetRule struct {
 }
 
 func (s *Server) registerRuleSets(mux *http.ServeMux) {
-	mux.HandleFunc("/v1/rule-sets", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetList))
+	mux.HandleFunc("/v1/rule-sets", auth.RequireHTTP(auth.PermPoliciesRead, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			s.createCustomSet(w, r)
+			return
+		}
+		s.ruleSetList(w, r)
+	}))
 	mux.HandleFunc("/v1/rule-sets/", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetRules))
 	mux.HandleFunc("/v1/rule-sets:resolve", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetResolve))
 }
@@ -86,9 +99,25 @@ func (s *Server) ruleSetList(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[WARN] rule sets: rule counts: %v", err)
 		}
 	}
-	out := []RuleSetInfo{}
+	all := []RuleSetInfo{}
 	for _, set := range rulesets.All() {
-		info := RuleSetInfo{Name: set.Name, Group: set.Group, Class: set.Class, Title: set.Title, Match: set.Match}
+		all = append(all, RuleSetInfo{Name: set.Name, Group: set.Group, Class: set.Class, Title: set.Title, Match: set.Match})
+	}
+	if s.cfg.CustomRuleSets != nil {
+		custom, err := s.cfg.CustomRuleSets.ListCustomRuleSets(r.Context())
+		if err != nil {
+			customSetError(w, err)
+			return
+		}
+		for _, c := range custom {
+			set := customSet(c)
+			all = append(all, RuleSetInfo{Name: set.Name, Group: set.Group, Title: set.Title, Match: set.Match,
+				Custom: true, Description: c.Description, Version: c.Version, Etag: c.Etag, UpdatedBy: c.UpdatedBy})
+		}
+	}
+	out := []RuleSetInfo{}
+	for _, info := range all {
+		set := rulesets.Set{Name: info.Name, Match: info.Match}
 		if catalog != nil {
 			n, matches := 0, uint64(0)
 			for _, e := range entries {
@@ -108,19 +137,28 @@ func (s *Server) ruleSetList(w http.ResponseWriter, r *http.Request) {
 }
 
 // ruleSetRules: GET /v1/rule-sets/{name}/rules?q=&after=, by Rule ID, 200 a
-// page; next_cursor 0: the last page.
+// page; next_cursor 0: the last page. /v1/rule-sets/{name} alone: a
+// custom set (customSetItem).
 func (s *Server) ruleSetRules(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	name, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/v1/rule-sets/"), "/")
+	if !ok {
+		s.customSetItem(w, r, name)
+		return
+	}
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	name, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/v1/rule-sets/"), "/")
-	if !ok || rest != "rules" {
+	if rest != "rules" {
 		writeError(w, http.StatusNotFound, "not found", "")
 		return
 	}
-	set, ok := rulesets.Get(name)
+	set, ok, err := s.lookupSet(r.Context(), name)
+	if err != nil {
+		customSetError(w, err)
+		return
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "rule set not found", "")
 		return
@@ -204,7 +242,11 @@ func effective(c *rulecat.Catalog, e rulecat.Entry, d RuleActionsDraft) Effectiv
 	out.Action = out.Own
 	chosen, source, set, reason := "default", "", "", ""
 	for _, r := range d.RuleSets {
-		if def, ok := rulesets.Get(r.Set); ok && inSet(def, c, e) {
+		def, ok := rulesets.Get(r.Set)
+		if r.Match != nil {
+			def, ok = rulesets.Set{Name: r.Set, Match: *r.Match}, true
+		}
+		if ok && inSet(def, c, e) {
 			chosen, source, set = r.Action, "set", r.Set
 		}
 	}
@@ -239,6 +281,24 @@ func (s *Server) ruleSetResolve(w http.ResponseWriter, r *http.Request) {
 	if err := dec.Decode(&d); err != nil || dec.Decode(&struct{}{}) != io.EOF {
 		writeError(w, http.StatusBadRequest, "invalid JSON", "")
 		return
+	}
+	// a custom set without its copy (just added in the editor): its
+	// current filter, as saving the policy would copy it
+	for i, ref := range d.RuleSets {
+		if !rulesets.IsCustom(ref.Set) || ref.Match != nil {
+			continue
+		}
+		set, ok, err := s.lookupSet(r.Context(), ref.Set)
+		if err != nil {
+			customSetError(w, err)
+			return
+		}
+		if !ok {
+			writeError(w, http.StatusBadRequest, "rule set "+strconv.Quote(ref.Set)+" does not exist", "")
+			return
+		}
+		match := set.Match
+		d.RuleSets[i].Match = &match
 	}
 	spec := policy.Spec{Mode: "shadow", CRSParanoia: d.CRSParanoia, CRSParanoiaShadow: d.CRSParanoiaShadow, RuleSets: d.RuleSets, RuleOverrides: d.RuleOverrides}
 	if err := spec.Validate(); err != nil {

@@ -31,6 +31,9 @@ type ServerConfig struct {
 	SystemHealth *health.Service
 	Releases     *policy.Releases
 	Applications *store.Store
+	// CustomRuleSets keeps the custom rule sets (RS-3c); Applications when
+	// left nil.
+	CustomRuleSets CustomRuleSetStore
 	// ServiceAccounts is optional; only atomic durable writers enable mutations.
 	ServiceAccounts auth.ServiceAccountStore
 
@@ -101,6 +104,9 @@ func NewServer(cfg ServerConfig, store ingest.EventStore) *Server {
 	}
 	if cfg.Addr == "" {
 		cfg.Addr = ":8080"
+	}
+	if cfg.CustomRuleSets == nil && cfg.Applications != nil {
+		cfg.CustomRuleSets = cfg.Applications
 	}
 	if cfg.ReadTimeout <= 0 {
 		cfg.ReadTimeout = 10 * time.Second

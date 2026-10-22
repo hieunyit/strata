@@ -92,7 +92,8 @@ test('rules page: filter by set, override for a policy', async ({ page }) => {
   ];
   let lastSet = '';
   let patched: { spec?: unknown } | undefined;
-  await page.route((url) => url.pathname === '/v1/rule-sets', (r) => r.fulfill({ json: { sets: [...sets, { name: 'signatures-kev', group: 'signature', title: { vi: 'CVE đang bị khai thác (CISA KEV)', en: 'Known exploited CVEs (CISA KEV)' }, match: { tags: ['kev'] }, rule_count: 212 }, { name: 'attack-scanner-probes', group: 'attack', title: { vi: 'Dò quét', en: 'Scanner probes' }, match: { attack_types: ['scanner'] }, rule_count: 12 }], catalog_available: true } }));
+  await page.route((url) => url.pathname === '/v1/rule-sets', (r) => r.fulfill({ json: { sets: [...sets, { name: 'signatures-kev', group: 'signature', title: { vi: 'CVE đang bị khai thác (CISA KEV)', en: 'Known exploited CVEs (CISA KEV)' }, match: { tags: ['kev'] }, rule_count: 212 }, { name: 'attack-scanner-probes', group: 'attack', title: { vi: 'Dò quét', en: 'Scanner probes' }, match: { attack_types: ['scanner'] }, rule_count: 12 },
+    { name: 'custom-internal-scanners', group: 'custom', custom: true, title: { vi: 'Internal scanners', en: 'Internal scanners' }, description: 'Scanners of our security team', match: { tags: ['scanner'], ids: [913100, 913101, 913102] }, rule_count: 51, version: 3, etag: 'e3', updated_by: 'lab-operator' }], catalog_available: true } }));
   await page.route((url) => url.pathname === '/v1/rule-catalog', (r) => {
     lastSet = new URL(r.request().url()).searchParams.get('set') ?? '';
     const shown = lastSet ? rows.filter((x) => x.sets.includes(lastSet)) : rows;
@@ -109,6 +110,7 @@ test('rules page: filter by set, override for a policy', async ({ page }) => {
   });
   await page.goto('/#/rules');
   await expect(page.getByTestId('rules-matched')).toContainText('9420 of 9420');
+  await expect(page.getByTestId('custom-row')).toContainText('tags=scanner ids=913100,913101,913102');
   await page.getByTestId('rules-set').selectOption('attack-sqli');
   await expect(page.getByTestId('rules-matched')).toContainText('2 of 9420');
   expect(lastSet).toBe('attack-sqli');
