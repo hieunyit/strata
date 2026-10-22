@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/strata/strata/control-plane/ingest"
@@ -19,6 +20,9 @@ rules:
   - { id: 500901, name: Example scanner bot, layer: managed, metadata: { source: crawler-user-agents, attack_type: bot, tags: [scanner] } }
   - { id: 500902, name: Example search bot, layer: managed, metadata: { source: crawler-user-agents, attack_type: bot, tags: [search-engine] } }
   - { id: 942100, name: SQL injection via libinjection, layer: managed, metadata: { source: crs, attack_type: sql-injection } }
+  - { id: 942200, name: SQL injection level 2, layer: managed, paranoia_level: 2, metadata: { source: crs, attack_type: sql-injection } }
+  - { id: 942300, name: SQL injection level 3, layer: managed, paranoia_level: 3, metadata: { source: crs, attack_type: sql-injection } }
+  - { id: 9507100, name: Example plugin exclusion, layer: pre, metadata: { source: crs, plugin: wordpress } }
 `
 
 func ruleSetServer(t *testing.T, withCatalog bool) *Server {
@@ -68,7 +72,7 @@ func TestRuleSetsCountTheConfiguredRules(t *testing.T) {
 		}
 		counts[set.Name] = *set.RuleCount
 	}
-	if counts["bots-scanners"] != 1 || counts["bots-trusted"] != 1 || counts["attack-sqli"] != 1 || counts["attack-xss"] != 0 {
+	if counts["bots-scanners"] != 1 || counts["bots-trusted"] != 1 || counts["attack-sqli"] != 3 || counts["attack-xss"] != 0 {
 		t.Fatalf("counts %v", counts)
 	}
 	var rules struct {
@@ -113,5 +117,97 @@ func TestRuleSetsWithoutCatalog(t *testing.T) {
 	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/rule-sets", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous: %d", rec.Code)
+	}
+}
+
+func resolveRules(t *testing.T, s *Server, query, body string, out any) int {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/rule-sets:resolve"+query, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer viewer")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if out != nil && rec.Code == http.StatusOK {
+		if err := json.Unmarshal(rec.Body.Bytes(), out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return rec.Code
+}
+
+// RS-3b: what each rule does under a draft, as the engine runs it.
+func TestRuleSetsResolve(t *testing.T) {
+	s := ruleSetServer(t, true)
+	type page struct {
+		Rules  []EffectiveRule `json:"rules"`
+		Total  int             `json:"total"`
+		Next   uint32          `json:"next_cursor"`
+		Counts map[string]int  `json:"counts"`
+	}
+	byID := func(p page) map[uint32]EffectiveRule {
+		m := map[uint32]EffectiveRule{}
+		for _, r := range p.Rules {
+			m[r.ID] = r
+		}
+		return m
+	}
+	// nothing chosen: signature rules log, the others score, levels above
+	// 1 are not run; the plugin exclusion is no detection rule
+	var p page
+	call := func(query, body string) int {
+		p = page{}
+		return resolveRules(t, s, query, body, &p)
+	}
+	if c := call("", `{}`); c != http.StatusOK || p.Total != 5 {
+		t.Fatalf("%d %+v", c, p)
+	}
+	got := byID(p)
+	if got[500901].Action != "log" || got[500901].Source != "rule" || got[942100].Action != "score" ||
+		got[942200].Action != "off" || got[942200].Own != "off" || got[942200].Source != "paranoia" {
+		t.Fatalf("own %+v", got)
+	}
+	body := `{"crs_paranoia":1,"crs_paranoia_shadow":2,
+		"rule_sets":[{"set":"bots-scanners","action":"block"},{"set":"attack-sqli","action":"block"}],
+		"rule_overrides":[{"rule":942100,"action":"log","reason":"FP on /search"},{"rule":942300,"action":"off","reason":"never"}]}`
+	if c := call("", body); c != http.StatusOK {
+		t.Fatalf("%d", c)
+	}
+	got = byID(p)
+	for id, want := range map[uint32][3]string{
+		500901: {"block", "set", "bots-scanners"},
+		500902: {"log", "rule", ""},
+		942100: {"log", "override", ""},
+		// run in shadow by its paranoia level: the set cannot make it block
+		942200: {"log", "paranoia", ""},
+		942300: {"off", "paranoia", ""},
+	} {
+		if r := got[id]; r.Action != want[0] || r.Source != want[1] || r.Set != want[2] {
+			t.Errorf("%d: %+v, want %v", id, r, want)
+		}
+	}
+	if got[942100].Reason != "FP on /search" || got[942200].Reason != "" || p.Counts["block"] != 1 || p.Counts["log"] != 3 || p.Counts["off"] != 1 {
+		t.Errorf("reason/counts %+v", p)
+	}
+	// switched off over its paranoia level
+	if c := call("", `{"crs_paranoia_shadow":2,"rule_overrides":[{"rule":942200,"action":"off","reason":"noisy"}]}`); c != http.StatusOK || byID(p)[942200].Action != "off" || byID(p)[942200].Source != "override" {
+		t.Errorf("off over paranoia: %+v", byID(p)[942200])
+	}
+	// only what the draft changes, and a search
+	if c := call("?changed=1", body); c != http.StatusOK || p.Total != 2 {
+		t.Fatalf("changed: %d %+v", c, p)
+	}
+	if c := call("?changed=1&q=942", body); c != http.StatusOK || p.Total != 1 || p.Rules[0].ID != 942100 || p.Counts["block"] != 1 {
+		t.Fatalf("search: %d %+v", c, p)
+	}
+	for q, b := range map[string]string{
+		"":         `{"rule_sets":[{"set":"no-such-set","action":"block"}]}`,
+		"?after=x": `{}`,
+		" ":        `{"mode":"enforce"}`,
+	} {
+		if c := resolveRules(t, s, strings.TrimSpace(q), b, nil); c != http.StatusBadRequest {
+			t.Errorf("%q %s: %d", q, b, c)
+		}
+	}
+	if c := resolveRules(t, ruleSetServer(t, false), "", `{}`, nil); c != http.StatusServiceUnavailable {
+		t.Errorf("without catalog: %d", c)
 	}
 }

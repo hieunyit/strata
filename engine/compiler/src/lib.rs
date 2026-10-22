@@ -1388,8 +1388,11 @@ fn compile_unsigned_with(
                 .as_ref()
                 .is_none_or(|x| wanted.contains(x.plugin.as_str()))
     };
+    // RS-2: an override of a rule left out here changes nothing, and is
+    // no error (a PL3 rule in a bundle whose policies stop at PL1)
+    let left_out: BTreeSet<u32> = rules.iter().filter(|r| !keep(r)).map(|r| r.id).collect();
     let kept: Vec<RuleDef>;
-    let rules = if rules.iter().any(|r| !keep(r)) {
+    let rules = if !left_out.is_empty() {
         kept = rules.iter().filter(|r| keep(r)).cloned().collect();
         &kept[..]
     } else {
@@ -1517,6 +1520,7 @@ fn compile_unsigned_with(
         rules,
         &policies.rule_meta,
         &signatures,
+        &left_out,
     )?;
     let overrides = libstrata::overrides::encode(&actions, policies.policies.len() as u32)
         .map_err(|e| format!("rule overrides: {}", e.message()))?;

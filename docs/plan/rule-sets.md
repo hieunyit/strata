@@ -113,8 +113,10 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
   - `GET /v1/rule-sets` (danh sách, số rule mỗi bộ theo gói hiện tại);
   - `GET /v1/rule-sets/{name}/rules` (phân trang, tìm);
   - CRUD bộ tự tạo;
-  - `GET /v1/policies/{id}/effective-rules` (action hiệu lực từng rule, nguồn của action: gốc,
-    bộ, ghi đè).
+  - `POST /v1/rule-sets:resolve` (action hiệu lực từng rule theo một bản nháp paranoia + bộ +
+    ghi đè, đã lưu hay chưa; nguồn của action: gốc, paranoia, bộ, ghi đè). Thay cho
+    `GET /v1/policies/{id}/effective-rules` dự kiến ban đầu: trình sửa thấy tác động trước khi
+    lưu, và đường `/v1/policies/` thuộc admin API (grpc-gateway).
 - **Replay:** thay đổi bộ/ghi đè là thay đổi spec, nên tự có replay. Báo cáo replay thêm "rule
   đổi action" để người duyệt thấy tác động.
 
@@ -141,7 +143,8 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 | RS-1 ✅ | Section `OVERRIDE` trong engine + test (khớp/không khớp, log không chặn, block với điểm 0, off), fuzz codec. Thêm byte header 48 `requires` (bit 0) để engine cũ **từ chối** bundle thay vì bỏ qua ghi đè (engine cũ bỏ qua kind lạ) | Rust |
 | RS-2 ✅ | Compiler: `rule_sets`, `rule_overrides`, danh mục `rules/sets/catalog.yaml` (19 bộ dựng sẵn), giới hạn, schema policy. Control plane gửi bộ lọc đã mở rộng (không gửi tên bộ); compiler đọc metadata rule từ chính file IR `--rules` | Rust + spec |
 | RS-3 ✅ | Control plane: spec + proto (`rule_sets`, `rule_overrides`), kiểm khi lưu, mở rộng tên bộ thành bộ lọc cho compiler, template `strict` + mọi bot `log` (template v2), `GET /v1/rule-sets` và `/v1/rule-sets/{name}/rules` | Go |
-| RS-3b | `GET /v1/policies/{id}/effective-rules`, bộ tự tạo (CRUD, migration) | Go |
+| RS-3b ✅ | `POST /v1/rule-sets:resolve`; compiler bỏ qua ghi đè của rule mà mọi policy không chạy (paranoia, plugin) thay vì từ chối | Go + Rust |
+| RS-3c | Bộ tự tạo (CRUD, migration) | Go |
 | RS-4 | UI: tab Bộ rule, Ghi đè, trang Rules & packs, nút từ sự kiện, diff/duyệt | React |
 | RS-5 | Lab: bộ bot chặn thật (scanner) trên 2 node, rollback, node cũ bị chặn deploy; replay báo rule đổi action | e2e |
 
