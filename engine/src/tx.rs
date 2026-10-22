@@ -31,6 +31,10 @@ const TAIL: usize = NEEDLE.len() - 1;
 
 #[cfg(feature = "test-hooks")]
 pub(crate) const PANIC_NEEDLE: &[u8] = b"STRATA-TEST-PANIC";
+/// test-hooks: a request line holding this burns CPU until its budget runs
+/// out (budget tests that do not depend on how fast the rules are).
+#[cfg(feature = "test-hooks")]
+pub(crate) const SPIN_NEEDLE: &[u8] = b"STRATA-TEST-SPIN";
 /// test-hooks: masked in responses, like a data guard detector would
 #[cfg(feature = "test-hooks")]
 pub(crate) const MASK_NEEDLE: &[u8] = b"STRATA-TEST-MASK";
@@ -81,11 +85,25 @@ pub struct MatchValue {
     pub report_only: bool,
 }
 
-/// #28 (PO 16/10/2026): the CPU budget of a request grows by this much per
-/// KB of body inspected, up to BODY_BUDGET_CAP_NS in all; a budget set
-/// higher stays. A 64 KB body gets 10 + 32 = 42 ms with the default.
-pub const BODY_BUDGET_NS_PER_KB: u64 = 500_000;
-pub const BODY_BUDGET_CAP_NS: u64 = 100_000_000;
+/// The CPU budget of a request grows by this much per KB of the request
+/// inspected (request line, headers, body), up to BODY_BUDGET_CAP_NS in
+/// all; a budget set higher stays (#28, PO 16/10/2026: body only, 0.5 ms
+/// and 100 ms). 22/10/2026: 4 ms and 2.5 s, so that a request the engine
+/// can inspect completes: measured on the whole signature package, the
+/// costliest benign shapes take 1.2 ms/KB (64 KB JSON of 1,000 records, 79
+/// ms) and a 16 KB query 16 ms; the caps on arguments (1,024), decoded
+/// values and XML attributes bound the work above that; a 1 MB body of
+/// HTML entities takes about 240 ms. The same request also varies: a 64 KB
+/// form of median 39 ms has a p99 of 84 ms and a max of 129 ms (CPU time,
+/// shared caches of a loaded host), and 2 ms/KB refused 1 in 400; 4 ms/KB
+/// gives it 266 ms. The cap covers the default
+/// strata_request_body_limit (1 MB, about 140 ms of work): the CPU a request may use
+/// is set by the size it may have, and routes lower it with the body
+/// limit, not with a clock. A request that
+/// still runs out is not inspected and is refused (`Verdict::fail_closed`),
+/// never passed: no amount of padding buys an uninspected request.
+pub const BODY_BUDGET_NS_PER_KB: u64 = 4_000_000;
+pub const BODY_BUDGET_CAP_NS: u64 = 2_500_000_000;
 
 #[derive(Debug)]
 pub struct Tx {
@@ -1002,6 +1020,32 @@ impl Tx {
         if let Some(s) = self.sample.as_mut() {
             s.add_headers(headers);
         }
+        // the budget grows with the request line and headers as with the
+        // body: a long query or many cookies is work too (22/10/2026)
+        if let Some(b) = self.budget.as_mut() {
+            let (per_kb, cap) = self.body_budget;
+            let bytes = self.line.as_ref().map_or(0, |l| l.buf.len())
+                + headers
+                    .iter()
+                    .map(|(k, v)| k.len() + v.len())
+                    .sum::<usize>();
+            b.extend((bytes as u64).saturating_mul(per_kb) / 1024, cap);
+        }
+        #[cfg(feature = "test-hooks")]
+        if !self.degraded
+            && self
+                .line
+                .as_ref()
+                .is_some_and(|l| contains_ignore_case(&l.buf, SPIN_NEEDLE))
+            && let Some(b) = self.budget.as_mut()
+        {
+            let t = std::time::Instant::now();
+            while b.check().is_ok() && t.elapsed() < std::time::Duration::from_secs(10) {
+                std::hint::black_box(&t);
+            }
+            self.set_budget_exceeded();
+            return if self.matched { OK } else { E_BUDGET };
+        }
         for (k, v) in headers {
             let rc = self.request_header(k, v);
             if rc != OK {
@@ -1377,14 +1421,12 @@ impl Tx {
         v.need_response = (self.error == OK || self.error == E_BUDGET) && self.wants_body();
         v.id = self.id;
         v.canary = self.canary;
-        // #98: the budget ran out on an enforced request that already has
-        // findings (score above 0: rules matched below the threshold; the
-        // signature pack in shadow and score-0 rules do not count)
-        v.fail_closed = self.fail_on_findings
-            && self.error == E_BUDGET
-            && !self.matched
-            && !self.shadow
-            && self.score > 0;
+        // 22/10/2026: a request that runs the budget out was not inspected
+        // whole; enforced, it is refused whatever strata_fail_mode says (the
+        // budget fits every request the engine can inspect, see
+        // BODY_BUDGET_NS_PER_KB). Before, #98 did so only with findings and
+        // `fail_on_findings: block`: padding first, payload last passed.
+        v.fail_closed = self.error == E_BUDGET && !self.matched && !self.shadow;
         v
     }
 
@@ -2008,8 +2050,8 @@ mod tests {
         assert_eq!(v.score, 120);
     }
 
-    /// #28: 0.5 ms more per KB of body, up to 100 ms in all; a budget
-    /// set higher stays.
+    /// 4 ms more per KB of request (22/10/2026; #28: 0.5 ms per KB of
+    /// body), up to 2.5 s in all; a budget set higher stays.
     #[test]
     fn the_budget_grows_with_the_body() {
         let budget = |base_us: u64, body: usize| {
@@ -2018,10 +2060,11 @@ mod tests {
             let _ = t.request_body_chunk(&vec![b'a'; body], true);
             t.budget.as_ref().map_or(0, |b| b.budget_ns())
         };
-        assert_eq!(budget(10_000, 64 * 1024), 42_000_000);
-        assert_eq!(budget(10_000, 1024 * 1024), 100_000_000, "capped");
+        assert_eq!(budget(10_000, 64 * 1024), 266_000_000);
+        assert_eq!(budget(10_000, 512 * 1024), 2_058_000_000);
+        assert_eq!(budget(10_000, 1024 * 1024), 2_500_000_000, "capped");
         assert_eq!(budget(10_000, 0), 10_000_000);
-        assert_eq!(budget(500_000, 64 * 1024), 500_000_000, "set higher");
+        assert_eq!(budget(3_000_000, 64 * 1024), 3_000_000_000, "set higher");
     }
 
     fn with_policy(policy: &[u8], flags: u32) -> Tx {

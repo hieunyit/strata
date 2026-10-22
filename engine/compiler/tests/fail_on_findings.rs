@@ -1,9 +1,9 @@
-//! #98 (PO 15/10/2026): a policy with `fail_on_findings: block` fails
-//! closed when the CPU budget runs out on a request that already has
-//! findings (score above 0), whatever the connector's fail mode: the
-//! verdict carries `fail_closed` (ABI flag STRATA_VF_FAIL_CLOSED). Without
-//! findings, in shadow, or with the default `pass`, the fail mode decides
-//! as before.
+//! A request that runs the CPU budget out was not inspected whole: in an
+//! enforced policy the verdict carries `fail_closed` (ABI flag
+//! STRATA_VF_FAIL_CLOSED, 503) whatever the connector's fail mode, with or
+//! without findings (22/10/2026; before, #98 did so only with findings and
+//! `fail_on_findings: block`, so padding first and the payload last
+//! passed). A shadow policy never blocks.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -77,7 +77,7 @@ fn out_of_budget(e: &Arc<Engine>, policy: &[u8], query: &str) -> Tx {
 }
 
 #[test]
-fn budget_out_with_findings_fails_closed() {
+fn budget_out_fails_closed_with_findings() {
     let e = engine(POLICIES).unwrap();
     let t = out_of_budget(&e, b"example-api", "q=weak-sign");
     let v = t.verdict();
@@ -87,20 +87,25 @@ fn budget_out_with_findings_fails_closed() {
 }
 
 #[test]
-fn otherwise_the_fail_mode_decides() {
+fn budget_out_fails_closed_without_findings_too() {
     let e = engine(POLICIES).unwrap();
-    // no finding
+    // no finding: the uninspected rest could hold the payload
     assert!(
-        !out_of_budget(&e, b"example-api", "q=plain")
+        out_of_budget(&e, b"example-api", "q=plain")
             .verdict()
             .fail_closed
     );
-    // findings, but the policy keeps the default (pass)
+    // a policy without fail_on_findings
     assert!(
-        !out_of_budget(&e, b"example-web", "q=weak-sign")
+        out_of_budget(&e, b"example-web", "q=plain")
             .verdict()
             .fail_closed
     );
+}
+
+#[test]
+fn shadow_and_inspected_requests_do_not_fail() {
+    let e = engine(POLICIES).unwrap();
     // findings in a shadow policy: never blocks
     assert!(
         !out_of_budget(&e, b"example-shadow", "q=weak-sign")

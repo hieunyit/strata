@@ -97,9 +97,10 @@ fn staging_keeps_detection_logs_and_other_policy_enforcement() {
     // cannot short-circuit evaluation of subsequent rules.
     let t = tx(engine(&[700011]), b"example-api", b"first alone");
     assert_eq!(t.verdict().action, ACTION_BLOCK);
+    // out of budget, enforced: refused, a staged match or not (22/10/2026)
     let mut t = tx(e.clone(), b"example-api", b"first");
     t.set_budget_exceeded();
-    assert!(!t.verdict().fail_closed);
+    assert!(t.verdict().fail_closed);
     let mut t = tx(e, b"example-api", b"first second");
     t.set_budget_exceeded();
     assert!(t.verdict().fail_closed);
