@@ -135,8 +135,10 @@ type Overview struct {
 	Series         []Bucket       `json:"series"`
 	TopRules       []RuleCount    `json:"top_rules"`
 	TopRoutes      []RouteCount   `json:"top_routes"`
-	// TopClients is nil when the filter did not ask for it.
-	TopClients []ClientCount `json:"top_clients,omitempty"`
+	// TopClients is nil (JSON null) when the filter did not ask for it, and
+	// empty when it did and no client matched: a client must tell "hidden"
+	// from "none" (the Overview showed admins the viewer's notice).
+	TopClients []ClientCount `json:"top_clients"`
 	// Inspection: per policy, the requests of the window and the share not
 	// fully inspected (RV-N-01), from the nodes' counters.
 	Inspection []PolicyInspection `json:"inspection"`

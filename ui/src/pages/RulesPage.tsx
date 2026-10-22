@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient, RuleCatalogDetail, RuleCatalogDiff, RuleCatalogPage, RuleCatalogSnapshot } from '../api/client';
 import { AppShell } from '../components/layout/AppShell';
-import { PageHeader } from '../components/ui';
+import { PageHeader, formatTime } from '../components/ui';
 import { ApplicationScope } from '../components/applications/ApplicationScope';
 
 export const RulesPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [page, setPage] = useState<RuleCatalogPage>(), [history, setHistory] = useState<RuleCatalogSnapshot[]>([]);
   const [source, setSource] = useState(''), [cve, setCve] = useState(''), [attack, setAttack] = useState('');
   const [query, setQuery] = useState({ source: '', cve: '', attack_type: '', after: '' }), [refresh, setRefresh] = useState(0);
@@ -43,9 +43,9 @@ export const RulesPage: React.FC = () => {
     {error && <p role="alert" className="panel p-3 mb-3">{t('lifecycle.unavailable')}</p>}
     {page?.stale && <p role="status" className="panel p-3 mb-3">{t('lifecycle.stale')}</p>}
     {page && <section className="panel overflow-auto mb-3">
-      <p className="p-3 text-sm text-muted">{t('lifecycle.catalogCount', { count: page.total })} · {page.at}</p>
+      <p className="p-3 text-sm text-muted">{t('lifecycle.catalogCount', { count: page.total })} · {formatTime(page.at, i18n.language, '—')}</p>
       <table className="w-full text-sm"><thead><tr>{['rule','source','version','attack','owner','review'].map((key) => <th className="p-2 text-left" key={key}>{t(`lifecycle.${key}`)}</th>)}</tr></thead><tbody>
-        {page.rules.map((r) => <tr key={r.id} className="border-t border-line"><td className="p-2"><button className="text-accent" disabled={!app || !env} onClick={() => void open(r.id)}>{r.id} · {r.name}</button><p>{r.cves?.join(', ')}</p></td><td className="p-2">{r.source} · {t(`lifecycle.packs.${r.pack}`)}</td><td className="p-2">{r.version || t('lifecycle.unknown')}</td><td className="p-2">{r.attack_type || '—'}</td><td className="p-2">{r.owner || t('lifecycle.unknown')}</td><td className="p-2">{r.review_by || t('lifecycle.unknown')}</td></tr>)}
+        {page.rules.map((r) => <tr key={r.id} className="border-t border-line"><td className="p-2"><button className="text-accent" disabled={!app || !env} onClick={() => void open(r.id)}>{r.id} · {r.name}</button><p>{r.cves?.join(', ')}</p></td><td className="p-2">{r.source} · {t(`lifecycle.packs.${r.pack}`)}</td><td className="p-2">{r.version || t('lifecycle.unknown')}</td><td className="p-2">{r.attack_type || '—'}</td><td className="p-2" title={r.owner ? undefined : t('lifecycle.unknown')}>{r.owner || '—'}</td><td className="p-2" title={r.review_by ? undefined : t('lifecycle.unknown')}>{r.review_by || '—'}</td></tr>)}
       </tbody></table>
       {page.next_cursor > 0 && <button className="btn m-3" disabled={loading} onClick={() => setQuery({ ...query, after: String(page.next_cursor) })}>{t('common.next')}</button>}
       {query.after && <button className="btn m-3" onClick={() => setQuery({ ...query, after: '' })}>{t('lifecycle.firstPage')}</button>}

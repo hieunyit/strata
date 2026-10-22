@@ -30,9 +30,9 @@ export const SecurityPage:React.FC=()=>{
     {!state?<p>{t('security.loading')}</p>:<>
      <p>{t(state.enabled?'security.enabled':'security.disabled')}{state.enabled&&` · ${t('security.remaining',{count:state.recovery_remaining})}`}</p>
      {!state.available&&<p>{t('security.unavailable')}</p>}
-     <p className="text-sm text-muted">{t('security.revokeWarning')}</p>
+     {(state.available||state.enabled)&&<><p className="text-sm text-muted">{t('security.revokeWarning')}</p>
      <label className="block">{t('security.password')}<input className="field block w-full" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
-     {!state.enabled&&!enrollment&&<button className="btn-primary" disabled={busy||!password||!state.available} onClick={()=>void act('begin')}>{t('security.begin')}</button>}
+     {!state.enabled&&!enrollment&&<button className="btn-primary" disabled={busy||!password||!state.available} onClick={()=>void act('begin')}>{t('security.begin')}</button>}</>}
      {enrollment&&<div data-testid="mfa-enrollment" className="space-y-2"><p>{t('security.enrollInstruction')}</p><code className="block break-all select-all">{enrollment.secret}</code><p className="font-mono text-xs break-all">{enrollment.uri}</p><p>{t('security.expires',{at:new Date(enrollment.expires_at).toLocaleString()})}</p></div>}
      {(state.enabled||enrollment)&&<><label className="block">{t(recovery?'security.recoveryCode':'security.code')}<input className="field block w-full" autoComplete="one-time-code" maxLength={64} value={code} onChange={e=>setCode(e.target.value.trim())}/></label>
       {state.enabled&&<label className="flex gap-2"><input type="checkbox" checked={recovery} onChange={e=>setRecovery(e.target.checked)}/>{t('security.useRecovery')}</label>}

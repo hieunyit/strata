@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Globe2, ScrollText, FileCog, GitPullRequest, Server, Users, History, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { LayoutDashboard, Globe2, ScrollText, FileCog, GitPullRequest, Server, Users, History, PanelLeftClose, PanelLeftOpen, X, AppWindow, ListChecks, ShieldOff, Rocket, HeartPulse, BellRing, Radar, KeyRound } from 'lucide-react';
 import { Header } from './Header';
 import { Page, href } from '../../router';
 import { readPref, writePref } from '../../lib/prefs';
@@ -16,32 +16,37 @@ export const StrataMark: React.FC<{ className?: string }> = ({ className = 'w-7 
   </svg>
 );
 
+// Sections of the menu, in order: what is happening, what protects,
+// running the system, accounts.
+export type NavGroup = 'monitor' | 'protect' | 'operate' | 'admin';
+
 interface NavItem {
   page: Page;
+  group: NavGroup;
   icon: React.ComponentType<{ className?: string }>;
   /** shown only when this returns true */
   visible?: (roles: string[], localAuth: boolean) => boolean;
 }
 
 export const navItems: NavItem[] = [
-  { page: 'applications', icon: FileCog },
-  { page: 'overview', icon: LayoutDashboard },
-  { page: 'map', icon: Globe2 },
-  { page: 'events', icon: ScrollText },
-  { page: 'policies', icon: FileCog },
- {page:'rules',icon:ScrollText},
- {page:'exceptions',icon:FileCog},
-  { page: 'reviews', icon: GitPullRequest },
-  { page:'releases',icon:GitPullRequest },
-  { page: 'fleet', icon: Server },
-  { page:'health',icon:Server },
-  {page:'operations',icon:History},
-  {page:'discovery',icon:Globe2},
-  { page:'security',icon:Users,visible:(_roles,localAuth)=>localAuth },
+  { page: 'overview', group: 'monitor', icon: LayoutDashboard },
+  { page: 'map', group: 'monitor', icon: Globe2 },
+  { page: 'events', group: 'monitor', icon: ScrollText },
+  { page: 'applications', group: 'protect', icon: AppWindow },
+  { page: 'policies', group: 'protect', icon: FileCog },
+  { page: 'rules', group: 'protect', icon: ListChecks },
+  { page: 'exceptions', group: 'protect', icon: ShieldOff },
+  { page: 'reviews', group: 'protect', icon: GitPullRequest },
+  { page: 'releases', group: 'protect', icon: Rocket },
+  { page: 'fleet', group: 'operate', icon: Server },
+  { page: 'health', group: 'operate', icon: HeartPulse },
+  { page: 'operations', group: 'operate', icon: BellRing },
+  { page: 'discovery', group: 'operate', icon: Radar },
+  { page: 'security', group: 'admin', icon: KeyRound, visible: (_roles, localAuth) => localAuth },
   // local accounts: admins only, when the control plane has them
-  { page: 'users', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
+  { page: 'users', group: 'admin', icon: Users, visible: (roles, localAuth) => localAuth && roles.includes('admin') },
   // audit trail: admins only (audit:read)
-  { page: 'audit', icon: History, visible: (roles) => roles.includes('admin') },
+  { page: 'audit', group: 'admin', icon: History, visible: (roles) => roles.includes('admin') },
 ];
 
 const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => void; onNavigate?: () => void }> = ({
@@ -67,10 +72,17 @@ const Sidebar: React.FC<{ active: Page; collapsed: boolean; onToggle?: () => voi
       <ul className="mt-2 flex-1 space-y-0.5 px-2">
         {navItems
           .filter((n) => (!scoped || !['users','audit','releases'].includes(n.page)) && (!n.visible || n.visible(roles, methods.local)))
-          .map(({ page, icon: Icon }) => {
+          .map(({ page, group, icon: Icon }, i, shown) => {
             const on = page === current;
+            const first = i === 0 || shown[i - 1].group !== group;
             return (
               <li key={page}>
+                {first && !collapsed && (
+                  <div className={`px-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-rail-ink/50 ${i === 0 ? 'pt-1' : 'pt-4'}`}>
+                    {t(`nav.group.${group}`)}
+                  </div>
+                )}
+                {first && collapsed && i > 0 && <div className="mx-2 my-2 border-t border-rail-ink/15" aria-hidden />}
                 <a
                   href={href({ page })}
                   onClick={onNavigate}

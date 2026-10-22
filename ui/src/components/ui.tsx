@@ -129,6 +129,28 @@ export function formatCount(n: number | undefined, locale: string): string {
   return new Intl.NumberFormat(locale).format(n ?? 0);
 }
 
+/** 2147483648 -> "2 GiB"; values the API sends as a count of bytes. */
+export function formatBytes(n: number | string | undefined, locale: string): string {
+  const v = typeof n === 'string' ? Number(n) : n;
+  if (v === undefined || !Number.isFinite(v)) return '—';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let x = v;
+  let i = 0;
+  while (Math.abs(x) >= 1024 && i < units.length - 1) {
+    x /= 1024;
+    i++;
+  }
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: i === 0 ? 0 : 1 }).format(x)} ${units[i]}`;
+}
+
+/** "lab-operator (oidc:8e1c…)" -> "lab-operator": the name a record was
+ * made by, without its subject (shown in full as a tooltip). */
+export function actorName(actor: string | undefined): string {
+  if (!actor) return '';
+  const i = actor.indexOf(' (');
+  return i > 0 && actor.endsWith(')') ? actor.slice(0, i) : actor;
+}
+
 export function formatTime(iso: string | undefined, locale: string, never: string): string {
   if (!iso) return never;
   const d = new Date(iso);
