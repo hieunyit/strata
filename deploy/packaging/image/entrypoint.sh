@@ -19,7 +19,12 @@ if [ ! -s "$ident/node-id" ]; then
         --token-file="$tok" --identity-dir="$ident" || { rm -f "$tok"; exit 1; }
     rm -f "$tok"
 fi
-install -o strata -g strata -m 0644 "$ident/bundle.pub" /var/lib/strata/bundles/bundle.pub
+# root owns NGINX's copy of the bundle key, taken once at enrollment: the
+# agent user must not choose the key the root master trusts (audit 22/10/2026)
+if [ ! -s /etc/strata/bundle.pub ]; then
+    install -d -o root -g root -m 0755 /etc/strata
+    install -o root -g root -m 0644 "$ident/bundle.pub" /etc/strata/bundle.pub
+fi
 sed "s|@NODE_ID@|$(cat "$ident/node-id")|" /usr/share/nginx-module-strata/strata.conf.example > /etc/nginx/conf.d/strata.conf
 
 setpriv --reuid=strata --regid=strata --init-groups strata-agent run \

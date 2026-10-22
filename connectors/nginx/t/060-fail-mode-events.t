@@ -162,9 +162,12 @@ _EOC_
 }
 
 sub start {
+    my ($before_exec) = @_;
     $pid = fork() // die "fork: $!";
     if ($pid == 0) {
         open STDERR, ">>", "$root/logs/stderr.log";
+        # the child becomes the master: it knows the master's pid
+        $before_exec->() if $before_exec;
         exec "nginx", "-p", "$root/", "-c", "conf/nginx.conf";
         _exit(127);
     }
@@ -612,6 +615,33 @@ subtest "no bundle, fail mode closed: 503 with an Event ID" => sub {
     like($r->{headers}{"x-id"} // "", qr/^EVT-/, "Event ID");
     is($d->[C_CLOSED], 1, "fail closed +1");
     is(metrics()->{c}[C_BUNDLE], 0, "no bundle version");
+};
+
+stop();
+
+# ---------------------------------------------------------------------------
+# audit 22/10/2026: the metrics file is made in a directory the agent user
+# owns; a link planted at the master's temporary name must not make the
+# master (root) truncate or map another file
+
+fresh();
+bundle([]);
+listen_events();
+write_conf();
+my $victim = "$root/victim";
+{
+    open my $fh, ">", $victim or die "victim: $!";
+    print $fh "do not touch\n";
+}
+start(sub { symlink($victim, "$root/metrics.tmp.$$") or die "symlink: $!" });
+sleep 0.3;
+
+subtest "a planted link is not followed" => sub {
+    open my $fh, "<", $victim or die "victim: $!";
+    my $text = do { local $/; <$fh> };
+    is($text, "do not touch\n", "the link's target is unchanged");
+    ok(!-l "$root/metrics", "the metrics file is not a link");
+    is(metrics()->{magic}, "STRMET1\0", "the metrics file was made");
 };
 
 stop();
