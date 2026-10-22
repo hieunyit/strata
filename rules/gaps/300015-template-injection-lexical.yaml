@@ -12,6 +12,11 @@ rule:
   stage: request_body
   match:
     all:
+    # gate (22/10/2026): what the detector needs at least, so the prefilter
+    # skips the rule on requests without it (ssti.rs: an opener {{ ${ #{ *{ <%)
+    - targets: [ { var: user_input } ]
+      transforms: [ url_decode_uni ]
+      operator: { type: rx, value: '\{\{|[$#*]\{|<%' }
     - targets: [ { var: user_input } ]
       transforms: [ url_decode_uni ]
       operator: { type: detect_ssti }

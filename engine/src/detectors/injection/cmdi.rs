@@ -114,6 +114,17 @@ pub fn detect(input: &[u8]) -> bool {
     if input.is_empty() {
         return false;
     }
+    // Every shape below but the first token's needs one of these bytes
+    // ($IFS, a path, substitution, a separator, 2>&1): ordinary text
+    // without them is decided on its first token alone, in one pass.
+    if !input
+        .iter()
+        .any(|&c| matches!(c, b'$' | b'/' | b'`' | b';' | b'|' | b'&' | b'\n' | b'\r'))
+    {
+        let start = skip_shell_whitespace(input, 0);
+        return command_with_argument(&input[start..], false)
+            || starts_with_shell_interpreter(input);
+    }
 
     // Shell IFS evasion: $IFS or ${IFS} (the second contains no "$IFS").
     if contains(input, b"$IFS") || contains(input, b"${IFS}") {
