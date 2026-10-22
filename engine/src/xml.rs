@@ -115,7 +115,7 @@ pub fn parse_checked_with_budget(
                 i + 9 + e + 3
             })
         } else if rest.starts_with(b"<!") {
-            doctype_end(rest, budget.as_deref_mut())?.map(|e| i + e)
+            doctype_end(rest, &mut x.text, budget.as_deref_mut())?.map(|e| i + e)
         } else if rest.starts_with(b"</") {
             memchr_8k(b'>', rest, budget.as_deref_mut())?.map(|e| i + e + 1)
         } else {
@@ -139,16 +139,26 @@ pub fn parse(b: &[u8]) -> Xml {
     parse_with_budget(b, None).unwrap()
 }
 
-/// End of `<!DOCTYPE ...>`, with an internal subset `[...]` skipped.
+/// End of `<!DOCTYPE ...>`. Its internal subset `[...]` goes to the
+/// document's text (audit 22/10/2026): parsers that expand internal
+/// entities (Java, .NET, Python) see the replacement text where `&name;`
+/// is used, so it is inspected; references are never expanded here.
 fn doctype_end(
     rest: &[u8],
+    text: &mut Vec<u8>,
     mut budget: Option<&mut crate::budget::TxBudget>,
 ) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
     let Some(gt) = memchr_8k(b'>', rest, budget.as_deref_mut())? else {
         return Ok(None);
     };
     match memchr_8k(b'[', &rest[..gt], budget.as_deref_mut())? {
-        Some(open) => Ok(memmem_8k(&rest[open..], b"]>", budget)?.map(|e| open + e + 2)),
+        Some(open) => {
+            let Some(e) = memmem_8k(&rest[open..], b"]>", budget.as_deref_mut())? else {
+                return Ok(None);
+            };
+            decode_into(&rest[open + 1..open + e], text, budget)?;
+            Ok(Some(open + e + 2))
+        }
         None => Ok(Some(gt + 1)),
     }
 }
@@ -282,6 +292,24 @@ fn trim(v: &[u8]) -> &[u8] {
 
 #[cfg(test)]
 mod tests {
+    /// Audit 22/10/2026: a payload in an internal entity is inspected.
+    #[test]
+    fn internal_entities_are_in_the_text() {
+        let body = b"<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY p \"' UNION SELECT 1--\">]><r><q>&p;</q></r>";
+        let (x, whole) = super::parse_checked_with_budget(body, None).unwrap();
+        assert!(whole);
+        assert!(
+            x.text.windows(12).any(|w| w == b"UNION SELECT"),
+            "{}",
+            String::from_utf8_lossy(&x.text)
+        );
+        // a DOCTYPE without an internal subset adds nothing
+        let (x, _) =
+            super::parse_checked_with_budget(b"<!DOCTYPE r SYSTEM \"x.dtd\"><r>a</r>", None)
+                .unwrap();
+        assert_eq!(x.text, b"a");
+    }
+
     use super::*;
 
     #[test]
@@ -306,9 +334,11 @@ mod tests {
 <root a="1 &lt;b&gt;" b='&#x41;&#66;&amp;'><t>ftp%3A%2F%2F</t><![CDATA[<x>]]><e/>&e;</root>"#,
         );
         assert_eq!(x.attrs, [b"1 <b>".to_vec(), b"AB&".to_vec()]);
+        // audit 22/10/2026: the DTD's internal subset is inspected text
         assert_eq!(
-            x.text, b"\nftp%3A%2F%2F<x>&e;",
-            "comments and DTD skipped, entity not expanded"
+            x.text,
+            &b"<!ENTITY e SYSTEM \"file:///etc/passwd\">\nftp%3A%2F%2F<x>&e;"[..],
+            "comments skipped, internal subset kept, entity not expanded"
         );
     }
 
