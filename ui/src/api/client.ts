@@ -16,6 +16,12 @@ export type RuleCatalogPage = components['schemas']['RuleCatalogPage'];
 export type RuleCatalogDetail = components['schemas']['RuleCatalogDetail'];
 export type RuleCatalogSnapshot = components['schemas']['RuleCatalogSnapshot'];
 export type RuleCatalogDiff = components['schemas']['RuleCatalogDiff'];
+export type RuleSet = components['schemas']['RuleSet'];
+export type RuleSetList = components['schemas']['RuleSetList'];
+export type RuleSetRules = components['schemas']['RuleSetRules'];
+export type RuleActionsDraft = components['schemas']['RuleActionsDraft'];
+export type EffectiveRule = components['schemas']['EffectiveRule'];
+export type EffectiveRules = components['schemas']['EffectiveRules'];
 export type ExceptionInventoryPage = components['schemas']['ExceptionInventoryPage'];
 export type ExceptionLifecycleRequest = components['schemas']['ExceptionLifecycleRequest'];
 export type Event = components['schemas']['Event'];
@@ -477,6 +483,28 @@ export const apiClient = {
   async listPolicies(signal?: AbortSignal): Promise<Policy[]> {
     const r = await call<admin['schemas']['v1ListPoliciesResponse']>('/policies', { method: 'GET', signal }, 'Failed to list policies');
     return r.policies ?? [];
+  },
+
+  /** GET /v1/rule-sets: the built-in rule sets, with their rule count (RS-3) */
+  async listRuleSets(signal?: AbortSignal): Promise<RuleSetList> {
+    return call<RuleSetList>('/rule-sets', { method: 'GET', signal }, 'Rule sets unavailable');
+  },
+
+  /** GET /v1/rule-sets/{name}/rules: one page of a set's rules (RS-3) */
+  async listRuleSetRules(name: string, q = '', after = 0, signal?: AbortSignal): Promise<RuleSetRules> {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (after) params.set('after', String(after));
+    return call<RuleSetRules>(`/rule-sets/${encodeURIComponent(name)}/rules?${params}`, { method: 'GET', signal }, 'Rules of the set unavailable');
+  },
+
+  /** POST /v1/rule-sets:resolve: what each rule does under a draft (RS-3b) */
+  async resolveRuleActions(draft: RuleActionsDraft, opts: { q?: string; after?: number; changed?: boolean } = {}, signal?: AbortSignal): Promise<EffectiveRules> {
+    const params = new URLSearchParams();
+    if (opts.q) params.set('q', opts.q);
+    if (opts.after) params.set('after', String(opts.after));
+    if (opts.changed) params.set('changed', '1');
+    return call<EffectiveRules>(`/rule-sets:resolve?${params}`, { ...json('POST', draft), signal }, 'Rule actions unavailable');
   },
 
   /** GET /v1/policyTemplates: the templates a new policy can start from (W20-S-01) */

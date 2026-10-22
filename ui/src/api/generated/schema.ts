@@ -17,6 +17,18 @@ export interface paths {
   "/v1/rule-catalogs:diff": {
     get: operations["diffRuleCatalogs"];
   };
+  "/v1/rule-sets": {
+    /** @description RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an action (rule_sets of the policy spec), with how many rules of the configured catalog each one holds. Needs policies:read. */
+    get: operations["listRuleSets"];
+  };
+  "/v1/rule-sets/{name}/rules": {
+    /** @description RS-3. The rules of the configured catalog in a built-in set, by Rule ID, 200 a page. Needs policies:read. */
+    get: operations["listRuleSetRules"];
+  };
+  "/v1/rule-sets:resolve": {
+    /** @description RS-3b. What each detection rule of the configured catalog does under a draft of a policy's paranoia levels, rule sets and overrides, saved or not, as the engine runs it - paranoia level first, then overrides, then sets (a later one wins), then the rule itself. By Rule ID, 200 a page. Needs policies:read. */
+    post: operations["resolveRuleActions"];
+  };
   "/v1/exceptions": {
     get: operations["listExceptionInventory"];
   };
@@ -367,6 +379,75 @@ export interface components {
     };
     RuleCatalogEntry: components["schemas"]["RuleMetadata"] & {
       id: number;
+    };
+    /** @description A rule is in the set when it matches every non-empty list (tags, any of them), or is one of ids. */
+    RuleSetFilter: {
+      sources?: string[];
+      attack_types?: string[];
+      tags?: string[];
+      ids?: number[];
+    };
+    RuleSet: {
+      name: string;
+      /** @enum {string} */
+      group: "attack" | "signature" | "technology" | "bot";
+      /**
+       * @description Of a bot set.
+       * @enum {string}
+       */
+      class?: "malicious" | "automation" | "untrusted" | "trusted";
+      title: {
+        [key: string]: string;
+      };
+      match: components["schemas"]["RuleSetFilter"];
+      rule_count?: number;
+    };
+    RuleSetList: {
+      sets: components["schemas"]["RuleSet"][];
+      catalog_available: boolean;
+    };
+    RuleSetRule: components["schemas"]["RuleCatalogEntry"] & {
+      tags?: string[];
+    };
+    RuleSetRules: {
+      set: string;
+      rules: components["schemas"]["RuleSetRule"][];
+      total: number;
+      /** @description 0 on the last page. */
+      next_cursor: number;
+    };
+    RuleActionsDraft: {
+      crs_paranoia?: number;
+      crs_paranoia_shadow?: number;
+      rule_sets?: ({
+          set: string;
+          /** @enum {string} */
+          action: "off" | "log" | "block" | "default";
+        })[];
+      rule_overrides?: ({
+          rule: number;
+          /** @enum {string} */
+          action: "off" | "log" | "block" | "default";
+          reason: string;
+        })[];
+    };
+    EffectiveRule: components["schemas"]["RuleSetRule"] & ({
+      /** @enum {string} */
+      action: "off" | "log" | "block" | "score";
+      /** @enum {string} */
+      own: "off" | "log" | "score";
+      /** @enum {string} */
+      source: "rule" | "paranoia" | "set" | "override";
+      set?: string;
+      reason?: string;
+    });
+    EffectiveRules: {
+      rules: components["schemas"]["EffectiveRule"][];
+      total: number;
+      next_cursor: number;
+      counts: {
+        [key: string]: number;
+      };
     };
     RuleCatalogPage: {
       rules: components["schemas"]["RuleCatalogEntry"][];
@@ -1743,6 +1824,87 @@ export interface operations {
       };
       403: components["responses"]["Forbidden"];
       /** @description Catalog or telemetry unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  /** @description RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an action (rule_sets of the policy spec), with how many rules of the configured catalog each one holds. Needs policies:read. */
+  listRuleSets: {
+    responses: {
+      /** @description Every built-in set; rule_count is absent while the catalog is unavailable. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleSetList"];
+        };
+      };
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  /** @description RS-3. The rules of the configured catalog in a built-in set, by Rule ID, 200 a page. Needs policies:read. */
+  listRuleSetRules: {
+    parameters: {
+      query?: {
+        /** @description Part of the Rule ID or of the name, at most 64 bytes. */
+        q?: string;
+        /** @description next_cursor of the previous page. */
+        after?: number;
+      };
+      path: {
+        name: string;
+      };
+    };
+    responses: {
+      /** @description One page of the set's rules. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RuleSetRules"];
+        };
+      };
+      /** @description Invalid query */
+      400: {
+        content: never;
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description No such rule set */
+      404: {
+        content: never;
+      };
+      /** @description Catalog unavailable */
+      503: {
+        content: never;
+      };
+    };
+  };
+  /** @description RS-3b. What each detection rule of the configured catalog does under a draft of a policy's paranoia levels, rule sets and overrides, saved or not, as the engine runs it - paranoia level first, then overrides, then sets (a later one wins), then the rule itself. By Rule ID, 200 a page. Needs policies:read. */
+  resolveRuleActions: {
+    parameters: {
+      query?: {
+        /** @description Part of the Rule ID or of the name, at most 64 bytes. */
+        q?: string;
+        after?: number;
+        /** @description 1 keeps the rules whose action is not their own. */
+        changed?: "1";
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuleActionsDraft"];
+      };
+    };
+    responses: {
+      /** @description One page; counts are of every rule, whatever q and changed. */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EffectiveRules"];
+        };
+      };
+      /** @description Invalid draft or query */
+      400: {
+        content: never;
+      };
+      403: components["responses"]["Forbidden"];
+      /** @description Catalog unavailable */
       503: {
         content: never;
       };

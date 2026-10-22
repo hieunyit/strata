@@ -641,6 +641,30 @@ export interface components {
       action?: components["schemas"]["PolicyGeoRuleAction"];
     };
     /**
+     * @description What a policy makes of the rules of a set, or of one rule.
+     *
+     *  - POLICY_RULE_ACTION_UNSPECIFIED: the rule's own behaviour
+     *  - POLICY_RULE_ACTION_OFF: the rule does not run for the policy
+     *  - POLICY_RULE_ACTION_LOG: reported with an Event ID, never blocks
+     *  - POLICY_RULE_ACTION_BLOCK: a match blocks alone (also a rule that only scores, such as the bot
+     * lists, and a rule of the signature pack)
+     * @default POLICY_RULE_ACTION_UNSPECIFIED
+     * @enum {string}
+     */
+    v1PolicyRuleAction: "POLICY_RULE_ACTION_UNSPECIFIED" | "POLICY_RULE_ACTION_OFF" | "POLICY_RULE_ACTION_LOG" | "POLICY_RULE_ACTION_BLOCK";
+    v1PolicyRuleOverride: {
+      /** Format: int64 */
+      rule?: number;
+      action?: components["schemas"]["v1PolicyRuleAction"];
+      /** 1 to 256 characters */
+      reason?: string;
+    };
+    v1PolicyRuleSet: {
+      /** e.g. bots-scanners */
+      set?: string;
+      action?: components["schemas"]["v1PolicyRuleAction"];
+    };
+    /**
      * @description PolicySpec is what the bundle carries for the policy
      * (docs/spec/policies.schema.json).
      */
@@ -714,6 +738,18 @@ export interface components {
       geo_rules?: components["schemas"]["v1PolicyGeoRule"][];
       template?: components["schemas"]["v1PolicyTemplateRef"];
       parse_error?: components["schemas"]["PolicySpecParseError"];
+      /**
+       * @description RS-3 (docs/plan/rule-sets.md): built-in rule sets (GET /v1/rule-sets)
+       * with the policy's action for their rules; a later set wins for a rule
+       * in two. At most 32. Modules from before RS-1 refuse bundles where a set
+       * or override changes a rule: upgrade them first.
+       */
+      rule_sets?: components["schemas"]["v1PolicyRuleSet"][];
+      /**
+       * @description Actions of single rules, over the rule sets; at most 2048, each with a
+       * reason.
+       */
+      rule_overrides?: components["schemas"]["v1PolicyRuleOverride"][];
     };
     v1PolicyTemplate: {
       name?: string;

@@ -6,6 +6,7 @@
 // Anything else is an error with its line, never guessed.
 import type { components } from '../api/generated/admin';
 import { normalizeGeoRule } from './geoRules';
+import { normalizeRuleActions } from './ruleSets';
 
 export type PolicySpec = components['schemas']['v1PolicySpec'];
 type Mode = NonNullable<PolicySpec['mode']>;
@@ -276,7 +277,8 @@ export function normalizeSpec(spec: PolicySpec): PolicySpec {
     if (!(r.data_guard?.length)) delete response.data_guard;
     if (Object.keys(response).length) out.response = response;
   }
-  return out;
+  // RS-4: rule sets and overrides as the API stores them (form only)
+  return normalizeRuleActions(out);
 }
 
 // The basic YAML form owns only these fields. Preserve the rest across edits;
@@ -290,7 +292,7 @@ export function mergeYamlSpec(base: PolicySpec, editable: PolicySpec): PolicySpe
 
 export function advancedSpec(spec: PolicySpec): Record<string, unknown> {
   const out: Record<string, unknown> = { ...spec };
-  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow', 'crs_plugins', 'geo_rules']) delete out[key];
+  for (const key of ['mode', 'oversize', 'canary_percent', 'response', 'crs_paranoia', 'crs_paranoia_shadow', 'crs_plugins', 'geo_rules', 'rule_sets', 'rule_overrides']) delete out[key];
   // Zero/empty values emitted by protojson are equivalent to an absent default.
   for (const [key, value] of Object.entries(out)) {
     if (value === 0 || value === null || value === '' || (Array.isArray(value) && !value.length)
