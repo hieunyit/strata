@@ -1,0 +1,56 @@
+# Strata protocol pack (W05-S-01); format: rules/schema/rule.schema.json.
+# Audit 22/10/2026 (F-03): an internal entity carries text the application's
+# parser puts where &name; is used. Its text is now inspected as XML text;
+# this rule also lets policies score the declaration itself (few APIs take
+# DTDs).
+rule:
+  id: 100141
+  name: XML entity declaration in a request body
+  layer: protocol
+  stage: request_body
+  match:
+    all:
+    - targets:
+      - var: body_processor
+      operator:
+        type: streq
+        value: XML
+    - targets:
+      - var: request_body
+      operator:
+        type: rx
+        value: '(?i)<!entity\s'
+  score: 30
+  action_mode: score
+  severity: warning
+  metadata:
+    source: strata
+    license: Apache-2.0
+    attack_type: protocol
+tests:
+  match:
+  - method: POST
+    uri: /v1/import
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/xml
+    body: '<?xml version="1.0"?><!DOCTYPE r [<!ENTITY p "text">]><r>&p;</r>'
+  no_match:
+  - method: POST
+    uri: /v1/import
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/xml
+    body: '<?xml version="1.0"?><order><id>7</id><note>no entity here</note></order>'
+  - method: POST
+    uri: /v1/import
+    headers:
+      Host: api.example.test
+      User-Agent: example-client/1.0
+      Accept: application/json
+      Content-Type: application/json
+    body: '{"note": "<!ENTITY in a JSON string"}'
