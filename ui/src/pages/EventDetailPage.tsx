@@ -10,6 +10,7 @@ import { buildCurlFromEvent } from '../lib/curl';
 import { FalsePositive } from '../components/events/FalsePositive';
 import { EventInvestigation } from '../components/events/EventInvestigation';
 import { ExceptionDraft } from '../components/events/ExceptionDraft';
+import { RuleOverrideDraft } from '../components/events/RuleOverrideDraft';
 
 type State =
   | { kind: 'loading' }
@@ -82,6 +83,7 @@ export const EventDetailPage: React.FC<{ blockId: string }> = ({ blockId }) => {
       )}
       {state.kind === 'found' && <FalsePositive key={`classification:${state.data.event.block_id}`} event={state.data.event} onReload={() => setReload((n) => n + 1)} />}
       {state.kind === 'found' && <ExceptionDraft key={state.data.event.block_id} event={state.data.event} rules={state.data.rules} />}
+      {state.kind === 'found' && <RuleOverrideDraft key={`override:${state.data.event.block_id}`} event={state.data.event} rules={state.data.rules} />}
       {state.kind === 'found' && <EventInvestigation key={`investigation:${id}`} event={state.data.event} />}
       {state.kind === 'found' && <EventTrace event={state.data.event} rules={state.data.rules} />}
     </AppShell>

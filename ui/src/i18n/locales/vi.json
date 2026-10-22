@@ -638,7 +638,9 @@
         "paranoia": "mức paranoia",
         "set": "bộ",
         "override": "ghi đè"
-      }
+      },
+      "matches_one": "{{count}} lượt khớp/24 giờ",
+      "matches_other": "{{count}} lượt khớp/24 giờ"
     }
   },
   "diff": {
@@ -655,7 +657,8 @@
     "changedField": "Đã đổi:",
     "block": {
       "general": "Chung",
-      "response": "Lớp response"
+      "response": "Lớp response",
+      "rules": "Bộ rule và ghi đè"
     },
     "key": {
       "mode": "Chế độ",
@@ -668,7 +671,9 @@
       "crs_paranoia_shadow": "Mức paranoia CRS chạy shadow",
       "crs_plugins": "Plugin CRS",
       "advanced": "Exception, quyền riêng tư và giới hạn",
-      "geo_rules": "Rule geo"
+      "geo_rules": "Rule geo",
+      "rule_sets": "Bộ rule",
+      "rule_overrides": "Ghi đè rule"
     }
   },
   "stagingNotices": {
@@ -1282,7 +1287,13 @@
       "APPROVED": "Đã duyệt",
       "REJECTED": "Đã từ chối",
       "DEPLOYED": "Đã phát hành"
-    }
+    },
+    "search": "Tìm theo Rule ID hoặc tên",
+    "set": "Bộ rule",
+    "any": "Tất cả",
+    "sets": "Thuộc bộ",
+    "matched": "{{matched}} / {{total}} rule khớp bộ lọc",
+    "clear": "Xóa bộ lọc"
   },
   "operations": {
     "title": "Cảnh báo và báo cáo",
@@ -1362,5 +1373,26 @@
     "noApplications": "Chưa có ứng dụng nào, nên trang này chưa có gì để hiển thị.",
     "createApplication": "Tạo ứng dụng",
     "choose": "Chọn ứng dụng và môi trường để xem dữ liệu."
+  },
+  "ruleOverride": {
+    "open": "Ghi đè rule cho cả policy",
+    "title": "Ghi đè rule cho cả policy",
+    "help": "Ghi đè áp cho mọi request của policy này, thắng mọi bộ rule. Nếu chỉ cần bỏ qua trên một route hay tham số, hãy dùng exception. Lưu sẽ tạo phiên bản nháp mới của policy, cần duyệt và deploy như mọi thay đổi.",
+    "rule": "Rule",
+    "action": "Action",
+    "reason": "Lý do (bắt buộc)",
+    "current": "Rule này đang được ghi đè: {{action}} ({{reason}}). Lưu sẽ thay ghi đè đó.",
+    "save": "Lưu thành bản nháp",
+    "created": "Đã lưu thành phiên bản nháp {{version}} của policy.",
+    "errors": {
+      "load": "Không tải được policy của sự kiện này.",
+      "conflict": "Policy vừa được người khác sửa: tải lại rồi thử lại.",
+      "invalid": "Control plane từ chối ghi đè này.",
+      "forbidden": "Bạn không có quyền sửa policy.",
+      "failed": "Không lưu được; thử lại."
+    },
+    "policy": "Policy",
+    "choosePolicy": "Chọn policy",
+    "openShort": "Ghi đè…"
   }
 }

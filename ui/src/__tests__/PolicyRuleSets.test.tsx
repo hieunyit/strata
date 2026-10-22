@@ -8,7 +8,7 @@ import i18n from '../i18n';
 
 const catalog: RuleSet[] = [
   { name: 'attack-sqli', group: 'attack', title: { vi: 'SQL injection', en: 'SQL injection' }, match: { attack_types: ['sql-injection'] }, rule_count: 2 },
-  { name: 'bots-scanners', group: 'bot', class: 'malicious', title: { vi: 'Công cụ quét', en: 'Scanners' }, match: { tags: ['scanner'] }, rule_count: 1 },
+  { name: 'bots-scanners', group: 'bot', class: 'malicious', title: { vi: 'Công cụ quét', en: 'Scanners' }, match: { tags: ['scanner'] }, rule_count: 1, matches_24h: 1234 },
   { name: 'bots-trusted', group: 'bot', class: 'trusted', title: { vi: 'Bot tin cậy', en: 'Trusted bots' }, match: { tags: ['search-engine'] }, rule_count: 0 },
 ];
 
@@ -77,6 +77,9 @@ describe('rule sets in the policy editor', () => {
     const bots = await screen.findByTestId('rulesets-group-bot');
     expect(within(bots).getByText('Scanners')).toBeInTheDocument();
     expect(screen.getByTestId('ruleset-count-attack-sqli')).toHaveTextContent('2 rules');
+    expect(screen.getByTestId('ruleset-matches-bots-scanners')).toHaveTextContent('1234 matches in 24 h');
+    expect(screen.queryByTestId('ruleset-matches-attack-sqli')).not.toBeInTheDocument();
+    expect(apiClient.listRuleSets).toHaveBeenCalledWith(expect.anything(), 'example-api');
     // no rules to list: the button is off
     expect(screen.getByTestId('ruleset-view-bots-trusted')).toBeDisabled();
     expect(screen.getByTestId('ruleset-action-bots-scanners')).toBeDisabled();

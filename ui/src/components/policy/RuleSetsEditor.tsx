@@ -11,7 +11,7 @@ import {
 // style): built-in sets by group, each on or off with an action; the rules
 // of a set, each overridable with a reason; every override of the policy;
 // and what the draft changes, resolved by the control plane before saving.
-export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: PolicySpec) => void }> = ({ spec, onChange }) => {
+export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: PolicySpec) => void; policyName?: string }> = ({ spec, onChange, policyName = '' }) => {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<'sets' | 'overrides'>('sets');
   const [sets, setSets] = useState<RuleSet[] | undefined>();
@@ -21,7 +21,7 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
 
   useEffect(() => {
     const ac = new AbortController();
-    apiClient.listRuleSets(ac.signal).then(
+    apiClient.listRuleSets(ac.signal, policyName).then(
       (r) => {
         setSets(r.sets);
         setCatalog(r.catalog_available);
@@ -29,7 +29,7 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
       () => !ac.signal.aborted && setLoadError(true),
     );
     return () => ac.abort();
-  }, []);
+  }, [policyName]);
 
   const chosen = useMemo(() => new Map((spec.rule_sets ?? []).map((r) => [r.set ?? '', r.action ?? 'POLICY_RULE_ACTION_UNSPECIFIED'])), [spec.rule_sets]);
   const overrides = spec.rule_overrides ?? [];
@@ -84,6 +84,7 @@ export const RuleSetsEditor: React.FC<{ spec: PolicySpec; onChange: (spec: Polic
                           </label>
                           <span className="text-xs text-muted tabular-nums" data-testid={`ruleset-count-${s.name}`}>
                             {s.rule_count === undefined ? '—' : t('editor.ruleSets.rules', { count: s.rule_count })}
+                            {s.matches_24h !== undefined && <span className={s.matches_24h ? ' text-ink' : ''} data-testid={`ruleset-matches-${s.name}`}> · {t('editor.ruleSets.matches', { count: s.matches_24h })}</span>}
                           </span>
                           <select
                             className="field w-auto"

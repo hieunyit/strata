@@ -644,7 +644,9 @@
         "paranoia": "paranoia level",
         "set": "set",
         "override": "override"
-      }
+      },
+      "matches_one": "{{count}} match in 24 h",
+      "matches_other": "{{count}} matches in 24 h"
     }
   },
   "diff": {
@@ -661,7 +663,8 @@
     "changedField": "Changed:",
     "block": {
       "general": "General",
-      "response": "Response layer"
+      "response": "Response layer",
+      "rules": "Rule sets and overrides"
     },
     "key": {
       "mode": "Mode",
@@ -674,7 +677,9 @@
       "crs_paranoia_shadow": "CRS paranoia level in shadow",
       "crs_plugins": "CRS plugins",
       "advanced": "Exceptions, privacy and limits",
-      "geo_rules": "Geo rules"
+      "geo_rules": "Geo rules",
+      "rule_sets": "Rule sets",
+      "rule_overrides": "Rule overrides"
     }
   },
   "stagingNotices": {
@@ -1288,7 +1293,13 @@
       "APPROVED": "Approved",
       "REJECTED": "Rejected",
       "DEPLOYED": "Deployed"
-    }
+    },
+    "search": "Search by Rule ID or name",
+    "set": "Rule set",
+    "any": "Any",
+    "sets": "In sets",
+    "matched": "{{matched}} of {{total}} rules match",
+    "clear": "Clear filters"
   },
   "operations": {
     "title": "Alerts and reports",
@@ -1368,5 +1379,26 @@
     "noApplications": "There is no application yet, so this page has nothing to show.",
     "createApplication": "Create an application",
     "choose": "Choose an application and an environment to see its data."
+  },
+  "ruleOverride": {
+    "open": "Override the rule for the policy",
+    "title": "Override a rule for the whole policy",
+    "help": "An override applies to every request of this policy and wins over every rule set. To skip a rule on one route or parameter only, use an exception. Saving makes a new draft version of the policy, reviewed and deployed as any change.",
+    "rule": "Rule",
+    "action": "Action",
+    "reason": "Reason (required)",
+    "current": "This rule is already overridden: {{action}} ({{reason}}). Saving replaces that override.",
+    "save": "Save as draft",
+    "created": "Saved as draft version {{version}} of the policy.",
+    "errors": {
+      "load": "Could not load the policy of this event.",
+      "conflict": "The policy was just changed: reload and try again.",
+      "invalid": "The control plane refused this override.",
+      "forbidden": "You may not edit policies.",
+      "failed": "Could not save; try again."
+    },
+    "policy": "Policy",
+    "choosePolicy": "Choose a policy",
+    "openShort": "Override…"
   }
 }

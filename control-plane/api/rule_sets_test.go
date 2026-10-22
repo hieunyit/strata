@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/rulecat"
@@ -209,5 +211,107 @@ func TestRuleSetsResolve(t *testing.T) {
 	}
 	if c := resolveRules(t, ruleSetServer(t, false), "", `{}`, nil); c != http.StatusServiceUnavailable {
 		t.Errorf("without catalog: %d", c)
+	}
+}
+
+// RS-4b: the catalog by set and by Rule ID or name, with the sets of each
+// rule and the values its filters choose from.
+func TestRuleCatalogBySetAndSearch(t *testing.T) {
+	s := ruleSetServer(t, true)
+	type page struct {
+		Rules []struct {
+			ID   uint32   `json:"id"`
+			Sets []string `json:"sets"`
+		} `json:"rules"`
+		Total   int `json:"total"`
+		Matched int `json:"matched"`
+		Facets  struct {
+			Sources     []string `json:"sources"`
+			AttackTypes []string `json:"attack_types"`
+		} `json:"facets"`
+	}
+	// the route needs the application store (PostgreSQL); the handler
+	// itself only the catalog
+	get := func(query string) (page, int) {
+		var p page
+		rec := httptest.NewRecorder()
+		s.catalogList(rec, httptest.NewRequest(http.MethodGet, "/v1/rule-catalog"+query, nil))
+		if rec.Code == http.StatusOK {
+			if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return p, rec.Code
+	}
+	p, c := get("")
+	if c != http.StatusOK || p.Total != 6 || p.Matched != 6 || !slices.Equal(p.Facets.Sources, []string{"crawler-user-agents", "crs"}) ||
+		!slices.Equal(p.Facets.AttackTypes, []string{"bot", "sql-injection"}) {
+		t.Fatalf("%d %+v", c, p)
+	}
+	sets := map[uint32][]string{}
+	for _, r := range p.Rules {
+		sets[r.ID] = r.Sets
+	}
+	if !slices.Equal(sets[942100], []string{"attack-sqli"}) || !slices.Equal(sets[500901], []string{"bots-scanners"}) || sets[9507100] != nil {
+		t.Fatalf("sets of the rules: %v", sets)
+	}
+	if p, c = get("?set=bots-scanners"); c != http.StatusOK || p.Matched != 1 || p.Rules[0].ID != 500901 || p.Total != 6 {
+		t.Fatalf("by set: %d %+v", c, p)
+	}
+	if p, c = get("?q=LEVEL&attack_type=sql-injection"); c != http.StatusOK || p.Matched != 2 {
+		t.Fatalf("search: %d %+v", c, p)
+	}
+	if p, c = get("?q=5009"); c != http.StatusOK || p.Matched != 2 {
+		t.Fatalf("by id: %d %+v", c, p)
+	}
+	if _, c = get("?set=no-such-set"); c != http.StatusBadRequest {
+		t.Fatalf("unknown set: %d", c)
+	}
+}
+
+// RS-4b: matches of each set over the last day, of one policy or all.
+func TestRuleSetsCountMatches(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "rules.yaml")
+	if err := os.WriteFile(f, []byte(ruleSetIR), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := rulecat.Load([]string{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := ingest.NewMockEventStore()
+	now := time.Now().UTC()
+	ev := func(id, policy string, at time.Time, rules ...uint32) ingest.Event {
+		return ingest.Event{BlockID: id, Timestamp: at, PolicyID: policy, Action: "shadow", MatchedRules: rules}
+	}
+	if err := events.SaveEvents(t.Context(), []ingest.Event{
+		ev("STR-1", "example-api", now.Add(-time.Hour), 500901, 500901, 942100),
+		ev("STR-2", "example-web", now.Add(-2*time.Hour), 500901),
+		ev("STR-3", "example-api", now.Add(-30*time.Hour), 500901),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := NewServer(ServerConfig{Auth: tokenRoles{}, RuleCatalog: ruleinventory.Static(c)}, events)
+	count := func(query string) map[string]uint64 {
+		var list struct {
+			Sets []RuleSetInfo `json:"sets"`
+		}
+		if code := getRuleSets(t, s, "/v1/rule-sets"+query, &list); code != http.StatusOK {
+			t.Fatalf("%s: %d", query, code)
+		}
+		out := map[string]uint64{}
+		for _, set := range list.Sets {
+			if set.Matches24h == nil {
+				t.Fatalf("%s: no matches", set.Name)
+			}
+			out[set.Name] = *set.Matches24h
+		}
+		return out
+	}
+	if got := count(""); got["bots-scanners"] != 2 || got["attack-sqli"] != 1 || got["attack-xss"] != 0 {
+		t.Fatalf("every policy: %v", got)
+	}
+	if got := count("?policy=example-api"); got["bots-scanners"] != 1 || got["attack-sqli"] != 1 {
+		t.Fatalf("one policy: %v", got)
 	}
 }
