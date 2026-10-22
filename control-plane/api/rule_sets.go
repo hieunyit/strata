@@ -1,11 +1,14 @@
 package api
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/strata/strata/control-plane/auth"
+	"github.com/strata/strata/control-plane/policy"
 	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/rulesets"
 )
@@ -34,6 +37,7 @@ type RuleSetRule struct {
 func (s *Server) registerRuleSets(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/rule-sets", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetList))
 	mux.HandleFunc("/v1/rule-sets/", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetRules))
+	mux.HandleFunc("/v1/rule-sets:resolve", auth.RequireHTTP(auth.PermPoliciesRead, s.ruleSetResolve))
 }
 
 // currentCatalog: the configured catalog, nil while unavailable.
@@ -128,4 +132,131 @@ func (s *Server) ruleSetRules(w http.ResponseWriter, r *http.Request) {
 		rules = append(rules, RuleSetRule{Entry: e, Tags: catalog.Tags(e.ID)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"set": set.Name, "rules": rules, "total": total, "next_cursor": next})
+}
+
+// RuleActionsDraft is the body of POST /v1/rule-sets:resolve: the part of a
+// policy spec, saved or not, that decides what each rule does.
+type RuleActionsDraft struct {
+	CRSParanoia       int                   `json:"crs_paranoia,omitempty"`
+	CRSParanoiaShadow int                   `json:"crs_paranoia_shadow,omitempty"`
+	RuleSets          []policy.RuleSetRef   `json:"rule_sets,omitempty"`
+	RuleOverrides     []policy.RuleOverride `json:"rule_overrides,omitempty"`
+}
+
+// EffectiveRule is one rule of POST /v1/rule-sets:resolve.
+type EffectiveRule struct {
+	RuleSetRule
+	// Action: off (not run), log (reported, never blocks), block (blocks
+	// alone) or score (adds to the anomaly score, as the rule does).
+	Action string `json:"action"`
+	// Own: what the rule does without sets and overrides at the draft's
+	// paranoia levels (signature pack: log; others: score).
+	Own string `json:"own"`
+	// Source of Action: rule, paranoia, set or override.
+	Source string `json:"source"`
+	Set    string `json:"set,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// effective: what rule e does under d, as the engine runs it (RS-1): the
+// paranoia level first (above the run level: not run; above the enforced
+// level: log, unless an override says off), then the overrides, then the
+// sets (a later one wins), then the rule's own behaviour.
+func effective(c *rulecat.Catalog, e rulecat.Entry, d RuleActionsDraft) EffectiveRule {
+	out := EffectiveRule{RuleSetRule: RuleSetRule{Entry: e, Tags: c.Tags(e.ID)}, Own: "score", Source: "rule"}
+	if e.Pack == "signature" {
+		out.Own = "log"
+	}
+	enforce := max(d.CRSParanoia, 1)
+	run := max(d.CRSParanoiaShadow, enforce)
+	switch {
+	case e.Paranoia > run:
+		out.Own, out.Source = "off", "paranoia"
+	case e.Paranoia > enforce:
+		out.Own, out.Source = "log", "paranoia"
+	}
+	out.Action = out.Own
+	chosen, source, set, reason := "default", "", "", ""
+	for _, r := range d.RuleSets {
+		if def, ok := rulesets.Get(r.Set); ok && inSet(def, c, e) {
+			chosen, source, set = r.Action, "set", r.Set
+		}
+	}
+	for _, o := range d.RuleOverrides {
+		if o.Rule == e.ID {
+			chosen, source, set, reason = o.Action, "override", "", o.Reason
+		}
+	}
+	// a rule its level does not run stays off; one it runs in shadow can
+	// still be switched off, not made to block
+	if chosen == "default" || (out.Source == "paranoia" && (out.Own == "off" || chosen != "off")) {
+		return out
+	}
+	out.Action, out.Source, out.Set, out.Reason = chosen, source, set, reason
+	return out
+}
+
+// ruleSetResolve: POST /v1/rule-sets:resolve?q=&after=&changed=1, the
+// effective action of every detection rule of the configured catalog
+// under a draft, by Rule ID, 200 a page; changed=1 keeps the rules whose
+// action is not their own. counts: of every rule, whatever q and changed.
+func (s *Server) ruleSetResolve(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var d RuleActionsDraft
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&d); err != nil || dec.Decode(&struct{}{}) != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid JSON", "")
+		return
+	}
+	spec := policy.Spec{Mode: "shadow", CRSParanoia: d.CRSParanoia, CRSParanoiaShadow: d.CRSParanoiaShadow, RuleSets: d.RuleSets, RuleOverrides: d.RuleOverrides}
+	if err := spec.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error(), "")
+		return
+	}
+	q := r.URL.Query()
+	after, err := strconv.ParseUint("0"+q.Get("after"), 10, 32)
+	query := strings.ToLower(strings.TrimSpace(q.Get("q")))
+	changed := q.Get("changed") == "1"
+	if err != nil || len(query) > 64 {
+		writeError(w, http.StatusBadRequest, "invalid rule query", "")
+		return
+	}
+	catalog := s.currentCatalog()
+	if catalog == nil {
+		writeError(w, http.StatusServiceUnavailable, "configured catalog unavailable", "")
+		return
+	}
+	const page = 200
+	rules := []EffectiveRule{}
+	counts := map[string]int{"off": 0, "log": 0, "block": 0, "score": 0}
+	total, next := 0, uint32(0)
+	for _, e := range catalog.Entries() {
+		if e.Plugin != "" {
+			continue // CRS plugin exclusions, not detection rules
+		}
+		eff := effective(catalog, e, d)
+		counts[eff.Action]++
+		if changed && eff.Action == eff.Own {
+			continue
+		}
+		if query != "" && !strings.Contains(strconv.FormatUint(uint64(e.ID), 10), query) && !strings.Contains(strings.ToLower(e.Name), query) {
+			continue
+		}
+		total++
+		if e.ID <= uint32(after) {
+			continue
+		}
+		if len(rules) == page {
+			next = rules[len(rules)-1].ID
+			continue
+		}
+		rules = append(rules, eff)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rules": rules, "total": total, "next_cursor": next, "counts": counts})
 }

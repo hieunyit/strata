@@ -29,6 +29,9 @@ rules:
   - { id: 942901, name: sqli, layer: managed, stage: request_headers, score: 100, severity: critical,
       match: { all: [ { targets: [ { var: path } ], operator: { type: ends_with, value: /union-select } } ] },
       metadata: { source: crs, license: Apache-2.0, upstream_id: "942100", upstream_version: 4.25.2, author: Example CRS Author, attack_type: sql-injection } }
+  - { id: 942903, name: sqli pl2, layer: managed, stage: request_headers, score: 100, severity: critical, paranoia_level: 2,
+      match: { all: [ { targets: [ { var: path } ], operator: { type: ends_with, value: /pl2-select } } ] },
+      metadata: { source: crs, license: Apache-2.0, upstream_id: "942200", upstream_version: 4.25.2, author: Example CRS Author, attack_type: sql-injection } }
 "#;
 
 const POLICIES: &str = r#"policies:
@@ -183,4 +186,29 @@ fn refusals() {
     )
     .unwrap_err();
     assert!(err.contains("metadata"), "{err}");
+}
+
+#[test]
+fn an_override_of_a_rule_no_policy_runs_is_no_error() {
+    // every policy at paranoia level 1: the PL2 rule is left out of the
+    // bundle, and an override of it changes nothing
+    let b = compiled(
+        "policies:\n  - { name: example-api, mode: enforce, rule_overrides: [ { rule: 942903, action: off } ] }\n",
+    )
+    .unwrap();
+    assert_eq!(verify(&b, &public_key(&SEED)).unwrap().requires, 0);
+    // a policy at level 2 runs it: the override reaches the engine
+    let b = compiled(
+        "policies:\n  - { name: example-api, mode: enforce, crs_paranoia: 2, rule_overrides: [ { rule: 942903, action: log } ] }\n  - { name: example-web, mode: enforce }\n",
+    )
+    .unwrap();
+    let e = engine(&b);
+    assert_eq!(
+        run(&e, "example-api", "/pl2-select", "x").action,
+        ACTION_LOG
+    );
+    assert_eq!(
+        run(&e, "example-web", "/pl2-select", "x").action,
+        ACTION_ALLOW
+    );
 }

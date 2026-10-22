@@ -175,6 +175,52 @@ paths:
           description: No such rule set
         '503':
           description: Catalog unavailable
+  /v1/rule-sets:resolve:
+    post:
+      operationId: resolveRuleActions
+      description: RS-3b. What each detection rule of the configured catalog does under a
+        draft of a policy's paranoia levels, rule sets and overrides, saved or not, as the
+        engine runs it - paranoia level first, then overrides, then sets (a later one wins),
+        then the rule itself. By Rule ID, 200 a page. Needs policies:read.
+      parameters:
+      - name: q
+        in: query
+        required: false
+        description: Part of the Rule ID or of the name, at most 64 bytes.
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: changed
+        in: query
+        required: false
+        description: 1 keeps the rules whose action is not their own.
+        schema:
+          type: string
+          enum:
+          - '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleActionsDraft'
+      responses:
+        '200':
+          description: One page; counts are of every rule, whatever q and changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveRules'
+        '400':
+          description: Invalid draft or query
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Catalog unavailable
   /v1/exceptions:
     get:
       operationId: listExceptionInventory
@@ -2558,6 +2604,73 @@ components:
       - rules
       - total
       - next_cursor
+    RuleActionsDraft:
+      type: object
+      additionalProperties: false
+      properties:
+        crs_paranoia:
+          type: integer
+        crs_paranoia_shadow:
+          type: integer
+        rule_sets:
+          type: array
+          items:
+            type: object
+            properties:
+              set:
+                type: string
+              action:
+                type: string
+                enum: ['off', log, block, default]
+            required: [set, action]
+        rule_overrides:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: integer
+              action:
+                type: string
+                enum: ['off', log, block, default]
+              reason:
+                type: string
+            required: [rule, action, reason]
+    EffectiveRule:
+      allOf:
+      - $ref: '#/components/schemas/RuleSetRule'
+      - type: object
+        properties:
+          action:
+            type: string
+            enum: ['off', log, block, score]
+          own:
+            type: string
+            enum: ['off', log, score]
+          source:
+            type: string
+            enum: [rule, paranoia, set, override]
+          set:
+            type: string
+          reason:
+            type: string
+        required: [action, own, source]
+    EffectiveRules:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/EffectiveRule'
+        total:
+          type: integer
+        next_cursor:
+          type: integer
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+      required: [rules, total, next_cursor, counts]
     RuleCatalogPage:
       type: object
       properties:

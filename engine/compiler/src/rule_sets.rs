@@ -192,12 +192,15 @@ fn own(r: &RuleDef, sig: Signatures) -> Option<Action> {
 }
 
 /// Section OVERRIDE entries of the policies. `rules`: the bundle's rules;
-/// `meta`: their IR metadata; `signatures`: each policy's signature pack.
+/// `meta`: their IR metadata; `signatures`: each policy's signature pack;
+/// `left_out`: rules of the packs no policy runs (paranoia level, plugin),
+/// which an override may name to no effect.
 pub fn resolve(
     policies: &[PolicyActions],
     rules: &[RuleDef],
     meta: &[RuleMeta],
     signatures: &[Signatures],
+    left_out: &BTreeSet<u32>,
 ) -> Result<Vec<Entry>> {
     if policies.is_empty() {
         return Ok(vec![]);
@@ -230,6 +233,9 @@ pub fn resolve(
             }
         }
         for (id, act) in &p.overrides {
+            if left_out.contains(id) {
+                continue;
+            }
             if !by_id.contains_key(id) {
                 return Err(format!(
                     "rule override names rule {id}, which is not in the bundle"
