@@ -75,6 +75,13 @@ func TestFourEyesInPostgres(t *testing.T) {
 		WHERE policy_id = 'example-api' AND version = 3`); err == nil {
 		t.Fatal("the database took a self approval")
 	}
+	// audit 22/10/2026: nor through a service account bob created
+	if _, err := pool.Exec(ctx, `INSERT INTO machine_accounts (id, metadata) VALUES ('bobs-bot', '{"created_by":"bob"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DecidePolicyVersion(ctx, "example-api", 3, true, "", store.Audit{Actor: "bot", Subject: "sa:bobs-bot"}); !errors.Is(err, store.ErrFourEyes) {
+		t.Fatalf("approval by the author's service account: %v", err)
+	}
 	v, err := s.DecidePolicyVersion(ctx, "example-api", 3, true, "ok", store.Audit{Actor: "Carol (carol)", Subject: "carol"})
 	if err != nil || v.State != store.VersionApproved || v.DecidedBy != "Carol (carol)" {
 		t.Fatalf("approval: %+v %v", v, err)
