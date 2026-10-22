@@ -5,12 +5,15 @@ import { ApiError, Policy, apiClient } from '../../api/client';
 import { CRS_PLUGINS, DATA_GUARDS, PARANOIA_LEVELS, PolicySpec, YamlError, advancedSpec, mergeYamlSpec, normalizeSpec, paranoiaLevels, specToYaml, validCanary, yamlToSpec } from '../../lib/policyYaml';
 import { ErrorBanner, SectionTitle } from '../ui';
 import { GeoRulesEditor } from './GeoRulesEditor';
+import { RuleSetsEditor } from './RuleSetsEditor';
+import { ruleActionsValid } from '../../lib/ruleSets';
 import { geoRuleValid } from '../../lib/geoRules';
 
 // Policy editor, part 1 (W11-F-01): a form and its YAML side by side, kept
 // in sync both ways. Saving makes a new version of the policy in state
 // DRAFT (PATCH with the etag it was read with); deploying it is a separate
-// step. Diff, replay and approval come with W12-F-01 and W13.
+// step. Diff, replay and approval come with W12-F-01 and W13. Rule sets
+// and overrides (RS-4) below the form, in the form only.
 export const PolicyEditor: React.FC<{
   policy: Policy;
   onSaved: (p: Policy) => void;
@@ -83,7 +86,7 @@ export const PolicyEditor: React.FC<{
               type="button"
               className="btn-primary"
               onClick={() => void save()}
-              disabled={!dirty || !!yamlError || saving || !(spec.geo_rules ?? []).every(geoRuleValid)}
+              disabled={!dirty || !!yamlError || saving || !(spec.geo_rules ?? []).every(geoRuleValid) || !ruleActionsValid(spec)}
               data-testid="editor-save"
             >
               <Save className="w-3.5 h-3.5" />
@@ -262,6 +265,9 @@ export const PolicyEditor: React.FC<{
             </p>
           )}
         </div>
+      </div>
+      <div className="px-4 pb-4">
+        <RuleSetsEditor spec={spec} onChange={update} />
       </div>
     </section>
   );

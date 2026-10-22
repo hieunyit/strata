@@ -584,6 +584,67 @@
       "empty": "Name at least one country or ASN",
       "add": "Add a geo rule",
       "note": "A rule blocks (or logs) the client addresses in its countries or ASNs, or with \"outside\" every other address except local ones. It runs for this policy only, after replay, approval and deploy. The control plane needs a GeoIP database (City for countries, ASN for ASNs); the bundle carries only the networks named."
+    },
+    "ruleSets": {
+      "title": "Rule sets and overrides",
+      "note": "Turn built-in rule sets on and give each an action; override single rules with a reason. Precedence: overrides, then sets (a later set in the list wins for a rule in both), then the rule's own behaviour. The paranoia level still comes first: rules above the blocking level are only reported.",
+      "tabSets": "Rule sets",
+      "tabOverrides": "Overrides ({{count}})",
+      "loadError": "Could not load the rule sets.",
+      "noCatalog": "No configured rule catalog yet: rules of a set cannot be counted or listed.",
+      "group": {
+        "attack": "Attacks",
+        "signature": "Signatures",
+        "technology": "Technologies",
+        "bot": "Bots"
+      },
+      "class": {
+        "malicious": "malicious",
+        "automation": "automation",
+        "untrusted": "untrusted",
+        "trusted": "trusted"
+      },
+      "rules_one": "{{count}} rule",
+      "rules_other": "{{count}} rules",
+      "action": {
+        "block": "Block",
+        "log": "Log only",
+        "off": "Off",
+        "default": "Rule's own"
+      },
+      "actionOf": "Action of {{name}}",
+      "view": "View rules",
+      "close": "Close",
+      "search": "Search by Rule ID or name",
+      "shown": "{{shown}} of {{total}} rules",
+      "more": "More: narrow the search to see them.",
+      "overrideOf": "Override of rule {{rule}}",
+      "removeOverride": "Remove the override of rule {{rule}}",
+      "reason": "Reason (required)",
+      "overridesNote": "An override applies to the whole policy and wins over every set. To skip a rule on one route or parameter only, create an exception.",
+      "noOverrides": "No overrides yet.",
+      "ruleId": "Rule ID",
+      "newAction": "Action of the new override",
+      "add": "Add override",
+      "exists": "Rule {{rule}} is already overridden.",
+      "unknown": "Set {{name}} is not in this control plane's catalog.",
+      "remove": "Remove",
+      "impact": "With this draft: {{block}} rules block alone, {{log}} log only, {{off}} off, {{score}} add to the anomaly score.",
+      "changed_one": "{{count}} rule changes action",
+      "changed_other": "{{count}} rules change action",
+      "impactUnavailable": "Impact not available (rule catalog not ready).",
+      "effective": {
+        "block": "block",
+        "log": "log",
+        "off": "off",
+        "score": "score"
+      },
+      "source": {
+        "rule": "own",
+        "paranoia": "paranoia level",
+        "set": "set",
+        "override": "override"
+      }
     }
   },
   "diff": {

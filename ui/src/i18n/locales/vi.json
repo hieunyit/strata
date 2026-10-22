@@ -578,6 +578,67 @@
       "empty": "Cần ít nhất một quốc gia hoặc ASN",
       "add": "Thêm rule geo",
       "note": "Rule chặn (hoặc ghi log) địa chỉ client thuộc các quốc gia hoặc ASN của nó, hoặc với \"nằm ngoài\" mọi địa chỉ khác trừ địa chỉ nội bộ. Rule chỉ chạy cho policy này, sau replay, duyệt và deploy. Control plane cần cơ sở dữ liệu GeoIP (City cho quốc gia, ASN cho ASN); bundle chỉ mang các dải mạng được nhắc tới."
+    },
+    "ruleSets": {
+      "title": "Bộ rule và ghi đè",
+      "note": "Bật bộ rule dựng sẵn và chọn action cho cả bộ; ghi đè từng rule kèm lý do. Thứ tự ưu tiên: ghi đè, rồi bộ (bộ đứng sau trong danh sách thắng khi một rule thuộc nhiều bộ), rồi hành vi gốc của rule. Mức paranoia vẫn đi trước: rule trên mức chặn chỉ được báo.",
+      "tabSets": "Bộ rule",
+      "tabOverrides": "Ghi đè ({{count}})",
+      "loadError": "Không tải được danh sách bộ rule.",
+      "noCatalog": "Chưa có danh mục rule đã cấu hình: không đếm và không xem được rule của bộ.",
+      "group": {
+        "attack": "Tấn công",
+        "signature": "Chữ ký",
+        "technology": "Công nghệ",
+        "bot": "Bot"
+      },
+      "class": {
+        "malicious": "độc hại",
+        "automation": "tự động",
+        "untrusted": "chưa tin cậy",
+        "trusted": "tin cậy"
+      },
+      "rules_one": "{{count}} rule",
+      "rules_other": "{{count}} rule",
+      "action": {
+        "block": "Chặn",
+        "log": "Chỉ ghi log",
+        "off": "Tắt",
+        "default": "Hành vi gốc"
+      },
+      "actionOf": "Action của {{name}}",
+      "view": "Xem rule",
+      "close": "Đóng",
+      "search": "Tìm theo Rule ID hoặc tên",
+      "shown": "{{shown}} / {{total}} rule",
+      "more": "Còn nữa: thu hẹp tìm kiếm để thấy.",
+      "overrideOf": "Ghi đè rule {{rule}}",
+      "removeOverride": "Bỏ ghi đè rule {{rule}}",
+      "reason": "Lý do (bắt buộc)",
+      "overridesNote": "Ghi đè áp cho cả policy, thắng mọi bộ. Muốn chỉ bỏ qua trên một route hay tham số, hãy tạo exception.",
+      "noOverrides": "Chưa có ghi đè nào.",
+      "ruleId": "Rule ID",
+      "newAction": "Action của ghi đè mới",
+      "add": "Thêm ghi đè",
+      "exists": "Rule {{rule}} đã có ghi đè.",
+      "unknown": "Bộ {{name}} không có trong danh mục của control plane này.",
+      "remove": "Bỏ",
+      "impact": "Với bản nháp này: {{block}} rule chặn riêng, {{log}} chỉ ghi log, {{off}} tắt, {{score}} cộng điểm bất thường.",
+      "changed_one": "{{count}} rule đổi action",
+      "changed_other": "{{count}} rule đổi action",
+      "impactUnavailable": "Chưa tính được tác động (danh mục rule chưa sẵn sàng).",
+      "effective": {
+        "block": "chặn",
+        "log": "ghi log",
+        "off": "tắt",
+        "score": "cộng điểm"
+      },
+      "source": {
+        "rule": "gốc",
+        "paranoia": "mức paranoia",
+        "set": "bộ",
+        "override": "ghi đè"
+      }
     }
   },
   "diff": {
