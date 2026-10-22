@@ -105,7 +105,8 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
   Bộ tự tạo lưu PostgreSQL (migration mới), có version và audit.
 - **Compiler:** giải `rule_sets` + `rule_overrides` trên danh mục rule của bundle, cho ra danh
   sách mục `OVERRIDE`. Quá giới hạn hoặc tham chiếu rule/bộ không có thì từ chối khi lưu policy
-  (lỗi có tên bộ/rule).
+  (lỗi có tên bộ/rule). Riêng `ids` trong định nghĩa một bộ là một phần bộ lọc: rule của gói mà
+  bundle không nạp (ví dụ `good-bots` 500001) chỉ không khớp, không làm hỏng build.
 - **Template:** thêm `strict`. Mọi template đặt bot ở `log` (quyết định PO); `strict` chặn các bộ
   tấn công độ chính xác cao ở paranoia 2.
 - **API:**
@@ -139,7 +140,8 @@ thứ tự (policy, rule); action `0 off`, `1 log`, `2 block`; tối đa 65.536 
 | --- | --- | --- |
 | RS-1 ✅ | Section `OVERRIDE` trong engine + test (khớp/không khớp, log không chặn, block với điểm 0, off), fuzz codec. Thêm byte header 48 `requires` (bit 0) để engine cũ **từ chối** bundle thay vì bỏ qua ghi đè (engine cũ bỏ qua kind lạ) | Rust |
 | RS-2 ✅ | Compiler: `rule_sets`, `rule_overrides`, danh mục `rules/sets/catalog.yaml` (19 bộ dựng sẵn), giới hạn, schema policy. Control plane gửi bộ lọc đã mở rộng (không gửi tên bộ); compiler đọc metadata rule từ chính file IR `--rules` | Rust + spec |
-| RS-3 | Control plane: spec, kiểm khi lưu, template `strict` + bot `log`, API bộ rule và effective-rules, bộ tự tạo (migration) | Go |
+| RS-3 ✅ | Control plane: spec + proto (`rule_sets`, `rule_overrides`), kiểm khi lưu, mở rộng tên bộ thành bộ lọc cho compiler, template `strict` + mọi bot `log` (template v2), `GET /v1/rule-sets` và `/v1/rule-sets/{name}/rules` | Go |
+| RS-3b | `GET /v1/policies/{id}/effective-rules`, bộ tự tạo (CRUD, migration) | Go |
 | RS-4 | UI: tab Bộ rule, Ghi đè, trang Rules & packs, nút từ sự kiện, diff/duyệt | React |
 | RS-5 | Lab: bộ bot chặn thật (scanner) trên 2 node, rollback, node cũ bị chặn deploy; replay báo rule đổi action | e2e |
 

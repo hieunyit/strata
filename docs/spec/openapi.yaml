@@ -121,6 +121,60 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '503':
           description: Catalog or telemetry unavailable
+  /v1/rule-sets:
+    get:
+      operationId: listRuleSets
+      description: RS-3 (docs/plan/rule-sets.md). The built-in rule sets a policy gives an
+        action (rule_sets of the policy spec), with how many rules of the configured catalog
+        each one holds. Needs policies:read.
+      parameters: []
+      responses:
+        '200':
+          description: Every built-in set; rule_count is absent while the catalog is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleSetList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/rule-sets/{name}/rules:
+    get:
+      operationId: listRuleSetRules
+      description: RS-3. The rules of the configured catalog in a built-in set, by Rule ID,
+        200 a page. Needs policies:read.
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        description: Part of the Rule ID or of the name, at most 64 bytes.
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        description: next_cursor of the previous page.
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: One page of the set's rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleSetRules'
+        '400':
+          description: Invalid query
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No such rule set
+        '503':
+          description: Catalog unavailable
   /v1/exceptions:
     get:
       operationId: listExceptionInventory
@@ -2410,6 +2464,100 @@ components:
             type: integer
         required:
         - id
+    RuleSetFilter:
+      type: object
+      description: A rule is in the set when it matches every non-empty list (tags, any of
+        them), or is one of ids.
+      properties:
+        sources:
+          type: array
+          items:
+            type: string
+        attack_types:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        ids:
+          type: array
+          items:
+            type: integer
+    RuleSet:
+      type: object
+      properties:
+        name:
+          type: string
+        group:
+          type: string
+          enum:
+          - attack
+          - signature
+          - technology
+          - bot
+        class:
+          type: string
+          description: Of a bot set.
+          enum:
+          - malicious
+          - automation
+          - untrusted
+          - trusted
+        title:
+          type: object
+          additionalProperties:
+            type: string
+        match:
+          $ref: '#/components/schemas/RuleSetFilter'
+        rule_count:
+          type: integer
+      required:
+      - name
+      - group
+      - title
+      - match
+    RuleSetList:
+      type: object
+      properties:
+        sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleSet'
+        catalog_available:
+          type: boolean
+      required:
+      - sets
+      - catalog_available
+    RuleSetRule:
+      allOf:
+      - $ref: '#/components/schemas/RuleCatalogEntry'
+      - type: object
+        properties:
+          tags:
+            type: array
+            items:
+              type: string
+    RuleSetRules:
+      type: object
+      properties:
+        set:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleSetRule'
+        total:
+          type: integer
+        next_cursor:
+          type: integer
+          description: 0 on the last page.
+      required:
+      - set
+      - rules
+      - total
+      - next_cursor
     RuleCatalogPage:
       type: object
       properties:

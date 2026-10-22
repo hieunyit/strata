@@ -14,6 +14,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/strata/strata/control-plane/rulesets"
 )
 
 // Spec mirrors one policy of docs/spec/policies.schema.json without its
@@ -55,9 +57,77 @@ type Spec struct {
 	// GeoRules: the policy's own rules on the country and ASN of the
 	// client address (W19-G2-01, policies.schema.json geo_rules).
 	GeoRules []GeoRule `json:"geo_rules,omitempty"`
+	// RuleSets: built-in rule sets (control-plane/rulesets) with the
+	// policy's action for their rules; a later set wins for a rule in two
+	// (RS-3, docs/plan/rule-sets.md).
+	RuleSets []RuleSetRef `json:"rule_sets,omitempty"`
+	// RuleOverrides: actions of single rules, over the rule sets.
+	RuleOverrides []RuleOverride `json:"rule_overrides,omitempty"`
 	// Template: the template the policy started from (W20-S-01);
 	// informative, not passed to the compiler.
 	Template *TemplateRef `json:"template,omitempty"`
+}
+
+// RuleSetRef is a rule set a policy uses.
+type RuleSetRef struct {
+	Set string `json:"set"`
+	// Action: off, log, block or default (each rule's own behaviour).
+	Action string `json:"action"`
+}
+
+// RuleOverride is the action of one rule in a policy.
+type RuleOverride struct {
+	Rule   uint32 `json:"rule"`
+	Action string `json:"action"`
+	// Reason, required: why this rule acts differently here.
+	Reason string `json:"reason"`
+}
+
+// Most rule sets and rule overrides of a policy (the compiler's limits).
+const (
+	MaxRuleSets      = 32
+	MaxRuleOverrides = 2048
+)
+
+func validRuleAction(a string) bool {
+	return a == "off" || a == "log" || a == "block" || a == "default"
+}
+
+// validateRuleActions checks the rule sets and overrides of a spec.
+func (s Spec) validateRuleActions() error {
+	if len(s.RuleSets) > MaxRuleSets || len(s.RuleOverrides) > MaxRuleOverrides {
+		return fmt.Errorf("at most %d rule sets and %d rule overrides", MaxRuleSets, MaxRuleOverrides)
+	}
+	seen := map[string]bool{}
+	for _, r := range s.RuleSets {
+		if _, ok := rulesets.Get(r.Set); !ok {
+			return fmt.Errorf("rule set %q does not exist", r.Set)
+		}
+		if seen[r.Set] {
+			return fmt.Errorf("rule set %q listed twice", r.Set)
+		}
+		seen[r.Set] = true
+		if !validRuleAction(r.Action) {
+			return fmt.Errorf("rule set %q: action must be off, log, block or default", r.Set)
+		}
+	}
+	rules := map[uint32]bool{}
+	for _, o := range s.RuleOverrides {
+		if o.Rule == 0 {
+			return errors.New("rule override without a rule id")
+		}
+		if rules[o.Rule] {
+			return fmt.Errorf("rule %d overridden twice", o.Rule)
+		}
+		rules[o.Rule] = true
+		if !validRuleAction(o.Action) {
+			return fmt.Errorf("rule %d: action must be off, log, block or default", o.Rule)
+		}
+		if r := strings.TrimSpace(o.Reason); r == "" || len(o.Reason) > 256 {
+			return fmt.Errorf("rule %d: a reason of 1 to 256 characters is required", o.Rule)
+		}
+	}
+	return nil
 }
 
 // GeoRule is one geo rule of a policy (W19-G2-01).
@@ -125,6 +195,16 @@ func (s *Spec) Normalize() {
 	}
 	if len(s.GeoRules) == 0 {
 		s.GeoRules = nil
+	}
+	if len(s.RuleSets) == 0 {
+		s.RuleSets = nil
+	}
+	if len(s.RuleOverrides) == 0 {
+		s.RuleOverrides = nil
+	} else {
+		// by rule: the order of overrides means nothing
+		s.RuleOverrides = append([]RuleOverride(nil), s.RuleOverrides...)
+		sort.Slice(s.RuleOverrides, func(i, j int) bool { return s.RuleOverrides[i].Rule < s.RuleOverrides[j].Rule })
 	}
 	if len(s.CRSPlugins) == 0 {
 		s.CRSPlugins = nil
@@ -312,6 +392,9 @@ func (s Spec) Validate() error {
 		case s.CanaryPercent < 0.01 || s.CanaryPercent > 99.99 || math.Abs(bp-math.Round(bp)) > 1e-6:
 			return fmt.Errorf("canary_percent must be 0.01 to 99.99 with at most two decimals, got %v", s.CanaryPercent)
 		}
+	}
+	if err := s.validateRuleActions(); err != nil {
+		return err
 	}
 	if s.Response != nil {
 		seen := map[string]bool{}

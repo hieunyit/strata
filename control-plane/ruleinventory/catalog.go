@@ -57,3 +57,9 @@ func (c *Catalog) Run(ctx context.Context) {
 		}
 	}
 }
+
+// Static is a catalog that never refreshes: value as it is (tests, and a
+// control plane reading rules without PostgreSQL).
+func Static(value *rulecat.Catalog) *Catalog {
+	return &Catalog{current: value, at: time.Now().UTC()}
+}

@@ -2199,6 +2199,45 @@
       },
       "description": "A geo rule (W19-G2-01): an address in one of the countries or ASNs\nmatches; with not, an address outside all of them (local addresses\nexcepted). BLOCK blocks the request on the rule alone; LOG reports it\nwith an Event ID and never blocks."
     },
+    "v1PolicyRuleAction": {
+      "type": "string",
+      "enum": [
+        "POLICY_RULE_ACTION_UNSPECIFIED",
+        "POLICY_RULE_ACTION_OFF",
+        "POLICY_RULE_ACTION_LOG",
+        "POLICY_RULE_ACTION_BLOCK"
+      ],
+      "default": "POLICY_RULE_ACTION_UNSPECIFIED",
+      "description": "What a policy makes of the rules of a set, or of one rule.\n\n - POLICY_RULE_ACTION_UNSPECIFIED: the rule's own behaviour\n - POLICY_RULE_ACTION_OFF: the rule does not run for the policy\n - POLICY_RULE_ACTION_LOG: reported with an Event ID, never blocks\n - POLICY_RULE_ACTION_BLOCK: a match blocks alone (also a rule that only scores, such as the bot\nlists, and a rule of the signature pack)"
+    },
+    "v1PolicyRuleOverride": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "action": {
+          "$ref": "#/definitions/v1PolicyRuleAction"
+        },
+        "reason": {
+          "type": "string",
+          "title": "1 to 256 characters"
+        }
+      }
+    },
+    "v1PolicyRuleSet": {
+      "type": "object",
+      "properties": {
+        "set": {
+          "type": "string",
+          "title": "e.g. bots-scanners"
+        },
+        "action": {
+          "$ref": "#/definitions/v1PolicyRuleAction"
+        }
+      }
+    },
     "v1PolicySpec": {
       "type": "object",
       "properties": {
@@ -2276,6 +2315,22 @@
         },
         "parse_error": {
           "$ref": "#/definitions/PolicySpecParseError"
+        },
+        "rule_sets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyRuleSet"
+          },
+          "description": "RS-3 (docs/plan/rule-sets.md): built-in rule sets (GET /v1/rule-sets)\nwith the policy's action for their rules; a later set wins for a rule\nin two. At most 32. Modules from before RS-1 refuse bundles where a set\nor override changes a rule: upgrade them first."
+        },
+        "rule_overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PolicyRuleOverride"
+          },
+          "description": "Actions of single rules, over the rule sets; at most 2048, each with a\nreason."
         }
       },
       "description": "PolicySpec is what the bundle carries for the policy\n(docs/spec/policies.schema.json)."

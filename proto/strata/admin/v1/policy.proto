@@ -140,6 +140,38 @@ message PolicySpec {
     PARSE_ERROR_PASS = 2;
   }
   ParseError parse_error = 16;
+  // RS-3 (docs/plan/rule-sets.md): built-in rule sets (GET /v1/rule-sets)
+  // with the policy's action for their rules; a later set wins for a rule
+  // in two. At most 32. Modules from before RS-1 refuse bundles where a set
+  // or override changes a rule: upgrade them first.
+  repeated PolicyRuleSet rule_sets = 17;
+  // Actions of single rules, over the rule sets; at most 2048, each with a
+  // reason.
+  repeated PolicyRuleOverride rule_overrides = 18;
+}
+
+// What a policy makes of the rules of a set, or of one rule.
+enum PolicyRuleAction {
+  // the rule's own behaviour
+  POLICY_RULE_ACTION_UNSPECIFIED = 0;
+  // the rule does not run for the policy
+  POLICY_RULE_ACTION_OFF = 1;
+  // reported with an Event ID, never blocks
+  POLICY_RULE_ACTION_LOG = 2;
+  // a match blocks alone (also a rule that only scores, such as the bot
+  // lists, and a rule of the signature pack)
+  POLICY_RULE_ACTION_BLOCK = 3;
+}
+
+message PolicyRuleSet {
+  string set = 1; // e.g. bots-scanners
+  PolicyRuleAction action = 2;
+}
+
+message PolicyRuleOverride {
+  uint32 rule = 1;
+  PolicyRuleAction action = 2;
+  string reason = 3; // 1 to 256 characters
 }
 
 // A geo rule (W19-G2-01): an address in one of the countries or ASNs

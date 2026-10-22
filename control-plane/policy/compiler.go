@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/strata/strata/control-plane/rulesets"
 )
 
 // Named is a policy as it goes into a bundle.
@@ -130,13 +132,17 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		ParaShadow  int         `json:"crs_paranoia_shadow,omitempty"`
 		Plugins     []string    `json:"crs_plugins,omitempty"`
 		GeoRules    []GeoRule   `json:"geo_rules,omitempty"`
+		// RS-3: named sets expanded into the filters the compiler takes
+		RuleSets      []compiledRuleSet `json:"rule_sets,omitempty"`
+		RuleOverrides []RuleOverride    `json:"rule_overrides,omitempty"`
 	}
 	doc := map[string]any{}
 	items := make([]item, 0, len(policies))
 	for _, p := range policies {
 		items = append(items, item{StagedRules: staged[p.Name], Exceptions: p.Spec.Exceptions, Name: p.Name, Mode: p.Spec.Mode, Oversize: p.Spec.Oversize, Response: p.Spec.Response, Snippet: p.Spec.MaxSnippetSize, Privacy: p.Spec.Privacy,
 			Canary: p.Spec.CanaryPercent, MaxArgs: p.Spec.MaxArgs, FailOn: p.Spec.FailOnFindings, ParseError: p.Spec.ParseError,
-			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow, Plugins: p.Spec.CRSPlugins, GeoRules: p.Spec.GeoRules})
+			Paranoia: p.Spec.CRSParanoia, ParaShadow: p.Spec.CRSParanoiaShadow, Plugins: p.Spec.CRSPlugins, GeoRules: p.Spec.GeoRules,
+			RuleSets: expandRuleSets(p.Spec.RuleSets), RuleOverrides: p.Spec.RuleOverrides})
 	}
 	doc["policies"] = items
 	if c.BlockPage != "" {
@@ -261,4 +267,24 @@ func (c *Compiler) Build(ctx context.Context, version uint64, policies []Named) 
 		return nil, fmt.Errorf("policy: sign: %w", err)
 	}
 	return append(data, sig...), nil
+}
+
+// compiledRuleSet is a rule set as the compiler reads it
+// (policies.schema.json rule_sets): the filter, not the name.
+type compiledRuleSet struct {
+	Name   string          `json:"name"`
+	Match  rulesets.Filter `json:"match"`
+	Action string          `json:"action"`
+}
+
+// expandRuleSets turns a spec's set names into filters; Validate has
+// checked every name exists.
+func expandRuleSets(refs []RuleSetRef) []compiledRuleSet {
+	var out []compiledRuleSet
+	for _, r := range refs {
+		if set, ok := rulesets.Get(r.Set); ok {
+			out = append(out, compiledRuleSet{Name: r.Set, Match: set.Match, Action: r.Action})
+		}
+	}
+	return out
 }
