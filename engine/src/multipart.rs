@@ -110,8 +110,10 @@ pub fn parts_with_budget<'a>(
 pub enum Read {
     /// up to the close delimiter
     Whole,
-    /// no delimiter, a delimiter line or a part that does not end, or a
-    /// part skipped (no empty line after its headers, or no name)
+    /// no delimiter, a delimiter line or a part that does not end, a part
+    /// skipped (no empty line after its headers, or no name), or a
+    /// delimiter line with more than spaces after the boundary (parsers
+    /// disagree on it: both readings are inspected)
     Damaged,
     /// more than MAX_PARTS parts: the rest left out (rule 100021)
     TooManyParts,
@@ -138,7 +140,14 @@ pub fn parts_checked_with_budget<'a>(
         }
     };
     let mut at = first + delim.len();
-    let mut damaged = false;
+    let mut damaged = !delimiter_line_ok(&body[at..]);
+    // the next delimiter a strict parser takes (see `delimiter_line_ok`),
+    // found once and reused while it is ahead: linear in the body
+    let mut strict: Option<Option<usize>> = None;
+    // end of the content already extended to a strict delimiter: the parts
+    // that start before it exist for PHP only and are not extended again,
+    // so no byte is in more than one extended part
+    let mut covered = 0;
     loop {
         let rest = &body[at..];
         if rest.starts_with(b"--") {
@@ -163,7 +172,29 @@ pub fn parts_checked_with_budget<'a>(
         .map(|i| part_start + i) else {
             return Ok((out, Read::Damaged));
         };
-        let mut end = next;
+        // audit 22/10/2026: "--boundaryX..." ends the part for a parser that
+        // matches the boundary as a prefix (PHP), not for a strict one (Go
+        // mime/multipart), which keeps the line in the content. Inspect
+        // both: this part up to the next strict delimiter, and the parts
+        // that follow the line, as now.
+        let mut content_end = next;
+        if !delimiter_line_ok(&body[next + line_delim.len()..]) {
+            damaged = true;
+        }
+        if !delimiter_line_ok(&body[next + line_delim.len()..]) && part_start >= covered {
+            if strict.is_none_or(|s| s.is_some_and(|s| s <= next)) {
+                strict = Some(next_strict(
+                    body,
+                    next + 1,
+                    &next_delim,
+                    line_delim.len(),
+                    budget.as_deref_mut(),
+                )?);
+            }
+            content_end = strict.flatten().unwrap_or(body.len());
+            covered = content_end;
+        }
+        let mut end = content_end;
         if end > part_start && body[end - 1] == b'\r' {
             end -= 1;
         }
@@ -177,6 +208,42 @@ pub fn parts_checked_with_budget<'a>(
             bgt.check()?;
         }
     }
+}
+
+/// What follows the boundary on a delimiter line is what a strict parser
+/// (RFC 2046, Go's mime/multipart) accepts: `--` (close delimiter), or
+/// spaces and tabs then a line end.
+fn delimiter_line_ok(after: &[u8]) -> bool {
+    if after.starts_with(b"--") {
+        return true;
+    }
+    let pad = after
+        .iter()
+        .position(|&c| c != b' ' && c != b'\t')
+        .unwrap_or(after.len());
+    let rest = &after[pad..];
+    rest.starts_with(b"\r\n") || rest.starts_with(b"\n")
+}
+
+/// The first delimiter at or after `from` that a strict parser takes.
+fn next_strict(
+    body: &[u8],
+    mut from: usize,
+    finder: &memchr::memmem::Finder<'_>,
+    delim_len: usize,
+    mut budget: Option<&mut crate::budget::TxBudget>,
+) -> Result<Option<usize>, crate::budget::BudgetExceeded> {
+    while from < body.len() {
+        let Some(i) = find_8k(finder, &body[from..], delim_len, budget.as_deref_mut())? else {
+            return Ok(None);
+        };
+        let at = from + i;
+        if delimiter_line_ok(&body[at + delim_len..]) {
+            return Ok(Some(at));
+        }
+        from = at + 1;
+    }
+    Ok(None)
 }
 
 /// The parts of `body`, at most [`MAX_PARTS`].
@@ -386,6 +453,59 @@ x\n--XyZ--\r\nepilogue";
         );
         assert_eq!(p.len(), 1);
         assert_eq!(p[0].content, b"x --b y");
+    }
+
+    /// Audit 22/10/2026: a line "--boundaryX..." is a delimiter for PHP,
+    /// content for Go. Both readings are inspected and the body is damaged.
+    #[test]
+    fn ambiguous_delimiter_line_is_inspected_both_ways() {
+        let body = b"--abc\r\nContent-Disposition: form-data; name=\"q\"\r\n\r\nsafe\r\n--abcX' UNION SELECT 1--\r\nContent-Disposition: form-data; name=\"z\"\r\n\r\nok\r\n--abc--\r\n";
+        let (p, read) = parts_checked_with_budget(body, b"abc", None).unwrap();
+        assert_eq!(read, Read::Damaged);
+        assert_eq!(p.len(), 2, "{p:?}");
+        assert_eq!(p[0].name, b"q");
+        assert_eq!(
+            p[0].content,
+            &b"safe\r\n--abcX' UNION SELECT 1--\r\nContent-Disposition: form-data; name=\"z\"\r\n\r\nok"[..],
+            "Go's reading: the line is in the content"
+        );
+        assert_eq!(
+            (p[1].name, p[1].content),
+            (&b"z"[..], &b"ok"[..]),
+            "PHP's reading"
+        );
+        // spaces and tabs after the boundary are transport padding
+        let padded = b"--abc \t\r\nContent-Disposition: form-data; name=a\r\n\r\nv\r\n--abc\t\r\nContent-Disposition: form-data; name=b\r\n\r\nw\r\n--abc--";
+        let (p, read) = parts_checked_with_budget(padded, b"abc", None).unwrap();
+        assert_eq!((read, p.len()), (Read::Whole, 2));
+        // an ambiguous first delimiter
+        let first = b"--abcX\r\nContent-Disposition: form-data; name=a\r\n\r\nv\r\n--abc--";
+        assert_eq!(
+            parts_checked_with_budget(first, b"abc", None).unwrap().1,
+            Read::Damaged
+        );
+    }
+
+    #[test]
+    fn many_ambiguous_delimiters_stay_linear() {
+        let one = b"--bX\r\nContent-Disposition: form-data; name=a\r\n\r\nv\r\n";
+        let body = [
+            b"--b\r\nContent-Disposition: form-data; name=a\r\n\r\nv\r\n".as_slice(),
+            &one.repeat(1_000),
+            b"--b--",
+        ]
+        .concat();
+        let t = std::time::Instant::now();
+        let (p, read) = parts_checked_with_budget(&body, b"b", None).unwrap();
+        assert_eq!(read, Read::Damaged);
+        // only the first part of the run is extended: no quadratic content
+        let total: usize = p.iter().map(|p| p.content.len()).sum();
+        assert!(
+            total < 2 * body.len(),
+            "{total} bytes for a {} byte body",
+            body.len()
+        );
+        assert!(t.elapsed() < std::time::Duration::from_secs(2));
     }
 
     #[test]
