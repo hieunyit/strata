@@ -277,7 +277,7 @@ done
 		t.Errorf("geo args %q asked %v", args, asked)
 	}
 	c.Geo = nil
-	if _, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", CRSParanoia: 2, CRSParanoiaShadow: 3, CRSPlugins: []string{"wordpress"}, Exceptions: []Exception{exampleException()}}}}); err != nil {
+	if _, err := c.Build(context.Background(), 7, []Named{{Name: "example-api", Spec: Spec{Mode: "enforce", Oversize: "block", CanaryPercent: 5, MaxArgs: 200, FailOnFindings: "block", ParseError: "pass", CRSParanoia: 2, CRSParanoiaShadow: 3, CRSPlugins: []string{"wordpress"}, Exceptions: []Exception{exampleException()}}}}); err != nil {
 		t.Fatal(err)
 	}
 	pol, _ := os.ReadFile(filepath.Join(dir, "policies.json"))
