@@ -21,9 +21,9 @@ func TestSourceOverflowDoesNotForceShadow(t *testing.T) {
 		}
 		before, _, _, samples := w.d.Reference()
 		w.Observe(blockEvent("192.0.2.1"))
-		w.Observe(blockEvent("192.0.2.2"))
+		w.Observe(blockEvent("198.51.100.2"))
 		for i := 0; i < 200; i++ {
-			w.Observe(blockEvent("192.0.2.3"))
+			w.Observe(blockEvent("203.0.113.3"))
 		}
 		requests += 1000
 		blocked += 202
@@ -60,14 +60,14 @@ func TestSourceSaturationIPv6AndReset(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	if got := s.Take(3); got != (Capped{Blocked: 3, Would: 3}) {
-		t.Fatalf("one /64 must fit one slot: %+v", got)
+	if got := s.Take(3); got != (Capped{Blocked: 3, Would: 3, Sources: 1}) {
+		t.Fatalf("one /48 must fit one slot: %+v", got)
 	}
 	s.Observe(blockEvent("192.0.2.1"))
 	for i := 0; i < 100; i++ {
-		s.Observe(blockEvent("192.0.2.2"))
+		s.Observe(blockEvent("198.51.100.2"))
 	}
-	if got := s.Take(3); got != (Capped{Blocked: 1, Would: 1, Saturated: true}) {
+	if got := s.Take(3); got != (Capped{Blocked: 1, Would: 1, Sources: 1, Saturated: true}) {
 		t.Fatalf("overflow was counted or not reported: %+v", got)
 	}
 	if got := s.Take(3); got != (Capped{}) {

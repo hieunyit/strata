@@ -8,11 +8,11 @@
 #      blocked (403).
 #   2. #65: one source floods 50% attacks for 15 s. Its blocks count at
 #      most 3 per 5 s: node-1 keeps blocking, no trigger.
-#   3. Spike from 12 sources (containers on the lab network), 50% attacks.
-#      Within 6 s of the first spike interval closing, the attack passes
-#      (200: shadow) on node-1; node-2 still blocks.
-#      strata_agent_fallback_triggers_total{reason="block_rate"} grows.
-#   4. clearForceShadow on node-1: it blocks again.
+#   3. Audit 22/10/2026: 12 sources (containers of the lab network, one
+#      /24) at 50% attacks used to trip it; a network now counts once and
+#      at least 20 networks must block: node-1 keeps blocking, no trigger.
+#      A trip from many networks is covered by the unit test
+#      TestNodeFallsBackWithinSixSeconds (the lab has one network).
 #
 # Usage: tests/e2e/lab-fallback.sh
 set -euo pipefail
@@ -84,25 +84,9 @@ load 15 50
 sleep 6 # the last interval closes
 [ "$(code 18080 "$attack")" = 403 ] || fail "one source forced node-1 into shadow (#65)"
 [ "$(triggers)" = "$before" ] || fail "fallback triggered by one source"
-step "3. spike: 12 sources, 50% attacks"
-start=$SECONDS
-spread 15 12 &
-spike=$!
-until [ "$(code 18080 "$attack")" = 200 ]; do
-    [ $((SECONDS - start)) -lt 16 ] || fail "node-1 still blocks 16 s into the spike"
-    sleep 0.2
-done
-t=$((SECONDS - start))
-wait $spike
-[ "$(code 18081 "$attack")" = 403 ] || fail "node-2 stopped blocking too"
-after=$(triggers)
-[ "${after:-0}" != "$before" ] || fail "fallback trigger counter did not move ($before)"
-step "3. node-1 in shadow ${t} s after the spike started (spike detected at the first 5 s interval end + at most 1 s), node-2 still blocks, triggers $before → $after"
-api -X POST "$cp/v1/nodes:clearForceShadow" -d "{\"node_id\":\"$node1\"}" >/dev/null
-start=$SECONDS
-until [ "$(code 18080 "$attack")" = 403 ]; do
-    [ $((SECONDS - start)) -lt 15 ] || fail "node-1 still in shadow 15 s after clearForceShadow"
-    sleep 0.5
-done
-step "4. clearForceShadow: node-1 blocks again after $((SECONDS - start)) s"
+step "3. 12 sources of one /24, 50% attacks (audit 22/10)"
+spread 15 12
+sleep 6 # the last interval closes
+[ "$(code 18080 "$attack")" = 403 ] || fail "12 sources of one network forced node-1 into shadow"
+[ "$(triggers)" = "$before" ] || fail "fallback triggered by one network"
 echo "lab-fallback: PASS"

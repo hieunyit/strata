@@ -15,7 +15,7 @@ func TestCanarySourceOverflowDoesNotForceShadow(t *testing.T) {
 	st := s.m.group("edge")
 	st.learnt, st.ref = 12, 0.001
 	st.deltas = append(st.deltas, canaryDelta{at: s.now, c: groupCounts{req: 1000, blocked: 202}, s: groupCounts{req: 1000}})
-	for i, ip := range []string{"192.0.2.1", "192.0.2.2", "192.0.2.3"} {
+	for i, ip := range []string{"192.0.2.1", "198.51.100.2", "203.0.113.3"} {
 		for j := 0; j < []int{1, 1, 200}[i]; j++ {
 			s.m.ObserveEvent(s.nodes[j%2], &eventv1.Event{BlockId: "STR-test", Action: eventv1.Action_ACTION_BLOCK,
 				ClientIp: ip, Canary: eventv1.CanaryGroup_CANARY_GROUP_ENFORCE}, s.now)

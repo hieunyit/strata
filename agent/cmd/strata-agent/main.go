@@ -59,7 +59,7 @@ func newRunCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if standaloneMode {
-				for _, name := range []string{"server", "server-name", "tls-ca", "tls-cert", "tls-key", "identity-dir", "spool-dir", "spool-max-bytes", "fallback", "fallback-on-errors", "fallback-factor"} {
+				for _, name := range []string{"server", "server-name", "tls-ca", "tls-cert", "tls-key", "identity-dir", "spool-dir", "spool-max-bytes", "fallback", "fallback-on-errors", "fallback-factor", "fallback-min-sources", "fallback-hold"} {
 					if cmd.Flags().Changed(name) {
 						return fmt.Errorf("--%s cannot be used with --standalone", name)
 					}
@@ -117,7 +117,9 @@ func newRunCmd() *cobra.Command {
 	f.StringVar(&cfg.CertFile, "tls-cert", "", "client certificate")
 	f.StringVar(&cfg.KeyFile, "tls-key", "", "client certificate key")
 	f.StringVar(&cfg.IdentityDir, "identity-dir", "", "enrolled identity (strata-agent enroll); replaces --tls-ca, --tls-cert, --tls-key and --node-id")
-	f.BoolVar(&cfg.Fallback, "fallback", true, "force every policy into shadow when the node blocks 3x its shadow level, counting at most 3 blocks per client address every 5 s (needs --bundle-dir and --metrics-file)")
+	f.BoolVar(&cfg.Fallback, "fallback", false, "force every policy into shadow for --fallback-hold when the node blocks 3x its shadow level from at least --fallback-min-sources client networks (IPv4 /24, IPv6 /48; at most 3 blocks each every 5 s). Off by default: blocked attacks from many networks also trip it (needs --bundle-dir and --metrics-file)")
+	f.Uint64Var(&cfg.FallbackOptions.MinSources, "fallback-min-sources", 20, "client networks that must have blocks in an interval for the node fallback to trip")
+	f.DurationVar(&cfg.FallbackOptions.HoldFor, "fallback-hold", 10*time.Minute, "how long a node fallback holds every policy in shadow")
 	f.BoolVar(&cfg.FallbackOptions.Errors, "fallback-on-errors", false, "also force shadow when engine errors or budget overruns jump (shadow does not change the fail mode; by default these jumps are only reported)")
 	f.Float64Var(&cfg.FallbackOptions.Factor, "fallback-factor", 3, "how many times the learnt level trips the node fallback")
 	cmd.MarkFlagsMutuallyExclusive("bundle-file", "bundle-url")

@@ -160,7 +160,7 @@ func (s *sim) events(node string, blocks, logs uint64, attackers int) {
 			return fmt.Sprintf("203.0.113.%d", s.rng.Intn(attackers))
 		}
 		s.ips++
-		return fmt.Sprintf("10.%d.%d.%d", s.ips>>16&255, s.ips>>8&255, s.ips&255)
+		return fmt.Sprintf("%d.%d.%d.1", 10+s.ips>>16&63, s.ips>>8&255, s.ips&255) // one /24 per client
 	}
 	for i := uint64(0); i < blocks; i++ {
 		s.m.ObserveEvent(node, &eventv1.Event{BlockId: "STR-8F3K-Q2VD-7XNM-A1PC", Action: eventv1.Action_ACTION_BLOCK,
@@ -400,7 +400,7 @@ func TestHeartbeatsTripAndForceShadowReachesTheNodes(t *testing.T) {
 			var evs []*eventv1.Event
 			for i := 0; i < n; i++ {
 				ev := event("STR-8F3K-Q2VD-7XNM-A1PC")
-				ev.ClientIp = fmt.Sprintf("198.51.100.%d", i%addrs)
+				ev.ClientIp = fmt.Sprintf("10.%d.0.1", i%addrs) // one /24 each
 				ev.Canary = eventv1.CanaryGroup_CANARY_GROUP_ENFORCE
 				evs = append(evs, ev)
 			}
