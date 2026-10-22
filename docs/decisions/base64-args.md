@@ -159,3 +159,39 @@ Không tắt rule nào, cũng không làm exception theo tham số: các tham s�
   - Phần còn lại ở header/body; log không đủ để tách riêng.
   - Cần quyết định riêng: base64 trong path thường là ID, và header thì có `Authorization: Basic`.
 - **Lỗ hổng phát hiện, không liên quan encoding**: payload giải mã ra vẫn lọt khi không có rule nào bắt (LDAP 16,7%, mail 25%, XML/XXE, header tùy biến). Thuộc luồng S (gói rule).
+
+## 7. Base64 trong URL path (22/10/2026)
+
+Người dùng duyệt ngày 22/10/2026 ("làm cả 3 mục"), sau lượt GoTestWAF trên main d7c940a: 62/126 payload còn lọt nằm ở URL path, trong đó 48 là Base64Flat.
+
+**Cách làm**:
+
+- Mỗi segment của path (path đã chuẩn hóa như `$uri` của NGINX, tách theo `/`) được thử bằng **đúng tiêu chí** của §4.
+- Segment đạt tiêu chí được thêm vào ARGS của **query** (ARGS, ARGS_GET; không phải ARGS_POST) dưới tên `REQUEST_FILENAME|base64`. Mọi rule trên ARGS đều thấy nó, như giá trị query đã giải mã.
+- Dùng chung hạn mức mỗi request với tham số và cookie (§4). Thứ tự: query, rồi path, rồi body, rồi cookie. Segment không được giải mã vì hết hạn mức cũng báo 100021.
+- Path không qua form decode, nên `+` trong path vẫn là `+`.
+
+**Vì sao vào ARGS, không vào `path`**: các rule libinjection (941100, 942100) và gap rule chỉ đọc ARGS. Cùng payload, khi nằm trong query, bị chặn bởi đúng các rule đó.
+
+**FP**: corpus benign có thêm `corpus/benign/paths.jsonl`, gồm 358 path có dạng thật:
+
+- ID Relay/GraphQL (`VXNlcjoxMjM0NQ`, giải mã ra `User:12345`), link chia sẻ chứa JSON base64, token reset, JWT;
+- slug chứa từ khóa SQL/JS/shell, tiêu đề kiểu Wikipedia có ngoặc, tên file, tiếng Việt/Trung/Nhật.
+
+Kết quả:
+
+- Gói gaps và protocol: 0 FP.
+- Toàn bộ rule: 7/3.358 request bị chặn, tất cả nằm trong `paths.jsonl`:
+  - 942190 (2): link chia sẻ có JSON base64 `{"q":"select the best",...}`. Đây là FP đã biết của CRS PL1 với chuỗi `"select ...` có nháy đứng trước. Giá trị query chứa cùng JSON đó cũng bị chặn như vậy; xử lý bằng exception của route.
+  - 932260 (4, `whoami` trong path) và 942290 (1, `$top` của OData): rule CRS vốn đọc path và tên tham số, không liên quan base64. Corpus trước đây chưa có dạng path này.
+
+**Rule đi kèm** (`rules/gaps/`), 0 FP trên corpus:
+
+| Rule | Thay đổi |
+| --- | --- |
+| 300004 (NoSQL), 300005 (SSTI), 300008 (gọi dialog JS gián tiếp) | Đọc thêm `path`: payload URL-encoded trong path |
+| 300011 | Mới: lệnh shell trong path (đọc file hệ thống sau dấu phân tách; `` `id` ``, `$(whoami)`) |
+| 300012 | Mới: CRLF qua U+560A/U+560D (`嘍Set-Cookie:`) |
+| 300013 | Mới: UNC tới share quản trị (`\\host\c$\...`) |
+
+**Không đổi**: base64 trong header (§4, `Authorization: Basic`).
