@@ -86,14 +86,15 @@ func New(repo string) (*Linter, error) {
 	return &Linter{ruleFile: rf, ir: ir}, nil
 }
 
-// Lint checks every .yaml/.yml file under dir, skipping dir/schema.
+// Lint checks every .yaml/.yml file under dir, skipping dir/schema and
+// dir/sets (rule set definitions, RS-2: checked by the compiler's tests).
 func (l *Linter) Lint(dir string) ([]Finding, int, error) {
 	var files []string
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && p != dir && d.Name() == "schema" {
+		if d.IsDir() && p != dir && (d.Name() == "schema" || d.Name() == "sets") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && (strings.HasSuffix(p, ".yaml") || strings.HasSuffix(p, ".yml")) {

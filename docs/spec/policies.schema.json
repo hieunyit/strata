@@ -31,6 +31,39 @@
             "description": "Request bodies larger than the connector inspects (strata_request_body_limit): pass (default) or block. The API template should use block.",
             "enum": ["pass", "block"]
           },
+          "rule_sets": {
+            "description": "RS-2 (docs/plan/rule-sets.md): rule sets as filters on the rules' metadata, each with an action; a later set wins over an earlier one for a rule in both. The control plane expands named sets into these filters.",
+            "type": "array", "maxItems": 32,
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["match", "action"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "match": {
+                  "description": "A rule matches every non-empty list (tags: any of them), or is one of ids.",
+                  "type": "object", "additionalProperties": false,
+                  "properties": {
+                    "sources": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+                    "attack_types": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+                    "tags": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+                    "ids": { "type": "array", "maxItems": 4096, "uniqueItems": true, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } }
+                  }
+                },
+                "action": { "$ref": "#/$defs/rule_action" }
+              }
+            }
+          },
+          "rule_overrides": {
+            "description": "RS-2: actions of single rules, over the rule sets.",
+            "type": "array", "maxItems": 2048,
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["rule", "action"],
+              "properties": {
+                "rule": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+                "action": { "$ref": "#/$defs/rule_action" },
+                "reason": { "type": "string", "maxLength": 256 }
+              }
+            }
+          },
           "staged_rules": {
             "description": "Compiler-internal signed log-only overlay, 0..16 distinct managed request Rule IDs. The public policy API accepts only auto_staging delegation, not effective staged_rules. Requires staging-aware engines (mandatory policy bit); no automatic expiry or re-enforcement.",
             "type": "array", "maxItems": 16, "uniqueItems": true,
@@ -149,6 +182,12 @@
         "support_contact": { "type": "string", "maxLength": 1024 }
       },
       "not": { "required": ["html", "html_file"] }
+    }
+  },
+  "$defs": {
+    "rule_action": {
+      "description": "off: the rule does not run for the policy; log: reported with an Event ID, never blocks; block: a match blocks alone (also a rule that only scores, and a rule of the signature pack, which then runs whatever signatures says); default: the rule's own behaviour.",
+      "enum": ["off", "log", "block", "default"]
     }
   }
 }

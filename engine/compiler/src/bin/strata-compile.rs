@@ -87,12 +87,17 @@ fn run(args: &[String]) -> Result<(), String> {
         ),
     };
     let mut rules = vec![];
+    let mut rule_meta = vec![];
     for f in &rules_files {
-        rules.extend(rules_from_ir(&load(Path::new(f))?).map_err(|e| format!("{f}: {e}"))?);
+        let doc = load(Path::new(f))?;
+        rules.extend(rules_from_ir(&doc).map_err(|e| format!("{f}: {e}"))?);
+        // what rule sets filter on (RS-2)
+        rule_meta.extend(strata_compiler::rule_sets::meta_from_ir(&doc));
     }
     let ppath = Path::new(&policies);
     let mut pol = policies_from(&load(ppath)?, ppath.parent().unwrap_or(Path::new(".")))
         .map_err(|e| format!("{policies}: {e}"))?;
+    pol.rule_meta = rule_meta;
     if let Some(f) = &identity_key {
         let b = std::fs::read(f).map_err(|e| format!("{f}: {e}"))?;
         pol.identity_key = Some(read_identity_key(&b).map_err(|e| format!("{f}: {e}"))?);

@@ -26,6 +26,7 @@ use libstrata::rules::{
 use serde_json::{Map, Number, Value};
 use yaml_rust2::{Yaml, YamlLoader};
 
+pub mod rule_sets;
 const IR_SCHEMA: &str = include_str!("../../../docs/spec/ir.schema.json");
 const POLICIES_SCHEMA: &str = include_str!("../../../docs/spec/policies.schema.json");
 
@@ -372,6 +373,11 @@ pub struct Policies {
     /// scoped to its policy (section SCOPE)
     pub scoped_rules: Vec<RuleDef>,
     pub scope: Vec<libstrata::scope::Entry>,
+    /// rule sets and rule overrides of the policies that have some (RS-2)
+    pub rule_actions: Vec<rule_sets::PolicyActions>,
+    /// metadata of the bundle's rules, which rule sets filter on
+    /// (strata-compile reads it from the --rules files)
+    pub rule_meta: Vec<rule_sets::RuleMeta>,
 }
 
 /// IDs of the rules policies define (W19-G2-01, `geo_rules`).
@@ -617,6 +623,7 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
     let mut scope = vec![];
     let mut exceptions = vec![];
     let mut staging = vec![];
+    let mut rule_actions = vec![];
     for p in doc["policies"].as_array().into_iter().flatten() {
         let name = s(p, "name").to_string();
         if !seen.insert(name.clone()) {
@@ -819,6 +826,9 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
                 field: s(e, "field").into(),
             });
         }
+        if let Some(a) = rule_sets::from_policy(p, policies.len() as u32, &name)? {
+            rule_actions.push(a);
+        }
         for id in p["staged_rules"].as_array().into_iter().flatten() {
             staging.push(libstrata::staging::Entry {
                 policy_index: policies.len() as u32,
@@ -873,6 +883,8 @@ pub fn policies_from(doc: &Value, base: &Path) -> Result<Policies> {
         plugins,
         scoped_rules,
         scope,
+        rule_actions,
+        rule_meta: vec![],
         identity_key: None,
         good_bots: vec![],
         geo: vec![],
@@ -1488,6 +1500,28 @@ fn compile_unsigned_with(
         .map_err(|e| format!("rule scope: {}", e.message()))?;
     if !scope.is_empty() {
         sections.push((libstrata::bundle::kind::SCOPE, scope));
+    }
+    // RS-2: rule sets and overrides, as the rules' actions per policy
+    if policies.rule_meta.is_empty()
+        && policies.rule_actions.iter().any(|p| {
+            p.sets.iter().any(|(_, f, _)| {
+                !(f.sources.is_empty() && f.attack_types.is_empty() && f.tags.is_empty())
+            })
+        })
+    {
+        return Err("rule sets filter on rule metadata, which the compiler was not given".into());
+    }
+    let signatures: Vec<_> = policies.policies.iter().map(|p| p.5).collect();
+    let actions = rule_sets::resolve(
+        &policies.rule_actions,
+        rules,
+        &policies.rule_meta,
+        &signatures,
+    )?;
+    let overrides = libstrata::overrides::encode(&actions, policies.policies.len() as u32)
+        .map_err(|e| format!("rule overrides: {}", e.message()))?;
+    if !overrides.is_empty() {
+        sections.push((libstrata::bundle::kind::OVERRIDE, overrides));
     }
     let good_bots = libstrata::goodbots::encode(&policies.good_bots)?;
     if !good_bots.is_empty() {
