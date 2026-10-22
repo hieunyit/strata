@@ -22,7 +22,7 @@ MKBUNDLE := target/release/mkbundle
 COMPILE  := target/release/strata-compile
 FIXTURES := connectors/nginx/t/fixtures
 
-.PHONY: FORCE control-plane-ui control-plane-bin crs-plugins-import test-crs-plugins fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test test-crs-ftw-pl2 poc clean \
+.PHONY: FORCE control-plane-ui control-plane-bin crs-plugins-import test-crs-plugins fixtures check-fixtures all lib header check-header rust-check abi-test nginx test-nginx test test-crs-ftw-pl2 test-regression poc clean \
 	nginx-asan test-nginx-asan test-nginx-valgrind mutate coraza-diff bench bench-bundle bench-events bench-engine bench-reload bench-reload-latency check-strace bench-pss libinjection-diff \
 	proto check-proto test-agent e2e e2e-go e2e-lab lint-rules crs-fetch crs-inventory crs-ftw crs-import test-crs-ftw rules-tools test-rules signatures-import test-signatures signatures-release test-conformance nginx-h3 test-nginx-h3 clang-tidy check-c-lines test-alerts
 
@@ -187,6 +187,19 @@ mutate: rules-tools
 	cd tools/strata-mutate && go test ./... && go build -o ../../$(MUTATE_OUT)/strata-mutate .
 	$(MUTATE_OUT)/strata-mutate --repo . --bundle $(MUTATE_OUT)/pkg/strata-signatures-mutate.sbn \
 		--pubkey connectors/nginx/t/fixtures/bundle.pub --md docs/mutation-report.md --json $(MUTATE_OUT)/summary.json
+
+# 22/10/2026: bypasses that were fixed (corpus/regression) and every
+# variant of them recorded blocked must stay blocked; the whole signature
+# package, as `mutate`. REGRESSION_WRITE=1 records the variants blocked now.
+REGRESSION_OUT ?= build/regression
+test-regression: rules-tools
+	mkdir -p $(REGRESSION_OUT)
+	printf 'policies:\n  - { name: example-api, mode: enforce }\n' > $(REGRESSION_OUT)/policies.yaml
+	cd tools/strata-rules && go run . release --repo ../.. --version regression --key ../../connectors/nginx/t/fixtures/test.key \
+		--policies ../../$(REGRESSION_OUT)/policies.yaml --out ../../$(REGRESSION_OUT)/pkg
+	cd tools/strata-mutate && go build -o ../../$(REGRESSION_OUT)/strata-mutate .
+	$(REGRESSION_OUT)/strata-mutate --repo . --bundle $(REGRESSION_OUT)/pkg/strata-signatures-regression.sbn \
+		--pubkey connectors/nginx/t/fixtures/bundle.pub --regression corpus/regression $(if $(REGRESSION_WRITE),--write-baseline)
 
 # W12-R-01: Strata (core pack) against Coraza + the CRS release it imports,
 # in docs/reports/w12/r01-coraza-diff.md (tools/coraza-diff). CORAZA_CRS: a
