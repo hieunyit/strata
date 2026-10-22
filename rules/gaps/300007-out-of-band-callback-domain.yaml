@@ -1,6 +1,7 @@
 # Strata gap rule, W13-S-01: out-of-band (OAST) callback domains that
 # scanners and exploit tools plant in payloads (GoTestWAF
 # community-user-agent, shell-injection, rce-urlparam, 15/10/2026).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300007
   name: Out-of-band callback domain in the request
@@ -8,7 +9,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: uri_raw }, { var: args }, { var: request_headers } ]
+    - targets: [ { var: user_input }, { var: uri_raw }, { var: request_headers } ]
       transforms: [ url_decode_uni, lowercase ]
       multi_match: true
       operator:

@@ -113,28 +113,63 @@ fn value_bytes(v: &Value) -> Vec<u8> {
     }
 }
 
+/// IR target `user_input`: every place of a request the client fills in
+/// that injection rules read, as the targets the compiler expands it to
+/// (var, key). Adding a place here covers every rule that names
+/// `user_input`, without touching the rules (22/10/2026).
+pub const USER_INPUT: &[(&str, Option<&str>)] = &[
+    ("args", None),
+    ("args_names", None),
+    ("request_cookies", None),
+    ("request_cookies_names", None),
+    ("path", None),
+    ("xml", None),
+    ("xml_attributes", None),
+    ("files", None),
+    ("files_names", None),
+    ("request_headers", Some("User-Agent")),
+    ("request_headers", Some("Referer")),
+];
+
 fn condition(c: &Value) -> Result<CondDef> {
-    let targets = c["targets"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|t| {
-            Ok(TargetDef {
-                var: coded(VARS, s(t, "var"))?,
-                key: t
-                    .get("key")
-                    .and_then(Value::as_str)
-                    .map(|k| k.as_bytes().to_vec()),
-                exclude: t["exclude"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(value_bytes)
-                    .collect(),
-                count: t["count"].as_bool().unwrap_or(false),
-            })
-        })
-        .collect::<Result<_>>()?;
+    let mut targets = vec![];
+    for t in c["targets"].as_array().into_iter().flatten() {
+        let exclude: Vec<Vec<u8>> = t["exclude"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(value_bytes)
+            .collect();
+        let count = t["count"].as_bool().unwrap_or(false);
+        if s(t, "var") == "user_input" {
+            if t.get("key").is_some() || count {
+                return Err("user_input takes no key and no count".into());
+            }
+            for &(var, key) in USER_INPUT {
+                targets.push(TargetDef {
+                    var: coded(VARS, var)?,
+                    key: key.map(|k| k.as_bytes().to_vec()),
+                    // a name excluded is excluded where names apply
+                    exclude: if key.is_some() {
+                        vec![]
+                    } else {
+                        exclude.clone()
+                    },
+                    count: false,
+                });
+            }
+            continue;
+        }
+        targets.push(TargetDef {
+            var: coded(VARS, s(t, "var"))?,
+            key: t
+                .get("key")
+                .and_then(Value::as_str)
+                .map(|k| k.as_bytes().to_vec()),
+            exclude,
+            count,
+        });
+    }
     let transforms = c["transforms"]
         .as_array()
         .into_iter()

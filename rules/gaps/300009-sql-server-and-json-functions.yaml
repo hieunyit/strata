@@ -1,6 +1,7 @@
 # Strata gap rule, W13-S-01: SQL injection forms past CRS PL1: MSSQL
 # variable declarations and system objects, MySQL JSON functions, nested
 # time-based subqueries (GoTestWAF sql-injection, 15/10/2026).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300009
   name: SQL injection with MSSQL declarations or JSON functions
@@ -8,7 +9,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: request_headers } ]
+    - targets: [ { var: user_input }, { var: request_headers } ]
       transforms: [ replace_comments, compress_whitespace, lowercase ]
       operator:
         type: rx

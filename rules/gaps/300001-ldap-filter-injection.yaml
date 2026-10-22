@@ -1,5 +1,6 @@
 # Strata gap rule (rules/README.md: 300000-399999), W13-S-01: LDAP filter
 # injection, missed by CRS PL1 (GoTestWAF ldap-injection, 15/10/2026).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300001
   name: LDAP filter injection in a parameter
@@ -7,7 +8,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args } ]
+    - targets: [ { var: user_input } ]
       transforms: [ lowercase ]
       operator:
         type: rx

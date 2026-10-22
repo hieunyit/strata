@@ -1,5 +1,6 @@
 # Strata gap rule, W13-S-01: XML external entities and external DTDs
 # (GoTestWAF xml-injection and community-xxe, 15/10/2026), UTF-7 included.
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300003
   name: XML external entity or external DTD
@@ -7,7 +8,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: request_body }, { var: args } ]
+    - targets: [ { var: user_input }, { var: request_body } ]
       transforms: [ lowercase ]
       operator:
         type: rx

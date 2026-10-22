@@ -1,5 +1,6 @@
 # Strata gap rule, W13-S-01: server-side include directives (GoTestWAF
 # ss-include, 15/10/2026).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300006
   name: Server-side include directive
@@ -7,7 +8,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: request_headers }, { var: request_body } ]
+    - targets: [ { var: user_input }, { var: request_headers }, { var: request_body } ]
       transforms: [ lowercase ]
       operator:
         type: rx

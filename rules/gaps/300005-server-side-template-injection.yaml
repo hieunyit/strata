@@ -1,6 +1,7 @@
 # Strata gap rule, W13-S-01: server-side template injection probes and
 # payloads (GoTestWAF sst-injection, 15/10/2026).
 # 22/10/2026: the URL path too (GoTestWAF URLPath).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300005
   name: Server-side template expression in a parameter
@@ -8,7 +9,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: request_headers }, { var: path } ]
+    - targets: [ { var: user_input }, { var: request_headers } ]
       transforms: [ lowercase ]
       operator:
         type: rx

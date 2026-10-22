@@ -1,6 +1,7 @@
 # Strata gap rule, W13-S-01: MongoDB-style operator and JavaScript
 # injection (GoTestWAF nosql-injection, 15/10/2026).
 # 22/10/2026: the URL path too (GoTestWAF URLPath).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300004
   name: NoSQL operator or server-side JavaScript injection
@@ -8,7 +9,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: args_names }, { var: path } ]
+    - targets: [ { var: user_input } ]
       transforms: [ lowercase ]
       operator:
         type: rx
