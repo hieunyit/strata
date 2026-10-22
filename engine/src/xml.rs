@@ -334,9 +334,11 @@ mod tests {
 <root a="1 &lt;b&gt;" b='&#x41;&#66;&amp;'><t>ftp%3A%2F%2F</t><![CDATA[<x>]]><e/>&e;</root>"#,
         );
         assert_eq!(x.attrs, [b"1 <b>".to_vec(), b"AB&".to_vec()]);
+        // audit 22/10/2026: the DTD's internal subset is inspected text
         assert_eq!(
-            x.text, b"\nftp%3A%2F%2F<x>&e;",
-            "comments and DTD skipped, entity not expanded"
+            x.text,
+            &b"<!ENTITY e SYSTEM \"file:///etc/passwd\">\nftp%3A%2F%2F<x>&e;"[..],
+            "comments skipped, internal subset kept, entity not expanded"
         );
     }
 
