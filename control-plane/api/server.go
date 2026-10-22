@@ -155,6 +155,8 @@ func (s *Server) registerRoutes() {
 			writeJSON(w, 200, s.cfg.SystemHealth.Collect(r.Context(), auth.FromContext(r.Context())))
 		}))
 	}
+	// RS-3: built-in rule sets, readable without applications
+	s.registerRuleSets(v1)
 	if s.cfg.Applications != nil {
 		registerApplications(v1, s.cfg.Applications, s.handler)
 		s.registerInvestigation(v1)

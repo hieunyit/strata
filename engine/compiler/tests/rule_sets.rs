@@ -130,6 +130,12 @@ fn a_bundle_without_rule_sets_has_no_override_section() {
     )
     .unwrap();
     assert_eq!(verify(&b, &public_key(&SEED)).unwrap().requires, 0);
+    // a set naming a rule of a pack the bundle lacks matches nothing
+    let b = compiled(
+        "policies:\n  - { name: example-api, mode: enforce, rule_sets: [ { match: { ids: [999999] }, action: off } ] }\n",
+    )
+    .unwrap();
+    assert_eq!(verify(&b, &public_key(&SEED)).unwrap().requires, 0);
 }
 
 #[test]
@@ -138,10 +144,6 @@ fn refusals() {
         // a rule the bundle does not have
         (
             "policies:\n  - { name: example-api, mode: enforce, rule_overrides: [ { rule: 999999, action: off } ] }\n",
-            "not in the bundle",
-        ),
-        (
-            "policies:\n  - { name: example-api, mode: enforce, rule_sets: [ { match: { ids: [999999] }, action: off } ] }\n",
             "not in the bundle",
         ),
         // a set matching everything

@@ -314,3 +314,52 @@ done
 		t.Fatalf("no policies: %v", err)
 	}
 }
+
+// RS-3: the compiler gets each rule set as its filter, and the overrides.
+func TestCompilerRuleSetsDoc(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "fake-compile")
+	body := `#!/bin/sh
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --policies) cp "$2" ` + filepath.Join(dir, "policies.json") + `; shift 2 ;;
+    --out) printf bundle > "$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+`
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &Compiler{Binary: script, KeyFile: "/keys/seed", Rules: []string{"a.yaml"}}
+	spec := Spec{Mode: "enforce", RuleSets: []RuleSetRef{{Set: "bots-fake-crawlers", Action: "block"}, {Set: "attack-sqli", Action: "default"}},
+		RuleOverrides: []RuleOverride{{Rule: 942100, Action: "log", Reason: "FP on /search"}}}
+	if _, err := c.Build(context.Background(), 1, []Named{{Name: "example-api", Spec: spec}, {Name: "example-web", Spec: Spec{Mode: "shadow"}}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "policies.json"))
+	var doc struct {
+		Policies []struct {
+			RuleSets []struct {
+				Name   string         `json:"name"`
+				Match  map[string]any `json:"match"`
+				Action string         `json:"action"`
+			} `json:"rule_sets"`
+			RuleOverrides []map[string]any `json:"rule_overrides"`
+		} `json:"policies"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	p := doc.Policies[0]
+	if len(p.RuleSets) != 2 || p.RuleSets[0].Name != "bots-fake-crawlers" || p.RuleSets[0].Action != "block" ||
+		!reflect.DeepEqual(p.RuleSets[0].Match["ids"], []any{500001.0}) ||
+		!reflect.DeepEqual(p.RuleSets[1].Match["attack_types"], []any{"sql-injection"}) || p.RuleSets[1].Action != "default" ||
+		len(p.RuleOverrides) != 1 || p.RuleOverrides[0]["rule"] != 942100.0 || p.RuleOverrides[0]["action"] != "log" {
+		t.Fatalf("policies file %s", raw)
+	}
+	// a policy without them sends neither key
+	if strings.Contains(string(raw), "null") || doc.Policies[1].RuleSets != nil || doc.Policies[1].RuleOverrides != nil {
+		t.Fatalf("policies file %s", raw)
+	}
+}

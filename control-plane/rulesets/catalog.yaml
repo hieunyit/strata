@@ -1,0 +1,99 @@
+# Built-in rule sets (RS-2, docs/plan/rule-sets.md). A set is a filter on
+# the rules' metadata: a rule is in it when it matches every non-empty list
+# (tags: any of them), or is one of `ids`. New rules of a pack join the
+# right sets when the pack is updated. A policy gives each set it uses an
+# action (block, log, off); the control plane expands the names into these
+# filters for the compiler. Append only: a name never changes meaning.
+version: 1
+sets:
+  # --- attacks, core pack (CRS, Strata, virtual patches) -------------------
+  - name: attack-sqli
+    group: attack
+    title: { vi: SQL injection, en: SQL injection }
+    match: { sources: [crs, strata], attack_types: [sql-injection] }
+  - name: attack-xss
+    group: attack
+    title: { vi: XSS, en: Cross-site scripting }
+    match: { sources: [crs, strata], attack_types: [xss] }
+  - name: attack-rce
+    group: attack
+    title: { vi: Thực thi lệnh từ xa, en: Remote code and command execution }
+    match: { sources: [crs, strata], attack_types: [rce, command-injection] }
+  - name: attack-file-access
+    group: attack
+    title: { vi: Đọc file và path traversal, en: File inclusion and path traversal }
+    match: { sources: [crs, strata], attack_types: [path-traversal, file-inclusion] }
+  - name: attack-protocol
+    group: attack
+    title: { vi: Vi phạm giao thức HTTP, en: HTTP protocol violations }
+    match: { sources: [crs, strata], attack_types: [protocol] }
+  - name: attack-ssrf-xxe
+    group: attack
+    title: { vi: SSRF và XXE, en: SSRF and XXE }
+    match: { sources: [crs, strata], attack_types: [ssrf, xxe] }
+  - name: attack-template-injection
+    group: attack
+    title: { vi: Template injection, en: Template injection }
+    match: { sources: [crs, strata], attack_types: [template-injection] }
+  - name: attack-scanner-probes
+    group: attack
+    title: { vi: Dò quét lỗ hổng, en: Vulnerability scanner probes }
+    match: { sources: [crs, strata], attack_types: [scanner] }
+  - name: virtual-patches
+    group: attack
+    title: { vi: Virtual patch CVE, en: CVE virtual patches }
+    match: { sources: [strata], tags: [virtual-patch] }
+  # --- signature pack (Sigma, ET Open): in shadow unless a policy says ---
+  - name: signatures-kev
+    group: signature
+    title: { vi: CVE đang bị khai thác (CISA KEV), en: Known exploited CVEs (CISA KEV) }
+    match: { sources: [et-open], tags: [cisa_kev] }
+  - name: signatures-sigma
+    group: signature
+    title: { vi: Sigma, en: Sigma }
+    match: { sources: [sigma] }
+  - name: signatures-et-open
+    group: signature
+    title: { vi: ET Open, en: ET Open }
+    match: { sources: [et-open] }
+  - name: technology-wordpress
+    group: technology
+    title: { vi: WordPress, en: WordPress }
+    match: { sources: [et-open], tags: [wordpress] }
+  # --- bots (crawler list and published ranges): every policy logs them by
+  # default (PO 22/10/2026) ---------------------------------------------------
+  - name: bots-scanners
+    group: bot
+    class: malicious
+    title: { vi: Bot quét lỗ hổng, en: Vulnerability scanners }
+    match: { sources: [crawler-user-agents], tags: [scanner] }
+  - name: bots-fake-crawlers
+    group: bot
+    class: malicious
+    title: { vi: Bot giả danh máy tìm kiếm, en: Crawlers outside their published ranges }
+    match: { ids: [500001] }
+  - name: bots-http-libraries
+    group: bot
+    class: automation
+    title: { vi: Thư viện HTTP, en: HTTP libraries }
+    match: { sources: [crawler-user-agents], tags: [http-library] }
+  - name: bots-browser-automation
+    group: bot
+    class: automation
+    title: { vi: Trình duyệt tự động, en: Browser automation }
+    match: { sources: [crawler-user-agents], tags: [browser-automation] }
+  - name: bots-ai-crawlers
+    group: bot
+    class: untrusted
+    title: { vi: AI crawler, en: AI crawlers }
+    match: { sources: [crawler-user-agents], tags: [ai-crawler] }
+  - name: bots-seo-advertising
+    group: bot
+    class: untrusted
+    title: { vi: Bot SEO và quảng cáo, en: SEO and advertising bots }
+    match: { sources: [crawler-user-agents], tags: [seo, advertising] }
+  - name: bots-trusted
+    group: bot
+    class: trusted
+    title: { vi: Bot tin cậy (máy tìm kiếm, giám sát, feed, xem trước), en: Trusted bots (search, monitoring, feeds, previews) }
+    match: { sources: [crawler-user-agents], tags: [search-engine, monitoring, feed-reader, social-preview, archiver, academic] }

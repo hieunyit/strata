@@ -41,6 +41,10 @@ type Rule struct {
 // Catalog maps Rule IDs to their metadata. The zero value is empty.
 type Catalog struct {
 	rules map[uint32]Rule
+	// tags of each rule (IR metadata.tags), which rule sets filter on
+	// (RS-3); apart from Rule so the catalog digest and its history keep
+	// their meaning
+	tags map[uint32][]string
 }
 
 type irRule struct {
@@ -64,7 +68,7 @@ type irDoc struct {
 // Load reads IR files (YAML or JSON: a ruleset with "rules", or one
 // authored rule under "rule"); a later file wins for a repeated ID.
 func Load(paths []string) (*Catalog, error) {
-	c := &Catalog{rules: map[uint32]Rule{}}
+	c := &Catalog{rules: map[uint32]Rule{}, tags: map[uint32][]string{}}
 	if len(paths) > 128 {
 		return nil, fmt.Errorf("rulecat: at most 128 input files")
 	}
@@ -109,9 +113,30 @@ func Load(paths []string) (*Catalog, error) {
 				Source: bounded(str(r.Metadata["source"]), 64), Author: bounded(str(r.Metadata["author"]), 256),
 				License: bounded(str(r.Metadata["license"]), 128),
 			}
+			c.tags[r.ID] = ruleTags(r.Metadata["tags"])
 		}
 	}
 	return c, nil
+}
+
+// ruleTags: at most 32 tags of at most 64 bytes.
+func ruleTags(v any) []string {
+	list, _ := v.([]any)
+	var out []string
+	for _, t := range list {
+		if s, ok := t.(string); ok && s != "" && len(s) <= 64 && len(out) < 32 {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Tags of rule id (IR metadata.tags), nil when it has none.
+func (c *Catalog) Tags(id uint32) []string {
+	if c == nil {
+		return nil
+	}
+	return c.tags[id]
 }
 
 func str(v any) string {

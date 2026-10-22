@@ -218,16 +218,15 @@ pub fn resolve(
             .unwrap_or_default();
         // rule -> action (None: default), sets in order, then overrides
         let mut chosen: BTreeMap<u32, Option<Action>> = BTreeMap::new();
+        // a set's ids are part of its filter: a rule of a pack this bundle
+        // does not carry matches nothing, as a tag no rule has (built-in
+        // sets name rules of optional packs, e.g. good-bots 500001); an
+        // override names the rule itself and is refused instead
         for (_, filter, act) in &p.sets {
             for (&id, _) in by_id.iter().filter(|(id, _)| {
                 meta.get(id).is_some_and(|m| filter.matches(m)) || filter.ids.contains(id)
             }) {
                 chosen.insert(id, *act);
-            }
-            if let Some(id) = filter.ids.iter().find(|id| !by_id.contains_key(id)) {
-                return Err(format!(
-                    "rule set names rule {id}, which is not in the bundle"
-                ));
             }
         }
         for (id, act) in &p.overrides {

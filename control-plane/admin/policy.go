@@ -61,6 +61,11 @@ var (
 var (
 	geoActionOf = map[adminv1.PolicyGeoRule_Action]string{adminv1.PolicyGeoRule_ACTION_BLOCK: "block", adminv1.PolicyGeoRule_ACTION_LOG: "log"}
 	geoActionTo = map[string]adminv1.PolicyGeoRule_Action{"block": adminv1.PolicyGeoRule_ACTION_BLOCK, "log": adminv1.PolicyGeoRule_ACTION_LOG}
+	// RS-3: unspecified is the rule's own behaviour ("default")
+	ruleActionOf = map[adminv1.PolicyRuleAction]string{adminv1.PolicyRuleAction_POLICY_RULE_ACTION_UNSPECIFIED: "default",
+		adminv1.PolicyRuleAction_POLICY_RULE_ACTION_OFF: "off", adminv1.PolicyRuleAction_POLICY_RULE_ACTION_LOG: "log", adminv1.PolicyRuleAction_POLICY_RULE_ACTION_BLOCK: "block"}
+	ruleActionTo = map[string]adminv1.PolicyRuleAction{"default": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_UNSPECIFIED,
+		"off": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_OFF, "log": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_LOG, "block": adminv1.PolicyRuleAction_POLICY_RULE_ACTION_BLOCK}
 )
 
 // assignGeoIDs gives each new geo rule (id 0) of the spec of policy id the
@@ -170,6 +175,26 @@ func specOf(pb *adminv1.PolicySpec, assign ...func(*policy.Spec) error) (json.Ra
 	if t := pb.GetTemplate(); t != nil {
 		s.Template = &policy.TemplateRef{Name: t.GetName(), Version: int(t.GetVersion())}
 	}
+	for _, r := range pb.GetRuleSets() {
+		if r == nil {
+			return nil, status.Error(codes.InvalidArgument, "nil rule set")
+		}
+		a, ok := ruleActionOf[r.GetAction()]
+		if !ok {
+			return nil, status.Error(codes.InvalidArgument, "policy.spec: unknown rule set action")
+		}
+		s.RuleSets = append(s.RuleSets, policy.RuleSetRef{Set: r.GetSet(), Action: a})
+	}
+	for _, o := range pb.GetRuleOverrides() {
+		if o == nil {
+			return nil, status.Error(codes.InvalidArgument, "nil rule override")
+		}
+		a, ok := ruleActionOf[o.GetAction()]
+		if !ok {
+			return nil, status.Error(codes.InvalidArgument, "policy.spec: unknown rule override action")
+		}
+		s.RuleOverrides = append(s.RuleOverrides, policy.RuleOverride{Rule: o.GetRule(), Action: a, Reason: o.GetReason()})
+	}
 	for _, f := range assign {
 		if err := f(&s); err != nil {
 			return nil, err
@@ -217,6 +242,12 @@ func specPB(raw json.RawMessage) *adminv1.PolicySpec {
 	for _, g := range s.GeoRules {
 		out.GeoRules = append(out.GeoRules, &adminv1.PolicyGeoRule{Id: g.ID, Countries: append([]string(nil), g.Countries...),
 			Asns: append([]uint32(nil), g.ASNs...), Not: g.Not, Action: geoActionTo[g.Action]})
+	}
+	for _, r := range s.RuleSets {
+		out.RuleSets = append(out.RuleSets, &adminv1.PolicyRuleSet{Set: r.Set, Action: ruleActionTo[r.Action]})
+	}
+	for _, o := range s.RuleOverrides {
+		out.RuleOverrides = append(out.RuleOverrides, &adminv1.PolicyRuleOverride{Rule: o.Rule, Action: ruleActionTo[o.Action], Reason: o.Reason})
 	}
 	for _, e := range s.Exceptions {
 		out.Exceptions = append(out.Exceptions, &adminv1.PolicyException{Id: e.ID, RuleId: e.RuleID, Method: e.Method, Host: e.Host, Path: e.Path, Field: e.Field, ExpiresUnixMs: e.ExpiresUnixMS, Reason: e.Reason, SourceBlockId: e.SourceBlockID})
