@@ -169,7 +169,7 @@
             "eq", "ne", "gt", "ge", "lt", "le",
             "detect_sqli", "detect_xss",
             "validate_byte_range", "validate_url_encoding", "validate_utf8_encoding",
-            "ip_match", "detect_ssti", "detect_cmdi"
+            "ip_match", "detect_ssti", "detect_cmdi", "detect_nosql"
           ]
         },
         "value": {
@@ -195,7 +195,7 @@
           "then": { "required": ["value"], "properties": { "value": { "type": "integer" } } }
         },
         {
-          "if": { "properties": { "type": { "enum": ["detect_sqli", "detect_xss", "detect_ssti", "detect_cmdi", "validate_url_encoding", "validate_utf8_encoding"] } } },
+          "if": { "properties": { "type": { "enum": ["detect_sqli", "detect_xss", "detect_ssti", "detect_cmdi", "detect_nosql", "validate_url_encoding", "validate_utf8_encoding"] } } },
           "then": { "not": { "required": ["value"] } }
         }
       ]

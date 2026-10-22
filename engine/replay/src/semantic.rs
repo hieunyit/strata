@@ -1,7 +1,7 @@
 //! False positives of the semantic detectors (W20-R-01): runs labelled
 //! requests through a bundle, as [`crate::evaluate`] does, and counts the
 //! matches of the rules whose operator is a semantic detector
-//! (`detect_sqli`, `detect_xss`, `detect_cmdi`, `detect_ssti`) per
+//! (`detect_sqli`, `detect_xss`, `detect_cmdi`, `detect_ssti`, `detect_nosql`) per
 //! detector and label: per SQLi fingerprint, per field, alone or with other
 //! rules. A benign label (`benign...`) counts false positives, an attack
 //! label (`sql-injection`, `xss`, ...) the detection rate, `replay` (traffic
@@ -32,7 +32,13 @@ const EXAMPLE_LEN: usize = 160;
 /// Label of traffic samples.
 pub const REPLAY: &str = "replay";
 
-const DETECTORS: [&str; 4] = ["detect_sqli", "detect_xss", "detect_cmdi", "detect_ssti"];
+const DETECTORS: [&str; 5] = [
+    "detect_sqli",
+    "detect_xss",
+    "detect_cmdi",
+    "detect_ssti",
+    "detect_nosql",
+];
 
 /// Rule id -> detector name (`sqli`, ...) of every rule of the bundle with a
 /// semantic operator in one of its conditions.

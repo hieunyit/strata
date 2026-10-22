@@ -1066,7 +1066,7 @@ fn target_weight(t: &rules::TargetDef) -> u64 {
 fn op_weight(op: u8, fallback: bool) -> u64 {
     match OPERATORS.get(op as usize).copied().unwrap_or("") {
         "rx" if fallback => 25,
-        "detect_sqli" | "detect_xss" | "detect_ssti" | "detect_cmdi" => 10,
+        "detect_sqli" | "detect_xss" | "detect_ssti" | "detect_cmdi" | "detect_nosql" => 10,
         "validate_byte_range" | "validate_url_encoding" | "validate_utf8_encoding" | "ip_match" => {
             2
         }

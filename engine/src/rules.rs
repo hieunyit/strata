@@ -201,6 +201,8 @@ pub const OPERATORS: &[&str] = &[
     // Append only: signed bundles persist these numeric operator codes.
     "detect_ssti",
     "detect_cmdi",
+    // 22/10/2026
+    "detect_nosql",
 ];
 
 pub const MAX_TRANSFORMS: usize = 16;

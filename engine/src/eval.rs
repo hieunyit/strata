@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use strata_hs::MappedDb;
 
 use crate::detectors::Violation;
-use crate::detectors::injection::{cmdi, detect_sqli, detect_xss, ssti};
+use crate::detectors::injection::{cmdi, detect_sqli, detect_xss, nosql, ssti};
 use crate::operators::{self, CompiledOperators};
 use crate::rules::{
     BLOCK_SCAN_MAX, CondView, HS_OPERATORS, Hyperscan, RuleView, Tables, TargetView, VARS,
@@ -347,6 +347,7 @@ pub fn supported() -> (Vec<&'static str>, Vec<&'static str>) {
                         | "detect_xss"
                         | "detect_ssti"
                         | "detect_cmdi"
+                        | "detect_nosql"
                         | "validate_byte_range"
                         | "validate_url_encoding"
                         | "validate_utf8_encoding"
@@ -1797,7 +1798,7 @@ fn condition(
     let pattern = HS_OPERATORS.contains(&c.op);
     let detect = matches!(
         op,
-        "detect_sqli" | "detect_xss" | "detect_ssti" | "detect_cmdi"
+        "detect_sqli" | "detect_xss" | "detect_ssti" | "detect_cmdi" | "detect_nosql"
     );
     let operator_v2 = matches!(
         op,
@@ -1971,6 +1972,7 @@ fn condition(
                         "detect_xss" => detect_xss(tv_ref),
                         "detect_ssti" => ssti::detect(tv_ref),
                         "detect_cmdi" => cmdi::detect(tv_ref),
+                        "detect_nosql" => nosql::detect(tv_ref),
                         _ => false,
                     })
                 } else if operator_v2 {
@@ -2826,6 +2828,7 @@ mod tests {
             "detect_xss",
             "detect_ssti",
             "detect_cmdi",
+            "detect_nosql",
             "validate_byte_range",
             "validate_url_encoding",
             "validate_utf8_encoding",

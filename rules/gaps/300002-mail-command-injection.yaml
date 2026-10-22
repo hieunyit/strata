@@ -1,6 +1,8 @@
 # Strata gap rule, W13-S-01: SMTP / IMAP command injection after a line
 # break in a parameter (GoTestWAF mail-injection, 15/10/2026).
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300002
   name: Mail server command after a line break in a parameter
@@ -9,7 +11,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input } ]
-      transforms: [ lowercase ]
+      transforms: [ url_decode_uni, lowercase ]
       operator:
         type: rx
         value: '[\r\n]\s*(?:rcpt\s+to\s*:|mail\s+from\s*:|(?:helo|ehlo|vrfy|expn)\s+\S|(?:quit|rset|data)\s*(?:[\r\n]|$)|[a-z]\d{1,6}\s+(?:capability|fetch|login|select|examine|store|copy|logout|append|uid)\b)'

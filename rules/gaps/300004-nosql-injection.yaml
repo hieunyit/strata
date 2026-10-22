@@ -2,6 +2,8 @@
 # injection (GoTestWAF nosql-injection, 15/10/2026).
 # 22/10/2026: the URL path too (GoTestWAF URLPath).
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300004
   name: NoSQL operator or server-side JavaScript injection
@@ -10,7 +12,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input } ]
-      transforms: [ lowercase ]
+      transforms: [ url_decode_uni, lowercase ]
       operator:
         type: rx
         value: '\$(?:where|ne|gt|gte|lt|lte|nin|regex|or|and|nor|exists|expr|elemmatch)\b\s*[''"]?\s*:|\[\s*\$(?:ne|gt|gte|lt|lte|regex|where|nin|exists)\s*\]|\bdo\s*\{[^}]{0,200}\}\s*while\s*\(|\bdb\.[a-z_]\w*\.(?:insert|find|update|remove|drop|aggregate)\w*\s*\('

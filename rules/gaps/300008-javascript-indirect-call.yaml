@@ -3,6 +3,8 @@
 # community-xss, 15/10/2026).
 # 22/10/2026: the URL path too (GoTestWAF URLPath).
 # 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
+# 22/10/2026: url_decode_uni first, so a payload percent-encoded once more
+# (multipart, JSON, double encoding) is read decoded too.
 rule:
   id: 300008
   name: JavaScript dialog called indirectly
@@ -11,7 +13,7 @@ rule:
   match:
     all:
     - targets: [ { var: user_input } ]
-      transforms: [ html_entity_decode, js_decode, lowercase ]
+      transforms: [ url_decode_uni, html_entity_decode, js_decode, lowercase ]
       operator:
         type: rx
         value: '\b(?:alert|confirm|prompt)\s*(?:\?\.\s*)?\(\s*(?:\d|document\b|window\b|null\b|this\b|[''"`])|\(\s*(?:alert|confirm|prompt|eval)\s*\)\s*\(|\b(?:alert|confirm|prompt|eval)\s*\.\s*(?:call|apply|bind)\s*\(|\b(?:alert|confirm|prompt)\s*`[^`]{0,40}`|\bonerror\s*=\s*eval\b'
