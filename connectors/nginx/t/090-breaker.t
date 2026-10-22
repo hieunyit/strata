@@ -249,17 +249,15 @@ subtest "half-open without errors closes" => sub {
 };
 
 # ---------------------------------------------------------------------------
-# heavy payloads over the CPU budget never open the breaker. The budget
-# grows by 0.5 ms per KB of body (#28), so heavy means many values for few
-# bytes: 1024 tiny fields (about 8 KB, 1 + 4 ms of budget) through the CRS
-# rules take much longer
+# requests over the CPU budget never open the breaker. STRATA-TEST-SPIN (a
+# test-hooks build) burns CPU until the budget runs out; enforced, they are
+# refused (503) whatever the fail mode (22/10/2026)
 
 setup([ glob("$repo/rules/crs/*.yaml") ], "strata_breaker_threshold $threshold;");
 
 subtest "budget exceeded does not count" => sub {
-    my $heavy = join("&", map { "a$_=%26amp%3B$_" } 0 .. 1023);
     my $b0 = metrics()->[C_BUDGET];
-    is(req("/budget", $heavy)->{status}, 200, "fails open") for 1 .. 25;
+    is(req("/budget?STRATA-TEST-SPIN")->{status}, 503, "refused") for 1 .. 25;
     ok(metrics()->[C_BUDGET] - $b0 >= 20, "budget exceeded on the heavy requests");
     is(metrics()->[C_BREAKER], 0, "breaker stays closed");
     is(metrics()->[C_OPENS], 0, "never opened");

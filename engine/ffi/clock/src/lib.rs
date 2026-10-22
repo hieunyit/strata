@@ -43,6 +43,12 @@ pub fn thread_cpu_ns() -> Option<u64> {
     None
 }
 
+/// Whether `thread_cpu_ns` works here, checked once per process.
+pub fn available() -> bool {
+    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(|| thread_cpu_ns().is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use super::thread_cpu_ns;

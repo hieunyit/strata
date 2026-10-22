@@ -549,46 +549,52 @@ sleep 0.3;
 
 my $heavy = "q=" . ("%26amp%3B%26lt%3B" x 62_000);    # ~1 MB
 
-subtest "budget exceeded, fail mode open: passes, counted" => sub {
+# 22/10/2026: the budget grows by 2 ms per KB of request, more than any
+# request the engine can inspect needs, so running it out is refused in an
+# enforced policy whatever strata_fail_mode says (padding first and the
+# payload last used to pass under fail mode open). STRATA-TEST-SPIN (a
+# test-hooks build) burns CPU until the budget runs out.
+subtest "budget exceeded under fail mode open, enforced: 503, not passed" => sub {
     my $r;
-    my $d = delta(sub { $r = req("POST", "/bopen", $heavy) });
-    is($r->{status}, 200, "passes");
+    my $d = delta(sub { $r = req("POST", "/bopen?STRATA-TEST-SPIN", "q=1") });
+    is($r->{status}, 503, "503");
     like($r->{headers}{"x-id"} // "", qr/^EVT-/, "Event ID");
     is($d->[C_BUDGET], 1, "budget exceeded +1");
-    is($d->[C_OPEN], 1, "fail open +1");
-    like((events(1))[0]{block_id} // "", qr/^EVT-/, "error event");
+    is($d->[C_CLOSED], 1, "fail closed +1");
+    is($d->[C_OPEN], 0, "not fail open");
+    is((events(1))[0]{status}, 503, "event with status 503");
 };
 
 subtest "budget exceeded, fail mode closed: 503" => sub {
     my $r;
-    my $d = delta(sub { $r = req("POST", "/bclosed", $heavy) });
+    my $d = delta(sub { $r = req("POST", "/bclosed?STRATA-TEST-SPIN", "q=1") });
     is($r->{status}, 503, "503");
     is($d->[C_BUDGET], 1, "budget exceeded +1");
     is($d->[C_CLOSED], 1, "fail closed +1");
     is((events(1))[0]{status}, 503, "event with status 503");
 };
 
-# #98: a policy with fail_on_findings: block. Host 127.0.0.1:<port> is a
-# numeric host (CRS 920350, 60 points, below the threshold): a finding
-# before the body runs the budget out
-subtest "budget out with findings, fail_on_findings block: 503 under fail mode open" => sub {
-    my $r;
-    my $d = delta(sub { $r = req("POST", "/bfof", $heavy) });
-    is($r->{status}, 503, "503");
-    is($d->[C_BUDGET], 1, "budget exceeded +1");
-    is($d->[C_CLOSED], 1, "fail closed +1");
-    is($d->[C_OPEN], 0, "not fail open");
+subtest "budget exceeded with or without findings: 503" => sub {
+    for my $host ("127.0.0.1", "localhost") {
+        my $r;
+        my $d = delta(sub { $r = req("POST", "/bfof?STRATA-TEST-SPIN", "q=1", $host) });
+        is($r->{status}, 503, "503 ($host)");
+        is($d->[C_OPEN], 0, "not fail open ($host)");
+        events(1);
+    }
 };
 
-# Host localhost:<port> is not numeric: no finding before the budget runs out
-subtest "budget out without findings: the fail mode (open) decides" => sub {
+subtest "budget exceeded in a shadow policy: passes, counted" => sub {
     my $r;
-    my $d = delta(sub { $r = req("POST", "/bfof", $heavy, "localhost") });
+    my $d = delta(sub { $r = req("GET", "/shadow?STRATA-TEST-SPIN") });
     is($r->{status}, 200, "passes");
-    is($d->[C_OPEN], 1, "fail open +1");
+    is($d->[C_BUDGET], 1, "budget exceeded +1");
+    is($d->[C_CLOSED], 0, "not fail closed");
+    events(1);
 };
 
-subtest "default budget, fail mode open: the heavy body passes, bytes counted" => sub {
+# a heavy body (1 MB of entities) fits its budget: inspected whole, passes
+subtest "default budget: the heavy body is inspected and passes, bytes counted" => sub {
     my $d = delta(sub { is(req("POST", "/t", $heavy)->{status}, 200, "200") });
     is($d->[C_BODY] > 0, 1, "body bytes counted");
 };

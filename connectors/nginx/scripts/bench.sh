@@ -34,6 +34,7 @@ conns="${5:-64}"
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 objs="$root/build/nginx-$version/objs"
 fx="$root/connectors/nginx/t/fixtures"
+# BENCH_KEEP=<dir>: keep NGINX's logs (error.log: engine errors) there.
 # BENCH_FULL_BUNDLE / BENCH_P01_BUNDLE: another build of the same rules,
 # e.g. with the block-mode Hyperscan section (strata-rules release --hs-block)
 case "$mode" in
@@ -52,7 +53,7 @@ cleanup() {
     kill -QUIT "$(cat "$work/logs/nginx.pid" 2>/dev/null)" 2>/dev/null || true
     [ -n "$reader" ] && kill "$reader" 2>/dev/null || true
     sleep 0.5
-    rm -rf "$work"
+    [ -n "${BENCH_KEEP:-}" ] && cp -r "$work/logs" "$BENCH_KEEP" 2>/dev/null; rm -rf "$work"
 }
 trap cleanup EXIT
 chmod 755 "$work" # workers (another user when run as root) reach the event socket

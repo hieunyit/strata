@@ -24,6 +24,23 @@ pub struct BudgetExceeded;
 /// module docs); before it, the call counts wall time.
 pub const CPU_MARK_AFTER: Duration = Duration::from_micros(500);
 
+/// Wall time a call counts at most where it has no CPU reading: a call that
+/// took no mark, and the part of a marked call before its mark. Loops of
+/// the engine reach a checkpoint every ~50 µs of work, so such a part did
+/// less than CPU_MARK_AFTER of work; the rest of its wall time is the time
+/// other processes ran (a worker preempted in a short call counted 20-40 ms
+/// and its request was refused on a loaded host). Counting less here only
+/// lets a request do more work, it never leaves one uninspected.
+pub const UNMEASURED_MAX: Duration = Duration::from_millis(1);
+const UNMEASURED_MAX_NS: u64 = 1_000_000;
+
+/// Once the budget has grown this much over its base (a request of some
+/// KB, see `extend`), every call of the transaction counts CPU time from
+/// its start: a large body comes in many short calls, each of which would
+/// otherwise count wall time, the time other processes ran included. Two
+/// clock reads per call (about 4 µs) against tens of milliseconds of work.
+pub const EXACT_AFTER_NS: u64 = 20_000_000;
+
 #[derive(Debug)]
 pub struct TxBudget {
     /// Total budget configured for the transaction in nanoseconds. 0 means unlimited.
@@ -47,6 +64,10 @@ pub struct TxBudget {
     graced: bool,
     /// the current call's mark: wall instant and thread CPU time
     cpu_mark: Option<(Instant, u64)>,
+    /// the budget set at the start, before `extend`
+    base_ns: u64,
+    /// every call counts CPU time from its start (`EXACT_AFTER_NS`)
+    exact: bool,
 }
 
 impl TxBudget {
@@ -62,6 +83,19 @@ impl TxBudget {
             credit_ns: 0,
             graced: false,
             cpu_mark: None,
+            base_ns: budget_us.saturating_mul(1000),
+            exact: false,
+        }
+    }
+
+    /// An exact call starts with its mark: CPU time from the first instant.
+    fn mark_start(&mut self) {
+        if self.exact {
+            let now = Instant::now();
+            if let Some(cpu) = strata_clock::thread_cpu_ns() {
+                self.call_start = Some(now);
+                self.cpu_mark = Some((now, cpu));
+            }
         }
     }
 
@@ -109,6 +143,7 @@ impl TxBudget {
             self.exceeded = true;
             return Err(BudgetExceeded);
         }
+        self.mark_start();
         Ok(())
     }
 
@@ -129,6 +164,11 @@ impl TxBudget {
         }
         let remaining_ns = self.budget_ns.saturating_sub(self.prior_elapsed_ns);
         self.call_deadline = Some(now + Duration::from_nanos(remaining_ns));
+        if self.exact
+            && let Some(cpu) = strata_clock::thread_cpu_ns()
+        {
+            self.cpu_mark = Some((now, cpu));
+        }
         Ok(())
     }
 
@@ -143,6 +183,7 @@ impl TxBudget {
         let grown = self.budget_ns.saturating_add(ns).min(cap_ns);
         let added = grown - self.budget_ns;
         self.budget_ns = grown;
+        self.exact |= grown.saturating_sub(self.base_ns) >= EXACT_AFTER_NS;
         if let Some(d) = self.call_deadline.as_mut() {
             *d += Duration::from_nanos(added);
         }
@@ -181,7 +222,7 @@ impl TxBudget {
             if let Some((mark, cpu0)) = self.cpu_mark
                 && let Some(cpu) = strata_clock::thread_cpu_ns()
             {
-                let call = (mark - start).as_nanos().min(u64::MAX as u128) as u64;
+                let call = (mark - start).min(UNMEASURED_MAX).as_nanos() as u64;
                 let used = self
                     .prior_elapsed_ns
                     .saturating_add(call)
@@ -242,10 +283,14 @@ impl TxBudget {
                     let wall_after = mark.elapsed().as_nanos().min(u64::MAX as u128) as u64;
                     nanos
                         .saturating_sub(wall_after)
+                        .min(UNMEASURED_MAX_NS)
                         .saturating_add(cpu.saturating_sub(cpu0))
                 }
                 None => nanos,
             },
+            // no mark: under CPU_MARK_AFTER of work (see UNMEASURED_MAX),
+            // where the CPU clock can be read
+            None if strata_clock::available() => nanos.min(UNMEASURED_MAX_NS),
             None => nanos,
         };
         self.external_timer = false;
@@ -302,12 +347,30 @@ mod tests {
         assert!(!b.is_exceeded());
     }
 
+    /// Burns CPU for `d` with checkpoints as the engine has them (the
+    /// budget counts CPU time, not sleep); stops at the first exceeded one.
+    fn work(b: &mut TxBudget, d: Duration) -> Result<(), BudgetExceeded> {
+        // CPU time, not wall time: tests run in parallel and share CPUs
+        let t0 = strata_clock::thread_cpu_ns().expect("clock");
+        let end = t0 + d.as_nanos() as u64;
+        let mut x = 0u64;
+        while strata_clock::thread_cpu_ns().expect("clock") < end {
+            for _ in 0..10_000 {
+                x = std::hint::black_box(x.wrapping_add(1));
+            }
+            b.check()?;
+        }
+        Ok(())
+    }
+
     #[test]
     fn budget_exceeded_triggers_and_sticks() {
         let mut b = TxBudget::new(5_000); // 5 ms
         assert!(b.enter().is_ok());
-        sleep(Duration::from_millis(10));
-        assert_eq!(b.check(), Err(BudgetExceeded));
+        assert_eq!(
+            work(&mut b, Duration::from_millis(200)),
+            Err(BudgetExceeded)
+        );
         assert!(b.is_exceeded());
         b.exit();
 
@@ -339,17 +402,23 @@ mod tests {
         // negative: the same 5 ms call with only 1 ms credited is over
         let mut b = TxBudget::new(2_000);
         assert!(b.enter().is_ok());
-        sleep(Duration::from_millis(5));
         b.credit(Duration::from_millis(1));
-        assert_eq!(b.check(), Err(BudgetExceeded));
+        assert_eq!(
+            work(&mut b, Duration::from_millis(200)),
+            Err(BudgetExceeded)
+        );
         // and a credit does not carry over into the next call
         let mut b = TxBudget::new(2_000);
         assert!(b.enter().is_ok());
         b.credit(Duration::from_millis(4));
-        b.exit_with(Duration::from_millis(4));
+        work(&mut b, Duration::from_millis(3)).unwrap();
+        b.exit();
+        assert!(!b.is_exceeded(), "3 ms of work, 4 ms credited");
         assert!(b.enter().is_ok());
-        b.exit_with(Duration::from_millis(3));
-        assert!(b.is_exceeded());
+        assert_eq!(
+            work(&mut b, Duration::from_millis(200)),
+            Err(BudgetExceeded)
+        );
     }
 
     #[test]
@@ -370,13 +439,21 @@ mod tests {
     fn budget_accumulates_across_calls() {
         let mut b = TxBudget::new(30_000); // 30 ms
         assert!(b.enter().is_ok());
-        b.exit_with(Duration::from_millis(10));
+        work(&mut b, Duration::from_millis(10)).unwrap();
+        b.exit();
         assert!(!b.is_exceeded());
+        assert!(
+            b.prior_elapsed_ns >= 5_000_000,
+            "the first call counts its work"
+        );
 
-        // Second call: 20 ms remaining, 25 ms exhausts it
+        // Second call: the rest runs out
         assert!(b.enter().is_ok());
-        b.exit_with(Duration::from_millis(25));
-        assert!(b.is_exceeded());
+        assert_eq!(
+            work(&mut b, Duration::from_millis(500)),
+            Err(BudgetExceeded)
+        );
+        b.exit();
         assert_eq!(b.enter(), Err(BudgetExceeded));
     }
 }
@@ -387,10 +464,12 @@ mod cpu_time_tests {
 
     /// Burns CPU for `d` of wall time, with checkpoints as the engine does.
     fn work(b: &mut TxBudget, d: Duration) -> Result<(), BudgetExceeded> {
-        let t = Instant::now();
+        // CPU time, not wall time: tests run in parallel and share CPUs
+        let t0 = strata_clock::thread_cpu_ns().expect("clock");
+        let end = t0 + d.as_nanos() as u64;
         let mut x = 0u64;
-        while t.elapsed() < d {
-            for _ in 0..1000 {
+        while strata_clock::thread_cpu_ns().expect("clock") < end {
+            for _ in 0..10_000 {
                 x = std::hint::black_box(x.wrapping_add(1));
             }
             b.check()?;
@@ -437,6 +516,35 @@ mod cpu_time_tests {
             work(&mut b, Duration::from_millis(200)),
             Err(BudgetExceeded)
         );
+    }
+
+    #[test]
+    fn a_large_request_counts_cpu_time_in_short_calls_too() {
+        // a large body comes in many short calls (one per buffer), each
+        // under CPU_MARK_AFTER: 60 of them, 5 ms off the CPU each, are
+        // 300 ms of wall time and almost no CPU time
+        let mut b = TxBudget::new(10_000);
+        b.extend(100_000_000, 2_500_000_000);
+        assert!(b.exact, "grown by 100 ms: exact");
+        for _ in 0..60 {
+            b.enter_lazy().unwrap();
+            let t = Instant::now();
+            std::thread::sleep(Duration::from_millis(5));
+            b.exit_with_ns(t.elapsed().as_nanos() as u64);
+        }
+        assert!(!b.is_exceeded());
+        assert!(
+            b.prior_elapsed_ns < 20_000_000,
+            "{} ns counted",
+            b.prior_elapsed_ns
+        );
+        // a small request keeps the wall clock: no clock read per call
+        let mut b = TxBudget::new(10_000);
+        b.extend(1_000_000, 2_500_000_000);
+        assert!(!b.exact);
+        b.enter_lazy().unwrap();
+        assert!(b.cpu_mark.is_none());
+        b.exit_with_ns(1_000);
     }
 
     #[test]
