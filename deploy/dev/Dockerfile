@@ -31,8 +31,8 @@ RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \
 # Go for strata-agent, control-plane and tests/e2e, plus the proto and lint
 # tools. GOPATH and the build cache live under /tmp (HOME), so they are
 # writable for any uid; deploy/dev/run.sh points them at build/go.
-ARG GO_VERSION=1.26.9
-ARG GO_SHA256=42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d
+ARG GO_VERSION=1.26.10
+ARG GO_SHA256=ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5
 ARG BUF_VERSION=1.34.0
 ARG PROTOC_GEN_GO_VERSION=1.34.2
 ARG PROTOC_GEN_GO_GRPC_VERSION=1.5.1
