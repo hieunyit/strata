@@ -10,6 +10,11 @@
 //	strata-mutate --repo . --bundle <sbn> --pubkey <key> [--policy example-api]
 //	              [--md docs/mutation-report.md] [--json build/mutate/summary.json]
 //	              [--max-bypass PCT]
+//	strata-mutate --repo . --bundle <sbn> --pubkey <key> --regression corpus/regression
+//	              [--baseline corpus/regression/baseline.json] [--write-baseline]
+//
+// --regression: payloads that passed once and were fixed, and their
+// variants, must stay blocked (regression.go).
 //
 // The requests run through strata-eval (the engine, as the NGINX connector
 // calls it): $STRATA_EVAL, <repo>/target/release/strata-eval, or PATH.
@@ -112,10 +117,22 @@ func main() {
 	md := flag.String("md", "", "write the Markdown report there (default: stdout)")
 	jsonOut := flag.String("json", "", "write the summary as JSON there")
 	maxBypass := flag.Float64("max-bypass", -1, "fail when the overall bypass rate is above this percentage")
+	regression := flag.String("regression", "", "directory of fixed bypasses (seeds): each and its variants recorded blocked must stay blocked")
+	baseline := flag.String("baseline", "", "with --regression: the variants recorded blocked (default <regression>/baseline.json)")
+	writeBaseline := flag.Bool("write-baseline", false, "with --regression: record the variants blocked now")
 	flag.Parse()
 	if *bundle == "" || *pubkey == "" {
 		fmt.Fprintln(os.Stderr, "usage: strata-mutate --bundle <sbn> --pubkey <key> [--repo .] [--md file] [--json file]")
 		os.Exit(2)
+	}
+	if *regression != "" {
+		if *baseline == "" {
+			*baseline = filepath.Join(*regression, "baseline.json")
+		}
+		if err := runRegression(*regression, *baseline, *writeBaseline, find(*repo), *bundle, *pubkey, *policy); err != nil {
+			die(err)
+		}
+		return
 	}
 	payloads, err := load(filepath.Join(*repo, "corpus", "attack"))
 	if err != nil {

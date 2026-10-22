@@ -8,6 +8,7 @@ Never packed into a bundle; see NOTICE for origins and licenses.
 | `attack/<type>.jsonl` | attack payloads: `{payload, attack_type, source, license}`; `source` is `repo@commit:path:line` | `strata-rules corpus fetch` from the pinned commits in `sources.yaml` |
 | `benign/synthetic.jsonl` | 2,000 ordinary API and web requests (names with apostrophes, SQL and HTML words in prose, dotted paths, JSON) | `strata-rules corpus benign --seed 1` |
 | `benign/paths.jsonl` | 358 GET requests whose URL paths have real-world shapes: base64 IDs and share links, JWTs, slugs with SQL, JavaScript and shell words, titles with parentheses, non-Latin text (22/10/2026, base64 in the path) | a script, kept as data: `docs/decisions/base64-args.md` §7 |
+| `regression/*.jsonl` | payloads that passed Strata once and were fixed (seeds: payload, attack type, carrier query/form/path, encoding), and `baseline.json`, the variants of them recorded blocked | from bypass reports (first: GoTestWAF URL path, 22/10/2026); `make test-regression` keeps each seed and each recorded variant blocked, `REGRESSION_WRITE=1` records the variants blocked now |
 | `fp/semantic/<detector>-benign.txt` | benign values that look like SQL or markup, one per line (`#` comments): false positives of the semantic detectors | written by hand (W20-R-01); `strata-replay semantic --values` |
 | `crs-ftw/<group>.jsonl` | the go-ftw tests of CRS 4.25.2: `{rule, test, expect: match/no_match, request}` | `make crs-ftw`; tests that could not be converted: `docs/crs-ftw-unconverted.md` |
 
