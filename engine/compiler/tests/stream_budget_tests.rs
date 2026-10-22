@@ -138,6 +138,7 @@ fn budget_exhaustion_mid_stream_resets_cleanly() {
         let mut tx = Tx::new(Some(engine.clone()), b"node", 0);
         tx.set_policy(b"example-api");
         tx.set_budget(50); // 50 µs budget
+        tx.set_body_budget(0, 0); // fixed: the body does not add to it (#28)
         let _ = tx.request_line(b"POST", b"/p", b"/p", b"", b"HTTP/1.1");
         let _ = tx.request_headers(&[
             (b"Host", b"example.test"),

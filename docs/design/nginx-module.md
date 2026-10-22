@@ -339,7 +339,7 @@ Directive chỉ quy định cách module gắn vào NGINX; nội dung bảo mậ
 | `strata_identity <complex value>` | http, server, location | — | Định danh client cho rate limit / behavior, ví dụ `$http_x_client_id` |
 | `strata_block_page <path>` | http, server, location | template từ bundle | Ghi đè cục bộ template trang chặn mặc định của control plane |
 | `strata_event_socket <unix:path>` | http | `unix:/run/strata/events.sock` | Socket gửi sự kiện (protobuf) cho `strata-agent`. Gói cài đặt để systemd giữ socket này (`strata-agent.socket`, socket activation, W13-G1-01): socket sống qua mỗi lần agent khởi động lại, nên sự kiện được xếp hàng chứ không mất, và socket đã `connect()` của worker vẫn hợp lệ |
-| `strata_cpu_budget <time>` | http, server, location | `10ms` | Thời gian CPU tối đa cho một request; vượt thì xử lý theo fail mode. Mặc định 2 ms tới 15/10/2026, nâng lên 10 ms theo quyết định PO (`docs/decisions/base64-args.md` §2) |
+| `strata_cpu_budget <time>` | http, server, location | `10ms` | Thời gian CPU tối đa cho một request; vượt thì xử lý theo fail mode. Mặc định 2 ms tới 15/10/2026, nâng lên 10 ms theo quyết định PO (`docs/decisions/base64-args.md` §2). Từ 16/10/2026 (#28, PO duyệt): cộng thêm 0,5 ms cho mỗi KB body được inspect, tổng tối đa 100 ms; budget đặt lớn hơn 100 ms thì giữ nguyên. Body 64 KB được 42 ms |
 | `strata_breaker on\|off` | http | `on` | Circuit breaker cấp worker (mục Circuit breaker cấp worker) |
 | `strata_breaker_threshold <tỉ lệ>% <cửa sổ> <tối thiểu> [open=<time>]` | http | `2% 10s 200 open=30s` | Ngưỡng mở breaker; `open=` là thời gian mở đầu tiên (tối đa 5 phút) |
 | `strata_breaker_action degrade\|reject` | http, server, location | `degrade` | Khi breaker mở: chạy giảm cấp, hoặc trả 503 kèm Event ID |
@@ -824,6 +824,8 @@ Engine chạy đồng bộ trong event loop của worker, nên mọi lời gọi
 | Chưa có bundle, bundle không nạp được | Cho qua, ghi metric | Trả 503 kèm Event ID |
 | Engine trả lỗi hoặc panic | Cho qua, ghi sự kiện lỗi | Trả 503 kèm Event ID |
 | Vượt `strata_cpu_budget` | Cho qua, ghi sự kiện | Trả 503 kèm Event ID |
+
+*Từ 16/10/2026 (#28, PO duyệt):* vi phạm tìm được trước khi hết budget vẫn được tính. Nếu chúng đủ để chặn (`block_alone` hoặc đạt ngưỡng), request bị chặn như bình thường, ở cả `open` lẫn `closed`; fail mode chỉ quyết định khi chúng không đủ. Budget thường cạn trong lượt scan của prefilter, vốn chạy trước mọi rule. Khi đó các rule ứng viên tìm được trên những giá trị đã scan có thêm 2 ms, một lần cho mỗi transaction, để xác nhận; giá trị chưa scan coi như chưa kiểm. Request vẫn tính là hết budget (`inspection = PARTIAL`, sự kiện và bộ đếm theo policy). Trước đó, payload ở đầu một body lớn đã bị tìm thấy vẫn đi theo fail mode khi phần sau đủ đắt.
 | Body vượt giới hạn inspect | Theo policy (`pass` hoặc `block`) | Theo policy |
 | Event socket đầy hoặc agent chết | Không ảnh hưởng request, tăng counter | Không ảnh hưởng request, tăng counter |
 

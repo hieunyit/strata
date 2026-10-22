@@ -28,6 +28,8 @@ pub struct TxBudget {
     /// time of the current call that does not count: one-time work of the
     /// bundle (a fallback regex compiled on first use), not of this request
     credit_ns: u64,
+    /// `grace` was given (once per transaction)
+    graced: bool,
 }
 
 impl TxBudget {
@@ -41,7 +43,24 @@ impl TxBudget {
             external_timer: false,
             ticks: 0,
             credit_ns: 0,
+            graced: false,
         }
+    }
+
+    /// Once per transaction, an exceeded budget gets `ns` more (#28): time
+    /// to confirm what the prefilter found on the values it scanned before
+    /// the budget ran out. Returns whether it was given. The transaction
+    /// still counts as out of budget (the evaluator says so).
+    pub fn grace(&mut self, ns: u64) -> bool {
+        if self.graced || !self.exceeded || self.budget_ns == 0 {
+            return false;
+        }
+        self.graced = true;
+        self.exceeded = false;
+        let now = Instant::now();
+        self.call_deadline = Some(now + Duration::from_nanos(ns));
+        self.call_start.get_or_insert(now);
+        true
     }
 
     #[inline]
@@ -91,6 +110,22 @@ impl TxBudget {
         let remaining_ns = self.budget_ns.saturating_sub(self.prior_elapsed_ns);
         self.call_deadline = Some(now + Duration::from_nanos(remaining_ns));
         Ok(())
+    }
+
+    /// Adds `ns` to the budget, up to `cap_ns` in all; a budget at or over
+    /// the cap, or unlimited (0), stays as it is (#28: the budget grows
+    /// with the body inspected). The deadline of a call under way moves
+    /// with it. Not once exceeded: an exceeded budget stays so.
+    pub fn extend(&mut self, ns: u64, cap_ns: u64) {
+        if self.exceeded || self.budget_ns == 0 || self.budget_ns >= cap_ns {
+            return;
+        }
+        let grown = self.budget_ns.saturating_add(ns).min(cap_ns);
+        let added = grown - self.budget_ns;
+        self.budget_ns = grown;
+        if let Some(d) = self.call_deadline.as_mut() {
+            *d += Duration::from_nanos(added);
+        }
     }
 
     /// Cooperative checkpoint. Called every ~50 µs / 8 KB in loops.
@@ -286,5 +321,48 @@ mod tests {
         b.exit_with(Duration::from_millis(25));
         assert!(b.is_exceeded());
         assert_eq!(b.enter(), Err(BudgetExceeded));
+    }
+}
+
+#[cfg(test)]
+mod extend_tests {
+    use super::*;
+
+    #[test]
+    fn grows_up_to_the_cap_and_moves_the_deadline() {
+        let mut b = TxBudget::new(10_000); // 10 ms
+        let now = Instant::now();
+        b.enter_at(now).unwrap();
+        let d0 = b.call_deadline.unwrap();
+        b.extend(32_000_000, 100_000_000); // + 32 ms
+        assert_eq!(b.budget_ns(), 42_000_000);
+        assert_eq!(b.call_deadline.unwrap() - d0, Duration::from_millis(32));
+        b.extend(500_000_000, 100_000_000);
+        assert_eq!(b.budget_ns(), 100_000_000, "capped");
+        // a budget over the cap, unlimited, or exceeded does not change
+        let mut big = TxBudget::new(1_000_000);
+        big.extend(5_000_000, 100_000_000);
+        assert_eq!(big.budget_ns(), 1_000_000_000);
+        let mut none = TxBudget::new(0);
+        none.extend(5_000_000, 100_000_000);
+        assert_eq!(none.budget_ns(), 0);
+        let mut gone = TxBudget::new(1);
+        gone.exceeded = true;
+        gone.extend(5_000_000, 100_000_000);
+        assert_eq!(gone.budget_ns(), 1_000);
+    }
+
+    #[test]
+    fn grace_once_after_the_budget_ran_out() {
+        let mut b = TxBudget::new(1);
+        assert!(!b.grace(1_000_000), "not exceeded yet");
+        b.enter().unwrap_or(());
+        std::thread::sleep(Duration::from_millis(1));
+        assert!(b.check().is_err());
+        assert!(b.grace(50_000_000));
+        assert!(b.check().is_ok(), "50 ms more");
+        b.exceeded = true;
+        assert!(!b.grace(50_000_000), "once");
+        assert!(b.check().is_err());
     }
 }
