@@ -405,7 +405,7 @@ Bổ sung 14/10/2026 sau đánh giá bên ngoài (`docs/plan/review-response.md`
 - **RV-R-01 · Đóng #27/#28**
   - Thư mục: `engine/`, `tools/`
   - Làm: bundle section kind 8 (Hyperscan block mode, một DB cho mỗi nhóm scan) sau cờ compiler; đo trước/sau trên nhân 0–5, Linux thật.
-  - Xong khi: báo cáo trước/sau cho throughput phase 0–1, p99 form 64 KB / 1.700 trường, tỉ lệ fail-open của gói đầy đủ với body 64 KB và 1 MB. Chưa đạt (≤ 10%, < 1 ms, 0 fail-open với body ≤ 64 KB) thì ticket có hướng làm tiếp và Gate A ghi ngoại lệ.
+  - Xong khi: báo cáo trước/sau cho throughput phase 0–1, p99 form 64 KB / 1.700 trường, tỉ lệ fail-open của gói đầy đủ với body 64 KB và 1 MB. Chưa đạt (thời gian engine: p99 GET ≤ 100 µs với phase 0–1, ≤ 1 ms với gói đầy đủ; 0 fail-open với body ≤ 64 KB, theo `docs/decisions/perf-targets.md` từ 22/10/2026) thì ticket có hướng làm tiếp và Gate A ghi ngoại lệ.
 - **RV-N-01 · Fail-open nhìn thấy được**
   - Thư mục: `engine/`, `proto/`, `control-plane/`, `deploy/monitoring/`, `ui/`
   - Làm: sự kiện có cờ `inspection = partial | skipped` khi vượt budget hoặc bỏ qua body (thêm field vào `event.proto`, cùng lần đổi proto với RV-G2-01); tỉ lệ request không được kiểm đủ theo route trên trang Tổng quan và trong báo cáo Gate A.

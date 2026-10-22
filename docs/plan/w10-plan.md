@@ -46,7 +46,7 @@ luồng S). Trạng thái tại ngày lập kế hoạch:
 | # | Tiêu chí | Trạng thái | Bằng chứng / việc còn lại |
 | --- | --- | --- | --- |
 | A1 | Overhead p99 dưới 1 ms (request < 64 KB) | **Đạt một phần** | Phase 0–1: GET +53 µs (W09-R-01). Form 64 KB nhiều trường +1,34 ms → #28. Gói đầy đủ (ấm, Xeon): GET p50 1,0 ms, p99 1,7 ms (ghi chép review W09). Không đo lại trong tuần này |
-| A2 | Throughput giảm tối đa 10% | **Chưa đạt** | −46% với phase 0–1 (W09-R-01, đo trên WSL2) → #27. Chưa đo lại trên Linux thật |
+| A2 | Throughput giảm tối đa 10% → từ 22/10/2026: thời gian engine (p99 GET p01 ≤ 100 µs, gói đầy đủ ≤ 1 ms, 0 fail-open với body 64 KB) | **Chưa đạt** | −46% với phase 0–1 (W09-R-01, đo trên WSL2) → #27. 22/10: tiêu chí đổi sang thời gian engine (`docs/decisions/perf-targets.md`) |
 | A3 | Hot reload không rớt request | **Đạt** (chờ soak) | W05 (reload dưới tải), W08-N-01 (hot reload dưới tải trong Test::Nginx). Soak 24 giờ + 1.000 lần đổi bundle đang chạy, verdict khoảng 14/10 10:34 UTC |
 | A4 | 72 giờ fuzz không crash | **Đạt theo quyết định của PO** | PO quyết ngày 13/10/2026: chỉ cần 30 phút đến 1 giờ fuzz thay cho 72 giờ. Đã có: FFI ASan khoảng 9 giờ 50 phút, khoảng 122 triệu lần chạy, 0 crash (W08-R-01, dừng do máy khởi động lại chứ không phải crash) |
 | A5 | Conformance 100% | **Đạt** | W08-Q-01: corpus v1 qua engine và qua NGINX, 100% |

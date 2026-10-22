@@ -9,7 +9,12 @@ Oct 10, 2026 · @hieuny
 **Mục tiêu đo được**
 
 1. Overhead latency p99 dưới 1 ms với request dưới 64 KB khi bật đủ lớp phase 0–1.
-2. Throughput giảm không quá 10% so với NGINX không bật module (request nhỏ, keep-alive).
+2. Thời gian engine mỗi request (histogram `strata_engine_seconds` của agent), thay cho "throughput giảm không quá 10%" (người dùng duyệt 22/10/2026, `docs/decisions/perf-targets.md`):
+   - GET nhỏ, phase 0–1: p99 ≤ 100 µs;
+   - GET nhỏ, gói signature đầy đủ: p99 ≤ 1 ms;
+   - body 64 KB, gói đầy đủ: 0 request fail-open trong body budget.
+
+   Throughput so với NGINX không bật module vẫn được báo cáo (backend có độ trễ thật), nhưng không là điều kiện.
 3. Cập nhật bundle không cần `nginx -s reload`, không rớt request đang xử lý.
 4. Không crash worker sau 72 giờ fuzz với ASan; panic trong Rust không kéo sập worker.
 5. Quyết định giống hệt các connector khác trên bộ conformance.
