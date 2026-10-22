@@ -11,6 +11,9 @@ Rule của Strata và rule nhập từ nguồn ngoài (docs/plan/plan.md › Lu�
 - `samples/`: rule mẫu của các nguồn khác CRS (Strata, Sigma, crawler-user-agents, tổ chức).
 - `gaps/`: rule Strata bù khoảng trống (W13-S-01, dải 300001–399999), viết từ các payload còn
   lọt của GoTestWAF và `strata-mutate` (#34). Dấu hiệu chặt, điểm 100, 0 request benign.
+  Rule mới đọc input của client qua target `user_input` (22/10/2026), không liệt kê `args`,
+  `path`, cookie... từng nơi: compiler mở rộng nó (`strata_compiler::USER_INPUT`), nên thêm
+  một vị trí input là sửa một danh sách, không sửa từng rule.
 - `protocol/`: pack protocol của Strata (W05-S-01), 41 rule dải 100101–100141 (100141: khai báo entity XML, audit 22/10/2026),
   layer `protocol`: method, phiên bản HTTP, dạng request target, giới hạn độ
   dài và số lượng (transformation `length` + toán tử số), encoding lạ, Host,

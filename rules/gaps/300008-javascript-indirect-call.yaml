@@ -2,6 +2,7 @@
 # indirectly, past CRS PL1 (GoTestWAF xss-scripting, rest, soap,
 # community-xss, 15/10/2026).
 # 22/10/2026: the URL path too (GoTestWAF URLPath).
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300008
   name: JavaScript dialog called indirectly
@@ -9,7 +10,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: path } ]
+    - targets: [ { var: user_input } ]
       transforms: [ html_entity_decode, js_decode, lowercase ]
       operator:
         type: rx

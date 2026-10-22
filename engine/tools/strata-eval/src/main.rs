@@ -150,7 +150,11 @@ fn capabilities() -> Result<(), String> {
     let caps = serde_json::json!({
         "operators": operators,
         "transforms": transforms,
-        "vars": libstrata::eval::SUPPORTED_VARS,
+        // user_input is expanded by the compiler (strata_compiler::USER_INPUT)
+        "vars": libstrata::eval::SUPPORTED_VARS
+            .iter()
+            .chain(&["user_input"])
+            .collect::<Vec<_>>(),
     });
     println!("{caps}");
     Ok(())

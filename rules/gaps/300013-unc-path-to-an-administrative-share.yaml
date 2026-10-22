@@ -3,6 +3,7 @@
 # leak reads it: \\host\c$\users\default\ntuser.dat (GoTestWAF
 # path-traversal, also base64-encoded in the URL path). Ordinary file
 # share paths (\\fileserver\docs) do not match.
+# 22/10/2026: targets user_input (compiler-expanded, docs/spec/ir.schema.json).
 rule:
   id: 300013
   name: UNC path to an administrative share
@@ -10,7 +11,7 @@ rule:
   stage: request_body
   match:
     all:
-    - targets: [ { var: args }, { var: path }, { var: request_cookies } ]
+    - targets: [ { var: user_input } ]
       transforms: [ lowercase ]
       operator:
         type: rx
