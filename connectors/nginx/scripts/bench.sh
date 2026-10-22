@@ -186,9 +186,13 @@ run_wrk() { # seconds
     taskset -c "$ccpus" wrk -t4 -c"$conns" -d"$1s" --latency "${lua[@]}" "$url"
 }
 
+# other processes on the NGINX CPUs during the measured part (cpu-noise.py)
+noise() { python3 "$root/connectors/nginx/scripts/cpu-noise.py" "$@"; }
 if [ "$scenario" = h2 ]; then
+    noise snap "$ncpus" "$(cat "$work/logs/nginx.pid")" "$work/noise0.json"
     h2url="http://127.0.0.1:$port/t?$query"
     taskset -c "$ccpus" h2load -t4 -c"$conns" -m10 --warm-up-time=5 -D "$seconds" "$h2url" > "$work/out.txt" 2>&1
+    noise snap "$ncpus" "$(cat "$work/logs/nginx.pid")" "$work/noise1.json"
     cp "$work/out.txt" "${BENCH_RAW:-/dev/null}" 2>/dev/null || true
     python3 - "$scenario" "$mode" "$work/out.txt" <<'PY'
 import json, re, sys
@@ -207,7 +211,9 @@ print(json.dumps({"scenario": sys.argv[1], "mode": sys.argv[2], "rps": rps,
 PY
 else
     run_wrk 5 >/dev/null 2>&1 || true # warm-up: connections, Hyperscan scratch
+    noise snap "$ncpus" "$(cat "$work/logs/nginx.pid")" "$work/noise0.json"
     run_wrk "$seconds" > "$work/out.txt" 2>&1
+    noise snap "$ncpus" "$(cat "$work/logs/nginx.pid")" "$work/noise1.json"
     cp "$work/out.txt" "${BENCH_RAW:-/dev/null}" 2>/dev/null || true
     python3 - "$scenario" "$mode" "$work/out.txt" <<'PY'
 import json, re, sys
@@ -228,6 +234,12 @@ print(json.dumps({"scenario": sys.argv[1], "mode": sys.argv[2], "rps": rps,
                   "socket_errors": err.group(1) if err else ""}))
 PY
 fi > "$work/result.json"
+# the noise of the run joins its result
+python3 - "$work/result.json" "$(noise diff "$work/noise0.json" "$work/noise1.json")" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1])); r.update(json.loads(sys.argv[2]))
+json.dump(r, open(sys.argv[1], "w"))
+PY
 
 if [ "$mode" = events ]; then
     kill -TERM "$reader"; wait "$reader" 2>/dev/null || true; reader=""

@@ -596,6 +596,7 @@ dependencies = [
  "regex-automata",
  "serde_json",
  "sha2",
+ "strata-clock",
  "strata-hs",
 ]
 
@@ -1065,6 +1066,10 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "strata-clock"
+version = "0.1.0"
 
 [[package]]
 name = "strata-compiler"

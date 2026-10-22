@@ -67,3 +67,16 @@ if ev and on:
     secs = ev[0].get("seconds") or 0
     rate = f"{(recv + drop) / secs:,.0f}" if secs else ""
     print(f"| {a:,.0f} | {b:,.0f} | {(b - a) / a * 100:+.1f}% | {recv:,.0f} | {drop:,.0f} | {pct:.2f}% | {rate} |")
+
+# 22/10/2026: other processes on the NGINX CPUs during the runs. Above a few
+# percent the numbers of a run are not comparable with another run's.
+noisy = sorted(
+    ((r.get("cpu_noise_pct", 0), k) for k, rs in cells.items() for r in rs),
+    reverse=True,
+)
+if noisy and "cpu_noise_pct" in next(iter(cells.values()))[0]:
+    worst, key = noisy[0]
+    print(f"\nCPU noise on the NGINX CPUs (time used by other processes): max {worst}% "
+          f"({key[0]} {key[1]}, {key[2]} connections)", end="")
+    over = [n for n, _ in noisy if n > 5]
+    print(f"; {len(over)} of {len(noisy)} runs over 5%: isolate the CPUs and run again" if over else "; all runs under 5%.")

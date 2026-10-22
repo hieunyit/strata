@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["engine", "engine/ffi", "engine/ffi/hyperscan", "engine/compiler", "engine/tools/mkbundle", "engine/tools/strata-eval", "engine/replay"]
+members = ["engine", "engine/ffi", "engine/ffi/hyperscan", "engine/ffi/clock", "engine/compiler", "engine/tools/mkbundle", "engine/tools/strata-eval", "engine/replay"]
 
 [workspace.package]
 edition = "2024"
