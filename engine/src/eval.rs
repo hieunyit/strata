@@ -382,6 +382,9 @@ pub struct Request<'a> {
     /// the policy-scoped rules of the policy, as (rule ID, mode) by
     /// increasing ID (W19-G2-01)
     pub scoped: &'a [(u32, crate::scope::Mode)],
+    /// the policy's rule actions (RS-1), as (rule ID, action) by
+    /// increasing ID
+    pub overrides: &'a [(u32, crate::overrides::Action)],
     /// the policy's CRS paranoia levels (W17-S-01)
     pub paranoia: crate::paranoia::Levels,
     pub headers: &'a [(&'a [u8], &'a [u8])],
@@ -2694,10 +2697,16 @@ fn evaluate_inner(
         } else {
             None
         };
+        // RS-1: the policy's rule sets and overrides. off: not run; log or
+        // block: run even when the signature pack is off for the policy
+        let action = crate::overrides::lookup(req.overrides, r.id);
+        if action == Some(crate::overrides::Action::Off) {
+            continue;
+        }
         if r.stage != stage
             || r.exclusion
             || role == crate::paranoia::Role::Skip
-            || (r.signature && !signatures)
+            || (r.signature && !signatures && action.is_none())
             || (!disabled.is_empty() && disabled.binary_search(&r.id).is_ok())
             || ctx.removals.iter().any(|x| x.removes_rule(r.id))
         {
@@ -2751,13 +2760,19 @@ fn evaluate_inner(
                 .get(r.layer as usize)
                 .copied()
                 .unwrap_or("managed");
+            let block = action == Some(crate::overrides::Action::Block);
             report(Violation {
                 rule: r.id,
                 score: r.score,
-                block_alone: r.block_alone,
-                signature: r.signature,
+                // block: a match blocks alone, also a rule that only scores
+                block_alone: r.block_alone || block,
+                // block lifts the signature pack's shadow for this rule
+                signature: r.signature && !block,
+                // the paranoia level still comes first: a rule above the
+                // enforced level stays reported only, whatever the policy says
                 report_only: role == crate::paranoia::Role::Shadow
-                    || scope == Some(crate::scope::Mode::Log),
+                    || scope == Some(crate::scope::Mode::Log)
+                    || action == Some(crate::overrides::Action::Log),
                 layer: layer_name,
                 field,
                 snippet,

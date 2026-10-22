@@ -4,7 +4,9 @@
 //! 0      header (64 bytes, little-endian)
 //!          magic "STRBNDL\0" | format u16 | flags u16 | n_policies u32
 //!          version u64 | created_at_ms u64 | sections_off u64 | sections_len u64
-//!          reserved [u8; 16] (zero)
+//!          requires u8 (`REQUIRES_*`: features an engine must apply, so an
+//!          engine before them refuses the bundle instead of ignoring them)
+//!          | reserved [u8; 15] (zero)
 //! 64     policy table: n_policies x 64 bytes:
 //!          name [u8; 56] (1..55 chars [a-z0-9._-], NUL-padded) | mode u8
 //!          (0 shadow, 1 enforce) | oversize u8 (0 pass, 1 block: request
@@ -73,14 +75,28 @@ pub mod kind {
     /// The policies each policy-scoped rule (rule flag bit 4) runs for,
     /// and its mode (W19-G2-01, `crate::scope`).
     pub const SCOPE: u32 = 16;
+    /// Per-policy rule actions (off, log, block) from the policy's rule
+    /// sets and rule overrides (RS-1, `crate::overrides`). Header byte
+    /// `REQUIRES_OVERRIDE` marks a bundle carrying it.
+    pub const OVERRIDE: u32 = 17;
     /// Highest kind this engine reads.
-    pub const KNOWN: u32 = 16;
+    pub const KNOWN: u32 = 17;
 }
 
 /// (offset, len) of a section inside the bundle; (0, 0) when absent.
 pub type Range = (usize, usize);
 /// Header flag: this bundle may replace a newer one (signed rollback).
 pub const FLAG_ROLLBACK: u16 = 1 << 0;
+
+/// Header byte 48: features a bundle needs applied. Engines before this
+/// byte required its 16 reserved bytes to be zero, so they refuse a bundle
+/// with any bit set: a node that cannot apply rule overrides keeps its
+/// bundle rather than running this one without them (an `off` would not
+/// switch a rule off, a `block` would not block).
+const REQUIRES_BYTE: usize = 48;
+/// The bundle carries section OVERRIDE (rule sets and rule overrides).
+pub const REQUIRES_OVERRIDE: u8 = 1 << 0;
+const REQUIRES_KNOWN: u8 = REQUIRES_OVERRIDE;
 
 /// What to do with a request body larger than the connector inspects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -320,6 +336,8 @@ pub struct Info {
     pub version: u64,
     pub created_at_ms: u64,
     pub flags: u16,
+    /// Header byte `REQUIRES_BYTE`.
+    pub requires: u8,
     pub n_policies: u32,
     /// Known sections, indexed by kind.
     pub sections: [Range; kind::KNOWN as usize + 1],
@@ -449,6 +467,7 @@ pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
     }
     let mut info = Info {
         flags: u16_at(bundle, 10),
+        requires: bundle[REQUIRES_BYTE],
         n_policies: u32_at(bundle, 12),
         version: u64_at(bundle, 16),
         created_at_ms: u64_at(bundle, 24),
@@ -457,7 +476,8 @@ pub fn verify(bundle: &[u8], pubkey: &[u8]) -> Result<Info, Error> {
     let sections_off = u64_at(bundle, 32);
     let sections_len = u64_at(bundle, 40);
 
-    if bundle[48..64].iter().any(|&c| c != 0) {
+    if info.requires & !REQUIRES_KNOWN != 0 || bundle[REQUIRES_BYTE + 1..64].iter().any(|&c| c != 0)
+    {
         return Err(Error::BadLayout("reserved header bytes are not zero"));
     }
     if info.n_policies > MAX_POLICIES {
@@ -616,6 +636,15 @@ pub fn build_unsigned(spec: &Spec<'_>) -> Result<Vec<u8>, Error> {
     out[12..16].copy_from_slice(&(spec.policies.len() as u32).to_le_bytes());
     out[16..24].copy_from_slice(&spec.version.to_le_bytes());
     out[24..32].copy_from_slice(&spec.created_at_ms.to_le_bytes());
+    // the requirement follows the sections: set exactly when rule
+    // overrides are there (the engine refuses either without the other)
+    if spec
+        .sections
+        .iter()
+        .any(|(k, b)| *k == kind::OVERRIDE && !b.is_empty())
+    {
+        out[REQUIRES_BYTE] = REQUIRES_OVERRIDE;
+    }
     for (i, p) in spec.policies.iter().enumerate() {
         let Some(args) = args_byte(p.max_args) else {
             return Err(Error::BadLayout("bad policy entry"));
