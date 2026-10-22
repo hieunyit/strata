@@ -328,13 +328,13 @@ impl<'a> MappedDb<'a> {
                 panicked: false,
             };
 
-            if data.len() <= chunk_size {
+            if data.is_empty() {
+                // hs_scan_stream refuses NULL data (HS_INVALID), which used
+                // to be ignored: an empty value only has end-of-data
+                // matches, which the reset below reports (audit 22/10/2026)
+            } else if data.len() <= chunk_size {
                 let len = c_uint::try_from(data.len()).map_err(|_| Error::Scan(-1))?;
-                let ptr = if data.is_empty() {
-                    std::ptr::null()
-                } else {
-                    data.as_ptr().cast()
-                };
+                let ptr = data.as_ptr().cast();
                 let rc = unsafe {
                     hs_scan_stream(
                         stream,

@@ -32,6 +32,18 @@ rules:
         - targets: [ { var: args } ]
           operator: { type: rx, value: "attack-marker" }
     metadata: { source: organization, license: Apache-2.0 }
+  - id: 930703
+    name: an empty argument value
+    layer: managed
+    stage: request_headers
+    score: 100
+    severity: critical
+    action_mode: block_alone
+    match:
+      all:
+        - targets: [ { var: args, key: empty } ]
+          operator: { type: rx, value: "^$" }
+    metadata: { source: organization, license: Apache-2.0 }
 "#;
 
 fn engine() -> Arc<Engine> {
@@ -88,4 +100,16 @@ fn failed_scan_is_an_engine_error() {
     assert_ne!(action, ACTION_BLOCK);
     // the flag does not outlive the evaluation
     assert_eq!(get(&e, b"198.51.100.7", b"q=clean", false).2, OK);
+}
+
+/// Audit 22/10/2026: an empty value made the stream scan fail (Hyperscan
+/// refuses NULL data), which was ignored: end-anchored patterns never
+/// matched an empty value. It is scanned now, without an error.
+#[test]
+fn empty_value_is_scanned() {
+    let e = engine();
+    let (rc, action, error) = get(&e, b"198.51.100.7", b"empty=", false);
+    assert_eq!((rc, error), (OK, OK));
+    assert_eq!(action, ACTION_BLOCK, "^$ matches the empty value");
+    assert_eq!(get(&e, b"198.51.100.7", b"empty=x", false).1, 0);
 }
