@@ -149,6 +149,7 @@ canary:
   error_delta: 0.01
   latency_factor: 1.5
   latency_delta: 50ms
+  health_shadow: false   # a 5xx or latency trip also forces shadow (audit 22/10/2026: off)
 ```
 
 `soak: 0s` là default, không phải đề xuất đủ thời gian nghiệm thu cho mọi hệ thống.
@@ -221,6 +222,7 @@ Mẫu đầy đủ và kiểm tra combination ở [config.go](../../control-plan
 | `canary.block_factor` / `block_floor` | `-canary-block-factor` / `-canary-block-floor` | `3` / `0.01` |
 | `canary.error_factor` / `error_delta` | `-canary-error-factor` / `-canary-error-delta` | `2` / `0.01` |
 | `canary.latency_factor` / `latency_delta` | `-canary-latency-factor` / `-canary-latency-delta` | `1.5` / `50ms` |
+| `canary.health_shadow` | `-canary-health-shadow` | `false` |
 | `geoip.city` / `asn` | `-geoip-city` / `-geoip-asn` | File MMDB do vận hành cung cấp |
 | `geoip.update_interval` | `-geoip-update-interval` | `168h` khi có URL updater |
 | `good_bots.interval` | `-good-bots-interval` | `0`: không tự gọi ra ngoài |
