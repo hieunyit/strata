@@ -67,6 +67,22 @@ docker run -d --sysctl net.unix.max_dgram_qlen=8192 -v strata:/var/lib/strata \
 Agent hoặc NGINX dừng thì container dừng, để orchestrator khởi động lại. Không có
 supervisor nào giữ container chạy với một agent đã chết.
 
+## Data guard
+
+Location dùng policy có `data_guard` (che PAN, JWT, CCCD trong response) phải chặn hai cách né (audit 22/10/2026, F-05): response đã nén bởi upstream không được inspect, và request `Range` đọc giá trị theo từng mảnh.
+
+```nginx
+location /api/ {
+    strata on;
+    strata_policy example-api;
+    proxy_set_header Accept-Encoding "";   # upstream trả nội dung chưa nén
+    proxy_set_header Range "";             # không đọc response theo từng mảnh
+    proxy_pass http://backend;
+}
+```
+
+Nén cho client vẫn bật được bằng `gzip on;` ở NGINX (filter của Strata đứng trước `gzip`). Phần response sau `strata_response_body_limit` (mặc định 512 KB) không được che: tăng giới hạn nếu location trả dữ liệu nhạy cảm lớn.
+
 ## Nâng NGINX
 
 1. Kiểm có gói `nginx-module-strata_<bản mới>+…`: `install.sh` báo
