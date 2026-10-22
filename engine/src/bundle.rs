@@ -137,6 +137,17 @@ const PARANOIA_BIT: u8 = 1 << 6;
 /// (`parse_error: pass`) only records them. Engines from before it refuse
 /// a bundle with this bit set.
 const PARSE_PASS_BIT: u8 = 1 << 7;
+const _: () = assert!(
+    SNIPPET_MASK
+        | PRIVACY_BIT
+        | FAIL_ON_FINDINGS_BIT
+        | EXCEPTIONS_BIT
+        | STAGING_BIT
+        | PARANOIA_BIT
+        | PARSE_PASS_BIT
+        == u8::MAX,
+    "every bit of EVENT_BYTE is known"
+);
 
 /// Last byte of the policy entry (#28): the arguments the policy inspects,
 /// in fours; 0 (bundles written before it) is the engine's limit,
@@ -377,15 +388,8 @@ fn valid_policy_entry(entry: &[u8]) -> bool {
         && entry[POLICY_NAME_LEN + 2] & !Response::ALL == 0
         && valid_canary(entry_mode(entry), entry_canary(entry))
         && Signatures::from_byte(entry[POLICY_NAME_LEN + 5]).is_some()
-        && entry[EVENT_BYTE]
-            & !(SNIPPET_MASK
-                | PRIVACY_BIT
-                | FAIL_ON_FINDINGS_BIT
-                | EXCEPTIONS_BIT
-                | STAGING_BIT
-                | PARANOIA_BIT
-                | PARSE_PASS_BIT)
-            == 0
+        // every bit of EVENT_BYTE has a meaning since PARSE_PASS_BIT (audit
+        // 22/10/2026): a new setting needs another byte
         && entry[EVENT_BYTE] & SNIPPET_MASK <= SnippetSize::Kb4 as u8
         && entry[ARGS_BYTE + 1..].iter().all(|&c| c == 0)
 }
