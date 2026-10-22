@@ -304,7 +304,9 @@ mod tests {
             String::from_utf8_lossy(&x.text)
         );
         // a DOCTYPE without an internal subset adds nothing
-        let (x, _) = super::parse_checked_with_budget(b"<!DOCTYPE r SYSTEM \"x.dtd\"><r>a</r>", None).unwrap();
+        let (x, _) =
+            super::parse_checked_with_budget(b"<!DOCTYPE r SYSTEM \"x.dtd\"><r>a</r>", None)
+                .unwrap();
         assert_eq!(x.text, b"a");
     }
 
