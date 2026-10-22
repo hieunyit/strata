@@ -5,7 +5,7 @@ import { apiClient, Policy, PolicyVersion } from '../api/client';
 import { usePolling } from '../usePolling';
 import { downloadCsv, csvDate } from '../lib/csv';
 import { PageShell } from './PageShell';
-import { PageHeader, ErrorBanner, SectionTitle, Empty, formatTime } from '../components/ui';
+import { PageHeader, ErrorBanner, SectionTitle, Empty, formatTime, actorName } from '../components/ui';
 import { href } from '../router';
 import { useAuth } from '../context/AuthContext';
 import { canWritePolicies } from '../auth/roles';
@@ -173,7 +173,7 @@ export const PoliciesPage: React.FC = () => {
                   <td className="td text-muted">{t(`policies.oversize.${p.spec?.oversize ?? 'OVERSIZE_UNSPECIFIED'}`)}</td>
                   <td className="td text-right tabular-nums" data-testid="policy-version">{p.version}</td>
                   <td className="td text-muted whitespace-nowrap">{formatTime(p.update_time, i18n.language, t('common.never'))}</td>
-                  <td className="td text-muted">{p.created_by}</td>
+                  <td className="td text-muted" title={p.created_by}>{actorName(p.created_by)}</td>
                 </tr>
               ))}
             </tbody>
@@ -220,7 +220,7 @@ export const PoliciesPage: React.FC = () => {
                     )}
                     <span className="ml-auto text-right text-xs text-muted">
                       {formatTime(v.create_time, i18n.language, t('common.never'))}
-                      {v.created_by && <div>{v.created_by}</div>}
+                      {v.created_by && <div title={v.created_by}>{actorName(v.created_by)}</div>}
                     </span>
                   </li>
                 ))}

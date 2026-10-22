@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {apiClient,HealthCheck} from '../api/client';
 import {usePolling} from '../usePolling';
 import {PageShell} from './PageShell';
-import {PageHeader,ErrorBanner,formatTime} from '../components/ui';
+import {PageHeader,ErrorBanner,formatTime,formatBytes} from '../components/ui';
 export function healthState(c:HealthCheck,at:string,fresh:number,now:number,failed:boolean):HealthCheck['state']{
  if(failed)return 'unavailable';
  if(c.state!=='unknown'&&c.state!=='unavailable'&&(now-Date.parse(at)>fresh*1000||Date.parse(at)>now+5000||!Number.isFinite(Date.parse(at))))return 'stale';
@@ -18,7 +18,7 @@ export const HealthPage:React.FC=()=>{
   const state=healthState(c,snapshot!.at,snapshot!.fresh_for_seconds,now,!!data.error);
   return <tr key={c.id} data-testid={`health-${c.id}`} data-state={state} className="border-t border-line">
    <td className="td">{t(`health.sources.${c.id}`,{defaultValue:c.id})}</td><td className="td">{t(`health.states.${state}`)}</td>
-   <td className="td tabular-nums">{c.id==='certificate'&&c.value?t(`health.certificateValue.${c.value}`,{defaultValue:t('health.states.unknown')}):c.value??'—'} {c.unit?t(`health.units.${c.unit}`,{defaultValue:''}):''}</td>
+   <td className="td tabular-nums">{c.id==='certificate'&&c.value?t(`health.certificateValue.${c.value}`,{defaultValue:t('health.states.unknown')}):c.unit==='bytes'&&c.value!=null?formatBytes(c.value,i18n.language):c.value??'—'} {c.unit&&c.unit!=='bytes'?t(`health.units.${c.unit}`,{defaultValue:''}):''}</td>
    <td className="td">{formatTime(c.observed_at??undefined,i18n.language,t('health.missing'))}</td>
    <td className="td">{state==='healthy'?'—':t(`health.advice.${c.advice}`,{defaultValue:t('health.checkSource')})}</td>
   </tr>;

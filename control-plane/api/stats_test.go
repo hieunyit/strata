@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,26 @@ func TestOverview_ViewerGetsNoClients(t *testing.T) {
 	}
 	if o.Totals.Events != 5 {
 		t.Errorf("viewer totals = %+v", o.Totals)
+	}
+}
+
+// An operator over a window without events gets an empty list, not a
+// missing one: the UI shows "no events", not the viewer's notice.
+func TestOverview_EmptyWindowListsNoClients(t *testing.T) {
+	s, base := overviewServer(t)
+	q := url.Values{"from": {base.Add(-24 * time.Hour * 400).Format(time.RFC3339)}, "to": {base.Add(-24 * time.Hour * 399).Format(time.RFC3339)}}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/stats/overview?"+q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer operator")
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"top_clients":[]`) {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
+	}
+	rec = httptest.NewRecorder()
+	req.Header.Set("Authorization", "Bearer viewer")
+	s.Handler().ServeHTTP(rec, req)
+	if !strings.Contains(rec.Body.String(), `"top_clients":null`) {
+		t.Fatalf("viewer: %s", rec.Body)
 	}
 }
 

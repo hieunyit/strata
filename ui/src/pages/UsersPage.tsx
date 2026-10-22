@@ -318,7 +318,7 @@ export const UsersPage: React.FC = () => {
           )}
           {loading && <p className="text-[13px] text-muted">{t('users.loading')}</p>}
           {!loading && !error && (
-            <div className="panel overflow-x-auto">
+            <div className="panel relative overflow-x-auto">
               <table className="w-full text-[13px]" data-testid="users-table">
                 <thead>
                   <tr className="border-b border-line bg-sunken/50">
@@ -423,7 +423,7 @@ export const UsersPage: React.FC = () => {
           {saLoading && <p className="text-[13px] text-muted">{t('machine.loadingAccounts')}</p>}
 
           {!saLoading && (
-            <div className="panel overflow-x-auto">
+            <div className="panel relative overflow-x-auto">
               <table className="w-full text-[13px]" data-testid="sa-table">
                 <thead>
                   <tr className="border-b border-line bg-sunken/50">

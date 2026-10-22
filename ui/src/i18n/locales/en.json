@@ -24,7 +24,13 @@
     "rules": "Rules & packs",
     "exceptions": "Exceptions",
     "operations": "Alerts and reports",
-    "discovery": "API discovery"
+    "discovery": "API discovery",
+    "group": {
+      "monitor": "Monitor",
+      "protect": "Protect",
+      "operate": "Operate",
+      "admin": "Administration"
+    }
   },
   "header": {
     "searchLabel": "Look up a Block ID",
@@ -970,7 +976,8 @@
     },
     "precondition": "Deployment precondition: {{details}}",
     "capabilities": "Required node capabilities",
-    "baseCapabilities": "Base bundle features"
+    "baseCapabilities": "Base bundle features",
+    "none": "No release yet. Approve policies, then use “Prepare release” to make the first one."
   },
   "health": {
     "title": "System health",
@@ -1079,7 +1086,7 @@
     "enabled": "Two-step verification is enabled",
     "disabled": "Two-step verification is disabled",
     "remaining": "{{count}} recovery codes remaining",
-    "unavailable": "An administrator must configure secure MFA storage before enrollment.",
+    "unavailable": "Two-step verification cannot be set up yet: an administrator must configure the MFA storage key (auth.local.mfa_key_file in config.yaml, flag -local-mfa-key-file) and restart the control plane.",
     "revokeWarning": "Enabling MFA or changing recovery protection signs out your other sessions.",
     "password": "Current password",
     "begin": "Set up authenticator",
@@ -1295,5 +1302,10 @@
       "other": "Other content type"
     },
     "reviewDraft": "Review draft and replay"
+  },
+  "scope": {
+    "noApplications": "There is no application yet, so this page has nothing to show.",
+    "createApplication": "Create an application",
+    "choose": "Choose an application and an environment to see its data."
   }
 }

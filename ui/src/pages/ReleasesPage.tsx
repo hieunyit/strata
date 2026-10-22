@@ -69,8 +69,9 @@ export const ReleasesPage:React.FC=()=>{
  const create=async()=>{if(busy)return;setBusy(true);setError(false);try{const out=await apiClient.createRelease(requestId.current);requestId.current=crypto.randomUUID();await releases.refresh();setSelected(out.release.id);}catch(e){setError(true);setDetails(precondition(e));}finally{setBusy(false);}};
  return <PageShell active="releases"><PageHeader title={t('releases.title')} description={t('releases.subtitle')} actions={(roles.includes('operator')||roles.includes('admin'))&&<button className="btn" disabled={busy} onClick={()=>void create()}>{t('releases.prepare')}</button>}/>
  <ErrorBanner message={releases.error||(error?(details?t('releases.precondition',{details}):t('releases.writeFailed')):undefined)}/>
- <div className="flex gap-4 mb-4"><a href="#/policies">{t('releases.editPolicies')}</a><a href="#/reviews">{t('releases.reviewPolicies')}</a></div>
+ <div className="flex gap-4 mb-4 text-[13px]"><a className="text-accent underline" href="#/policies">{t('releases.editPolicies')}</a><a className="text-accent underline" href="#/reviews">{t('releases.reviewPolicies')}</a></div>
  <div className="grid gap-4 lg:grid-cols-3"><section className="panel p-4 space-y-2">
+ {releases.data&&releases.data.releases.length===0&&!cursor&&<p className="text-[13px] text-muted" data-testid="releases-empty">{t('releases.none')}</p>}
  {releases.data?.releases.map(r=><button className="btn w-full text-left break-all" key={r.id} onClick={()=>setSelected(r.id)}>{r.id} · {t(`releases.state.${r.state}`)}</button>)}
  {cursor&&<button className="btn" onClick={()=>setCursor('')}>{t('applications.first')}</button>}{releases.data?.next_cursor&&<button className="btn" onClick={()=>setCursor(releases.data!.next_cursor)}>{t('applications.moreButton')}</button>}
  </section><div className="lg:col-span-2">{selected&&<Detail key={selected} id={selected} select={setSelected} changed={()=>void releases.refresh()}/>}</div></div>

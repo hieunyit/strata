@@ -24,7 +24,13 @@
     "rules": "Rule & gói rule",
     "exceptions": "Exception",
     "operations": "Cảnh báo và báo cáo",
-    "discovery": "Khám phá API"
+    "discovery": "Khám phá API",
+    "group": {
+      "monitor": "Giám sát",
+      "protect": "Bảo vệ",
+      "operate": "Vận hành",
+      "admin": "Quản trị"
+    }
   },
   "header": {
     "searchLabel": "Tra Block ID",
@@ -964,7 +970,8 @@
     },
     "precondition": "Điều kiện triển khai chưa đạt: {{details}}",
     "capabilities": "Capability node cần có",
-    "baseCapabilities": "Tính năng bundle cơ bản"
+    "baseCapabilities": "Tính năng bundle cơ bản",
+    "none": "Chưa có release nào. Duyệt policy rồi bấm “Chuẩn bị release” để tạo bản đầu tiên."
   },
   "health": {
     "title": "Sức khỏe hệ thống",
@@ -1073,7 +1080,7 @@
     "enabled": "Đã bật xác minh hai bước",
     "disabled": "Chưa bật xác minh hai bước",
     "remaining": "Còn {{count}} mã khôi phục",
-    "unavailable": "Quản trị viên cần cấu hình kho MFA an toàn trước khi thiết lập.",
+    "unavailable": "Chưa bật được xác thực hai bước: quản trị viên cần cấu hình khóa lưu MFA (auth.local.mfa_key_file trong config.yaml, cờ -local-mfa-key-file) rồi khởi động lại control plane.",
     "revokeWarning": "Bật MFA hoặc thay đổi mã khôi phục sẽ đăng xuất các phiên khác của bạn.",
     "password": "Mật khẩu hiện tại",
     "begin": "Thiết lập ứng dụng xác thực",
@@ -1289,5 +1296,10 @@
       "other": "Content type khác"
     },
     "reviewDraft": "Xem bản nháp và replay"
+  },
+  "scope": {
+    "noApplications": "Chưa có ứng dụng nào, nên trang này chưa có gì để hiển thị.",
+    "createApplication": "Tạo ứng dụng",
+    "choose": "Chọn ứng dụng và môi trường để xem dữ liệu."
   }
 }
