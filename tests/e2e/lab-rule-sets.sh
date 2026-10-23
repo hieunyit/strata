@@ -13,11 +13,11 @@
 #   4. Rollback: the version before is deployed again (same spec as
 #      before the drill); the scanner passes again.
 #
-# Tokens are asked for with the passwords on curl's standard input, never
-# on its command line.
+# Tokens are asked for with the passwords read from the env file and sent
+# on curl's standard input, never on a command line or in an environment.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-lab="$here/../../deploy/lab"
+lab="${LAB_DIR:-$here/../../deploy/lab}" # the checkout whose lab runs
 # shellcheck disable=SC1091
 . "$lab/.state/env"
 CP=http://127.0.0.1:18090
@@ -27,16 +27,22 @@ browser='Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0'
 fail() { echo "lab-rule-sets: FAIL: $*" >&2; exit 1; }
 step() { echo "lab-rule-sets $(date -u +%H:%M:%S): $*"; }
 
-token() { # user password-variable
-    { printf 'grant_type=password&client_id=strata-lab-cli&username=%s&client_secret=' "$1"
-      python3 -c 'import os,sys,urllib.parse; sys.stdout.write(urllib.parse.quote(os.environ["S"], safe="") + "&password=" + urllib.parse.quote(os.environ["P"], safe=""))'
-    } | curl -fsS http://127.0.0.1:18180/realms/strata/protocol/openid-connect/token --data @- |
+# token <user> <password variable>: python reads the client secret and the
+# password from the lab's env file itself and sends the form on curl's
+# standard input: no secret on a command line or in an environment.
+token() {
+    python3 - "$lab/.state/env" "$1" "$2" <<'PY' | curl -fsS http://127.0.0.1:18180/realms/strata/protocol/openid-connect/token --data @- |
+import sys, urllib.parse
+env = dict(l.rstrip("\n").split("=", 1) for l in open(sys.argv[1]) if "=" in l and not l.startswith("#"))
+q = lambda v: urllib.parse.quote(v, safe="")
+sys.stdout.write("grant_type=password&client_id=strata-lab-cli&client_secret=" + q(env["LAB_CLI_SECRET"]) +
+                 "&username=" + q(sys.argv[2]) + "&password=" + q(env[sys.argv[3]]))
+PY
         sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
 }
-# the secrets reach python through its environment only, not argv
-TOKEN=$(S="$LAB_CLI_SECRET" P="$LAB_ADMIN_PASSWORD" token lab-admin)
+TOKEN=$(token lab-admin LAB_ADMIN_PASSWORD)
 [ -n "$TOKEN" ] || fail "no token for lab-admin"
-APPROVER=$(S="$LAB_CLI_SECRET" P="$LAB_APPROVER_PASSWORD" token lab-approver)
+APPROVER=$(token lab-approver LAB_APPROVER_PASSWORD)
 [ -n "$APPROVER" ] || fail "no token for lab-approver"
 api() { curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
 json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -63,8 +69,11 @@ replay_done() { # policy version: prints the replay operation
 }
 deploy_wait() { # deploys example-api, waits for the rollout; prints the bundle version
     local out ro st start=$SECONDS
-    out=$(api -X POST "$CP/v1/policies/example-api:deploy" -d '{}')
-    ro=$(json "d['rollout_id']" <<<"$out")
+    out=$(curl -sS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X POST "$CP/v1/policies/example-api:deploy" -d '{}')
+    ro=$(json "d.get('rollout_id', '')" <<<"$out" 2>/dev/null || true)
+    # e.g. the replay gate: another policy's approved version was replayed
+    # with inputs that changed since (rebuilt lab): replay and approve it again
+    [ -n "$ro" ] || fail "deploy refused: $out"
     until st=$(api "$CP/v1/rollouts/$ro" | json "d['rollout']['state']") && [ "$st" = DONE ]; do
         case "$st" in FAILED|ABORTED) fail "rollout $ro: $st: $(api "$CP/v1/rollouts/$ro")" ;; esac
         [ $((SECONDS - start)) -lt 120 ] || fail "rollout $ro not done in 120 s ($st)"
