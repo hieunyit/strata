@@ -57,6 +57,9 @@ var (
 )
 
 func main() {
+	// the configured rule catalog, for the replay runner started before it
+	// is loaded
+	var replayCatalog atomic.Pointer[ruleinventory.Catalog]
 	addr := flag.String("addr", ":8080", "REST listen address (admin and event API)")
 	inMemory := flag.Bool("in-memory", false, "Keep events in memory instead of ClickHouse (development)")
 	chAddr := flag.String("clickhouse-addr", "127.0.0.1:9000", "ClickHouse native protocol address")
@@ -479,6 +482,13 @@ func main() {
 				d.VerifyReplay = (replay.Gate{Store: pg}).Check
 				stagingWriter = &policy.StagingDeployer{Store: pg, Compiler: d.Builder.(*policy.Compiler), Objects: objects, PubKey: pub, VerifySource: (replay.Gate{Store: pg}).CheckStaging}
 				runner := &replay.Runner{Prepare: d.Builder.(*policy.Compiler).Prepare, Store: pg, Deployable: pg.DeployablePolicies, Build: replay.ReplayBuilder(*d.Builder.(*policy.Compiler)),
+					Catalog: func() *rulecat.Catalog { // RS-5: rules whose action a draft changes
+						if c := replayCatalog.Load(); c != nil {
+							v, _, _ := c.Current()
+							return v
+						}
+						return nil
+					},
 					Baseline: bundleInForce(pg, objects, pub), BaselinePub: pub, Samples: objects,
 					Corpus: *replayCorpus, Binary: *replayBin, Threads: *replayThreads, Timeout: *replayTimeout}
 				if err := runner.Init(); err != nil {
@@ -526,6 +536,7 @@ func main() {
 	var ruleInventory *ruleinventory.Catalog
 	if pg != nil {
 		ruleInventory = &ruleinventory.Catalog{Store: pg, Paths: strings.Split(*rulesFlag, ",")}
+		replayCatalog.Store(ruleInventory)
 		if err := ruleInventory.Refresh(ctx); err != nil {
 			log.Print("[WARN] configured rule catalog unavailable")
 		}

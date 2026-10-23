@@ -114,7 +114,7 @@ rules:
           operator: { type: pm, value: [sqlmap, nikto, nuclei, masscan] }
     score: 20
     severity: warning
-    metadata: { source: crawler-user-agents, upstream_id: scanners, upstream_version: "2026-09-01", license: MIT, author: crawler-user-agents contributors, attack_type: scanner }
+    metadata: { source: crawler-user-agents, upstream_id: scanners, upstream_version: "2026-09-01", license: MIT, author: crawler-user-agents contributors, attack_type: scanner, tags: [scanner] }
 
   - id: 800001
     name: Admin path outside the office network

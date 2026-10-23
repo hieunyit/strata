@@ -125,7 +125,18 @@ func operationPB(ctx context.Context, o store.Operation) *adminv1.Operation {
 func reportPB(r replay.Report, examples bool) *adminv1.ReplayReport {
 	return &adminv1.ReplayReport{InputDigest: r.InputDigest, DraftSha256: r.DraftSHA256, BaselineSha256: r.BaselineSHA256, ReplaySha256: r.ReplaySHA256, SampleSha256: r.SampleSHA256, Samples: r.Samples(), ElapsedMs: r.ElapsedMs, BaselineBundle: r.BaselineBundle,
 		SampleFiles: uint32(r.SampleFiles), SampleBytes: uint64(r.SampleBytes), Truncated: r.Truncated,
-		Traffic: comparisonPB(r.Traffic, examples), Corpus: comparisonPB(r.Corpus, examples)}
+		Traffic: comparisonPB(r.Traffic, examples), Corpus: comparisonPB(r.Corpus, examples), RuleActions: ruleActionsPB(r.RuleActions)}
+}
+
+func ruleActionsPB(x *replay.RuleActions) *adminv1.ReplayRuleActions {
+	if x == nil {
+		return nil
+	}
+	out := &adminv1.ReplayRuleActions{Changed: uint32(x.Changed)}
+	for _, c := range x.Rules {
+		out.Rules = append(out.Rules, &adminv1.ReplayRuleActionChange{Rule: c.Rule, Name: c.Name, From: c.From, To: c.To, Source: c.Source, Set: c.Set})
+	}
+	return out
 }
 
 func comparisonPB(x *replay.Route, examples bool) *adminv1.ReplayComparison {

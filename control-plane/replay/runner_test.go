@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/strata/strata/control-plane/policy"
+	"github.com/strata/strata/control-plane/ruleactions"
+	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -276,4 +279,53 @@ func TestRunnerKick(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+// RS-5: the report lists the rules whose action the draft changes against
+// the version in force, whatever the traffic.
+func TestRunnerListsRuleActionChanges(t *testing.T) {
+	r, ops, _ := newRunner(t)
+	dir := t.TempDir()
+	f := filepath.Join(dir, "rules.yaml")
+	ir := `ir_version: 1
+ruleset: { name: example, version: "1" }
+rules:
+  - { id: 500100, name: Known scanner user agent, layer: managed, metadata: { source: crawler-user-agents, attack_type: scanner, tags: [scanner] } }
+  - { id: 942100, name: SQL injection via libinjection, layer: managed, metadata: { source: crs, attack_type: sql-injection } }
+`
+	if err := os.WriteFile(f, []byte(ir), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := rulecat.Load([]string{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Catalog = func() *rulecat.Catalog { return c }
+	// in force: scanners logged (version 1); the draft blocks them and
+	// switches 942100 off
+	r.Deployable = func(context.Context) ([]store.Policy, error) {
+		return []store.Policy{{ID: "example-api", Name: "example-api", CurrentVersion: 1,
+			Spec: json.RawMessage(`{"mode":"enforce","rule_sets":[{"set":"bots-scanners","action":"log"}]}`)}}, nil
+	}
+	ops.versions[2] = json.RawMessage(`{"mode":"enforce","rule_sets":[{"set":"bots-scanners","action":"block"}],"rule_overrides":[{"rule":942100,"action":"off","reason":"FP"}]}`)
+	ops.queue = []store.Operation{{ID: "op-ra", PolicyID: "example-api", Version: 2}}
+	r.RunOnce(context.Background())
+	var rep Report
+	if err := json.Unmarshal([]byte(ops.finished["op-ra"]), &rep); err != nil {
+		t.Fatalf("%v: %s", err, ops.finished["op-ra"])
+	}
+	want := []ruleactions.Change{
+		{Rule: 500100, Name: "Known scanner user agent", From: "log", To: "block", Source: "set", Set: "bots-scanners"},
+		{Rule: 942100, Name: "SQL injection via libinjection", From: "score", To: "off", Source: "override"},
+	}
+	if rep.RuleActions == nil || rep.RuleActions.Changed != 2 || !reflect.DeepEqual(rep.RuleActions.Rules, want) {
+		t.Fatalf("rule actions %+v", rep.RuleActions)
+	}
+	// without a catalog: none
+	r.Catalog = func() *rulecat.Catalog { return nil }
+	ops.queue = []store.Operation{{ID: "op-rb", PolicyID: "example-api", Version: 2}}
+	r.RunOnce(context.Background())
+	if strings.Contains(ops.finished["op-rb"], "rule_actions") {
+		t.Fatalf("rule actions without a catalog: %s", ops.finished["op-rb"])
+	}
 }

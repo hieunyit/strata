@@ -784,7 +784,10 @@
       "RUNNING": "Running",
       "DONE": "Done",
       "FAILED": "Failed"
-    }
+    },
+    "ruleActions_one": "{{count}} rule changes action (from the configuration, whatever the traffic)",
+    "ruleActions_other": "{{count}} rules change action (from the configuration, whatever the traffic)",
+    "ruleActionsMore": "Only the first {{shown}} rules are shown."
   },
   "reviews": {
     "title": "Policy reviews",

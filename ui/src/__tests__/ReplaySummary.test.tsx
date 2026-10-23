@@ -36,4 +36,18 @@ describe('replay evidence', () => {
     view.rerender(<StaticAuthProvider roles={['approver']}><ReplaySummary operation={{ ...op, state: 'FAILED', error: 'private-path' }} /></StaticAuthProvider>);
     expect(screen.getByRole('alert')).toHaveTextContent('Replay failed'); expect(screen.queryByText('private-path')).not.toBeInTheDocument();
   });
+  // RS-5: rules whose action the draft changes, whatever the traffic
+  it('lists the rules whose action changes', async () => {
+    await i18n.changeLanguage('en');
+    show({ ...op, replay: { ...op.replay, rule_actions: { changed: 3, rules: [
+      { rule: 500100, name: 'Known scanner user agent', from: 'log', to: 'block', source: 'set', set: 'bots-scanners' },
+      { rule: 942100, name: 'SQL injection', from: 'score', to: 'off', source: 'override' },
+    ] } } });
+    const list = screen.getByTestId('replay-rule-actions');
+    expect(list).toHaveTextContent('3 rules change action');
+    expect(list).toHaveTextContent('log → block');
+    expect(list).toHaveTextContent('bots-scanners');
+    expect(list).toHaveTextContent('score → off');
+    expect(list).toHaveTextContent('Only the first 2 rules are shown.');
+  });
 });
