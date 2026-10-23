@@ -2667,9 +2667,56 @@
           "items": {
             "type": "string"
           }
+        },
+        "rule_actions": {
+          "$ref": "#/definitions/v1ReplayRuleActions",
+          "description": "RS-5: rules of the configured catalog whose action the draft changes\nagainst the version in force (rule sets, overrides, paranoia levels),\nwhatever the traffic; absent without a catalog."
         }
       },
       "description": "What the draft changes against the bundle in force (engine/replay\ncompare, W12-R-01): on the policy's traffic samples of the last 7 days,\nand on the benign and attack corpus, apart."
+    },
+    "v1ReplayRuleActionChange": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string",
+          "title": "off, log, block or score (adds to the anomaly score)"
+        },
+        "to": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "title": "what gives \"to\": rule, paranoia, set or override; and the set"
+        },
+        "set": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ReplayRuleActions": {
+      "type": "object",
+      "properties": {
+        "changed": {
+          "type": "integer",
+          "format": "int64",
+          "title": "all the rules whose action changes; rules lists the first 200"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ReplayRuleActionChange"
+          }
+        }
+      }
     },
     "v1ReplaySampling": {
       "type": "object",

@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/strata/strata/control-plane/policy"
+	"github.com/strata/strata/control-plane/ruleactions"
+	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/store"
 )
 
@@ -53,6 +55,18 @@ type Report struct {
 	// benign and attack corpus (nil without one).
 	Traffic *Route `json:"traffic,omitempty"`
 	Corpus  *Route `json:"corpus,omitempty"`
+	// RuleActions (RS-5): the rules of the configured catalog whose action
+	// the draft changes against the version in force (rule sets,
+	// overrides, paranoia levels), whatever the traffic; nil without a
+	// catalog.
+	RuleActions *RuleActions `json:"rule_actions,omitempty"`
+}
+
+// RuleActions: rules whose action changes, the first ruleactions.MaxChanges
+// of them by Rule ID, and how many in all.
+type RuleActions struct {
+	Changed int                  `json:"changed"`
+	Rules   []ruleactions.Change `json:"rules"`
 }
 
 // Samples replayed, traffic and corpus.
@@ -130,6 +144,9 @@ type Runner struct {
 	Baseline    func(ctx context.Context) ([]byte, uint64, error)
 	BaselinePub []byte
 	Samples     SampleObjects // nil: corpus only
+	// Catalog: the configured rule catalog, nil while unavailable (no
+	// rule action changes in the report).
+	Catalog func() *rulecat.Catalog
 	// Corpus: a sample file made by strata-replay gen from the benign and
 	// attack corpus; "": none.
 	Corpus  string
@@ -297,6 +314,19 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 	if !found { // a policy no deploy has taken yet
 		draft = append(draft, policy.Named{ResourceID: p.ID, Version: op.Version, Name: p.Name, Spec: draftSpec})
 	}
+	rep := &Report{}
+	if r.Catalog != nil {
+		if c := r.Catalog(); c != nil {
+			from := ruleactions.Draft{}
+			for _, x := range base {
+				if x.ResourceID == p.ID {
+					from = ruleactions.Of(x.Spec)
+				}
+			}
+			rules, n := ruleactions.Changes(c, from, ruleactions.Of(draftSpec))
+			rep.RuleActions = &RuleActions{Changed: n, Rules: rules}
+		}
+	}
 	sort.Slice(draft, func(i, j int) bool { return draft[i].Name < draft[j].Name })
 	sort.Slice(base, func(i, j int) bool { return base[i].Name < base[j].Name })
 
@@ -313,7 +343,6 @@ func (r *Runner) replay(ctx context.Context, op store.Operation) (*Report, error
 	if err := os.WriteFile(pub, r.key.Public().(ed25519.PublicKey), 0o600); err != nil {
 		return nil, err
 	}
-	rep := &Report{}
 	var data []byte
 	buildBaseline := r.Build
 	if r.Prepare != nil {

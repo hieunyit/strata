@@ -12,6 +12,7 @@ import (
 	"github.com/strata/strata/control-plane/auth"
 	"github.com/strata/strata/control-plane/ingest"
 	"github.com/strata/strata/control-plane/policy"
+	"github.com/strata/strata/control-plane/ruleactions"
 	"github.com/strata/strata/control-plane/rulecat"
 	"github.com/strata/strata/control-plane/rulesets"
 )
@@ -71,7 +72,7 @@ func (s *Server) currentCatalog() *rulecat.Catalog {
 }
 
 func inSet(set rulesets.Set, c *rulecat.Catalog, e rulecat.Entry) bool {
-	return set.Match.Matches(e.ID, e.Source, e.AttackType, c.Tags(e.ID))
+	return ruleactions.InSet(set, c, e)
 }
 
 func (s *Server) ruleSetList(w http.ResponseWriter, r *http.Request) {
@@ -222,46 +223,10 @@ type EffectiveRule struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// effective: what rule e does under d, as the engine runs it (RS-1): the
-// paranoia level first (above the run level: not run; above the enforced
-// level: log, unless an override says off), then the overrides, then the
-// sets (a later one wins), then the rule's own behaviour.
+// effective: what rule e does under d (ruleactions.Resolve).
 func effective(c *rulecat.Catalog, e rulecat.Entry, d RuleActionsDraft) EffectiveRule {
-	out := EffectiveRule{RuleSetRule: RuleSetRule{Entry: e, Tags: c.Tags(e.ID)}, Own: "score", Source: "rule"}
-	if e.Pack == "signature" {
-		out.Own = "log"
-	}
-	enforce := max(d.CRSParanoia, 1)
-	run := max(d.CRSParanoiaShadow, enforce)
-	switch {
-	case e.Paranoia > run:
-		out.Own, out.Source = "off", "paranoia"
-	case e.Paranoia > enforce:
-		out.Own, out.Source = "log", "paranoia"
-	}
-	out.Action = out.Own
-	chosen, source, set, reason := "default", "", "", ""
-	for _, r := range d.RuleSets {
-		def, ok := rulesets.Get(r.Set)
-		if r.Match != nil {
-			def, ok = rulesets.Set{Name: r.Set, Match: *r.Match}, true
-		}
-		if ok && inSet(def, c, e) {
-			chosen, source, set = r.Action, "set", r.Set
-		}
-	}
-	for _, o := range d.RuleOverrides {
-		if o.Rule == e.ID {
-			chosen, source, set, reason = o.Action, "override", "", o.Reason
-		}
-	}
-	// a rule its level does not run stays off; one it runs in shadow can
-	// still be switched off, not made to block
-	if chosen == "default" || (out.Source == "paranoia" && (out.Own == "off" || chosen != "off")) {
-		return out
-	}
-	out.Action, out.Source, out.Set, out.Reason = chosen, source, set, reason
-	return out
+	r := ruleactions.Resolve(c, e, ruleactions.Draft{CRSParanoia: d.CRSParanoia, CRSParanoiaShadow: d.CRSParanoiaShadow, RuleSets: d.RuleSets, RuleOverrides: d.RuleOverrides})
+	return EffectiveRule{RuleSetRule: RuleSetRule{Entry: e, Tags: c.Tags(e.ID)}, Action: r.Action, Own: r.Own, Source: r.Source, Set: r.Set, Reason: r.Reason}
 }
 
 // ruleSetResolve: POST /v1/rule-sets:resolve?q=&after=&changed=1, the
@@ -323,8 +288,8 @@ func (s *Server) ruleSetResolve(w http.ResponseWriter, r *http.Request) {
 	counts := map[string]int{"off": 0, "log": 0, "block": 0, "score": 0}
 	total, next := 0, uint32(0)
 	for _, e := range catalog.Entries() {
-		if e.Plugin != "" {
-			continue // CRS plugin exclusions, not detection rules
+		if !ruleactions.Detection(e) {
+			continue // CRS plugin exclusions
 		}
 		eff := effective(catalog, e, d)
 		counts[eff.Action]++

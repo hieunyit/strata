@@ -910,6 +910,26 @@ export interface components {
       baseline_sha256?: string;
       replay_sha256?: string;
       sample_sha256?: string[];
+      rule_actions?: components["schemas"]["v1ReplayRuleActions"];
+    };
+    v1ReplayRuleActionChange: {
+      /** Format: int64 */
+      rule?: number;
+      name?: string;
+      /** off, log, block or score (adds to the anomaly score) */
+      from?: string;
+      to?: string;
+      /** what gives "to": rule, paranoia, set or override; and the set */
+      source?: string;
+      set?: string;
+    };
+    v1ReplayRuleActions: {
+      /**
+       * all the rules whose action changes; rules lists the first 200
+       * Format: int64
+       */
+      changed?: number;
+      rules?: components["schemas"]["v1ReplayRuleActionChange"][];
     };
     v1ReplaySampling: {
       group_id?: string;

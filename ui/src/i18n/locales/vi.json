@@ -778,7 +778,10 @@
       "RUNNING": "Đang chạy",
       "DONE": "Hoàn tất",
       "FAILED": "Thất bại"
-    }
+    },
+    "ruleActions_one": "{{count}} rule đổi action (theo cấu hình, không phụ thuộc traffic)",
+    "ruleActions_other": "{{count}} rule đổi action (theo cấu hình, không phụ thuộc traffic)",
+    "ruleActionsMore": "Chỉ hiện {{shown}} rule đầu."
   },
   "reviews": {
     "title": "Duyệt policy",

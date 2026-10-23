@@ -69,6 +69,18 @@ export const ReplaySummary: React.FC<{ operation?: Operation; unavailable?: bool
       <p>{t('replay.baseline', { bundle: count(op.replay.baseline_bundle) })}</p>
       {op.replay.truncated && <p role="alert">{t('replay.truncated')}</p>}
       <p className="text-muted">{t('replay.candidates')}</p>
+      {/* RS-5: what the draft changes in the rules' actions, whatever the traffic */}
+      {op.replay.rule_actions && <section className="panel p-3 min-w-0" data-testid="replay-rule-actions">
+        <h3 className="font-semibold">{t('replay.ruleActions', { count: op.replay.rule_actions.changed ?? 0 })}</h3>
+        {(op.replay.rule_actions.rules?.length ?? 0) > 0 && <ul className="mt-2 max-h-64 overflow-y-auto">
+          {op.replay.rule_actions.rules?.map((c) => <li key={c.rule} className="flex flex-wrap gap-x-2 py-0.5">
+            <code>{c.rule}</code><span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
+            <span>{t(`editor.ruleSets.effective.${c.from}`)} → <strong className={c.to === 'block' ? 'text-block' : undefined}>{t(`editor.ruleSets.effective.${c.to}`)}</strong></span>
+            <span className="text-muted">{c.source === 'set' ? c.set : t(`editor.ruleSets.source.${c.source}`)}</span>
+          </li>)}
+        </ul>}
+        {(op.replay.rule_actions.changed ?? 0) > (op.replay.rule_actions.rules?.length ?? 0) && <p className="text-muted">{t('replay.ruleActionsMore', { shown: op.replay.rule_actions.rules?.length ?? 0 })}</p>}
+      </section>}
       <div className="grid gap-3 md:grid-cols-2">{comparison('traffic', op.replay.traffic)}{comparison('corpus', op.replay.corpus)}</div>
       <details><summary>{t('replay.provenance')}</summary><dl className="space-y-2">
         {(['input_digest', 'draft_sha256', 'baseline_sha256', 'replay_sha256'] as const).map(key => <div key={key}><dt>{t(`replay.${key}`)}</dt><dd className="font-mono text-xs break-all">{op.replay?.[key] || '—'}</dd></div>)}

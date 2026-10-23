@@ -52,6 +52,27 @@ message ReplayReport {
   string baseline_sha256 = 11;
   string replay_sha256 = 12;
   repeated string sample_sha256 = 13;
+  // RS-5: rules of the configured catalog whose action the draft changes
+  // against the version in force (rule sets, overrides, paranoia levels),
+  // whatever the traffic; absent without a catalog.
+  ReplayRuleActions rule_actions = 14;
+}
+
+message ReplayRuleActions {
+  // all the rules whose action changes; rules lists the first 200
+  uint32 changed = 1;
+  repeated ReplayRuleActionChange rules = 2;
+}
+
+message ReplayRuleActionChange {
+  uint32 rule = 1;
+  string name = 2;
+  // off, log, block or score (adds to the anomaly score)
+  string from = 3;
+  string to = 4;
+  // what gives "to": rule, paranoia, set or override; and the set
+  string source = 5;
+  string set = 6;
 }
 
 message ReplayComparison {
